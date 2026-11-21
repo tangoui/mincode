@@ -10,7 +10,6 @@ import {
   onMounted,
   ref,
   shallowRef,
-  toRaw,
   watch,
 } from "vue";
 import { storeToRefs } from "pinia";
@@ -62,14 +61,7 @@ import HttpSocketIOPanel from "@/components/http/HttpSocketIOPanel.vue";
 import { serializeCurlCommand, type ParsedCurlRequest } from "@/domain/http/curl";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
 import { contextMenuAnchor } from "@/components/ui/app-context-menu";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
-import PluginServiceMenuItems from "@/components/plugins/PluginServiceMenuItems.vue";
-import { isSensitiveHeader, isSensitiveKey } from "@/domain/http/code-generator-model";
-import type { HttpResponseServiceTarget } from "@/domain/plugins/service-surfaces";
-import { servicesForSurface } from "@/domain/plugins/services";
-import { pluginServices } from "@/services/plugin-services";
-import { usePluginMenuTarget } from "@/composables/use-plugin-menu-target";
 import { buildNativeHttpRequestPayload } from "@/domain/http/native-request";
 import {
   formatJsonResponseBody,
@@ -91,6 +83,7 @@ import {
   moveHttpCollection,
   moveSavedHttpRequest,
   resolveHttpRequestEnvironment,
+  uniqueCollectionName,
   type HttpAuthType,
   type HttpBodyField,
   type HttpBodyFieldType,
@@ -112,18 +105,8 @@ import { chooseApiDocumentFile, saveApiDocumentFile } from "@/services/http-api-
 import { chooseHttpRequestUploadFile } from "@/services/http-request-file-service";
 import type { HttpEnvironment } from "@/domain/http/resources";
 import { useHttpResourcesStore } from "@/stores/http-resources";
-// pluginContrib.httpCollections: read-only plugin templates; import copies, drafts never send.
-import HttpPluginTemplatesPanel from "@/components/http/HttpPluginTemplatesPanel.vue";
 // 响应体可能有几 MB、几十万行：只把可见行放进 DOM，见 VirtualTextViewer。
 import VirtualTextViewer from "@/components/ui/VirtualTextViewer.vue";
-import {
-  templateRequestToDraft,
-  templateToHttpCollection,
-  uniqueCollectionName,
-  type PluginHttpCollection,
-  type PluginHttpRequestTemplate,
-} from "@/domain/http/plugin-collections";
-import { useHttpPluginTemplatesStore } from "@/stores/http-plugin-templates";
 
 // Markdown responses are rendered on demand; loading the renderer lazily keeps it out of this view's startup chunk.
 const MarkdownPreview = defineAsyncComponent(() => import("@/components/ui/MarkdownPreview.vue"));
@@ -209,7 +192,7 @@ interface StoredHttpState {
 const SIDEBAR_WIDTH_KEY = "app_http_sidebar_width";
 const SIDEBAR_COLLAPSED_KEY = "app_http_sidebar_collapsed";
 const REQUEST_HEIGHT_KEY = "app_http_request_height";
-const { t, te, localeChain } = useVueI18n();
+const { t, te } = useVueI18n();
 const linkedNotes = useLinkedNotesDrawer();
 const workspaceStateScope = useWorkspaceStateScope();
 const workspaceScopeId = workspaceStateScope.capture().scopeId;
@@ -558,21 +541,13 @@ const responseVisible = computed(() => Boolean(activeTab.value.response || activ
 const sendShortcutKey = currentKeyboardPlatform() === "mac" ? "⌘" : "Ctrl";
 const environmentManagerVisible = ref(false);
 const environmentManagerCollection = ref<HttpRequestCollection>();
-type HttpSidebarTab = "collections" | "history" | "environments" | "templates";
+type HttpSidebarTab = "collections" | "history" | "environments";
 const sidebarTab = ref<HttpSidebarTab>("collections");
-const { templates: pluginTemplates } = storeToRefs(useHttpPluginTemplatesStore());
 const sidebarTabs = computed(() => [
   { value: "collections" as const, label: t("http.collectionsTab") },
   { value: "history" as const, label: t("http.history") },
   { value: "environments" as const, label: t("http.environments") },
-  // The plugin templates tab exists only while an enabled plugin contributes templates.
-  ...(pluginTemplates.value.length
-    ? [{ value: "templates" as const, label: t("pluginContrib.httpCollections.tab") }]
-    : []),
 ]);
-watch(pluginTemplates, (value) => {
-  if (!value.length && sidebarTab.value === "templates") sidebarTab.value = "collections";
-});
 const collectionSearch = ref("");
 // 纯过滤逻辑在 domain 层；搜索时强制展开命中链路，清空后回到用户自己的展开状态。
 const collectionFilter = computed(() =>
@@ -886,9 +861,7 @@ function handleTabContextCommand(command: string) {
   }
 }
 
-// Saved request context menu: Open, Rename and Delete (same as the row's inline buttons) plus plugin
-// items (contributes.menus http/request/context). The row is looked up in the live collections, so the
-// actions and the plugin target use what the sidebar shows; a request that disappears closes the menu.
+// Look up the current row so the menu closes when its request disappears.
 const requestMenu = ref<{ collectionId: string; requestId: string; x: number; y: number } | null>(null);
 const requestMenuEntry = computed(() => {
   const menu = requestMenu.value;
@@ -910,15 +883,6 @@ function requestRowVisible(collectionId: string, requestId: string): boolean {
     );
   return shown(visibleCollections.value);
 }
-const { host: requestPluginMenuHost, context: requestPluginMenuContext } = usePluginMenuTarget("http/request/context", () => {
-  const entry = requestMenuEntry.value;
-  return entry
-    ? {
-        collection: { id: entry.collection.id, name: entry.collection.name },
-        request: { id: entry.request.id, name: entry.request.name, method: entry.request.method, url: entry.request.url },
-      }
-    : null;
-});
 watch(requestMenuEntry, (entry) => {
   if (!entry) requestMenu.value = null;
 });
@@ -1076,12 +1040,10 @@ async function send() {
   const controller = new AbortController();
   pendingRequests.set(tab.id, controller);
   tab.loading = true;
-  const sent = { method: tab.method, url: tab.url, secrets: requestSecrets(tab) };
   try {
     const response = await invokeBackend<ResponseData>("http_send_request", {
       payload: buildNativeHttpRequestPayload(tab, expandVariables),
     }, { signal: controller.signal });
-    sentRequests.set(response, sent);
     tab.response = response;
     if (shouldAutoNameRequestTab(tab)) {
       tab.name = requestUrlTabName(tab.url);
@@ -1106,96 +1068,6 @@ async function send() {
     }
   }
 }
-
-/**
- * The request a response answered (method, address as typed, credential
- * values as typed and as expanded), kept beside the response object: plugin
- * services see the response of that request even after the tab was edited.
- */
-const sentRequests = new WeakMap<ResponseData, { method: string; url: string; secrets: string[] }>();
-
-/**
- * The request's credential values: response headers that echo one are
- * withheld from plugin services. Auth fields, sensitive request headers, and
- * query parameters with a sensitive name (`?token=…`), from the params table
- * and the address itself, each as typed and expanded.
- */
-function requestSecrets(tab: RequestTab): string[] {
-  const queryValues = (url: string) => {
-    const query = url.indexOf("?");
-    if (query < 0) return [];
-    const hash = url.indexOf("#", query);
-    const search = url.slice(query + 1, hash < 0 ? undefined : hash);
-    // Decoded (URLSearchParams) and as written in the address (percent-encoded), since a header may echo either.
-    const decoded = [...new URLSearchParams(search)].filter(([key]) => isSensitiveKey(key)).map(([, value]) => value);
-    const raw = search.split("&").flatMap((pair) => {
-      const equals = pair.indexOf("=");
-      if (equals < 0) return [];
-      let key = pair.slice(0, equals);
-      try {
-        key = decodeURIComponent(key.replace(/\+/g, " "));
-      } catch {
-        // A malformed escape: match the key as written.
-      }
-      return isSensitiveKey(key) ? [pair.slice(equals + 1)] : [];
-    });
-    return [...decoded, ...raw];
-  };
-  const values = [
-    tab.authToken,
-    tab.authPassword,
-    tab.apiKeyValue,
-    tab.oauth2ClientSecret,
-    tab.oauth2Password,
-    tab.oauth2AccessToken,
-    ...tab.headers.filter((row) => row.enabled && isSensitiveHeader(row.key)).map((row) => row.value),
-    ...tab.params.filter((row) => row.enabled && isSensitiveKey(row.key)).map((row) => row.value),
-  ];
-  const expanded = values.flatMap((value) => [value, expandVariables(value)]);
-  return [...new Set([...expanded, ...queryValues(tab.url), ...queryValues(expandVariables(tab.url))].filter(Boolean))];
-}
-
-/** The active tab's response as a plugin-service target (httpResponse); null without a response. */
-function responseServiceTarget(): HttpResponseServiceTarget | null {
-  const tab = activeTab.value;
-  const response = tab.response;
-  if (!response) return null;
-  // Every response comes from send(), which records its request. Without that record the
-  // current tab may describe another request: name none, and filter headers by name and shape only.
-  const sent = sentRequests.get(toRaw(response));
-  return {
-    surface: "httpResponse",
-    response: {
-      status: response.status,
-      statusText: response.status_text,
-      contentType: response.headers.find(([name]) => name.trim().toLowerCase() === "content-type")?.[1] ?? "",
-      headers: response.headers,
-      body: response.body,
-      sizeBytes: response.size_bytes,
-      elapsedMs: response.elapsed_ms,
-    },
-    secrets: sent?.secrets ?? [],
-    ...(sent ? { request: { method: sent.method, url: sent.url } } : {}),
-  };
-}
-
-// The "Process with plugin" button shows only when a service takes this response (type and
-// size are checked, nothing is filtered or copied); the menu reads its target only while open.
-const responseServicesAvailable = computed(() => {
-  const target = responseServiceTarget();
-  return Boolean(target && servicesForSurface(pluginServices.value, target, localeChain.value).length);
-});
-const responseServicesOpen = ref(false);
-const responseServicesDropdown = ref<{ handleClose: () => void }>();
-function responseMenuTarget() {
-  return responseServicesOpen.value ? responseServiceTarget() : null;
-}
-/** Closes the response's service menu (another tab, leaving the view). */
-function closeResponseServices() {
-  responseServicesDropdown.value?.handleClose();
-  responseServicesOpen.value = false;
-}
-watch(activeTabId, closeResponseServices);
 
 function openHistory(item: HistoryItem) {
   const tab = createTab();
@@ -1612,53 +1484,6 @@ async function importCollection(target?: HttpRequestCollection) {
   }
 }
 
-// Copies a plugin template into a new top-level collection of the user's own
-// resources (fresh ids, no auth, no link to the plugin). Nothing is sent.
-async function importPluginTemplate(template: PluginHttpCollection) {
-  try {
-    await ElMessageBox.confirm(
-      t("pluginContrib.httpCollections.importConfirm", {
-        name: template.collection.name,
-        requests: template.counts.requests,
-        environments: template.counts.environments,
-      }),
-      t("pluginContrib.httpCollections.importConfirmTitle"),
-      {
-        confirmButtonText: t("pluginContrib.httpCollections.importAction"),
-        cancelButtonText: t("common.cancel"),
-        type: "info",
-      }
-    );
-  } catch {
-    return;
-  }
-  const collection = templateToHttpCollection(
-    template.collection,
-    id,
-    collections.value.map((item) => item.name),
-    Date.now(),
-    t("http.defaultEnvironment")
-  );
-  collections.value.push(collection);
-  expandedCollectionIds.value.add(collection.id);
-  sidebarTab.value = "collections";
-  ElMessage.success(t("pluginContrib.httpCollections.imported", { name: collection.name }));
-}
-
-// Opens one template request as a new unsaved tab; the user sends it explicitly.
-function openTemplateDraft(request: PluginHttpRequestTemplate) {
-  const tab = createTab();
-  const draft = templateRequestToDraft(request, id);
-  Object.assign(tab, {
-    ...draft,
-    params: draft.params.length ? draft.params : [emptyRow()],
-    headers: draft.headers.length ? draft.headers : [emptyRow()],
-    requestTab: draft.bodyType !== "none" ? "body" : draft.params.length ? "params" : "headers",
-  });
-  tabs.value.push(tab);
-  activeTabId.value = tab.id;
-}
-
 /** 导出时用所属顶级集合的当前环境展开 {{baseUrl}} 等服务器地址。 */
 function exportEnvironment(collection: HttpRequestCollection) {
   const topLevel = findTopLevelHttpCollection(collections.value, collection.id) ?? collection;
@@ -1986,9 +1811,8 @@ onActivated(registerAiHttpWorkspaceActions);
 onDeactivated(() => {
   unregisterAiHttpWorkspaceActions?.();
   unregisterAiHttpWorkspaceActions = undefined;
-  // KeepAlive'd: leaving the view must not leave the request menu (and its plugin target) open.
+  // KeepAlive'd: leaving the view closes the request menu.
   requestMenu.value = null;
-  closeResponseServices();
 });
 
 function persistRequestHeight(value: number) {
@@ -2009,7 +1833,6 @@ onMounted(async () => {
   ]);
 });
 onBeforeUnmount(() => {
-  responseServicesOpen.value = false;
   for (const controller of pendingRequests.values()) controller.abort();
   unregisterAiHttpWorkspaceActions?.();
   unregisterHttpWorkspaceFlusher();
@@ -2126,16 +1949,6 @@ onBeforeUnmount(() => {
               </el-button>
             </div>
           </div>
-        </el-scrollbar>
-      </section>
-
-      <section v-else-if="sidebarTab === 'templates'" class="http-sidebar-section http-sidebar-section--fills">
-        <el-scrollbar class="http-collection-list">
-          <HttpPluginTemplatesPanel
-            :templates="pluginTemplates"
-            @import="importPluginTemplate"
-            @open-draft="openTemplateDraft"
-          />
         </el-scrollbar>
       </section>
 
@@ -2319,12 +2132,6 @@ onBeforeUnmount(() => {
         <el-dropdown-item divided class="is-danger" @click="handleRequestMenuAction('delete')">
           {{ t("http.deleteRequest") }}
         </el-dropdown-item>
-        <PluginMenuItems
-          menu="http/request/context"
-          :host="requestPluginMenuHost"
-          :context="requestPluginMenuContext"
-          @run="requestMenu = null"
-        />
       </AppContextMenu>
         <el-button
           text
@@ -2785,28 +2592,6 @@ onBeforeUnmount(() => {
               </span>
               <span>{{ activeTab.response.elapsed_ms }} ms</span>
               <span>{{ formatResponseSizeLabel(activeTab.response.size_bytes) }}</span>
-              <el-dropdown
-                v-if="responseServicesAvailable"
-                ref="responseServicesDropdown"
-                trigger="click"
-                placement="bottom-end"
-                popper-class="http-response-plugin-menu"
-                @visible-change="responseServicesOpen = $event"
-              >
-                <el-button
-                  class="http-response-plugin-button"
-                  text
-                  size="small"
-                  :icon="MagicStick"
-                  :title="t('http.processWithPlugin')"
-                  :aria-label="t('http.processWithPlugin')"
-                />
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <PluginServiceMenuItems flat :target="responseMenuTarget" />
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
             </div>
           </div>
 

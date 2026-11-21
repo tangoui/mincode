@@ -12,7 +12,6 @@
 import { supportsDatabaseIndexMutations } from "./index-change-sql";
 import type { DbType } from "./types";
 import {
-  descriptorSupports,
   type DatabaseDriverDescriptor,
 } from "./driver-descriptor";
 
@@ -86,13 +85,11 @@ const UNSUPPORTED_CAPABILITIES: TableStructureCapabilities = {
 };
 
 // tableStructureCapabilities 返回指定数据库类型支持的表结构能力。
-// 传入插件驱动描述符时按其 metadata.* features 判断（dbType 仅作方言代表），
-// 索引变更还要求方言有已验证的 SQL 生成策略。
 export function tableStructureCapabilities(
   dbType?: DbType,
   descriptor?: DatabaseDriverDescriptor,
 ): TableStructureCapabilities {
-  if (descriptor?.source === "plugin") return pluginTableStructureCapabilities(descriptor);
+  if (descriptor?.available === false) return UNSUPPORTED_CAPABILITIES;
   if (dbType === "mongodb") return { ...UNSUPPORTED_CAPABILITIES, indexes: true };
   if (!dbType || !sqlExecutableTypes.has(dbType)) return UNSUPPORTED_CAPABILITIES;
   const mysqlLike = mysqlFamilyTypes.has(dbType);
@@ -113,21 +110,5 @@ export function tableStructureCapabilities(
     foreignKeys: relationalIntrospectable,
     triggers: triggerIntrospectable,
     schemaChangeSql: true,
-  };
-}
-
-function pluginTableStructureCapabilities(descriptor: DatabaseDriverDescriptor): TableStructureCapabilities {
-  const indexes = descriptorSupports(descriptor, "metadata.indexes");
-  const indexMutations = indexes && supportsDatabaseIndexMutations(descriptor.dialectType);
-  return {
-    ddl: descriptorSupports(descriptor, "metadata.ddl"),
-    indexes,
-    createIndexes: indexMutations,
-    editIndexes: indexMutations,
-    deleteIndexes: indexMutations,
-    foreignKeys: descriptorSupports(descriptor, "metadata.foreignKeys"),
-    triggers: descriptorSupports(descriptor, "metadata.triggers"),
-    // 结构变更 SQL 经 db_execute_query 执行；generic 方言没有可靠的 SQL 生成策略。
-    schemaChangeSql: descriptor.dialectType !== "plugin",
   };
 }

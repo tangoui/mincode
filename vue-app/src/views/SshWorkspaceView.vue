@@ -24,10 +24,8 @@ import SshConfigSyncDialog from "@/components/ssh/SshConfigSyncDialog.vue";
 import SshTerminalPaneTree from "@/components/ssh/SshTerminalPaneTree.vue";
 import SshServerOverview, { type SshOverviewSession } from "@/components/ssh/SshServerOverview.vue";
 import ConnectionAvatar, { type ConnectionAvatarStatus } from "@/components/connections/ConnectionAvatar.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
 import LinkedNotesBadge from "@/components/notes/LinkedNotesBadge.vue";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
-import { usePluginMenuTarget } from "@/composables/use-plugin-menu-target";
 import {
   createSshProfileId,
   type SshConnectionDraft,
@@ -466,8 +464,6 @@ function toggleGroup(group: string) {
   openGroups.value = { ...openGroups.value, [group]: !groupIsOpen(group) };
 }
 
-// Plugin items (contributes.menus ssh/connection/context) of the open sidebar "⋯" menu.
-const openProfileMenuId = ref("");
 // One "⋯" menu for every sidebar connection, anchored at the clicked button. A full
 // el-dropdown per row (500 connections) froze opening the page for ~0.4 s.
 const profileMenu = ref<{ profileId: string; x: number; y: number }>();
@@ -483,13 +479,10 @@ function openProfileMenu(event: MouseEvent, profileId: string) {
     x: Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8)),
     y: Math.max(8, y),
   };
-  handleProfileMenuVisible(true, profileId);
 }
 
 function closeProfileMenu() {
-  const menu = profileMenu.value;
   profileMenu.value = undefined;
-  if (menu) handleProfileMenuVisible(false, menu.profileId);
 }
 
 const linkedNotes = useLinkedNotesDrawer();
@@ -515,11 +508,6 @@ const sidebarRows = useGroupedRowWindow({
   fallbackRows: 12,
 });
 
-function handleProfileMenuVisible(visible: boolean, profileId: string) {
-  if (visible) openProfileMenuId.value = profileId;
-  else if (openProfileMenuId.value === profileId) openProfileMenuId.value = "";
-}
-
 /** Profiles whose sidebar row (and so "⋯" menu) is rendered. */
 const renderedProfileIds = computed(
   () =>
@@ -529,34 +517,11 @@ const renderedProfileIds = computed(
 );
 // Filtering, collapsing a group or deleting the profile unmounts the row without a close event.
 watch(renderedProfileIds, (ids) => {
-  if (openProfileMenuId.value && !ids.has(openProfileMenuId.value)) openProfileMenuId.value = "";
   if (profileMenu.value && !ids.has(profileMenu.value.profileId)) profileMenu.value = undefined;
 });
 onDeactivated(() => {
-  openProfileMenuId.value = "";
   profileMenu.value = undefined;
 });
-
-const profilePluginMenu = usePluginMenuTarget("ssh/connection/context", () => {
-  const profile = openProfileMenuId.value ? connections.findProfile(openProfileMenuId.value) : undefined;
-  if (!profile) return null;
-  const group = profile.group?.trim();
-  return {
-    connectionId: profile.id,
-    name: profile.name,
-    ...(group ? { group } : {}),
-    host: profile.host,
-    port: profile.port,
-    username: profile.username,
-    status: profileSessionStatus.value.get(profile.id) ?? "idle",
-    authType: profile.authType,
-    hasJumpHost: Boolean(profile.jumpHost?.host),
-  };
-});
-
-function profilePluginMenuHost(profileId: string) {
-  return openProfileMenuId.value === profileId ? profilePluginMenu.host.value : null;
-}
 
 function newConnection() {
   editingDraft.value = undefined;
@@ -1722,11 +1687,7 @@ onBeforeUnmount(() => {
           <el-dropdown-item divided command="notes-new" @click="runProfileMenu((profile) => openProfileNotes(profile, true))"><el-icon><Plus /></el-icon>{{ t('notes.link.newLinked') }}</el-dropdown-item>
           <el-dropdown-item command="notes-view" @click="runProfileMenu((profile) => openProfileNotes(profile))"><el-icon><Notebook /></el-icon>{{ t('notes.link.viewLinked', { count: linkedNotes.countOf('ssh', profileMenu.profileId) }) }}</el-dropdown-item>
           <el-dropdown-item divided command="delete" class="is-danger" @click="runProfileMenu((profile) => handleSshProfileAction('delete', profile))"><el-icon><Delete /></el-icon>{{ t('common.delete') }}</el-dropdown-item>
-          <PluginMenuItems
-            menu="ssh/connection/context"
-            :host="profilePluginMenuHost(profileMenu.profileId)"
-            :context="profilePluginMenu.context"
-          />
+
         </AppContextMenu>
         <AppContextMenu
           v-if="sessionTabContextMenu"

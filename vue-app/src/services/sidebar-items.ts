@@ -1,7 +1,6 @@
 import type { Component } from "vue";
 import type { RouteLocationRaw } from "vue-router";
 import {
-  Box,
   ChatDotSquare,
   Connection,
   DataAnalysis,
@@ -14,7 +13,7 @@ import {
 import type { MessageKey } from "@/i18n/messages";
 import type { WorkspaceView } from "@/types/workspace";
 
-type SidebarWorkspaceView = Exclude<WorkspaceView, "settings" | "plugin-view" | "service-result">;
+type SidebarWorkspaceView = Exclude<WorkspaceView, "settings">;
 export type SidebarItemId = SidebarWorkspaceView | "ai";
 
 export interface SidebarItem {
@@ -53,7 +52,6 @@ export const sidebarItems = [
   },
   { id: "http", labelKey: "nav.http", icon: Link, placement: "main" },
   { id: "notes", labelKey: "nav.notes", icon: Notebook, placement: "main" },
-  { id: "plugins", labelKey: "nav.plugins", icon: Box, placement: "main" },
   { id: "ai", labelKey: "ai.chat", icon: ChatDotSquare, placement: "footer" },
 ] as const satisfies readonly SidebarItem[];
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowReactive, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowReactive, watch } from "vue";
 import "@/styles/workspaces/ai/drawer.css";
 import { useRoute, useRouter } from "vue-router";
 import { workspaceTabRoute } from "@/domain/workspace/tab-route";
@@ -51,7 +51,6 @@ import { useSftpSessionsStore } from "@/stores/sftp-sessions";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import { useWorkbenchStore } from "@/stores/workbench";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
-import { usePluginMcpServersStore } from "@/stores/plugin-mcp-servers";
 import { useAiConversationPreferencesStore } from "@/stores/ai-conversation-preferences";
 import {
   copyText,
@@ -63,30 +62,7 @@ import {
   listenAppEvent,
   nativeErrorMessage,
 } from "@/services/desktop-bridge";
-import {
-  claimPluginAiTurn,
-  refreshPendingPluginAiTurns,
-  subscribePluginAiTurnApprovals,
-  subscribePluginAiTurnCancellations,
-  subscribePluginAiTurns,
-  takePendingPluginAiTurns,
-  updatePluginAiTurn,
-} from "@/services/plugin-ai-turns";
-import {
-  approvalModeForConversation,
-  externalPluginDenial,
-  externalTurnSystemPrompt,
-  filterAllowedPluginList,
-  externalTurnToolNames,
-  externalTurnUserMessage,
-  matchesExternalConversation,
-  pluginTurnHistory,
-  pluginTurnStatus,
-  redactExternalReply,
-  riskCapDenial,
-  type PluginAiTurnHistory,
-  type PluginAiTurnRequest,
-} from "@/domain/ai/plugin-turns";
+import { approvalModeForConversation } from "@/domain/ai/conversation-approval";
 import { selectAiTurnHistory } from "@/domain/ai/turn-history";
 import { listenResilientJSONStream } from "@/services/resilient-json-stream";
 import { isStreamAvailable } from "@/services/desktop-stream";
@@ -137,14 +113,6 @@ import {
   type StoredMcpServer,
 } from "@/domain/ai/settings-integrations";
 import { buildAcpMcpServers, type AcpMcpServer } from "@/domain/ai/acp-mcp-servers";
-import {
-  expandAiPromptTemplate,
-  pluginAiPromptDescription,
-  pluginAiPromptTitle,
-} from "@/domain/ai/plugin-prompts";
-import { currentAiPromptVariables } from "@/services/ai-prompt-variables";
-import { useAiPluginPromptsStore } from "@/stores/ai-plugin-prompts";
-import { useAiContextProvidersStore } from "@/stores/ai-context-providers";
 import { normalizeAiApiFormat } from "@/domain/ai/api-format";
 import { normalizeAnthropicAuth } from "@/domain/ai/anthropic-auth";
 import {
@@ -172,7 +140,6 @@ import {
   buildAiPromptSuggestions,
   parseAiPromptSuggestionQuery,
   type AiPromptSuggestion,
-  type AiPromptSuggestionPrompt,
 } from "@/domain/ai/tool-command";
 import {
   AI_REASONING_EFFORT_CHOICES,
@@ -202,23 +169,12 @@ import { getUserHomeDirectory, setAutostart, setMinimizeToTray } from "@/service
 import { aiCapabilityRegistry, type AiCapabilityExecutionResult } from "@/domain/ai/capability-registry";
 import { runWithAbort, throwIfAborted } from "@/domain/async/abort";
 import { callMcpToolCancellable } from "@/services/mcp-tool-call";
-import { startPluginMcpServer } from "@/services/plugin-mcp-server-service";
-import { localizedMcpServerText, mcpServerAvailable, mcpServerLaunchRoot } from "@/domain/plugins/mcp-servers";
 import { precedingUserMessage } from "@/domain/ai/conversation-rewind";
 import { adjacentConversationId } from "@/domain/ai/drawer-shortcuts";
 import { registerKeybindingContext } from "@/domain/keybindings/context";
 import { registerCommand } from "@/services/command-registry";
 import { AI_ASSISTANT_DROP_TARGET_ID, readAiAttachmentsFromPaths } from "@/domain/ai/dropped-files";
-import { applyAiFileMention, parseAiFileMention } from "@/domain/ai/file-mention";
 import { MAX_AI_CONTEXT_CHARS } from "@/domain/ai/context-budget";
-import {
-  aiContextProviderDescription,
-  isPluginContextAttachment,
-  matchContextMentions,
-  pluginContextAttachmentName,
-  pluginContextBudget,
-  type PluginAiContextProvider,
-} from "@/domain/ai/plugin-context";
 import { conversationExportFileName, conversationToMarkdown } from "@/domain/ai/conversation-export";
 import { searchAiConversationMessages, type AiMessageSearchMatch } from "@/services/ai-conversation-persistence";
 import { saveTextFileToDisk } from "@/services/file-download";
@@ -414,13 +370,8 @@ const sshConnections = useSshConnectionsStore();
 const sftpSessions = useSftpSessionsStore();
 const terminalWorkspace = useTerminalWorkspaceStore();
 const workbench = useWorkbenchStore();
-const pluginMcpServers = usePluginMcpServersStore();
 const conversationPreferences = useAiConversationPreferencesStore();
 void conversationPreferences.hydrate();
-const pluginPrompts = useAiPluginPromptsStore();
-const aiContextProviders = useAiContextProvidersStore();
-const AiPluginContextDialog = defineAsyncComponent(() => import("@/components/ai/AiPluginContextDialog.vue"));
-void pluginPrompts.hydrate();
 const router = useRouter();
 const route = useRoute();
 // 顶部标签页呈现：路由停在 ai 标签时以全幅覆盖层展示同一宿主实例，
@@ -429,7 +380,7 @@ const tabSurfaceActive = computed(() => !isPopupWindow() && route.name === "ai")
 const conversationListOnLeft = computed(() => tabSurfaceActive.value && conversationPreferences.sidebarPosition === "left");
 const shellFullscreen = computed(() => assistant.fullscreen || tabSurfaceActive.value);
 const emit = defineEmits<{ "open-settings": [] }>();
-const { t, setLocale, localeChain, intlLocale } = useVueI18n();
+const { t, setLocale, intlLocale } = useVueI18n();
 const visibleAgentEvents = computed(() =>
   assistant.agentEvents.filter((event) => event.kind !== "thought" || Boolean(event.detail.trim())),
 );
@@ -626,38 +577,7 @@ let stopSessionUpdate: (() => void) | undefined;
 let stopPermissionRequest: (() => void) | undefined;
 let stopNativeFileDrop: (() => void) | undefined;
 let stopRunCancelRequested: (() => void) | undefined;
-let stopPluginAiTurns: (() => void) | undefined;
-let stopPluginAiTurnCancellations: (() => void) | undefined;
-let stopPluginAiTurnApprovals: (() => void) | undefined;
 
-interface PluginTurnRun {
-  turnId: string;
-  conversationId: string;
-  queuedMessageId: string;
-  instructions: string;
-  allowedPlugins: string[] | null;
-  maxRisk: string;
-  chatApproval: boolean;
-  /** "none": this turn is sent without the conversation's earlier messages. */
-  history: PluginAiTurnHistory | "";
-  /** The approval waiting in the queue, exposed to the plugin when chatApproval is on. */
-  approval?: { id: string; summary: string; risk: string; tool: string };
-  /** The user message the reply follows; set once the run starts. */
-  messageId?: string;
-  approvalSummary?: string;
-  cancelled: boolean;
-  finished: boolean;
-  lastText: string;
-  lastStatus: string;
-  lastActivity: string;
-  lastApprovalId?: string;
-  timer?: ReturnType<typeof setInterval>;
-}
-// Messages relayed by plugins (team-chat bots). Keyed by turn id; the active
-// run of a conversation is found through pluginTurnByConversation.
-const pluginTurnRuns = new Map<string, PluginTurnRun>();
-const pluginTurnByConversation = new Map<string, string>();
-let processingPluginTurns = false;
 const agenticAborts = new Map<string, AbortController>();
 const subagentParentAborts = new Map<string, AbortController>();
 const subagentUsageCollectors = new Map<string, {
@@ -1087,20 +1007,10 @@ function reorderConversationWorkspaceGroups(keys: string[]) {
   );
 }
 
-// Plugin prompt templates only expand into the draft, so they are offered in every mode.
-const pluginPromptSuggestions = computed<AiPromptSuggestionPrompt[]>(() =>
-  pluginPrompts.enabledPrompts.map((prompt) => ({
-    key: prompt.key,
-    name: pluginAiPromptTitle(prompt, localeChain.value),
-    description: pluginAiPromptDescription(prompt, localeChain.value),
-    source: prompt.pluginName,
-  })),
-);
 const filteredToolSuggestions = computed(() =>
   buildAiPromptSuggestions(
     input.value,
     agentTools.value,
-    pluginPromptSuggestions.value,
   )
 );
 watch(filteredToolSuggestions, () => {
@@ -1200,85 +1110,9 @@ async function chooseWorkingDirectory() {
 const pendingEditsProjectRoot = computed(() =>
   assistant.activeConversation?.projectRoot?.trim() || workspaceRoot()
 );
-const dismissedMentionInput = ref<string>();
-// "@mention" of a plugin context provider (contributes.aiContextProviders): offered under the same
-// gate as rules injection, it only opens a preview; the user decides whether to insert.
-const pluginContextOffered = computed(() => {
-  void settingsSnapshotVersion.value;
-  return assistant.mode !== "agent" || loadStoredSettings().acpInjectRules === true;
-});
-const contextMention = computed(() => {
-  if (toolSuggestionsVisible.value || input.value === dismissedMentionInput.value) return null;
-  if (!pluginContextOffered.value || !aiContextProviders.providers.length) return null;
-  return parseAiFileMention(input.value);
-});
-const contextMentionSuggestions = computed<AiPromptSuggestion[]>(() => {
-  const mention = contextMention.value;
-  if (!mention) return [];
-  return matchContextMentions(aiContextProviders.providers, mention.query).map((provider) => ({
-    id: `context:${provider.key}`,
-    name: `@${provider.mention}`,
-    description: aiContextProviderDescription(provider, localeChain.value),
-    kind: "context" as const,
-    insertText: provider.mention,
-    source: provider.pluginName,
-    contextKey: provider.key,
-  }));
-});
-const mentionSuggestionsActive = computed(() => contextMentionSuggestions.value.length > 0);
-const composerSuggestions = computed(() => mentionSuggestionsActive.value
-  ? contextMentionSuggestions.value
-  : filteredToolSuggestions.value);
 function dismissComposerSuggestions() {
-  if (mentionSuggestionsActive.value) dismissedMentionInput.value = input.value;
-  else input.value = "";
+  input.value = "";
 }
-const pluginContextDialog = ref<{ provider: PluginAiContextProvider; remaining: number }>();
-/** Characters of the rules context the next request adds (the budget plugin context shares). */
-function baseAiContextChars() {
-  const workspaceId = assistant.activeConversation?.workspaceId || workbench.activeWorkspaceId;
-  return enabledAiContext(workspaceId).length;
-}
-const pluginContextBudgetState = computed(() => {
-  if (!attachments.value.some(isPluginContextAttachment)) return undefined;
-  void settingsSnapshotVersion.value;
-  return pluginContextBudget(baseAiContextChars(), attachments.value);
-});
-function openPluginContext(suggestion: AiPromptSuggestion) {
-  const provider = aiContextProviders.byKey(suggestion.contextKey);
-  const mention = contextMention.value;
-  if (!provider || !mention) return;
-  input.value = applyAiFileMention(input.value, mention, provider.mention);
-  activeToolIndex.value = 0;
-  const name = pluginContextAttachmentName(provider.pluginId, provider.id);
-  const others = attachments.value.filter((attachment) => attachment.name !== name);
-  pluginContextDialog.value = { provider, remaining: pluginContextBudget(baseAiContextChars(), others).remaining };
-}
-function insertPluginContext(value: { text: string }) {
-  const provider = pluginContextDialog.value?.provider;
-  if (!provider || !value.text) return;
-  const name = pluginContextAttachmentName(provider.pluginId, provider.id);
-  attachments.value = [
-    ...attachments.value.filter((attachment) => attachment.name !== name),
-    {
-      id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      name,
-      mimeType: "text/markdown",
-      size: new TextEncoder().encode(value.text).length,
-      kind: "text",
-      data: value.text,
-      origin: { kind: "plugin-context", pluginId: provider.pluginId, providerId: provider.id },
-    },
-  ];
-}
-const attachmentChipLabels = computed<Record<string, string>>(() => Object.fromEntries(
-  attachments.value.flatMap((attachment) => {
-    if (attachment.origin?.kind !== "plugin-context") return [];
-    const pluginId = attachment.origin.pluginId;
-    const plugin = aiContextProviders.providers.find((provider) => provider.pluginId === pluginId)?.pluginName ?? pluginId;
-    return [[attachment.id, t("pluginContrib.aiContextProviders.chipLabel", { plugin })]];
-  }),
-));
 const activeConversationWorkspaceAvailable = computed(() => {
   const conversation = assistant.activeConversation;
   return Boolean(conversation && conversationWorkspaceAvailable(conversation));
@@ -1556,32 +1390,9 @@ async function clearConversationMessages(conversation: AiConversation) {
   ElMessage.success(t("ai.conversation.messagesCleared"));
 }
 function insertToolSuggestion(suggestion: AiPromptSuggestion) {
-  if (suggestion.kind === "prompt") {
-    insertPluginPrompt(suggestion.promptKey ?? "");
-    return;
-  }
-  if (suggestion.kind === "context") {
-    openPluginContext(suggestion);
-    return;
-  }
   input.value = suggestion.insertText;
   activeToolIndex.value = 0;
 }
-/** Expands a plugin prompt template into the draft for the user to review; it is never sent automatically. */
-function insertPluginPrompt(key: string) {
-  const prompt = pluginPrompts.enabledPrompts.find((item) => item.key === key);
-  if (!prompt) return;
-  const roots = [workspaceRoot()].filter(Boolean);
-  const expanded = expandAiPromptTemplate(
-    prompt.body,
-    prompt.variables.length ? currentAiPromptVariables(roots) : {},
-    t("pluginContrib.aiPrompts.selectionTruncated"),
-  );
-  input.value = expanded.text;
-  activeToolIndex.value = 0;
-  if (expanded.selectionTruncated) ElMessage.warning(t("pluginContrib.aiPrompts.selectionTruncated"));
-}
-
 function loadStoredSettings(): StoredSettings {
   return readSettingsSnapshot<StoredSettings & Record<string, unknown>>();
 }
@@ -1741,12 +1552,9 @@ const composerLabels = computed(() => ({
   reasoning: t("ai.reasoning.label"),
   removeAttachment: t("ai.attachment.remove", { name: "{name}" }),
   previewAttachment: t("ai.attachment.preview", { name: "{name}" }),
-  suggestionList: mentionSuggestionsActive.value ? t("ai.fileMention.label") : t("ai.toolSuggest.label"),
-  suggestionHint: mentionSuggestionsActive.value ? t("ai.fileMention.hint") : t("ai.toolSuggest.hint"),
-  suggestionPrompt: t("pluginContrib.aiPrompts.suggestionPrompt"),
+  suggestionList: t("ai.toolSuggest.label"),
+  suggestionHint: t("ai.toolSuggest.hint"),
   suggestionTool: t("ai.toolSuggest.tool"),
-  suggestionFile: t("ai.fileMention.file"),
-  suggestionContext: t("pluginContrib.aiContextProviders.suggestion"),
   optimizePrompt: t("ai.promptOptimizer.action"),
   cancelOptimization: t("ai.promptOptimizer.cancel"),
 }));
@@ -1992,10 +1800,7 @@ async function loadMcpServerTools(
   const failures = new Map<string, string>();
   const wanted = new Set(serverIds);
   const servers = enabledMcpServers(projectRoot).filter((server) => wanted.has(server.id.trim()));
-  const pluginServers = pluginMcpServers.enabledServers.filter(
-    (server) => wanted.has(server.sessionId) && mcpServerAvailable(server, projectRoot),
-  );
-  if (!servers.length && !pluginServers.length) return { tools: [], failures };
+  if (!servers.length) return { tools: [], failures };
   const reportFailure = (serverId: string, label: string, error: unknown) => {
     // A connector that needs a sign-in is not broken: point at where to sign in.
     const detail = nativeErrorMessage(error);
@@ -2008,31 +1813,6 @@ async function loadMcpServerTools(
       status: "failed",
     });
   };
-  // Plugin servers start through the host, which requires the user's earlier
-  // confirmation of the exact launch and never prompts here.
-  const pluginToolGroups = Promise.all(pluginServers.map(async (server): Promise<ActiveMcpTool[]> => {
-    const serverName = localizedMcpServerText(server.title, server.titleLocalized, localeChain.value);
-    try {
-      const { tools } = await startPluginMcpServer(server.sessionId, mcpServerLaunchRoot(server, projectRoot));
-      return tools.flatMap((tool) => {
-        const toolName = tool.name.trim();
-        if (!toolName) return [];
-        return [{
-          name: `mcp.${server.sessionId}.${toolName}`,
-          description: `[Connector:${server.sessionId}] ${tool.description?.trim() || toolName}`,
-          inputSchema: mcpToolSchema(tool.inputSchema),
-          serverId: server.sessionId,
-          serverName,
-          toolName,
-        }];
-      });
-    } catch (error) {
-      reportFailure(server.sessionId, serverName, error);
-      return [];
-    }
-  }));
-  if (!servers.length) return { tools: (await pluginToolGroups).flat(), failures };
-
   const statuses = await invokeBackend<McpServerStatus[]>("mcp_list_status", {}).catch(() => []);
   const connected = new Set(
     statuses.filter((status) => status.state === "connected").map((status) => status.id)
@@ -2072,7 +1852,7 @@ async function loadMcpServerTools(
     }
   }));
 
-  return { tools: [...toolGroups.flat(), ...(await pluginToolGroups).flat()], failures };
+  return { tools: toolGroups.flat(), failures };
 }
 /** Runs the loader tool: connects one connector and adds its tools to the live turn list. */
 async function loadMcpToolsForModel(
@@ -2676,13 +2456,6 @@ const unregisterNativeAiCapabilities = registerNativeAiCapabilities({
   }),
   connectDatabase: (connectionId) => databaseWorkspace.connect(connectionId),
   disconnectDatabase: (connectionId) => databaseWorkspace.disconnect(connectionId),
-  databaseDriverLabel: (connectionId) => {
-    const connection = databaseWorkspace.connections.find((item) => item.id === connectionId);
-    const descriptor = connection ? databaseWorkspace.connectionDescriptor(connection) : undefined;
-    if (descriptor?.source !== "plugin" || !descriptor.pluginId) return undefined;
-    const name = descriptor.pluginName || descriptor.pluginId;
-    return `${descriptor.title} · ${name} (${descriptor.pluginId})`;
-  },
   stageWorkspaceEdit: (edit) => pendingEdits.stage(edit),
   sshProfile: (profileId) => sshConnections.findProfile(profileId),
   sshCredentials: (profileId) => sshConnections.credentialsFor(profileId),
@@ -2920,23 +2693,7 @@ async function authorizeTool(
 ): Promise<{ approved: boolean; feedback?: string }> {
   await toolAuthorizationHydration;
   throwIfAborted(signal);
-  const relayedTurn = activePluginTurn(request.conversationId);
-  // Remembered grants were given for the local user's own work, not for requests
-  // relayed from other people; every relayed action is approved one by one.
-  if (!relayedTurn && await toolAuthorizations.consume(request)) return { approved: true };
-  if (relayedTurn) {
-    relayedTurn.approvalSummary = summary;
-    void pushPluginTurnProgress(relayedTurn);
-    const conversation = assistant.conversationById(request.conversationId);
-    notifyAi({
-      level: "warning",
-      titleKey: "notifications.ai.externalApproval",
-      message: t("notifications.ai.externalApprovalMessage", {
-        source: conversation?.external?.pluginName || conversation?.title || "",
-        summary,
-      }),
-    }, request.conversationId);
-  }
+  if (!assistant.conversationById(request.conversationId)?.external && await toolAuthorizations.consume(request)) return { approved: true };
   await reportConversationRun(
     request.conversationId,
     "waiting_approval",
@@ -2950,20 +2707,7 @@ async function authorizeTool(
     summary,
     signal,
   );
-  if (relayedTurn?.chatApproval) {
-    relayedTurn.approval = { id: approval.id, summary, risk: request.risk, tool: request.toolName };
-    void pushPluginTurnProgress(relayedTurn);
-  }
-  let decision: Awaited<typeof approval.decision>;
-  try {
-    decision = await approval.decision;
-  } finally {
-    if (relayedTurn) {
-      relayedTurn.approvalSummary = undefined;
-      relayedTurn.approval = undefined;
-      void pushPluginTurnProgress(relayedTurn);
-    }
-  }
+  const decision = await approval.decision;
   throwIfAborted(signal);
   await reportConversationRun(request.conversationId, "thinking", t("ai.taskProgress.thinking"));
   const { scope, feedback } = decision;
@@ -3167,8 +2911,6 @@ async function executeAgentTool(
     if (planModeDenies(mcpMode, authorizationRequest.risk)) {
       return { content: t("ai.agentic.planModeBlocked"), status: "cancelled" as const };
     }
-    const mcpDenial = riskCapDenial(authorizationRequest.risk, activePluginTurn(conversationId)?.maxRisk);
-    if (mcpDenial) return { content: mcpDenial, status: "failed" as const };
     if (requiresAiToolApproval(mcpMode, authorizationRequest.risk)) {
       const authorization = await authorizeTool(
         authorizationRequest,
@@ -3206,9 +2948,6 @@ async function executeAgentTool(
   }
 
   const capability = aiCapabilityRegistry.get(call.name);
-  const turnPlugins = activePluginTurn(conversationId)?.allowedPlugins;
-  const pluginDenial = externalPluginDenial(call.name, args, turnPlugins);
-  if (pluginDenial) return { content: pluginDenial, status: "failed" as const };
   if (capability) {
     // 同一轮内前一个工具可能刚创建浏览器、数据库、终端或 SFTP 资源。
     // 旧快照没有目标时先同步一次，再判定为真正缺失。
@@ -3230,8 +2969,6 @@ async function executeAgentTool(
       if (planModeDenies(callMode, callRisk)) {
         return { content: t("ai.agentic.planModeBlocked"), status: "cancelled" as const };
       }
-      const capDenial = riskCapDenial(callRisk, activePluginTurn(conversationId)?.maxRisk);
-      if (capDenial) return { content: capDenial, status: "failed" as const };
       if (requiresAiToolApproval(callMode, callRisk)) {
         const summary = capability.approvalPreview
           ? await capability.approvalPreview({ input: normalizedArgs, resource })
@@ -3281,9 +3018,6 @@ async function executeAgentTool(
       });
     } finally {
       if (capability.risk !== "read") invalidateAiNativeResources();
-    }
-    if (call.name === "plugin.list" && turnPlugins) {
-      result = { ...result, result: filterAllowedPluginList(result.result, turnPlugins) };
     }
     if (capability.risk !== "read") {
       // 写入/连接成功后刷新当前任务快照，后续工具可立即消费新资源。
@@ -3395,11 +3129,6 @@ const canContinueActiveConversation = computed(() =>
 );
 function continueAfterLoopLimit() {
   if (!canContinueActiveConversation.value) return;
-  const budget = pluginContextBudgetState.value;
-  if (budget?.exceeded) {
-    ElMessage.warning(t("pluginContrib.aiContextProviders.sendBlocked", { excess: budget.exceeded }));
-    return;
-  }
   const conversationId = assistant.activeConversationId;
   void sendAgentic({
     conversationId,
@@ -3705,7 +3434,6 @@ interface QueuedSendRequest {
   attachments: AiAttachment[];
   createdAt?: number;
   messageId?: string;
-  pluginTurn?: AiQueuedMessage["pluginTurn"];
 }
 
 // Queued and remote sends can target a conversation whose details are not loaded;
@@ -3786,7 +3514,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
     agenticSendGate.release(conversationId);
     return;
   }
-  if (request?.pluginTurn) beginPluginTurn(request.pluginTurn.turnId, conversationId, triggerMessageId);
   if (!request) consumeComposerInput(text, selectedAttachments);
   const runId = await beginConversationRun(
     conversationId,
@@ -3888,11 +3615,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
   };
   // A pure social turn does not need to replay an unrelated long task history.
   // Keep the persisted task history intact so the next actionable request can resume it.
-  // A plugin turn with history "none" carries its own context: nothing earlier is sent,
-  // and the saved loop history is left untouched (see selectAiTurnHistory).
-  const relayedTurnRun = request?.pluginTurn ? pluginTurnRuns.get(request.pluginTurn.turnId) : undefined;
   const turnHistory = selectAiTurnHistory<AiLoopMessage>({
-    historyNone: relayedTurnRun?.history === "none",
     directConversation: selectedAttachments.length === 0 && isDirectConversationIntent(text),
     persistedHistory,
     currentMessage: currentUserMessage,
@@ -3907,7 +3630,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
       })),
   });
   const conversationHistory = turnHistory.messages;
-  const reports = !externalSource && !relayedTurnRun
+  const reports = !externalSource
     ? assistant.delegatedConversationReports(conversationId)
     : [];
   const reportContext: AiLoopMessage | undefined = reports.length
@@ -3927,7 +3650,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
   };
   try {
     // Tool selection follows earlier turns only when they are part of this request.
-    const toolHistory = relayedTurnRun?.history === "none" ? [] : persistedHistory;
+    const toolHistory = persistedHistory;
     const historicalModules = historicalToolModules(toolHistory);
     syncNativeAiResources(runResources, {
       nativeRuntime: isDesktopRuntime(),
@@ -3940,11 +3663,8 @@ async function sendAgentic(request?: QueuedSendRequest) {
       capabilities,
       (capability) => runResources.list(capability)
     );
-    const externalToolNames = isolatedExternal ? externalTurnToolNames(capabilities) : undefined;
-    const nativeTools = browserLocalAi
+    const nativeTools = browserLocalAi || isolatedExternal
       ? []
-      : externalToolNames
-      ? capabilities.filter((capability) => externalToolNames.has(capability.tool.name)).map((capability) => capability.tool)
       : selectAiCapabilityTools(capabilities, {
       text,
       currentModule: runCapabilityModule,
@@ -3954,16 +3674,9 @@ async function sendAgentic(request?: QueuedSendRequest) {
       runContext.workspaceId === workbench.activeWorkspaceId
       || !ACTIVE_WORKSPACE_UI_TOOL_NAMES.has(tool.name),
     );
-    if (!isolatedExternal && !browserLocalAi) await pluginMcpServers.hydrate();
-    // Plugin servers that need a project are offered only with one; the rest everywhere.
     const mcpServerIds = isolatedExternal || browserLocalAi
       ? []
-      : [
-          ...enabledMcpServers(runProjectRoot).map((server) => server.id.trim()),
-          ...pluginMcpServers.enabledServers
-            .filter((server) => mcpServerAvailable(server, runProjectRoot))
-            .map((server) => server.sessionId),
-        ];
+      : enabledMcpServers(runProjectRoot).map((server) => server.id.trim());
     const mcpPlan = planMcpToolLoading({
       text,
       serverIds: mcpServerIds,
@@ -3978,13 +3691,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
     const currentTools = () => [...nativeTools, ...mcpLoader, ...mcpTools];
     const selectedTools = currentTools();
     const toolTokens = estimateAiToolTokens(selectedTools);
-    const relayedRun = externalSource ? activePluginTurn(conversationId) : undefined;
-    const systemPrompt = externalSource
-      ? `${baseSystemPrompt}\n\n${externalTurnSystemPrompt(externalSource, {
-        instructions: relayedRun?.instructions,
-        allowedPlugins: relayedRun?.allowedPlugins,
-      })}`
-      : baseSystemPrompt;
+    const systemPrompt = baseSystemPrompt;
     const delegationGuidance = selectedTools.some((tool) => tool.name === "agent.run_parallel")
       ? "\n\nWhen the user asks you to delegate work to a new conversation, use agent.run_parallel. Use one task for a single handoff. When the user asks for several child conversations, dispatch each actual task directly from this conversation in one call and give each task a self-contained prompt. Keep coordination and the final summary in this conversation. "
         + "Choose a configured model per task when the user specifies a model or asks you to choose. Use only exact IDs from this list, and omit the model when the default suits the task. Configured delegation models: "
@@ -4037,7 +3744,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
           runProjectRoot,
           signal,
           {
-            ...(externalToolNames ? { allowedTools: externalToolNames } : {}),
           },
         ),
       // MCP tools and every mutation remain serialized. Native capabilities explicitly
@@ -4297,7 +4003,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
       subagentUsageCollectors.delete(conversationId);
       agenticSendGate.release(conversationId);
       await scrollToBottomIfFollowing(conversationId);
-      await finishPluginTurnForConversation(conversationId);
       const shouldResumeQueue = !abortController.signal.aborted
         || resumeQueueAfterCancellation.delete(conversationId);
       if (shouldResumeQueue) {
@@ -4330,7 +4035,7 @@ async function popOutWindow() {
     ElMessage.error(t("tab.popupUnavailable"));
   }
 }
-/** Launch of a built-in or custom adapter id (plugin agents launch by reference in useAcpAgentStart). */
+/** Launch of a built-in or custom adapter. */
 function resolveAgentCommand(adapter: string) {
   const stored = loadStoredSettings();
   if (adapter.startsWith("custom:")) {
@@ -4426,7 +4131,7 @@ const localAgentDirectoryDeps = {
   },
 };
 
-async function startAgent(conversationId?: string, useDefaultOnce = false, request?: QueuedSendRequest) {
+async function startAgent(conversationId?: string, useDefaultOnce = false) {
   if (!isDesktopRuntime()) {
     ElMessage.warning(t("common.desktopRequired"));
     return;
@@ -4440,7 +4145,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
     return;
   }
 
-  const remote = Boolean(conversation.external || request?.pluginTurn);
+  const remote = Boolean(conversation.external);
   try {
     const pending = agentStartPromises.get(id);
     if (pending) {
@@ -4504,11 +4209,8 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
       try {
         const adapterId = await startConversationAgent({
           conversationId: id,
-          serverId,
-          projectRoot: cwd,
           recordedAdapterId: conversation.acpAdapterId,
           hasPreviousSession: Boolean(previousSessionId),
-          mcpServers,
           launchCommandAgent: async (adapter) => {
             if (!stillStarting()) return;
             const launch = resolveAgentCommand(adapter);
@@ -4614,7 +4316,7 @@ async function sendAgent(request?: QueuedSendRequest) {
   }
   // 新任务开始前收口任何历史遗留的运行事件，避免旧分析计时跨到下一条消息。
   assistant.settleRunningAgentEvents(conversationId, "cancelled");
-  const target = await startAgent(conversationId, false, request);
+  const target = await startAgent(conversationId);
   const conversation = assistant.conversationById(conversationId);
   if (!target || !conversation) {
     acpSendGate.release(conversationId);
@@ -4872,11 +4574,6 @@ function dismissPendingPermission() {
 }
 function send() {
   if (activeParallelDelegationPending.value) return;
-  const budget = pluginContextBudgetState.value;
-  if (budget?.exceeded) {
-    ElMessage.warning(t("pluginContrib.aiContextProviders.sendBlocked", { excess: budget.exceeded }));
-    return;
-  }
   if (editingMessageId.value) return resendEditedMessage();
   if (editingQueueId.value) return updateQueuedMessageFromComposer();
   if (assistant.mode === "agent") return sendAgent();
@@ -4891,178 +4588,9 @@ async function sendQueuedMessage(conversationId: string, msg: AiQueuedMessage) {
     attachments: msg.attachments?.map((attachment) => ({ ...attachment })) ?? [],
     createdAt: msg.createdAt,
     messageId: msg.id,
-    pluginTurn: msg.pluginTurn ? { ...msg.pluginTurn } : undefined,
   };
   if (conversation.mode === "agent") await sendAgent(request);
   else await sendAgentic(request);
-  // A relayed message the loop refused to start (no model configured, busy
-  // workspace, ...) must still end its turn instead of timing out.
-  const run = msg.pluginTurn ? pluginTurnRuns.get(msg.pluginTurn.turnId) : undefined;
-  if (run && !run.messageId) await finishPluginTurn(run, "failed", t("ai.external.notStarted"));
-}
-
-function activePluginTurn(conversationId: string) {
-  const turnId = pluginTurnByConversation.get(conversationId);
-  const run = turnId ? pluginTurnRuns.get(turnId) : undefined;
-  return run && !run.finished ? run : undefined;
-}
-
-function beginPluginTurn(turnId: string, conversationId: string, messageId: string) {
-  const run = pluginTurnRuns.get(turnId);
-  if (!run || run.finished) return;
-  run.messageId = messageId;
-  pluginTurnByConversation.set(conversationId, turnId);
-  run.timer = setInterval(() => void pushPluginTurnProgress(run), 700);
-  void pushPluginTurnProgress(run);
-}
-
-function runningEventTitle(conversationId: string) {
-  const events = assistant.conversationById(conversationId)?.agentEvents ?? [];
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    if (events[index].status === "running" && events[index].title) return events[index].title;
-  }
-  return "";
-}
-
-async function pushPluginTurnProgress(run: PluginTurnRun) {
-  if (run.finished || !run.messageId) return;
-  const text = redactExternalReply(conversationReplyContent(run.conversationId, run.messageId));
-  const status = run.approvalSummary ? "awaiting_approval" : "running";
-  const activity = run.approvalSummary
-    ? t("ai.external.approvalActivity", { summary: run.approvalSummary })
-    : runningEventTitle(run.conversationId);
-  const approval = status === "awaiting_approval" && run.chatApproval ? run.approval : undefined;
-  if (text === run.lastText && status === run.lastStatus && activity === run.lastActivity && approval?.id === run.lastApprovalId) return;
-  run.lastText = text;
-  run.lastStatus = status;
-  run.lastActivity = activity;
-  run.lastApprovalId = approval?.id;
-  await updatePluginAiTurn({ id: run.turnId, status, text, activity, conversationId: run.conversationId, ...(approval ? { approval } : {}) }).catch(() => undefined);
-}
-
-async function finishPluginTurn(run: PluginTurnRun, status: "completed" | "failed" | "cancelled", error = "") {
-  if (run.finished) return;
-  run.finished = true;
-  if (run.timer) clearInterval(run.timer);
-  if (pluginTurnByConversation.get(run.conversationId) === run.turnId) pluginTurnByConversation.delete(run.conversationId);
-  pluginTurnRuns.delete(run.turnId);
-  const text = run.messageId ? redactExternalReply(conversationReplyContent(run.conversationId, run.messageId)) : "";
-  await updatePluginAiTurn({ id: run.turnId, status, text, error, conversationId: run.conversationId }).catch(() => undefined);
-}
-
-async function finishPluginTurnForConversation(conversationId: string) {
-  const run = activePluginTurn(conversationId);
-  if (!run) return;
-  const conversation = assistant.conversationById(conversationId);
-  const status = pluginTurnStatus(conversation?.status ?? "interrupted", run.cancelled);
-  await finishPluginTurn(run, status, status === "failed" ? t("ai.external.failed") : "");
-}
-
-function externalConversationFor(request: PluginAiTurnRequest) {
-  return assistant.conversations.find((item) => matchesExternalConversation(item, request))
-    ?? assistant.conversations.find((item) => matchesExternalConversation(item, { ...request, conversationId: undefined }));
-}
-
-/** A chat decision from the plugin; only the approval currently exposed to it is accepted. */
-function applyPluginTurnApproval(decision: { id: string; approvalId: string; approved: boolean }) {
-  const run = pluginTurnRuns.get(decision.id);
-  if (!run || run.finished || !run.chatApproval || run.approval?.id !== decision.approvalId) return;
-  resolveToolApproval(decision.approvalId, decision.approved ? { scope: "once" } : {});
-}
-
-async function createExternalConversation(request: PluginAiTurnRequest) {
-  const previousId = assistant.activeConversationId;
-  const conversation = assistant.createConversation("agentic");
-  conversation.external = {
-    kind: "plugin",
-    pluginId: request.pluginId,
-    pluginName: request.pluginName,
-    key: request.conversationKey,
-    ...(request.workspaceAccess ? { workspace: true } : {}),
-  };
-  assistant.setConversationWorkspace(conversation.id, {
-    workspaceId: conversation.workspaceId ?? workbench.activeWorkspaceId,
-    scopeId: conversation.workspaceScopeId ?? assistant.activeWorkspaceScopeId,
-    projectRoot: request.workspaceAccess ? conversation.projectRoot ?? "" : "",
-  });
-  assistant.renameConversation(conversation.id, request.title);
-  // A relayed message must not pull the local user away from what they are doing.
-  if (previousId && previousId !== conversation.id) await assistant.switchConversation(previousId);
-  return conversation;
-}
-
-async function consumePluginAiTurns() {
-  if (processingPluginTurns || isPopupWindow()) return;
-  processingPluginTurns = true;
-  try {
-    for (const turnId of takePendingPluginAiTurns()) {
-      let request: PluginAiTurnRequest;
-      try {
-        request = await claimPluginAiTurn(turnId);
-      } catch {
-        continue; // Already claimed, cancelled or expired.
-      }
-      try {
-        const conversation = externalConversationFor(request) ?? await createExternalConversation(request);
-        if (!(await assistant.ensureConversationDetails(conversation.id))) throw new Error(t("ai.external.notStarted"));
-        const queuedMessageId = assistant.enqueueMessage(conversation.id, {
-          content: externalTurnUserMessage(request),
-          createdAt: request.createdAt || Date.now(),
-          pluginTurn: { turnId },
-        });
-        if (!queuedMessageId) throw new Error(t("ai.external.notStarted"));
-        pluginTurnRuns.set(turnId, {
-          turnId,
-          conversationId: conversation.id,
-          queuedMessageId,
-          instructions: request.instructions ?? "",
-          allowedPlugins: Array.isArray(request.allowedPlugins) ? [...request.allowedPlugins] : null,
-          maxRisk: request.maxRisk ?? "",
-          chatApproval: request.chatApproval === true,
-          history: pluginTurnHistory(request.history),
-          cancelled: false,
-          finished: false,
-          lastText: "",
-          lastStatus: "",
-          lastActivity: "",
-        });
-        await updatePluginAiTurn({ id: turnId, status: "running", conversationId: conversation.id }).catch(() => undefined);
-        await assistant.flushPersistence();
-        if (!conversation.running) {
-          void runNextQueuedMessage(conversation.id).catch((error) => ElMessage.error(nativeErrorMessage(error)));
-        }
-      } catch (error) {
-        await updatePluginAiTurn({ id: turnId, status: "failed", error: nativeErrorMessage(error) }).catch(() => undefined);
-      }
-    }
-  } finally {
-    processingPluginTurns = false;
-  }
-}
-
-async function cancelPluginAiTurn(turnId: string) {
-  const run = pluginTurnRuns.get(turnId);
-  if (!run || run.finished) return;
-  run.cancelled = true;
-  if (!run.messageId) {
-    // Still queued behind another message: drop it before it starts.
-    assistant.removeQueuedMessage(run.conversationId, run.queuedMessageId);
-    await finishPluginTurn(run, "cancelled");
-    return;
-  }
-  await cancelConversation(run.conversationId, { resumeQueue: true });
-}
-
-function conversationReplyContent(conversationId: string, messageId: string) {
-  const conversation = assistant.conversationById(conversationId);
-  if (!conversation) return "";
-  const startIndex = conversation.messages.findIndex((message) => message.id === messageId);
-  return conversation.messages
-    .slice(startIndex + 1)
-    .filter((message) => message.role === "assistant")
-    .map((message) => message.content.trim())
-    .filter(Boolean)
-    .join("\n\n");
 }
 
 async function runNextQueuedMessage(conversationId: string) {
@@ -5422,12 +4950,6 @@ onMounted(() => {
   window.addEventListener("pagehide", closeDefaultDirectoryAgents);
   window.addEventListener("focus", markVisibleConversationRead);
   document.addEventListener("visibilitychange", markVisibleConversationRead);
-  if (!isPopupWindow()) {
-    stopPluginAiTurns = subscribePluginAiTurns(() => void consumePluginAiTurns());
-    stopPluginAiTurnCancellations = subscribePluginAiTurnCancellations((id) => void cancelPluginAiTurn(id));
-    stopPluginAiTurnApprovals = subscribePluginAiTurnApprovals(applyPluginTurnApproval);
-    void refreshPendingPluginAiTurns().catch(() => false).finally(() => void consumePluginAiTurns());
-  }
   // Native drops reach the main window only; a popped-out copy of the drawer ignores them.
   if (!isPopupWindow()) {
     stopNativeFileDrop = listenAppEvent<{ files?: string[]; targetId?: string }>("native-files-dropped", (event) => {
@@ -5481,10 +5003,6 @@ onBeforeUnmount(() => {
   stopSessionUpdate?.();
   stopPermissionRequest?.();
   stopNativeFileDrop?.();
-  stopPluginAiTurns?.();
-  stopPluginAiTurnCancellations?.();
-  stopPluginAiTurnApprovals?.();
-  for (const run of pluginTurnRuns.values()) if (run.timer) clearInterval(run.timer);
   stopRunCancelRequested?.();
   stopAllAgents();
   resumeQueueAfterCancellation.clear();
@@ -5891,10 +5409,9 @@ onBeforeUnmount(() => {
             v-model:selected-model="selectedModel"
             v-model:selected-reasoning="selectedReasoningEffort"
                                                 :attachments="attachments"
-            :attachment-labels="attachmentChipLabels"
             :history="promptHistory"
-            :suggestions="composerSuggestions"
-            :suggestions-visible="toolSuggestionsVisible || mentionSuggestionsActive"
+            :suggestions="filteredToolSuggestions"
+            :suggestions-visible="toolSuggestionsVisible"
             :loading="assistant.loading"
             :starting="assistant.agentStarting"
             :adding-attachments="addingAttachments"
@@ -6053,14 +5570,6 @@ onBeforeUnmount(() => {
           </el-button>
         </template>
       </el-dialog>
-      <AiPluginContextDialog
-        v-if="pluginContextDialog"
-        :key="pluginContextDialog.provider.key"
-        :provider="pluginContextDialog.provider"
-        :remaining="pluginContextDialog.remaining"
-        @insert="insertPluginContext"
-        @close="pluginContextDialog = undefined"
-      />
       <el-dialog
         v-model="previewAttachment"
         class="ai-attachment-preview-dialog"

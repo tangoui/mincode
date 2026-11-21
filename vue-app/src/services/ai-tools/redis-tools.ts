@@ -18,16 +18,14 @@ const redisWriteActions: Record<RedisWriteCommand, string> = {
 
 /**
  * Redis 单键写入经 SQL 安全网（operation kind "redis"）：单键为低风险，沿用工具审批；高风险时
- * 无论审批模式都由用户确认。插件驱动的 Redis 会话后端不要求令牌，直接执行（与 Redis 工作区一致）。
+ * 无论审批模式都由用户确认。
  */
 function writeRedisKey(
   dependencies: RedisToolDependencies,
   safety: AiSqlSafetyRunner,
-  resource: AiResource,
   command: RedisWriteCommand,
   args: { sessionId: string; dbIndex: number; key: string } & Record<string, unknown>,
 ) {
-  if (resource.metadata?.pluginDriver) return dependencies.invoke(command, args);
   return safety.run({
     sessionId: args.sessionId,
     operation: { kind: "redis", action: redisWriteActions[command], dbIndex: args.dbIndex, keys: [args.key] },
@@ -121,7 +119,7 @@ export function redisCapabilities(dependencies: RedisToolDependencies): AiCapabi
     mode: "write",
     risk,
     approvalPreview: ({ input }) => `${requiredString(input, "key", name)} (value redacted)`,
-    execute: ({ input, resource }) => writeRedisKey(dependencies, safety, resource, "redis_set_key", {
+    execute: ({ input, resource }) => writeRedisKey(dependencies, safety, "redis_set_key", {
       ...keyArgs(input, resource, name), keyType, value: input.value,
     }),
   });
@@ -153,7 +151,7 @@ export function redisCapabilities(dependencies: RedisToolDependencies): AiCapabi
       keyType: { type: "string", enum: ["string", "hash", "list", "set", "zset", "stream"] }, value: {},
     }), ["key", "keyType", "value"]), mode: "write", risk: "dangerous",
       approvalPreview: ({ input }) => `${requiredString(input, "key", "redis.add")} (value redacted)`,
-      execute: ({ input, resource }) => writeRedisKey(dependencies, safety, resource, "redis_add_key", {
+      execute: ({ input, resource }) => writeRedisKey(dependencies, safety, "redis_add_key", {
         ...keyArgs(input, resource, "redis.add"),
         keyType: requiredString(input, "keyType", "redis.add"),
         value: input.value,
@@ -161,17 +159,17 @@ export function redisCapabilities(dependencies: RedisToolDependencies): AiCapabi
     setKey("redis.set", "string"),
     redis({ module: "redis", tool: tool("redis.delete", "Delete a Redis key.", keyProperties(), ["key"]),
       mode: "write", risk: "dangerous", approvalPreview: ({ input }) => requiredString(input, "key", "redis.delete"),
-      execute: ({ input, resource }) => writeRedisKey(dependencies, safety, resource, "redis_delete_key", keyArgs(input, resource, "redis.delete")) }),
+      execute: ({ input, resource }) => writeRedisKey(dependencies, safety, "redis_delete_key", keyArgs(input, resource, "redis.delete")) }),
     redis({ module: "redis", tool: tool("redis.expire", "Set expiry seconds on a Redis key.", keyProperties({ ttlSeconds: { type: "integer", minimum: 1 } }), ["key", "ttlSeconds"]),
       mode: "write", risk: "dangerous", execute: async ({ input, resource }) => {
         const ttlSeconds = expirySeconds(input);
-        return writeRedisKey(dependencies, safety, resource, "redis_set_ttl", {
+        return writeRedisKey(dependencies, safety, "redis_set_ttl", {
           ...keyArgs(input, resource, "redis.expire"),
           ttlSeconds,
         });
       } }),
     redis({ module: "redis", tool: tool("redis.persist", "Remove expiry from a Redis key.", keyProperties(), ["key"]),
-      mode: "write", risk: "dangerous", execute: ({ input, resource }) => writeRedisKey(dependencies, safety, resource, "redis_set_ttl", {
+      mode: "write", risk: "dangerous", execute: ({ input, resource }) => writeRedisKey(dependencies, safety, "redis_set_ttl", {
         ...keyArgs(input, resource, "redis.persist"), ttlSeconds: -1,
       }) }),
     setKey("redis.set_hash", "hash"), setKey("redis.set_list", "list"), setKey("redis.set_set", "set"),

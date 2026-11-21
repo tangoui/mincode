@@ -1,0 +1,152 @@
+{
+  "type": "python",
+  "title": "Python (debugpy)",
+  "titleLocalized": {
+    "zh": "Python（debugpy）"
+  },
+  "languages": [
+    "python"
+  ],
+  "configurationSchema": {
+    "launch": {
+      "type": "object",
+      "properties": {
+        "program": {
+          "type": "string",
+          "description": "要运行的脚本，相对项目根目录；与 module 二选一 / Script to run, relative to the project root; use either program or module"
+        },
+        "module": {
+          "type": "string",
+          "description": "以 python -m 运行的模块，例如 app.main；与 program 二选一 / Module to run as python -m, e.g. app.main; use either module or program"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "传给程序的参数：字符串数组；直接编辑 JSON 时也可写成一个按 shell 规则拆分的命令行字符串（支持引号） / Arguments passed to the program: an array of strings; when editing JSON directly, a single shell-style command-line string (quotes honored) is also accepted"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "额外的环境变量 / Extra environment variables"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "工作目录，相对项目根目录，默认项目根目录 / Working directory, relative to the project root (default: the project root)"
+        },
+        "console": {
+          "type": "string",
+          "enum": [
+            "integratedTerminal",
+            "internalConsole",
+            "externalTerminal"
+          ],
+          "default": "integratedTerminal",
+          "description": "程序的输入输出位置：integratedTerminal 在 MinCode 终端中运行（默认），internalConsole 只在调试控制台显示输出，externalTerminal 请求独立的系统终端窗口（是否真正弹出取决于 MinCode 宿主支持，可能回退到集成终端） / Where the program runs: integratedTerminal runs it in a MinCode terminal (default), internalConsole only shows its output in the debug console, externalTerminal requests a separate OS terminal window (actual launch depends on MinCode host support and may fall back to the integrated terminal)"
+        },
+        "python": {
+          "type": "string",
+          "description": "Python 解释器路径；留空时依次使用 .venv、venv 与 PATH 上的 python3 / Python interpreter; empty uses .venv, venv, then python3 on PATH"
+        },
+        "justMyCode": {
+          "type": "boolean",
+          "default": true,
+          "description": "只在自己的代码中停下，跳过标准库与第三方库 / Stop only in your own code, not in the standard library or installed packages"
+        },
+        "showReturnValue": {
+          "type": "boolean",
+          "default": true,
+          "description": "单步跳出函数时在调试控制台显示返回值 / Show the return value in the debug console when stepping out of a function"
+        },
+        "subProcess": {
+          "type": "boolean",
+          "default": false,
+          "description": "同时调试 multiprocessing 等派生的子进程 / Also debug child processes spawned via multiprocessing and similar"
+        }
+      }
+    },
+    "attach": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "localhost",
+          "description": "debugpy 监听的主机 / Host debugpy listens on"
+        },
+        "port": {
+          "type": "integer",
+          "default": 5678,
+          "description": "debugpy 监听的端口 / Port debugpy listens on"
+        },
+        "pathMappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "localRoot": {
+                "type": "string"
+              },
+              "remoteRoot": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "localRoot",
+              "remoteRoot"
+            ]
+          },
+          "description": "本地目录（相对项目根目录）与远程目录的对应关系 / Local directory (relative to the project root) to remote directory mappings"
+        },
+        "python": {
+          "type": "string",
+          "description": "运行调试适配器的 Python 解释器，需已安装 debugpy / Interpreter that runs the debug adapter; needs debugpy installed"
+        },
+        "justMyCode": {
+          "type": "boolean",
+          "default": true,
+          "description": "只在自己的代码中停下 / Stop only in your own code"
+        }
+      }
+    }
+  },
+  "configurationSnippets": [
+    {
+      "label": "Current file",
+      "labelLocalized": {
+        "zh": "当前文件"
+      },
+      "request": "launch",
+      "body": {
+        "program": "${file}"
+      }
+    },
+    {
+      "label": "Module",
+      "labelLocalized": {
+        "zh": "模块"
+      },
+      "request": "launch",
+      "body": {
+        "module": "app"
+      }
+    },
+    {
+      "label": "Attach",
+      "labelLocalized": {
+        "zh": "附加"
+      },
+      "request": "attach",
+      "body": {
+        "host": "localhost",
+        "port": 5678
+      }
+    }
+  ],
+  "remote": {
+    "forward": "local",
+    "argsTemplate": "python -m debugpy --listen 0.0.0.0:${port} --wait-for-client <script.py>"
+  }
+}

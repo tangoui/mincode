@@ -1,4 +1,4 @@
-export type AiPromptSuggestionKind = "tool" | "file" | "prompt" | "context";
+export type AiPromptSuggestionKind = "tool";
 
 export interface AiPromptSuggestion {
   id: string;
@@ -6,12 +6,6 @@ export interface AiPromptSuggestion {
   description: string;
   kind: AiPromptSuggestionKind;
   insertText: string;
-  /** Display name of the plugin that contributed this suggestion (plugin prompts). */
-  source?: string;
-  /** Plugin prompt key (`<pluginId>.<id>`); selecting it expands the template into the draft. */
-  promptKey?: string;
-  /** Plugin context provider key (`<pluginId>/<id>`); selecting it opens the preview dialog, never sends. */
-  contextKey?: string;
 }
 
 export interface AiPromptSuggestionTool {
@@ -19,13 +13,6 @@ export interface AiPromptSuggestionTool {
   description: string;
 }
 
-/** A plugin prompt template offered in the composer; it only ever expands into the draft. */
-export interface AiPromptSuggestionPrompt {
-  key: string;
-  name: string;
-  description: string;
-  source: string;
-}
 
 interface AiPromptSuggestionQuery {
   kind?: AiPromptSuggestionKind;
@@ -41,7 +28,7 @@ export function parseAiPromptSuggestionQuery(input: string): AiPromptSuggestionQ
   if (!trimmed.startsWith("/") || trimmed.includes("{")) return null;
 
   const body = trimmed.slice(1).trim();
-  const typedCommand = /^(tool|prompt)(?:\s+(.*))?$/i.exec(body);
+  const typedCommand = /^(tool)(?:\s+(.*))?$/i.exec(body);
   if (typedCommand) {
     return {
       kind: typedCommand[1]!.toLowerCase() as AiPromptSuggestionKind,
@@ -55,21 +42,11 @@ export function parseAiPromptSuggestionQuery(input: string): AiPromptSuggestionQ
 export function buildAiPromptSuggestions(
   input: string,
   tools: AiPromptSuggestionTool[],
-  prompts: AiPromptSuggestionPrompt[] = []
 ): AiPromptSuggestion[] {
   const parsed = parseAiPromptSuggestionQuery(input);
   if (!parsed) return [];
 
   const suggestions: AiPromptSuggestion[] = [
-    ...prompts.map((prompt) => ({
-      id: `prompt:${prompt.key}`,
-      name: prompt.name,
-      description: prompt.description,
-      kind: "prompt" as const,
-      insertText: "",
-      source: prompt.source,
-      promptKey: prompt.key,
-    })),
     ...tools.map((tool) => ({
       id: `tool:${tool.name}`,
       name: tool.name,
@@ -82,7 +59,7 @@ export function buildAiPromptSuggestions(
   return suggestions.filter((suggestion) => {
     if (parsed.kind && suggestion.kind !== parsed.kind) return false;
     if (!parsed.query) return true;
-    return [suggestion.name, suggestion.description, suggestion.source ?? ""].some((value) =>
+    return [suggestion.name, suggestion.description].some((value) =>
       value.toLowerCase().includes(parsed.query)
     );
   });

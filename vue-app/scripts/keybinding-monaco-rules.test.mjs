@@ -3,13 +3,10 @@ import test from "node:test";
 import { parseKeySequence } from "../src/domain/keybindings/keys.ts";
 import { monacoDefaultRules } from "../src/domain/keybindings/monaco-defaults.ts";
 import { buildMonacoKeybindingRules, monacoKeybinding, translateWhenClauseForMonaco, translateWhenForMonaco } from "../src/domain/keybindings/monaco-rules.ts";
-import { keymapPresetById } from "./keymap-plugin-presets.mjs";
 import { MINCODE_PRESET } from "../src/domain/keybindings/presets/mincode.ts";
 import { resolveKeybindings } from "../src/domain/keybindings/resolver.ts";
 import { parseWhenExpression } from "../src/domain/commands/when.ts";
 
-const VSCODE_PRESET = keymapPresetById("keymaps.vscode");
-const JETBRAINS_PRESET = keymapPresetById("keymaps.intellij");
 
 // Stub of Monaco's KeyMod / KeyCode enums (values match monaco-editor).
 const KeyCode = {
@@ -64,31 +61,6 @@ test("MinCode preset only adds the diff navigation rules", () => {
   }
 });
 
-test("JetBrains removes colliding Monaco defaults (deleteAllLeft on mac, redo on PC)", () => {
-  const mac = buildMonacoKeybindingRules({
-    platform: "mac",
-    resolution: resolveKeybindings({ platform: "mac", presets: [JETBRAINS_PRESET], defaults: monacoDefaultRules("mac") }),
-    api,
-  });
-  const cmdBackspace = 2048 | KeyCode.Backspace;
-  assert.ok(mac.rules.some((rule) => rule.command === "-deleteAllLeft" && rule.keybinding === cmdBackspace));
-  assert.ok(mac.rules.some((rule) => rule.command === "-editor.action.deleteLines" && rule.keybinding === (2048 | 1024 | KeyCode.KeyK)));
-  assert.ok(mac.rules.some((rule) => rule.command === "editor.action.deleteLines" && rule.keybinding === cmdBackspace));
-  // Removals precede additions so Monaco's last-wins lookup sees the new binding.
-  const firstAddition = mac.rules.findIndex((rule) => !rule.command.startsWith("-"));
-  assert.ok(mac.rules.slice(firstAddition).every((rule) => !rule.command.startsWith("-")));
-
-  const win = buildMonacoKeybindingRules({
-    platform: "win",
-    resolution: resolveKeybindings({ platform: "win", presets: [JETBRAINS_PRESET], defaults: monacoDefaultRules("win") }),
-    api,
-  });
-  const ctrlY = 2048 | KeyCode.KeyY;
-  assert.ok(win.rules.some((rule) => rule.command === "-redo" && rule.keybinding === ctrlY));
-  // redo keeps its other defaults (only the colliding key is removed).
-  assert.ok(!win.rules.some((rule) => rule.command === "-redo" && rule.keybinding === (2048 | 1024 | KeyCode.KeyZ)));
-});
-
 test("untranslatable whens and editor-mode owned keys are skipped and reported", () => {
   const preset = {
     id: "t",
@@ -121,33 +93,4 @@ test("single clause translation used by mirrored app bindings", () => {
   assert.equal(one('editor.kind != "sql"'), "mincodeEditorKind != 'sql'");
   assert.equal(one("dialog.focus"), null);
   assert.equal(one("!editor.focus"), null);
-});
-
-test("re-stated defaults keep Monaco's when and are not duplicated", () => {
-  const result = buildMonacoKeybindingRules({
-    platform: "mac",
-    resolution: resolveKeybindings({ platform: "mac", presets: [VSCODE_PRESET], defaults: monacoDefaultRules("mac") }),
-    api,
-  });
-  const additions = result.rules.filter((rule) => !rule.command.startsWith("-"));
-  const ids = additions.map((rule) => `${rule.keybinding}:${rule.command}:${rule.when}`);
-  assert.equal(new Set(ids).size, ids.length);
-  assert.deepEqual(additions.filter((rule) => rule.command === "actions.find").map((rule) => rule.when), ["editorFocus || editorIsOpen"]);
-});
-
-test("JetBrains ⌘D: the Monaco default on the taken key is removed and not re-added", () => {
-  const result = buildMonacoKeybindingRules({
-    platform: "mac",
-    resolution: resolveKeybindings({ platform: "mac", presets: [JETBRAINS_PRESET], defaults: monacoDefaultRules("mac") }),
-    api,
-  });
-  const cmdD = 2048 | KeyCode.KeyD;
-  assert.ok(result.rules.some((rule) => rule.command === "-editor.action.addSelectionToNextFindMatch" && rule.keybinding === cmdD));
-  assert.deepEqual(
-    result.rules.filter((rule) => !rule.command.startsWith("-") && rule.keybinding === cmdD).map((rule) => rule.command),
-    ["editor.action.duplicateSelection"],
-  );
-  // Additions follow resolver order (Monaco: later rule wins).
-  const orders = result.rules.filter((rule) => !rule.command.startsWith("-")).map((rule) => rule.order);
-  assert.deepEqual(orders, [...orders].sort((a, b) => a - b));
 });

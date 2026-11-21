@@ -12,12 +12,12 @@
  *
  * Guards: IME composition (in the matcher), and the
  * settings key recorder (`keybindings.recording`). Phase 2 only executes
- * `handler: "app"` catalog commands and plugin commands with a registered
+ * `handler: "app"` catalog commands with a registered
  * handler; keys of other commands pass through untouched.
  */
 import { ElMessage, type MessageHandler } from "element-plus";
 import type { PluginContextValues } from "@/domain/commands/when";
-import { getKeybindingCommand, isPluginCommandId } from "@/domain/keybindings/catalog";
+import { getKeybindingCommand } from "@/domain/keybindings/catalog";
 import { buildKeybindingContext, keybindingFocusClass, type ElementLike } from "@/domain/keybindings/context";
 import { formatKeyChord, keyChordFromEvent, type KeyChord } from "@/domain/keybindings/keys";
 import {
@@ -29,8 +29,6 @@ import {
 import { useVueI18n } from "@/i18n/messages";
 import { executeRegisteredCommand, isRegisteredCommandEnabled } from "@/services/command-registry";
 import { useKeybindingsStore } from "@/stores/keybindings";
-import { handlePluginKeyboardRelease } from "@/services/plugin-keyboard-release";
-import { usePluginTakeoverStore } from "@/stores/plugin-takeover";
 
 function hasTextSelection(): boolean {
   const selection = typeof window === "undefined" ? null : window.getSelection();
@@ -50,13 +48,12 @@ export function currentKeybindingContext(target: EventTarget | null = null): Plu
   return buildKeybindingContext({ target: element, platform: store.platform, textSelection: hasTextSelection() });
 }
 
-/** Whether the dispatcher can run a command now (catalog-available app handler or plugin, registered, `when` holds). */
+/** Whether the dispatcher can run a command now (available catalog command with a registered app handler, `when` holds). */
 export function canRunKeybindingCommand(command: string, context: PluginContextValues): boolean {
   return canExecute(command, context);
 }
 
 function canExecute(command: string, context: PluginContextValues): boolean {
-  if (isPluginCommandId(command)) return isRegisteredCommandEnabled(command, context);
   const entry = getKeybindingCommand(command);
   if (!entry || !entry.available || entry.handler !== "app") return false;
   return isRegisteredCommandEnabled(command, context);
@@ -65,7 +62,6 @@ function canExecute(command: string, context: PluginContextValues): boolean {
 /** Installs the window listeners; returns the uninstaller. */
 export function installKeybindingDispatcher(): () => void {
   const store = useKeybindingsStore();
-  const takeover = usePluginTakeoverStore();
   const { t } = useVueI18n();
   const platform = store.platform;
   const matcher = new KeybindingMatcher({
@@ -92,9 +88,8 @@ export function installKeybindingDispatcher(): () => void {
     return { focus, context, canExecute: (command) => canExecute(command, context) };
   }
 
-  // A plugin view that holds the keyboard (features.keyboardCapture) gets every chord.
   function suspended(): boolean {
-    return store.recording || takeover.keyboardCaptured();
+    return store.recording;
   }
 
   function commandTitle(command: string): string {
@@ -153,7 +148,6 @@ export function installKeybindingDispatcher(): () => void {
   }
 
   function onKeydownCapture(event: KeyboardEvent) {
-    if (handlePluginKeyboardRelease(event)) return;
     if (suspended()) {
       matcher.cancelPending();
       matcher.resetTaps();

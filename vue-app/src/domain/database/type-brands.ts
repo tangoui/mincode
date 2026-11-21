@@ -84,56 +84,11 @@ const fallbackBrand: DatabaseTypeBrand = { color: "#718096", icon: "database" };
  * Each is the main color of the driver's own icon (official-plugins/<id>/assets),
  * so the tinted tile matches the icon drawn on it.
  */
-const pluginDriverColors: Record<string, string> = {
-  "clickhouse-driver/clickhouse": "#faa50a",
-  "cloud-data-driver/dynamodb": "#4b61d1",
-  "cloud-data-driver/salesforce": "#1c8bd6",
-  "cloud-data-driver/spanner": "#3a7be0",
-  "db2-driver/db2": "#0f62fe",
-  "duckdb-driver/duckdb": "#6b6b3a",
-  "edge-sqlite-driver/cloudflare-d1": "#f4a340",
-  "edge-sqlite-driver/rqlite": "#5b7fd6",
-  "edge-sqlite-driver/turso": "#1fb8a6",
-  "enterprise-driver/exasol": "#1f7a5a",
-  "enterprise-driver/saphana": "#1b6fc2",
-  "enterprise-driver/vertica": "#223a5e",
-  "hive-driver/argodb": "#2f6fd6",
-  "hive-driver/hive": "#d9a21b",
-  "hive-driver/impala": "#2e8b8b",
-  "hive-driver/inceptor": "#2f6fd6",
-  "hive-driver/kyuubi": "#7b5cc4",
-  "hive-driver/sparksql": "#e0632a",
-  "nosql-driver/hbase": "#b33a2e",
-  "nosql-driver/nebula": "#8f7ce0",
-  "oracle-driver/oracle": "#c74634",
-  "pgcompat-driver/kwdb": "#0e7c66",
-  "pgcompat-driver/uxdb": "#1f5fad",
-  "phoenix-driver/phoenix": "#b4321e",
-  "search-driver/easysearch": "#3e6fd8",
-  "search-driver/manticore": "#1c9c8c",
-  "search-driver/solr": "#d9661f",
-  "timeseries-driver/influxdb3": "#22adf6",
-  "timeseries-driver/iotdb": "#2f7fc1",
-  "timeseries-driver/victoriametrics": "#6c4dd3",
-  "xugudb-driver/xugu": "#0e7c66",
-  "yashandb-driver/yashandb": "#d45b37",
-};
-
 /** Brand for a database type; unknown or plugin-only types use a neutral fallback. */
 export function databaseTypeBrand(dbType: string): DatabaseTypeBrand {
   return databaseTypeBrands[dbType as DbType] ?? fallbackBrand;
 }
 
-/**
- * Brand for a connection: a connection bound to a plugin driver takes that
- * driver's color (official drivers) so it does not read as the gray fallback;
- * everything else uses its type brand.
- */
-export function databaseConnectionBrand(connection: {
-  dbType: string;
-  driver?: { pluginId: string; driverId: string } | null;
-}): DatabaseTypeBrand {
-  const driver = connection.driver;
-  const color = driver ? pluginDriverColors[`${driver.pluginId}/${driver.driverId}`] : undefined;
-  return color ? { ...databaseTypeBrand(connection.dbType), color } : databaseTypeBrand(connection.dbType);
+export function databaseConnectionBrand(connection: { dbType: string }): DatabaseTypeBrand {
+  return databaseTypeBrand(connection.dbType);
 }

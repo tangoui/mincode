@@ -52,7 +52,7 @@ test("validates preview payloads and drops malformed rows", () => {
     [
       ["r1", "ready"],
       ["r3", "unsupported"],
-      ["r4", "needsPlugin"],
+      ["r4", "unsupported"],
       ["r5", "unsupported"],
       ["r6", "ready"],
     ],
@@ -89,7 +89,7 @@ test("validates detected locations", () => {
   assert.deepEqual(parseDetectedImportLocations("x"), []);
 });
 
-test("resolves plugin-only types, lean-build types and duplicates", () => {
+test("filters unsupported types and retains duplicate detection", () => {
   const candidates = preview([
     row({ id: "r1", name: "Orders" }),
     row({ id: "r2", name: "Orders copy" }),
@@ -108,10 +108,6 @@ test("resolves plugin-only types, lean-build types and duplicates", () => {
       { name: "Local", dbType: "sqlite", host: "", port: 0, filePath: "/tmp/a.db" },
       { name: "Legacy hive", dbType: "plugin", host: "old.test", port: 3306, driver: { pluginId: "hive-driver", driverId: "hive" } },
     ],
-    drivers: [
-      { pluginId: "hive-driver", driverId: "hive" },
-      { pluginId: "clickhouse-driver", driverId: "clickhouse", replaces: "clickhouse" },
-    ],
     supportedTypes: new Set(["mysql", "sqlite", "postgres"]),
   });
   const byName = Object.fromEntries(resolved.map((item) => [item.candidate.name, item]));
@@ -120,34 +116,26 @@ test("resolves plugin-only types, lean-build types and duplicates", () => {
   assert.equal(byName["Orders copy"].duplicateOf, "Orders");
   assert.equal(byName["Orders copy"].defaultSelected, false);
   assert.equal(byName.Existing.duplicateOf, "Shop");
-  assert.deepEqual(byName.Hive.driver, { pluginId: "hive-driver", driverId: "hive" });
-  assert.equal(byName.Hive.status, "ready");
-  assert.equal(byName.Vertica.status, "needsPlugin");
-  assert.equal(byName.Vertica.requiredDriverId, "vertica");
-  assert.deepEqual(byName.CH.driver, { pluginId: "clickhouse-driver", driverId: "clickhouse" });
-  assert.equal(byName.CH.status, "ready");
-  assert.equal(byName.Yashan.status, "needsPlugin");
-  assert.equal(byName.Yashan.requiredDriverId, "yashandb");
+  assert.equal(byName.Hive.status, "unsupported");
+  assert.equal(byName.Vertica.status, "unsupported");
+  assert.equal(byName.CH.status, "unsupported");
+  assert.equal(byName.Yashan.status, "unsupported");
   assert.equal(byName.DB2.status, "unsupported");
   assert.equal(byName.DB2.defaultSelected, false);
   assert.equal(byName.Cache.duplicateOf, "Local");
-  assert.equal(byName["Old hive"].duplicateOf, "Legacy hive", "plugin connections match by driver id");
   assert.equal(byName.Hive.duplicateOf, undefined);
 
   const selected = new Set(resolved.map((item) => item.candidate.id));
   assert.deepEqual(
     databaseImportCommitRows(resolved, selected).map((item) => item.id),
-    ["r1", "r2", "r3", "r4", "r6", "r9", "r10"],
+    ["r1", "r2", "r3", "r9"],
   );
-  assert.deepEqual(databaseImportCommitRows(resolved, new Set(["r4", "r5", "r8"])), [
-    { id: "r4", driver: { pluginId: "hive-driver", driverId: "hive" } },
-  ]);
+  assert.deepEqual(databaseImportCommitRows(resolved, new Set(["r4", "r5", "r8"])), []);
 });
 
 test("unknown build capabilities keep every built-in type ready", () => {
   const [resolved] = resolveDatabaseImportRows([preview([row({ dbType: "clickhouse" })]).rows[0]], {
     connections: [],
-    drivers: [],
     supportedTypes: null,
   });
   assert.equal(resolved.status, "ready");
@@ -190,7 +178,7 @@ test("parses pasted URL lines", () => {
 
 test("builds connections from pasted URLs", () => {
   const [urlRow] = parseDatabaseImportUrls("mysql://app:secret@db.test:3307/shop").rows;
-  const connection = databaseConnectionFromImportUrl(urlRow, {}, { id: "c1", group: " Team ", now: 42 });
+  const connection = databaseConnectionFromImportUrl(urlRow, { id: "c1", group: " Team ", now: 42 });
   assert.deepEqual(connection, {
     id: "c1",
     name: "db.test/shop",
@@ -207,19 +195,17 @@ test("builds connections from pasted URLs", () => {
     savePassword: true,
     group: "Team",
     tags: [],
-    driver: undefined,
     createdAt: 42,
     updatedAt: 42,
   });
   const [chRow] = parseDatabaseImportUrls("clickhouse://ch.test:8123/default").rows;
   const bound = databaseConnectionFromImportUrl(
     chRow,
-    { driver: { pluginId: "clickhouse-driver", driverId: "clickhouse" } },
     { id: "c2", group: "", now: 1 },
   );
   assert.equal(bound.savePassword, false);
   assert.equal(bound.group, undefined);
-  assert.deepEqual(bound.driver, { pluginId: "clickhouse-driver", driverId: "clickhouse" });
+  assert.equal(bound.driver, undefined);
 });
 
 test("extracts backend import error codes", () => {

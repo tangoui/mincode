@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
+import { defineAsyncComponent, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal, type IDisposable } from "@xterm/xterm";
 import { ElMessage } from "element-plus";
-import { CopyDocument, Select, Tickets, Upload } from "@element-plus/icons-vue";
+import { CopyDocument, Select, Upload } from "@element-plus/icons-vue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import PluginServiceMenuItems from "@/components/plugins/PluginServiceMenuItems.vue";
-import type { TerminalSelectionServiceTarget } from "@/domain/plugins/service-surfaces";
-import { menuPassContext, terminalHostContext } from "@/domain/plugins/menus";
 import "@xterm/xterm/css/xterm.css";
 import { terminalOverlayStyle, usePredictiveEcho } from "@/composables/use-predictive-echo";
 import { guardTerminalPasteEvents, useTerminalKeybindings } from "@/composables/use-terminal-keybindings";
@@ -47,14 +43,10 @@ import {
 } from "@/services/terminal-viewport";
 import { UI_THEME_CHANGED_EVENT, type UiTheme } from "@/services/ui-theme";
 import { copyText, listenAppEvent, readText } from "@/services/desktop-bridge";
-import { attachPluginTerminalLinks } from "@/services/terminal-plugin-links";
-import type { TerminalWebLinkFailure } from "@/services/terminal-web-links";
+import { createTerminalWebLinksAddon, type TerminalWebLinkFailure } from "@/services/terminal-web-links";
 
 const TerminalPasteConfirmDialog = defineAsyncComponent(
   () => import("@/components/terminal/TerminalPasteConfirmDialog.vue")
-);
-const TerminalCommandSnippetsPanel = defineAsyncComponent(
-  () => import("@/components/terminal/TerminalCommandSnippetsPanel.vue")
 );
 
 const props = withDefaults(
@@ -85,14 +77,8 @@ const pendingPasteText = ref("");
 watch(pasteDialogOpen, (open) => {
   if (open) pasteDialogMounted.value = true;
 });
-const snippetsOpen = ref(false);
-const snippetsMounted = ref(false);
 const streamReady = ref(false);
-watch(snippetsOpen, (open) => {
-  if (open) snippetsMounted.value = true;
-});
 let xterm: Terminal | null = null;
-let pluginLinks: IDisposable | null = null;
 let fitAddon: FitAddon | null = null;
 let webglAddonHandle: IDisposable | null = null;
 let resizeObserver: ResizeObserver | null = null;
@@ -200,17 +186,6 @@ function pasteConfirmed(text: string) {
   xterm?.focus();
 }
 
-function bracketedPasteMode() {
-  return xterm?.modes.bracketedPasteMode === true;
-}
-
-/** Command snippet from the drawer: already planned (no "\r", no trailing newline; multi-line only in bracketed paste). */
-function insertCommandSnippet(text: string) {
-  if (props.mode !== "exec" || !started || closed || !text) return;
-  predictiveEcho.paste(text);
-  xterm?.focus();
-}
-
 function handleWebLinkFailure(failure: TerminalWebLinkFailure) {
   const message = failure === "desktop-required" ? t("terminal.linkDesktopOnly") : t("terminal.openLinkFailed");
   ElMessage.error({ message, grouping: true, showClose: true });
@@ -226,24 +201,8 @@ async function copyTerminalSelection() {
   }
 }
 
-// Minimal context menu: copy / paste (exec only) / select all, plus plugin
-// items (contributes.menus terminal/context with terminal.kind "docker") and
-// plugin services on the selection.
+// Context menu for copy, paste in exec mode and select all.
 const contextMenu = ref<{ x: number; y: number; selection: string } | null>(null);
-const pluginMenuHost = computed(() =>
-  contextMenu.value ? terminalHostContext({ kind: "docker", selection: contextMenu.value.selection }) : null,
-);
-
-function pluginMenuContext() {
-  return menuPassContext("terminal/context", { kind: "docker", selection: contextMenu.value?.selection ?? "" });
-}
-
-// Plugin services (surface terminalSelection): the explicit selection only.
-function serviceTarget(): TerminalSelectionServiceTarget | null {
-  const selection = contextMenu.value?.selection;
-  return selection ? { surface: "terminalSelection", kind: "docker", selection } : null;
-}
-
 function openContextMenu(event: MouseEvent) {
   if (!xterm) return;
   event.preventDefault();
@@ -265,11 +224,6 @@ function contextMenuCopy() {
 function contextMenuPaste() {
   closeContextMenu();
   void requestPaste();
-}
-
-function contextMenuSnippets() {
-  closeContextMenu();
-  snippetsOpen.value = true;
 }
 
 function contextMenuSelectAll() {
@@ -330,11 +284,7 @@ onMounted(async () => {
   xterm.loadAddon(fitAddon);
   xterm.open(terminalHost.value);
   setTerminalTheme(xterm, resolveTerminalTheme());
-  pluginLinks = attachPluginTerminalLinks(xterm, {
-    kind: "docker",
-    host: terminalHost.value,
-    onWebLinkFailure: handleWebLinkFailure,
-  });
+  xterm.loadAddon(createTerminalWebLinksAddon({ onFailure: handleWebLinkFailure }));
   xterm.attachCustomKeyEventHandler(handleTerminalKey);
   stopPasteGuard = guardTerminalPasteEvents(terminalHost.value, pasteGuarded);
   // Renderer metrics changed once WebGL settles: the overlay measures its cells again.
@@ -412,8 +362,6 @@ onBeforeUnmount(() => {
   predictiveEcho.dispose();
   webglAddonHandle?.dispose();
   webglAddonHandle = null;
-  pluginLinks?.dispose();
-  pluginLinks = null;
   xterm?.dispose();
   xterm = null;
   fitAddon = null;
@@ -436,33 +384,15 @@ onBeforeUnmount(() => {
       <el-dropdown-item v-if="props.mode === 'exec'" @click="contextMenuPaste">
         <el-icon><Upload /></el-icon>{{ t("terminal.context.paste") }}
       </el-dropdown-item>
-      <el-dropdown-item v-if="props.mode === 'exec'" :disabled="!streamReady" @click="contextMenuSnippets">
-        <el-icon><Tickets /></el-icon>{{ t("pluginContrib.commandSnippets.menu") }}
-      </el-dropdown-item>
       <el-dropdown-item @click="contextMenuSelectAll">
         <el-icon><Select /></el-icon>{{ t("terminal.context.selectAll") }}
       </el-dropdown-item>
-      <PluginMenuItems
-        menu="terminal/context"
-        :host="pluginMenuHost"
-        :context="pluginMenuContext"
-        @run="closeContextMenu"
-      />
-      <PluginServiceMenuItems :target="serviceTarget" @run="closeContextMenu" />
     </AppContextMenu>
     <TerminalPasteConfirmDialog
       v-if="pasteDialogMounted"
       v-model="pasteDialogOpen"
       :text="pendingPasteText"
       @confirm="pasteConfirmed"
-    />
-    <TerminalCommandSnippetsPanel
-      v-if="snippetsMounted && props.mode === 'exec'"
-      v-model="snippetsOpen"
-      terminal-kind="docker"
-      :ready="streamReady"
-      :bracketed-paste-mode="bracketedPasteMode"
-      @insert="insertCommandSnippet"
     />
   </div>
 </template>

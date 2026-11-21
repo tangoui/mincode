@@ -1,7 +1,5 @@
-import { taskMessagesZh } from "../../plugin-ui/task-messages";
 
 export const messagesZh = {
-  ...taskMessagesZh,
   "ssh.history.title": "SSH 历史命令",
   "ssh.history.button": "历史命令",
   "ssh.history.privacy": "本机历史 · 不上传、不发送给 AI",
@@ -3371,6 +3369,8 @@ export const messagesZh = {
   "database.typeCompatHint.postgres": "也可连接 PostgreSQL 协议兼容的数据库",
   "database.driverHint": "使用 {driver} 驱动连接",
   "database.driverUnavailable": "驱动未接入",
+  "database.confirmBuiltinDriver": "确认使用内置驱动",
+  "database.confirmBuiltinDriverHint": "请在连接前确认使用内置驱动。",
   "database.driverUnavailableHint": "当前桌面后端尚未接入该数据库驱动",
   "database.yashandbClientHint":
     "使用官方 YashanDB Go 驱动；桌面端仍需安装匹配版本的 YashanDB C Client。官方客户端目前支持 Windows 和 Linux。",

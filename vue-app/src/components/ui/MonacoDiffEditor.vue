@@ -3,7 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ArrowDown, ArrowUp } from "@element-plus/icons-vue";
 import * as monaco from "@/services/monaco-runtime.js";
 import { getMonacoOverflowWidgetsHost } from "@/services/monaco-overflow-host";
-import { PLUGIN_LANGUAGES_CHANGED_EVENT, detectMonacoEditorLanguage } from "@/services/monaco-languages";
+import { detectMonacoEditorLanguage } from "@/services/monaco-languages";
 import type { MonacoPresentationPreferences } from "@/domain/projects/types";
 import { useVueI18n } from "@/i18n/messages";
 import { ensureMonacoKeymap, registerMonacoDiffNavigation } from "@/services/monaco-keymap";
@@ -43,10 +43,6 @@ function detectLanguage(path: string, value: string) {
 }
 
 /** Plugin languages changed: re-detect both sides of the diff. */
-function handlePluginLanguagesChanged() {
-  setLanguage(props.path);
-}
-
 function updateTheme(theme: UiTheme) {
   const nextTheme = resolveMonacoEditorTheme(theme);
   if (nextTheme === currentTheme) return;
@@ -183,7 +179,6 @@ onMounted(async () => {
   });
   resizeObserver.observe(host.value);
   window.addEventListener(UI_THEME_CHANGED_EVENT, handleThemeChange);
-  window.addEventListener(PLUGIN_LANGUAGES_CHANGED_EVENT, handlePluginLanguagesChanged);
   await nextTick();
   scheduleLayout();
 });
@@ -227,7 +222,6 @@ onBeforeUnmount(() => {
   disposeDiffNavigation?.();
   disposeDiffNavigation = null;
   window.removeEventListener(UI_THEME_CHANGED_EVENT, handleThemeChange);
-  window.removeEventListener(PLUGIN_LANGUAGES_CHANGED_EVENT, handlePluginLanguagesChanged);
   diffEditor?.dispose();
   originalModel?.dispose();
   modifiedModel?.dispose();

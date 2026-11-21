@@ -1,10 +1,6 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, reactive } from "vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import { parseWhenExpression } from "@/domain/commands/when";
-import type { PluginMenuItem } from "@/domain/plugins/menus";
-import { pluginMenuItems } from "@/services/contributions/menus";
 
 type KeyInfo = { type: string; ttl: number; value: unknown; binary?: boolean };
 
@@ -14,16 +10,6 @@ const pending = new Map<string, { resolve: (info: KeyInfo) => void; reject: (err
 
 vi.mock("@/stores/database-workspace", () => ({ useDatabaseWorkspaceStore: () => store.value }));
 vi.mock("@/services/ai-workspace-actions", () => ({ registerAiWorkspaceActionHandler: () => () => {} }));
-
-const plugin = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("@/services/plugin-commands", async () => {
-  const { shallowRef } = await import("vue");
-  return {
-    pluginCommandState: shallowRef({ commands: [{ pluginId: "demo.menus", id: "inspect" }], contexts: {} }),
-    executePluginCommand: (...args: unknown[]) => plugin.execute(...args),
-    setPluginCommandPaletteOverrides: () => {},
-  };
-});
 const bridge = vi.hoisted(() => ({ copyText: vi.fn() }));
 vi.mock("@/services/desktop-bridge", () => ({ isDesktopRuntime: () => true, copyText: bridge.copyText }));
 const messages = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }));
@@ -152,26 +138,11 @@ describe("redis key switching", () => {
     wrapper.unmount();
   });
 });
-
-const MENU_ITEM: PluginMenuItem = {
-  pluginId: "demo.menus",
-  pluginName: "Demo Menus",
-  menu: "redis/key/context",
-  command: "inspect",
-  title: "Inspect key",
-  whenClauses: [],
-  group: "",
-  order: 0,
-  passContext: true,
-  hidden: false,
-};
-const SECRETS = ["secret-value", "redis.hidden", "6380", "acluser", "redis-secret-pass"];
 const LONG_KEY = "k".repeat(4097);
 
 describe("redis key context menu", () => {
   afterEach(() => {
     window.dispatchEvent(new MouseEvent("mousedown"));
-    pluginMenuItems.value = [];
     vi.clearAllMocks();
   });
 
@@ -189,16 +160,7 @@ describe("redis key context menu", () => {
   const menu = (wrapper: ReturnType<typeof mountPanel>) => wrapper.findComponent(ContextMenu);
   const menuItems = (wrapper: ReturnType<typeof mountPanel>) => menu(wrapper).findAll("[role=menuitem]");
 
-  function lastInvocation() {
-    const [, , invocation] = plugin.execute.mock.calls.at(-1)! as [string, string, { menu: string; context: Record<string, unknown> }];
-    expect(invocation.menu).toBe("redis/key/context");
-    const serialized = JSON.stringify(invocation.context);
-    for (const secret of SECRETS) expect(serialized).not.toContain(secret);
-    return invocation.context;
-  }
-
-  it("opens on right-click, selects the key and puts plugin items after Copy key name", async () => {
-    pluginMenuItems.value = [MENU_ITEM];
+  it("opens on right-click and selects the key", async () => {
     const wrapper = mountWithKeys();
     await flushPromises();
     await row(wrapper, "session:42").trigger("contextmenu");
@@ -207,27 +169,18 @@ describe("redis key context menu", () => {
     expect(menu(wrapper).exists()).toBe(true);
     expect(menu(wrapper).attributes("aria-label")).toMatch(/键操作|Key actions/);
     const items = menuItems(wrapper);
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(1);
     expect(items[0]!.text()).toMatch(/复制键名|Copy key name/);
-    expect(items[1]!.text()).toBe("Inspect key");
-    expect(items[1]!.attributes("divided")).toBeDefined();
-    expect(wrapper.findComponent(PluginMenuItems).props("host")).toEqual({ "redis.type": "hash", "redis.hasTtl": true });
-
-    await items[1]!.trigger("click");
-    await flushPromises();
-    expect(lastInvocation()).toEqual({ connection: { id: "redis-1", name: "Cache" }, dbIndex: 3, key: "session:42", type: "hash", ttl: 120 });
-    expect(menu(wrapper).exists()).toBe(false);
     wrapper.unmount();
   });
 
-  it("copies the key name and shows only the host item without plugin items", async () => {
+  it("copies the key name", async () => {
     const wrapper = mountWithKeys();
     await flushPromises();
     await row(wrapper, "session:42").trigger("contextmenu");
     await flushPromises();
     const items = menuItems(wrapper);
     expect(items).toHaveLength(1);
-    expect(wrapper.findAll(".app-plugin-menu-item")).toHaveLength(0);
     await items[0]!.trigger("click");
     await flushPromises();
     expect(bridge.copyText).toHaveBeenCalledWith("session:42");
@@ -237,7 +190,6 @@ describe("redis key context menu", () => {
   });
 
   it("opens from the keyboard with ContextMenu and Shift+F10", async () => {
-    pluginMenuItems.value = [MENU_ITEM];
     const wrapper = mountWithKeys();
     await flushPromises();
     await row(wrapper, "session:42").trigger("keydown", { key: "ContextMenu" });
@@ -257,36 +209,7 @@ describe("redis key context menu", () => {
     wrapper.unmount();
   });
 
-  it("evaluates redis.type when clauses", async () => {
-    pluginMenuItems.value = [{ ...MENU_ITEM, whenClauses: parseWhenExpression('redis.type == "hash"') }];
-    const wrapper = mountWithKeys();
-    await flushPromises();
-    await row(wrapper, "b").trigger("contextmenu");
-    await flushPromises();
-    expect(wrapper.findAll(".app-plugin-menu-item")).toHaveLength(0);
-    menu(wrapper).vm.$emit("close");
-    await flushPromises();
-    await row(wrapper, "session:42").trigger("contextmenu");
-    await flushPromises();
-    expect(wrapper.findAll(".app-plugin-menu-item")).toHaveLength(1);
-    wrapper.unmount();
-  });
-
-  it("refuses to send a key over redisKeyMaxBytes", async () => {
-    pluginMenuItems.value = [MENU_ITEM];
-    const wrapper = mountWithKeys();
-    await flushPromises();
-    await row(wrapper, LONG_KEY).trigger("contextmenu");
-    await flushPromises();
-    await menuItems(wrapper).at(-1)!.trigger("click");
-    await flushPromises();
-    expect(plugin.execute).not.toHaveBeenCalled();
-    expect(messages.error).toHaveBeenCalledWith(expect.stringMatching(/所选对象过长|too long/));
-    wrapper.unmount();
-  });
-
   it("closes the menu and drops the target when the key leaves the list or the database changes", async () => {
-    pluginMenuItems.value = [MENU_ITEM];
     const wrapper = mountWithKeys();
     await flushPromises();
     await row(wrapper, "session:42").trigger("contextmenu");
@@ -316,7 +239,6 @@ describe("redis key rows from the keyboard", () => {
   afterEach(() => {
     // A pointer press disarms the guard against the native contextmenu that follows Shift+F10.
     window.dispatchEvent(new MouseEvent("mousedown"));
-    pluginMenuItems.value = [];
     vi.clearAllMocks();
   });
 

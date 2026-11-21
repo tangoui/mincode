@@ -52,29 +52,14 @@ export function acpBuiltinAgentLaunch(id: string): AcpAgentLaunch {
   return { command: agent.command, args: [...agent.args] };
 }
 
-/**
- * Where the selected agent (`acpAdapterId`) comes from: a built-in preset, a
- * user-configured agent (`custom:<id>`) or a plugin agent
- * (`plugin:<pluginId>/<agentId>`, contributes.acpAgents). A plugin agent is
- * named by reference only; the Go host resolves its launch.
- */
 export type AcpAdapterRef =
   | { kind: "builtin"; id: string }
-  | { kind: "custom"; id: string }
-  | { kind: "plugin"; pluginId: string; agentId: string };
+  | { kind: "custom"; id: string };
 
 const CUSTOM_ADAPTER_PREFIX = "custom:";
-const PLUGIN_ADAPTER_PATTERN = /^plugin:([a-z0-9][a-z0-9._-]{1,127})\/([a-z0-9][a-z0-9-]{0,63})$/;
-
-export function pluginAcpAdapterId(pluginId: string, agentId: string): string {
-  return `plugin:${pluginId}/${agentId}`;
-}
-
 /** Parses a stored adapter id; anything malformed or unknown is the default built-in agent. */
 export function parseAcpAdapterId(id: string): AcpAdapterRef {
   const value = typeof id === "string" ? id.trim() : "";
-  const plugin = PLUGIN_ADAPTER_PATTERN.exec(value);
-  if (plugin) return { kind: "plugin", pluginId: plugin[1]!, agentId: plugin[2]! };
   if (value.startsWith(CUSTOM_ADAPTER_PREFIX) && value.length > CUSTOM_ADAPTER_PREFIX.length) {
     return { kind: "custom", id: value.slice(CUSTOM_ADAPTER_PREFIX.length) };
   }

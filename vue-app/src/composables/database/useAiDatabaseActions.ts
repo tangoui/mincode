@@ -72,16 +72,6 @@ export function useAiDatabaseActions(options: {
       tags: connection.tags ?? [],
       favorite: Boolean(connection.favorite),
       connected: Boolean(databaseStore.sessionIds[connection.id]),
-      // 只读标注：AI 无法设置或修改驱动绑定，也无法授予凭据释放。
-      ...(connection.driver
-        ? {
-            pluginDriver: {
-              pluginId: connection.driver.pluginId,
-              driverId: connection.driver.driverId,
-              available: databaseStore.connectionDescriptor(connection)?.available ?? false,
-            },
-          }
-        : {}),
     };
   }
 

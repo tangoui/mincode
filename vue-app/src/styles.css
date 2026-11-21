@@ -62,7 +62,6 @@
 @import "./styles/workspaces/notes/notes.css";
 @import "./styles/shared/theme-inputs.css";
 @import "./styles/shared/command-palette.css";
-@import "./styles/shared/status-bar.css";
 
 @import "./styles/workspaces/database/er-diagram.css";
 

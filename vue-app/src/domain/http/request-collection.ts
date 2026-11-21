@@ -560,3 +560,12 @@ export function createSavedHttpRequest(
     updatedAt,
   };
 }
+
+export function uniqueCollectionName(name: string, existingNames: Iterable<string>): string {
+  const taken = new Set(existingNames);
+  if (!taken.has(name)) return name;
+  for (let index = 2; ; index += 1) {
+    const candidate = `${name} (${index})`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}

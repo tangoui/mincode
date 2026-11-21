@@ -18,13 +18,7 @@ import { invokeBackend, isDesktopRuntime, listenAppEvent, nativeErrorMessage } f
 import { currentKeyboardPlatform } from "@/services/keyboard-platform";
 import { useSessionProgressStore } from "@/stores/session-progress";
 import { useAgentRunNavigation } from "@/composables/use-agent-run-navigation";
-import { listPluginViews } from "@/services/plugin-service";
-import { installPluginHostUiBridge } from "@/services/plugin-host-ui";
-import { usePluginHostUiStore } from "@/stores/plugin-host-ui";
-import { usePluginTakeoverStore } from "@/stores/plugin-takeover";
-import { usePluginViewWarmPoolStore } from "@/stores/plugin-view-warm-pool";
 import { settingsNavigationRequest, type SettingsNavigationCategory } from "@/services/settings-navigation";
-import { enqueuePluginAiTurn, notifyPluginAiTurnApproval, notifyPluginAiTurnCancelled, refreshPendingPluginAiTurns } from "@/services/plugin-ai-turns";
 import { enqueueDatabaseFiles } from "@/services/external-file-open";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import {
@@ -34,7 +28,6 @@ import {
   type AiAssistantStore,
 } from "@/stores/ai-assistant-shell";
 import { useWorkbenchStore } from "@/stores/workbench";
-import { useStatusBarStore } from "@/stores/status-bar";
 import { useNotificationsStore } from "@/stores/notifications";
 import { useSshMfaStore } from "@/stores/ssh-mfa";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
@@ -52,7 +45,7 @@ import { cachedWorkspaceViewNames } from "@/domain/workspace/view-retention";
 import { useTerminalAttention } from "@/composables/use-terminal-attention";
 import { useTerminalTabCleanup } from "@/composables/use-terminal-tab-cleanup";
 import { useTerminalAttentionStore } from "@/stores/terminal-attention";
-import { preloadWorkspaceView, workspaceViewLoaders } from "@/router/workspace-views";
+import { preloadWorkspaceView } from "@/router/workspace-views";
 import { useVueI18n } from "@/i18n/messages";
 import { hydrateUiAppearance } from "@/services/ui-appearance";
 import {
@@ -74,39 +67,22 @@ import { workspaceViews, type WorkspaceView } from "@/types/workspace";
 import type { CommandPaletteOpenRequest } from "@/domain/commands/command-palette";
 import { useAppCommands } from "@/composables/use-app-commands";
 import { installKeybindingDispatcher } from "@/services/keybinding-dispatcher";
-import { pluginCommandParamRequest, startPluginCommandSync } from "@/services/plugin-commands";
-import { scheduleIdleTask } from "@/services/idle-task";
 import { createStartupIdleBridgeCoordinator } from "@/services/startup-idle-bridges";
 import { useCommandPaletteStore } from "@/stores/command-palette";
 import { useKeybindingsStore } from "@/stores/keybindings";
 import {
   parseDesktopAiConversationTarget,
-  parseDesktopPluginTarget,
   type NotificationTarget,
 } from "@/domain/notifications/target";
-import { notifyApp } from "@/services/notifications";
-import { createOrderedDelivery } from "@/domain/notifications/ordered-delivery";
-import { globalShortcutNoticeKey, hostGlobalShortcutErrorNotice } from "@/domain/keybindings/plugin-global-shortcut-notices";
+import { hostGlobalShortcutErrorNotice } from "@/domain/keybindings/global-shortcut-notices";
 import { BACKUP_RUN_EVENT } from "@/domain/database/backup-events";
-import { openPluginViewTab } from "@/domain/workspace/open-plugin-view";
-import { localizedPluginTitle } from "@/services/plugin-titles";
-import { drainPendingDesktopNavigation, handlePluginUriLink } from "@/services/plugin-uri-links";
+import { drainPendingDesktopNavigation } from "@/services/desktop-navigation";
 import { listenNotificationNavigation } from "@/services/notification-navigation";
 import { AI_ASSISTANT_DROP_TARGET_ID } from "@/domain/ai/dropped-files";
 
 const AppCommandPaletteHost = defineAsyncComponent(
   () => import("@/components/layout/AppCommandPaletteHost.vue")
 );
-// Install before startup IPC and lazy rendering so the very first publish is retained.
-const PluginHostUiLayer = defineAsyncComponent(() => import("@/components/plugins/PluginHostUiLayer.vue"));
-const pluginHostUi = usePluginHostUiStore();
-const PluginImmersiveExit = defineAsyncComponent(() => import("@/components/plugins/PluginImmersiveExit.vue"));
-// A plugin view may hide the MinCode chrome (features.immersive); the exit control above stays with the host.
-const pluginTakeover = usePluginTakeoverStore();
-const PluginCommandParamsHost = defineAsyncComponent(
-  () => import("@/components/plugins/PluginCommandParamsHost.vue")
-);
-const PluginServicesRoot = defineAsyncComponent(() => import("@/components/plugins/PluginServicesRoot.vue"));
 const AiAssistantDrawer = defineAsyncComponent(
   () => import("@/components/ai/AiAssistantDrawer.vue")
 );
@@ -121,11 +97,6 @@ const PopupTabWindow = defineAsyncComponent(
 const SettingsWorkspaceView = defineAsyncComponent(
   () => import("@/views/SettingsWorkspaceView.vue")
 );
-// 插件工作区不进 KeepAlive：KeepAlive 停用时会把 DOM 移出文档，iframe 被卸载，
-// 切回插件 tab 时页面会重新加载。这里为每个有插件 tab 的工作区常驻挂载一层，
-// 切到其他 tab 只隐藏，插件页面和未提交的表单保持不变。
-const PluginWorkspaceView = defineAsyncComponent(workspaceViewLoaders["plugin-view"]);
-
 const route = useRoute();
 const router = useRouter();
 const { t } = useVueI18n();
@@ -189,7 +160,6 @@ const linkedNotesDrawer = useLinkedNotesDrawer();
 const keybindings = useKeybindingsStore();
 const settingsOpen = ref(false);
 const settingsInitialCategory = ref<SettingsNavigationCategory | undefined>();
-const settingsInitialPluginId = ref<string>();
 const settingsLoaded = ref(false);
 const assistantLoaded = ref(false);
 const popupWindow = isPopupWindow();
@@ -250,45 +220,15 @@ const workspaceStateScopeId = computed(() =>
 function routeStateScopeKey(routeName: unknown) {
   return resolveWorkspaceRouteInstanceScope(routeName, workspaceStateScopeId.value);
 }
-// 有插件 tab 的工作区各保留一个插件宿主（与原 KeepAlive 一样按工作区隔离）；
-// 工作区的插件 tab 全部关闭且没有保温中的插件视图后，宿主卸载并释放插件会话。
-const pluginViewWarmPool = usePluginViewWarmPoolStore();
-const pluginWorkspaceIds = computed(() => {
-  const ids = new Set<string>();
-  for (const tab of workbench.tabs) {
-    if (tab.view === "plugin-view" && tab.pluginView?.pluginId && tab.pluginView.viewId) ids.add(tab.workspaceId);
-  }
-  for (const workspaceId of pluginViewWarmPool.workspaceIds) ids.add(workspaceId);
-  return [...ids];
-});
-const pluginLayerVisible = computed(
-  () => routeSyncReady.value && !activePopupLabel.value && route.name === "plugin-view"
-);
-
-// 弹出窗口不渲染命令面板与侧栏。
+  // 弹出窗口不渲染命令面板与侧栏。
 if (!popupWindow) {
   void commandPalette.hydrate();
 }
 // 快捷键在弹出窗口也需要，因此两类窗口都加载键位并安装唯一的键盘分发器。
 void keybindings.hydrate();
 const uninstallKeybindingDispatcher = installKeybindingDispatcher();
-// 插件贡献、插件命令和宿主事件都不是首屏绘制所需；首帧后再安装，避免把几十个
-// contribution consumer 和宿主桥接同步压进根组件启动路径。每个 loader 自己处理
-// 桌面 / 浏览器差异，协调器负责取消与卸载。
 const stopStartupIdleBridges = createStartupIdleBridgeCoordinator([
-  {
-    name: "plugin-contributions",
-    load: () => import("@/services/contributions").then(({ startPluginContributionSync }) => startPluginContributionSync()),
-  },
-  ...(!popupWindow ? [{
-    name: "plugin-commands",
-    load: () => Promise.resolve(startPluginCommandSync(router)),
-  }] : []),
   ...(!popupWindow ? [
-    {
-      name: "plugin-associations",
-      load: () => import("@/services/plugin-associations").then(({ installPluginAssociations }) => installPluginAssociations()),
-    },
     {
       // New terminals can then create their WebGL renderer at open instead of swapping it in later.
       name: "terminal-webgl",
@@ -298,22 +238,6 @@ const stopStartupIdleBridges = createStartupIdleBridgeCoordinator([
   ] : []),
 ]);
 onBeforeUnmount(stopStartupIdleBridges);
-// host_ui requests are fire-and-forget on the backend. Their listeners must
-// exist before the first paint so startup prompts and terminal/editor opens
-// cannot be lost while the optional processing bridges wait for idle time.
-const stopPluginHostUiBridge = popupWindow ? undefined : installPluginHostUiBridge();
-if (stopPluginHostUiBridge) onBeforeUnmount(stopPluginHostUiBridge);
-// 参数表单宿主在首次请求时才加载，之后保持挂载以保留对话框关闭动画。
-const pluginCommandParamsHostLoaded = ref(false);
-watch(pluginCommandParamRequest, (request) => {
-  if (request) pluginCommandParamsHostLoaded.value = true;
-});
-// 插件服务（文件树、编辑器选区、命令面板发起）只在主窗口运行；在首帧后的空闲时挂载 PluginServicesRoot 按需加载，不进入入口包。
-const pluginServicesReady = ref(false);
-if (!popupWindow) scheduleIdleTask(() => (pluginServicesReady.value = true));
-// 插件状态栏（statusBar 贡献点）只在主窗口渲染；仅当有插件贡献条目时才加载组件。
-const AppStatusBar = defineAsyncComponent(() => import("@/components/layout/AppStatusBar.vue"));
-const statusBarStore = useStatusBarStore();
 // 锁屏在主窗口与弹出窗口都必须生效，因此不放进 popupWindow 分支。
 void hydrateUiAppearance().catch(() => {
   // Feature entry points surface a localized recovery message when credentials are needed.
@@ -326,14 +250,12 @@ const sidebarLabels = sidebarLabelsVisible();
 watch(settingsOpen, (open) => {
   if (open) settingsLoaded.value = true;
 });
-function openSettings(initialCategory?: SettingsNavigationCategory, pluginId?: string) {
+function openSettings(initialCategory?: SettingsNavigationCategory) {
   settingsInitialCategory.value = initialCategory;
-  settingsInitialPluginId.value = pluginId;
   settingsOpen.value = true;
 }
-// Plugin Manager and plugin iframes open Settings > Plugins through the navigation service.
 watch(settingsNavigationRequest, (request) => {
-  if (request.seq > 0) openSettings(request.category, request.pluginId);
+  if (request.seq > 0) openSettings(request.category);
 });
 const commandPaletteOpenRequest = ref<CommandPaletteOpenRequest>({ seq: 0 });
 
@@ -415,13 +337,6 @@ watch(
 );
 
 async function navigateToNotificationTarget(target: NotificationTarget) {
-  if (target.kind === "plugin") {
-    const views = await listPluginViews().catch(() => []);
-    const view = views.find((item) => item.pluginId === target.pluginId && (!target.viewId || item.id === target.viewId))
-      ?? views.find((item) => item.pluginId === target.pluginId);
-    if (view) openPluginViewTab(workbench, router, view.pluginId, view.id, localizedPluginTitle(view));
-    return;
-  }
   if (target.kind === "view") {
     if (!workbench.openView(target.view) && target.view !== "dashboard") return;
     await router.push({ name: target.view }).catch(() => undefined);
@@ -457,7 +372,7 @@ async function restoreWorkbenchSession() {
     switchDatabaseWorkspaceScope(scopeId);
     const restoredTab = workbench.activeTab;
     const restoredView = restoredTab?.view ?? "dashboard";
-    if (route.name !== restoredView || restoredView === "plugin-view") {
+    if (route.name !== restoredView) {
       await router.replace(workspaceTabRoute(restoredTab));
     }
   } finally {
@@ -489,25 +404,7 @@ let stopPopupState: (() => void) | undefined;
 let stopBeforeQuit: (() => void) | undefined;
 let stopNativeFileDrop: (() => void) | undefined;
 let stopDesktopNavigate: (() => void) | undefined;
-let stopPluginAiTurn: (() => void) | undefined;
-let stopPluginAiTurnCancel: (() => void) | undefined;
-let stopPluginAiTurnApproval: (() => void) | undefined;
-let stopPluginNotify: (() => void) | undefined;
 let stopBackupRunNotify: (() => void) | undefined;
-interface PluginNotifyEvent {
-  pluginId?: string;
-  pluginName?: string;
-  title?: string;
-  body?: string;
-  level?: "info" | "success" | "warning" | "error";
-  system?: boolean;
-  viewId?: string;
-  /** Host-generated notices carry a code the frontend localizes (e.g. "globalShortcut.locked"). */
-  code?: string;
-  /** Up to two buttons running the plugin's own commands (host 0.3.0); re-validated by parsePluginNotificationActions. */
-  actions?: unknown;
-}
-const deliverPluginNotice = createOrderedDelivery();
 let stopTerminalSessionFlusher: (() => void) | undefined;
 
 if (!popupWindow) {
@@ -560,47 +457,12 @@ if (!popupWindow) {
     },
     { flush: "sync" }
   );
-  // Keep scope coordination glue outside the 192 KiB entry chunk. Only the
-  // main window owns this bridge, including disposal before the import resolves.
-  let stopPluginWorkspaceScopeBridge: (() => void) | undefined;
-  let pluginScopeBridgeDisposed = false;
-  void import("@/services/plugin-workspace-scope").then(({ installPluginWorkspaceScopeBridge }) => {
-    if (!pluginScopeBridgeDisposed) stopPluginWorkspaceScopeBridge = installPluginWorkspaceScopeBridge();
-  });
-  onBeforeUnmount(() => {
-    pluginScopeBridgeDisposed = true;
-    stopPluginWorkspaceScopeBridge?.();
-  });
   window.addEventListener("pagehide", flushPersistentUiState);
   window.addEventListener("beforeunload", flushPersistentUiState);
   watch(
-    () => [route.name, route.params.pluginId, route.params.viewId, route.params.resultId] as const,
-    ([routeName, rawPluginId, rawViewId, rawResultId]) => {
+    () => route.name,
+    (routeName) => {
       if (!routeSyncReady.value || !workbench.hydrated || typeof routeName !== "string") return;
-      if (routeName === "service-result") {
-        // Service result tabs are opened by plugin-service-result-tabs.ts only; a route
-        // without its tab (e.g. history navigation after closing it) falls back to the active tab.
-        const resultId = typeof rawResultId === "string" ? rawResultId : "";
-        if (workbench.activeTab?.serviceResult?.resultId === resultId) return;
-        const tab = workbench.workspaceTabs.find((item) => item.serviceResult?.resultId === resultId);
-        if (tab) workbench.selectTab(tab.id);
-        else void router.replace(workspaceTabRoute(workbench.activeTab));
-        return;
-      }
-      if (routeName === "plugin-view") {
-        const pluginId = typeof rawPluginId === "string" ? rawPluginId.trim() : "";
-        const viewId = typeof rawViewId === "string" ? rawViewId.trim() : "";
-        const activePluginView = workbench.activeTab?.pluginView;
-        if (
-          !pluginId
-          || !viewId
-          || (activePluginView?.pluginId === pluginId && activePluginView.viewId === viewId)
-        ) return;
-        if (!workbench.openPluginView(pluginId, viewId, t("plugins.viewTitle"))) {
-          void router.replace(workspaceTabRoute(workbench.activeTab));
-        }
-        return;
-      }
       if (workbench.activeTab?.view !== routeName && !workbench.openView(routeName as WorkspaceView) && routeName !== "dashboard") {
         void router.replace(workspaceTabRoute(workbench.activeTab));
       }
@@ -617,16 +479,10 @@ if (!popupWindow) {
     // Desktop navigation (notification clicks, tray items, mincode:// links): live
     // desktop:navigate events and the targets queued before these listeners existed.
     const handleDesktopTarget = (target: { kind?: string; value?: string } | null | undefined) => {
-      if (target?.kind === "plugin-uri") {
-        void handlePluginUriLink(target.value ?? "");
-        return;
-      }
       if (target?.kind === "ai") {
         void assistant.show("agentic");
         return;
       }
-      // Clicks on floating plugin views (views[].floating): the host already
-      // brought this window to the front; open the run or the task list.
       if (target?.kind === "agent-runs") {
         sessionProgress.requestPanel();
         return;
@@ -637,30 +493,6 @@ if (!popupWindow) {
       }
       if (target?.kind === "terminal-pane") {
         void terminalAttention?.focusPane(target.value ?? "");
-        return;
-      }
-      if (target?.kind === "plugin") {
-        const pluginTarget = parseDesktopPluginTarget(target.value);
-        if (pluginTarget) void navigateToNotificationTarget(pluginTarget);
-        return;
-      }
-      // A system tray plugin item (menus.tray): the host raised this window;
-      // the runner looks the command up again.
-      if (target?.kind === "plugin-command") {
-        // A chunk that fails to load is reported like a command that cannot run.
-        const unavailable = (error: unknown) => ElMessage({
-          type: "warning",
-          grouping: true,
-          message: t("pluginContrib.shell.unavailable", { error: error instanceof Error ? error.message : String(error) }),
-        });
-        void import("@/domain/plugins/tray").then(({ handlePluginCommandTarget }) =>
-          handlePluginCommandTarget(target.value, {
-            locked: false,
-            run: (origin, pluginId, commandId) =>
-              import("@/services/plugin-shell-commands")
-                .then((module) => module.runShellCommand(origin, pluginId, commandId))
-                .catch(unavailable),
-          })).catch(unavailable);
         return;
       }
       if (target?.kind === "ai-conversation") {
@@ -676,41 +508,6 @@ if (!popupWindow) {
       }
     };
     stopDesktopNavigate = listenAppEvent<{ kind?: string; value?: string }>("desktop:navigate", handleDesktopTarget);
-    // Plugins with the "ai" capability (team-chat bots) ask the assistant to answer;
-    // the drawer owns the agent loop, so make sure it is loaded.
-    stopPluginAiTurn = listenAppEvent<{ id?: string }>("plugin:ai-turn", (event) => {
-      if (enqueuePluginAiTurn(event?.id)) void ensureAssistantLoaded();
-    });
-    stopPluginAiTurnCancel = listenAppEvent<{ id?: string }>("plugin:ai-turn-cancel", (event) => {
-      notifyPluginAiTurnCancelled(event?.id);
-    });
-    stopPluginAiTurnApproval = listenAppEvent("plugin:ai-turn-approval", (event) => notifyPluginAiTurnApproval(event));
-    stopPluginNotify = listenAppEvent<PluginNotifyEvent>("plugin:notify", (event) => {
-      if (typeof event?.pluginId !== "string" || typeof event.title !== "string") return;
-      const level = ["info", "success", "warning", "error"].includes(event.level ?? "") ? event.level : "info";
-      // Host rejections of plugin global shortcuts arrive with a bilingual fallback title and a code.
-      const noticeKey = globalShortcutNoticeKey(event.code);
-      const title = noticeKey ? t(noticeKey) : event.title;
-      // Every action runs a command of the notifying plugin: its pluginId is the event's.
-      // The parser loads only for a notification with actions; deliverPluginNotice keeps arrival order
-      // and pushes a notification without actions synchronously when nothing is pending.
-      const { pluginId, actions: rawActions } = event;
-      const pluginName = event.pluginName || pluginId;
-      const input = {
-        source: "plugin" as const,
-        level,
-        title: event.pluginName ? `${event.pluginName} · ${title}` : title,
-        message: event.body || undefined,
-        target: { kind: "plugin" as const, pluginId, ...(event.viewId ? { viewId: event.viewId } : {}) },
-      };
-      const options = { system: event.system === true };
-      const parsing = Array.isArray(rawActions) && rawActions.length
-        ? import("@/domain/notifications/plugin-actions").then((module) => module.parsePluginNotificationActions(rawActions, pluginId))
-        : undefined;
-      deliverPluginNotice(parsing, (actions) => {
-        notifyApp(actions ? { ...input, actions, pluginName } : input, options);
-      });
-    });
     // Scheduled database backups run in Go even when the database view is closed.
     // The backup service is loaded on the first run so it stays out of the entry chunk.
     stopBackupRunNotify = listenAppEvent<unknown>(BACKUP_RUN_EVENT, (payload) => {
@@ -718,9 +515,6 @@ if (!popupWindow) {
         .then(({ notifyBackupRunPayload }) => notifyBackupRunPayload(payload))
         .catch(() => undefined);
     });
-    void refreshPendingPluginAiTurns()
-      .then((added) => { if (added) void ensureAssistantLoaded(); })
-      .catch(() => undefined);
     stopBeforeQuit = listenAppEvent("app:before-quit", () => {
       void flushPersistentUiState();
     });
@@ -770,10 +564,6 @@ onBeforeUnmount(() => {
   stopNativeFileDrop?.();
   stopDesktopNavigate?.();
   stopNotificationNavigation?.();
-  stopPluginAiTurn?.();
-  stopPluginAiTurnCancel?.();
-  stopPluginAiTurnApproval?.();
-  stopPluginNotify?.();
   stopBackupRunNotify?.();
   stopBeforeQuit?.();
   stopPopupClose?.();
@@ -789,7 +579,6 @@ onBeforeUnmount(() => {
   <div v-else class="app-frame" :class="{
       'app-frame--sidebar-labels': sidebarLabels,
       'app-frame--unified-titlebar': unifiedTitleBar,
-      'is-plugin-immersive': !!pluginTakeover.immersive,
     }"
   >
     <AppTabBar />
@@ -817,19 +606,11 @@ onBeforeUnmount(() => {
           >
             <component
               :is="Component"
-              v-if="activeRoute.name !== 'plugin-view'"
               :key="`${String(activeRoute.name)}-${routeStateScopeKey(activeRoute.name)}-${viewResetVersion}`"
             />
           </KeepAlive>
         </RouterView>
-        <PluginWorkspaceView
-          v-for="workspaceId in pluginWorkspaceIds"
-          :key="`${workspaceId}-${viewResetVersion}`"
-          :workspace-id="workspaceId"
-          :visible="pluginLayerVisible && workspaceId === workbench.activeWorkspaceId"
-        />
       </main>
-      <AppStatusBar v-if="statusBarStore.contributions.length > 0" />
       </div>
     </div>
     <AppCommandPaletteHost
@@ -838,17 +619,12 @@ onBeforeUnmount(() => {
       :shortcut-label="commandPaletteShortcut"
       @open-settings="openSettings()"
     />
-    <PluginCommandParamsHost v-if="pluginCommandParamsHostLoaded" />
-    <PluginServicesRoot v-if="pluginServicesReady" />
-    <PluginImmersiveExit v-if="pluginTakeover.immersive" />
-    <PluginHostUiLayer v-if="pluginHostUi.prompts.length || pluginHostUi.diffs.length" />
     <AiAssistantDrawer v-if="assistantLoaded" @open-settings="openSettings('ai')" />
     <LinkedNotesDrawer v-if="linkedNotesDrawer.rendered" />
     <SettingsWorkspaceView
       v-if="settingsLoaded"
       v-model="settingsOpen"
       :initial-category="settingsInitialCategory"
-      :initial-plugin-id="settingsInitialPluginId"
     />
   </div>
   <SshMfaDialog v-if="sshMfa.current" />

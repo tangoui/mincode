@@ -14,7 +14,7 @@
  * The decision itself is pure (domain/terminal/keybindings.ts) so it is tested
  * without a DOM (scripts/terminal-keybindings.test.mjs).
  */
-import { getKeybindingCommand, isPluginCommandId } from "@/domain/keybindings/catalog";
+import { getKeybindingCommand } from "@/domain/keybindings/catalog";
 import { createTerminalKeyHandler, type TerminalKeybindingActions } from "@/domain/terminal/keybindings";
 
 export type { TerminalKeybindingActions } from "@/domain/terminal/keybindings";
@@ -24,7 +24,6 @@ import { currentKeybindingContext } from "@/services/keybinding-dispatcher";
 import { useKeybindingsStore } from "@/stores/keybindings";
 
 function canExecuteAppCommand(command: string, context: PluginContextValues): boolean {
-  if (isPluginCommandId(command)) return isRegisteredCommandEnabled(command, context);
   const entry = getKeybindingCommand(command);
   if (!entry || !entry.available || entry.handler !== "app") return false;
   return isRegisteredCommandEnabled(command, context);

@@ -17,7 +17,6 @@ test("smoke config requires known scenarios and a fixture for each", () => {
   }
   assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["ssh"] }), /ssh\.host/);
   assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["database"] }), /database\.filePath/);
-  assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["plugin"], plugin: { packagePath: "/p" } }), /plugin\.pluginId/);
   const ssh = parseSmokeConfig({
     ...base, scenarios: ["ssh", "ssh"], ssh: { host: "127.0.0.1", port: 2222, username: "u", password: "p" },
   });
@@ -44,42 +43,6 @@ test("smoke summaries count each status", () => {
     { scenario: "ssh", status: "failed", durationMs: 1, steps: [], error: "x" },
     { scenario: "terminal", status: "skipped", durationMs: 0, steps: [] },
   ]), { passed: 1, failed: 1, skipped: 1 });
-});
-
-test("association smoke requires explicit isolated fixtures and phase", () => {
-  assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["associations"] }), /associations.phase/);
-  const fixture = { phase: "setup", packagePath: "/tmp/p.min", torrentPath: "/tmp/a.torrent", ordinaryPath: "/tmp/a.txt" };
-  assert.deepEqual(parseSmokeConfig({ ...base, scenarios: ["associations"], associations: fixture }).associations, fixture);
-});
-
-test("ebook smoke requires an explicit package and its fixture paths", () => {
- assert.throws(()=>parseSmokeConfig({...base,scenarios:["ebook"]}),/ebook/);
- const ebook={packagePath:"/tmp/p",paths:["/tmp/a.chm","/tmp/a.epub","/tmp/a.txt"]};
- assert.deepEqual(parseSmokeConfig({...base,scenarios:["ebook"],ebook}).ebook,ebook);
- assert.throws(()=>parseSmokeConfig({...base,scenarios:["ebook"],ebook:{...ebook,paths:[]}}),/ebook\.paths/);
- assert.throws(()=>parseSmokeConfig({...base,scenarios:["ebook"],ebook:{...ebook,paths:Array(17).fill("/tmp/a.txt")}}),/ebook\.paths/);
-});
-
-test("AI catalog smoke requires an explicit fixture", () => {
-  assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["ai-catalogs"] }), /aiCatalogs.packagePath/);
-  assert.deepEqual(parseSmokeConfig({ ...base, scenarios: ["ai-catalogs"], aiCatalogs: { packagePath: "/tmp/catalog" } }).aiCatalogs, { packagePath: "/tmp/catalog" });
-});
-
-
-test('custom AI prompts smoke requires an isolated plugin package', () => {
- assert.throws(() => parseSmokeConfig({ ...base, scenarios: ['ai-prompts'] }), /aiPrompts.packagePath/);
- assert.deepEqual(parseSmokeConfig({ ...base, scenarios: ['ai-prompts'], aiPrompts: { packagePath: '/tmp/prompts' } }).aiPrompts, { packagePath: '/tmp/prompts' });
-});
-
-test("Rust plugin smoke requires a real compiled package", () => {
- assert.throws(()=>parseSmokeConfig({...base,scenarios:["rust-plugin"]}),/rustPlugin.packagePath/);
- const fixture={packagePath:"/tmp/rust/dist-plugin",pluginId:"rust-plugin"};
- assert.deepEqual(parseSmokeConfig({...base,scenarios:["rust-plugin"],rustPlugin:fixture}).rustPlugin,fixture);
-});
-
-test("TypeScript plugin smoke requires a built package", () => {
- assert.throws(()=>parseSmokeConfig({...base,scenarios:["ts-plugin"]}),/tsPlugin.packagePath/);
- assert.deepEqual(parseSmokeConfig({...base,scenarios:["ts-plugin"],tsPlugin:{packagePath:"/tmp/ts/dist-plugin"}}).tsPlugin,{packagePath:"/tmp/ts/dist-plugin"});
 });
 
 test("perf-remote accepts an optional laggy sshd port for the predictive echo block", () => {

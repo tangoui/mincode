@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Close } from "@element-plus/icons-vue";
-import { defineAsyncComponent } from "vue";
 import { useVueI18n } from "@/i18n/messages";
 import { notificationTimeLabel } from "@/domain/notifications/time-label";
 import type { AppNotification, NotificationSource } from "@/stores/notifications";
@@ -8,11 +7,8 @@ import type { AppNotification, NotificationSource } from "@/stores/notifications
 // One notification row. A row of its own so a new notification renders only itself:
 // unchanged rows keep their item object, so Vue skips them (the list holds up to 200).
 
-// Plugin notification buttons are rare: their template and the lazy runner stay out of the entry chunk.
-const NotificationActionButtons = defineAsyncComponent(() => import("./NotificationActionButtons.vue"));
-
 const props = defineProps<{ item: AppNotification }>();
-const emit = defineEmits<{ activate: [item: AppNotification]; activateAction: [item: AppNotification]; remove: [id: string] }>();
+const emit = defineEmits<{ activate: [item: AppNotification]; remove: [id: string] }>();
 
 const { t, intlLocale } = useVueI18n();
 
@@ -26,7 +22,6 @@ const sourceKeys = {
   ssh: "notifications.source.ssh",
   update: "notifications.source.update",
   ai: "notifications.source.ai",
-  plugin: "notifications.source.plugin",
   system: "notifications.source.system",
 } as const;
 
@@ -105,11 +100,5 @@ function progressLabel(item: AppNotification) {
         @click="emit('remove', props.item.id)"
       />
     </div>
-    <NotificationActionButtons
-      v-if="props.item.actions?.length"
-      :actions="props.item.actions"
-      :plugin-name="props.item.pluginName || props.item.actions[0].pluginId"
-      @activate="emit('activateAction', props.item)"
-    />
   </el-card>
 </template>

@@ -4,7 +4,7 @@ import { parseWhenExpression } from "../src/domain/commands/when.ts";
 import { parseKeySequence } from "../src/domain/keybindings/keys.ts";
 import { monacoDefaultRules } from "../src/domain/keybindings/monaco-defaults.ts";
 import { MINCODE_PRESET, HOST_KEYBINDING_RULES } from "../src/domain/keybindings/presets/mincode.ts";
-import { ALL_KEYMAP_PRESETS, keymapPresetChainOf } from "./keymap-plugin-presets.mjs";
+import { ALL_KEYMAP_PRESETS, keymapPresetChainOf } from "./keymap-presets-fixture.mjs";
 import { presetRulesForPlatform } from "../src/domain/keybindings/preset.ts";
 import {
   bindingsForCommand,
@@ -209,7 +209,7 @@ test("pruneReplacedDefaults drops defaults a preset rebinds or claims for the wh
   assert.deepEqual(kept.map((rule) => rule.command), ["editor:editor.action.moveLinesUpAction"]);
 });
 
-test("built-in and official plugin presets have no conflicts on any platform", () => {
+test("the built-in preset have no conflicts on any platform", () => {
   for (const platform of ["mac", "win", "linux"]) {
     for (const leaf of ALL_KEYMAP_PRESETS) {
       const chain = keymapPresetChainOf(leaf.id);
@@ -290,30 +290,6 @@ test("mod+f8 toggles breakpoint without a session", () => {
     for (const command of ["project:debug.run", "project:debug.debug", "project:debug.stop"]) {
       assert.deepEqual(bindingsForCommand(resolution, command), [], `${platform} ${command}`);
     }
-  }
-});
-
-test("intellij keymap binds run/debug/stop", () => {
-  const expected = {
-    mac: { "ctrl+r": "project:debug.run", "ctrl+d": "project:debug.debug", "cmd+f2": "project:debug.stop" },
-    win: { "shift+f10": "project:debug.run", "shift+f9": "project:debug.debug", "ctrl+f2": "project:debug.stop" },
-    linux: { "shift+f10": "project:debug.run", "shift+f9": "project:debug.debug", "ctrl+f2": "project:debug.stop" },
-  };
-  for (const [platform, keys] of Object.entries(expected)) {
-    const resolution = storeResolution("keymaps.intellij", platform);
-    for (const [key, command] of Object.entries(keys)) assert.equal(lookupIn(resolution, key, platform, {}), command, `${platform} ${key}`);
-    const session = { "debug.active": true };
-    assert.equal(lookupIn(resolution, "f8", platform, session), "project:debug.stepOver", platform);
-    assert.equal(lookupIn(resolution, "f7", platform, session), "project:debug.stepInto", platform);
-    assert.equal(lookupIn(resolution, "shift+f7", platform, session), "project:debug.smartStepInto", platform);
-    assert.equal(lookupIn(resolution, "shift+f8", platform, session), "project:debug.stepOut", platform);
-    assert.equal(lookupIn(resolution, "alt+f9", platform, session), "project:debug.runToCursor", platform);
-    assert.equal(lookupIn(resolution, "alt+f8", platform, session), "project:debug.evaluate", platform);
-    assert.equal(lookupIn(resolution, platform === "mac" ? "cmd+alt+r" : "f9", platform, session), "project:debug.resume", platform);
-    assert.equal(lookupIn(resolution, "mod+f8", platform, {}), "project:debug.toggleBreakpoint", platform);
-    // F7 in a diff editor stays "next difference" during a session.
-    assert.equal(lookupIn(resolution, "f7", platform, { ...session, "editor.focus": true, "editor.kind": "diff" }), "editor:mincode.diff.next", platform);
-    assert.equal(lookupIn(resolution, "shift+f7", platform, { ...session, "editor.focus": true, "editor.kind": "diff" }), "editor:mincode.diff.previous", platform);
   }
 });
 

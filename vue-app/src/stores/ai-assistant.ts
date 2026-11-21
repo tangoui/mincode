@@ -6,7 +6,6 @@ import { createLatestTaskRunner } from "@/domain/async/serialized-task-queue";
 import { acceptHMRUpdate, defineStore, storeToRefs } from "pinia";
 import { compactAiAttachment, sanitizeAiAttachments, type AiAttachment } from "@/domain/ai/attachments";
 import { normalizeAiConversationTitle } from "@/domain/ai/conversation-title";
-import type { AiExternalSource } from "@/domain/ai/plugin-turns";
 import type { AiLoopMessage } from "@/services/ai-agent-loop";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 import {
@@ -101,8 +100,6 @@ export interface AiQueuedMessage {
   content: string;
   attachments?: AiAttachment[];
   createdAt: number;
-  /** A message relayed by a plugin (host.ai.turn.start); the reply streams back to it. */
-  pluginTurn?: { turnId: string };
 }
 
 interface PendingAiContextAttachment {
@@ -167,8 +164,8 @@ export interface AiConversation extends AiAssistantSnapshot {
   unread?: boolean;
   /** False only for workspace overview rows whose message/history details are not loaded yet. */
   detailsLoaded?: boolean;
-  /** Set when the conversation answers messages relayed by a plugin (team-chat bots). */
-  external?: AiExternalSource;
+  /** Keeps the original access boundary for imported relayed conversations. */
+  external?: { workspace?: boolean };
   /** Links the dispatched task and its report to the conversation that sent it. */
   delegation?: {
     parentId: string;
@@ -1189,7 +1186,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     return {
       ...message,
       attachments: message.attachments?.map(compactAiAttachment),
-      pluginTurn: message.pluginTurn ? { ...message.pluginTurn } : undefined,
     };
   }
   function enqueueMessage(conversationId: string, message: Omit<AiQueuedMessage, "id"> & { id?: string }) {

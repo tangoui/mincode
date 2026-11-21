@@ -37,17 +37,16 @@ export const GLOBAL_ACTIVATION_KEY = "mod+shift+space";
 /** Time window in which a second recorded chord extends the first (`⌘K ⌘S`). */
 export const RECORDER_CHORD_TIMEOUT_MS = 1500;
 
-export type KeybindingRowScope = KeybindingScope | "plugin";
+export type KeybindingRowScope = KeybindingScope;
 export type KeybindingRowSource = "default" | "preset" | "user" | "removed" | "none";
 export type KeybindingRowFilter = "all" | "modified" | "conflicts" | `scope:${KeybindingRowScope}`;
 
-/** A command listed in the table: a catalog entry or a registered plugin command. */
+/** A command listed in the shortcut settings table. */
 export interface KeybindingRowCommand {
   id: string;
   titleKey?: MessageKey;
-  /** Resolved title for commands outside the catalog (plugins). */
   title?: string;
-  category: KeybindingCategory | "plugin";
+  category: KeybindingCategory;
   scope: KeybindingRowScope;
   handler: KeybindingHandlerKind;
   available: boolean;
@@ -84,10 +83,6 @@ export function catalogRowCommand(command: KeybindingCommand): KeybindingRowComm
   };
 }
 
-export function pluginRowCommand(id: string, title: string): KeybindingRowCommand {
-  return { id, title, category: "plugin", scope: "plugin", handler: "app", available: true };
-}
-
 function rowSource(
   bindings: readonly ResolvedKeybinding[],
   overrides: readonly KeybindingOverride[],
@@ -121,13 +116,6 @@ export function buildKeybindingRows(input: BuildKeybindingRowsInput): Keybinding
     if (seen.has(command.id)) continue;
     seen.add(command.id);
     commands.push(command);
-  }
-  // Plugin commands bound by the user but not currently registered still get a row.
-  for (const id of input.resolution.byCommand.keys()) {
-    if (!seen.has(id) && id.startsWith("plugin:")) {
-      seen.add(id);
-      commands.push(pluginRowCommand(id, id));
-    }
   }
   return commands.map((command) => {
     const resolved = [...(input.resolution.byCommand.get(command.id) ?? [])].reverse();

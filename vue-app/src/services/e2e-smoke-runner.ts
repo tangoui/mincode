@@ -2,7 +2,7 @@
  * Desktop smoke scenarios. Each one drives a core chain through the real
  * WebView → desktop IPC → Go → native path and the backend events coming back,
  * exactly as the product UI does: local PTY terminal, SSH shell, SQLite
- * database session, local plugin install/run/uninstall, and AI streaming with
+ * database session and AI streaming with
  * cancellation. Loaded only by services/e2e-smoke.ts in `-tags e2e` builds.
  */
 import {
@@ -19,7 +19,6 @@ import { createTerminalInputBatcher, isImmediateTerminalInput } from "@/domain/t
 import type { DatabaseQueryResult } from "@/domain/database/types";
 import type { SqlSafetyCheck } from "@/domain/database/sql-safety";
 import { runWithSafety, sqlSafetyArgs } from "@/services/sql-safety-service";
-import { invokePlugin, listPlugins, previewLocalPlugin, installLocalPlugin, setPluginEnabled, uninstallPlugin } from "@/services/plugin-service";
 import { invokeBackend, listenAppEvent, nativeErrorMessage } from "@/services/desktop-bridge";
 
 class StepLog {
@@ -263,31 +262,6 @@ async function databaseScenario(config: SmokeConfig, log: StepLog) {
   await databaseObjectToolbarScenario(config.database!.filePath, log);
 }
 
-async function pluginScenario(config: SmokeConfig, log: StepLog, fixture = config.plugin!) {
-  const { packagePath, pluginId } = fixture;
-  const preview = await previewLocalPlugin(packagePath);
-  if (preview.manifest.id !== pluginId) throw new Error(`preview reported ${preview.manifest.id}`);
-  if ((await listPlugins()).some((plugin) => plugin.id === pluginId)) throw new Error("preview installed the plugin");
-  log.done("read-only preflight");
-  await installLocalPlugin(packagePath);
-  try {
-    if (!(await listPlugins()).some((plugin) => plugin.id === pluginId)) throw new Error("installed plugin is not listed");
-    log.done("install");
-    await setPluginEnabled(pluginId, true);
-    log.done("enable");
-    const result = await invokePlugin(pluginId, "hello", JSON.stringify({ name: config.nonce }));
-    const message = (result as { message?: unknown } | null)?.message;
-    if (message !== `Hello, ${config.nonce}!`) throw new Error(`unexpected plugin result: ${JSON.stringify(result)}`);
-    log.done("process plugin answered over JSON-RPC");
-    await setPluginEnabled(pluginId, false);
-    log.done("disable");
-  } finally {
-    await uninstallPlugin(pluginId, true).catch(() => undefined);
-  }
-  if ((await listPlugins()).some((plugin) => plugin.id === pluginId)) throw new Error("plugin still listed after uninstall");
-  log.done("uninstall");
-}
-
 interface StreamEvent {
   type?: string;
   text?: string;
@@ -351,12 +325,6 @@ async function aiScenario(config: SmokeConfig, log: StepLog) {
 }
 
 const SCENARIOS: Record<SmokeScenario, (config: SmokeConfig, log: StepLog) => Promise<void>> = {
-  "ai-prompts": async (config, log) => { const { aiPromptsScenario } = await import("@/services/e2e-ai-prompts"); await aiPromptsScenario(config, log); },
-  "rust-plugin": (config, log) => pluginScenario(config, log, config.rustPlugin!),
-  "ui-runtime": async (config, log) => { const { uiRuntimeScenario } = await import("@/services/e2e-ui-runtime"); await uiRuntimeScenario(config, log); },
-  "ts-plugin": async (config, log) => { const { tsPluginScenario } = await import("@/services/e2e-ts-plugin"); await tsPluginScenario(config, log); },
-  "port-manager": async (config, log) => { const { portManagerScenario } = await import("@/services/e2e-port-manager"); await portManagerScenario(config, log); },
-  services: async (config, log) => { const { servicesScenario } = await import("@/services/e2e-services"); await servicesScenario(config, log); },
   "terminal-attention": async (config, log) => { const { terminalAttentionScenario } = await import("@/services/e2e-terminal-attention"); await terminalAttentionScenario(config, log); },
   "terminal-tabs": async (config, log) => { const { terminalTabsScenario } = await import("@/services/e2e-terminal-tabs"); await terminalTabsScenario(config, log); },
   "terminal-size": async (config, log) => { const { terminalSizeScenario } = await import("@/services/e2e-terminal-size"); await terminalSizeScenario(config, log); },
@@ -366,24 +334,13 @@ const SCENARIOS: Record<SmokeScenario, (config: SmokeConfig, log: StepLog) => Pr
   "perf-remote": async (config, log) => { const { perfRemoteScenario } = await import("@/services/e2e-perf-remote"); await perfRemoteScenario(config, log); },
   "perf-sessions": async (config, log) => { const { perfSessionsScenario } = await import("@/services/e2e-perf-sessions"); await perfSessionsScenario(config, log); },
   "perf-pages": async (config, log) => { const { perfPagesScenario } = await import("@/services/e2e-perf-pages"); await perfPagesScenario(config, log); },
-  "perf-plugins": async (config, log) => { const { perfPluginsScenario } = await import("@/services/e2e-perf-plugins"); await perfPluginsScenario(config, log); },
-  "perf-plugin-startup": async (config, log) => { const { perfPluginStartupScenario } = await import("@/services/e2e-perf-plugin-startup"); await perfPluginStartupScenario(config, log); },
   "ai-sidebar": async (_config, log) => { const { aiSidebarScenario } = await import("@/services/e2e-ai-sidebar"); await aiSidebarScenario(log); },
-  "mail-client": async(config,log)=>{const {mailClientScenario}=await import("@/services/e2e-mail-client");await mailClientScenario(config,log);},
-  "ai-catalogs": async (config, log) => { const { aiCatalogsScenario } = await import("@/services/e2e-ai-catalogs"); await aiCatalogsScenario(config, log); },
-  ebook: async (config, log) => { const { ebookScenario } = await import("@/services/e2e-ebook"); await ebookScenario(config, log); },
   "sql-safety": async (config, log) => { const { sqlSafetyScenario } = await import("@/services/e2e-release-checks"); await sqlSafetyScenario(config, log); },
-  "plugin-providers": async (config, log) => { const { pluginProvidersScenario } = await import("@/services/e2e-release-checks"); await pluginProvidersScenario(config, log); },
   "sftp-transfers": async (config, log) => { const { sftpTransfersScenario } = await import("@/services/e2e-release-checks"); await sftpTransfersScenario(config, log); },
   terminal: terminalScenario,
   ssh: sshScenario,
   database: databaseScenario,
-  plugin: pluginScenario,
   ai: aiScenario,
-  associations: async (config, log) => {
-    const { associationsScenario } = await import("@/services/e2e-associations");
-    await associationsScenario(config, log);
-  },
 };
 
 export async function runDesktopSmoke(rawConfig: unknown): Promise<SmokeReport> {

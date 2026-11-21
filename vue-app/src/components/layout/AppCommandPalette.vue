@@ -9,9 +9,7 @@ import {
   Files,
   FolderOpened,
   Link,
-  MagicStick,
   Operation,
-  Search,
   Switch,
 } from "@element-plus/icons-vue";
 import AppSearchField from "@/components/ui/AppSearchField.vue";
@@ -20,7 +18,6 @@ import {
   type CommandPaletteItem,
   type CommandPaletteKind,
 } from "@/domain/commands/command-palette";
-import type { PluginSearchStatus } from "@/composables/use-command-palette";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
 
 const props = withDefaults(defineProps<{
@@ -30,15 +27,9 @@ const props = withDefaults(defineProps<{
   shortcutLabel: string;
   loading?: boolean;
   executingId?: string;
-  /** Status of a `<prefix>:<query>` plugin search; null outside provider mode. */
-  pluginSearch?: PluginSearchStatus | null;
-  /** Registered plugin search prefixes, offered as chips in the mode bar. */
-  searchPrefixes?: { prefix: string; title: string }[];
 }>(), {
   loading: false,
   executingId: "",
-  pluginSearch: null,
-  searchPrefixes: () => [],
 });
 
 const emit = defineEmits<{
@@ -53,42 +44,10 @@ const resultList = ref<ScrollbarInstance>();
 const activeIndex = ref(0);
 let previouslyFocusedElement: HTMLElement | null = null;
 
-const pluginStatusLabel = computed(() => {
-  const status = props.pluginSearch;
-  if (!status) return "";
-  switch (status.state) {
-    case "too-short":
-      return t("pluginContrib.searchProviders.tooShort", { count: status.minLength ?? 1, title: status.title });
-    case "searching":
-      return t("pluginContrib.searchProviders.searching", { title: status.title });
-    case "empty":
-      return t("pluginContrib.searchProviders.empty", { title: status.title });
-    case "failed":
-      return t("pluginContrib.searchProviders.failed", { title: status.title, detail: status.detail ?? "" });
-    case "timeout":
-      return t("pluginContrib.searchProviders.timeout", { title: status.title });
-    case "unavailable":
-      return t("pluginContrib.searchProviders.unavailable", { title: status.title });
-    default:
-      return "";
-  }
-});
-const pluginNotice = computed(() => {
-  const status = props.pluginSearch;
-  if (!status) return "";
-  const parts: string[] = [];
-  if (status.dropped) parts.push(t("pluginContrib.searchProviders.dropped", { count: status.dropped }));
-  if (status.truncated) parts.push(t("pluginContrib.searchProviders.truncated"));
-  if (status.staleFiles) parts.push(t("pluginContrib.searchProviders.fileStaleCleared", { count: status.staleFiles }));
-  return parts.join(" · ");
-});
-const visiblePrefixes = computed(() => props.searchPrefixes.slice(0, 6));
 const emptyLabel = computed(() => {
-  if (pluginStatusLabel.value) return pluginStatusLabel.value;
   return t("commandPalette.empty");
 });
 const loadingLabel = computed(() => {
-  if (props.pluginSearch?.state === "searching") return pluginStatusLabel.value;
   return t("commandPalette.loading");
 });
 const resultGroups = computed(() => groupCommandPaletteItems(props.results));
@@ -100,7 +59,6 @@ const activeOptionId = computed(() => {
   return item ? optionId(item) : undefined;
 });
 const modeHint = computed(() => {
-  if (props.pluginSearch) return pluginStatusLabel.value || props.pluginSearch.title;
   const prefix = props.query.trimStart()[0];
   if (prefix === ">") return t("commandPalette.mode.commands");
   if (prefix === "@") return t("commandPalette.mode.navigation");
@@ -108,7 +66,7 @@ const modeHint = computed(() => {
   return t("commandPalette.mode.all");
 });
 const statusActive = computed(() =>
-  props.loading || Boolean(pluginNotice.value),
+  props.loading,
 );
 
 const kindIcons: Record<CommandPaletteKind, typeof Operation> = {
@@ -120,8 +78,6 @@ const kindIcons: Record<CommandPaletteKind, typeof Operation> = {
   ssh: Connection,
   database: DataAnalysis,
   http: Link,
-  "plugin-result": Search,
-  "plugin-service": MagicStick,
 };
 
 const kindLabelKeys: Record<CommandPaletteKind, MessageKey> = {
@@ -133,8 +89,6 @@ const kindLabelKeys: Record<CommandPaletteKind, MessageKey> = {
   ssh: "commandPalette.kind.ssh",
   database: "commandPalette.kind.database",
   http: "commandPalette.kind.http",
-  "plugin-result": "pluginContrib.searchProviders.kind",
-  "plugin-service": "plugins.services.paletteKind",
 };
 
 watch(
@@ -203,11 +157,6 @@ function executeActive() {
   if (item) emit("execute", item);
 }
 
-function insertSearchPrefix(prefix: string) {
-  emit("update:query", `${prefix}:`);
-  void focusSearch();
-}
-
 function handleKeydown(event: KeyboardEvent) {
   if (event.isComposing) return;
   const target = event.target as HTMLElement | null;
@@ -274,29 +223,11 @@ function handleKeydown(event: KeyboardEvent) {
         >
           <span v-if="props.loading" class="app-command-palette__spinner" aria-hidden="true" />
           <span v-if="props.loading">{{ loadingLabel }}</span>
-          <span v-if="pluginNotice">{{ pluginNotice }}</span>
         </div>
         <div class="app-command-palette__modes" :aria-label="t('commandPalette.searchModesLabel')">
           <kbd>&gt;</kbd>{{ t("commandPalette.mode.commandsShort") }}
           <kbd>@</kbd>{{ t("commandPalette.mode.navigationShort") }}
           <kbd>#</kbd>{{ t("commandPalette.mode.resourcesShort") }}
-          <span
-            v-if="visiblePrefixes.length"
-            class="app-command-palette__prefixes"
-            role="group"
-            :aria-label="t('pluginContrib.searchProviders.prefixesLabel')"
-            :title="t('pluginContrib.searchProviders.hint')"
-          >
-            <button
-              v-for="entry in visiblePrefixes"
-              :key="entry.prefix"
-              type="button"
-              class="app-command-palette__prefix"
-              :title="entry.title"
-              @click="insertSearchPrefix(entry.prefix)"
-              @keydown.stop
-            >{{ entry.prefix }}:</button>
-          </span>
         </div>
       </div>
 

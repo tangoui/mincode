@@ -33,7 +33,7 @@ test("the last reply can be regenerated and any sent message edited in idle non-
   assert.match(thread, /:editable="message\.role === 'user' && \(canRewind \|\| \(failed && index === pinnedUserMessageIndex\)\)"/);
   assert.match(bubble, /v-if="regenerable"[\s\S]*?@click="emit\('regenerate', message\)"/);
   assert.match(drawer, /const removed = assistant\.rewindConversationTo\(conversationId, messageId\);\s*if \(!removed\) \{[\s\S]*?return;\s*\}\s*await sendAgentic\(\{/);
-  assert.match(drawer, /function send\(\) \{\s*if \(activeParallelDelegationPending\.value\) return;\s*const budget = pluginContextBudgetState\.value;[\s\S]{0,240}?\}\s*if \(editingMessageId\.value\) return resendEditedMessage\(\);/);
+  assert.match(drawer, /function send\(\) \{\s*if \(activeParallelDelegationPending\.value\) return;\s*if \(editingMessageId\.value\) return resendEditedMessage\(\);/);
   assert.match(drawer, /:editing-queue="!!editingQueueId \|\| !!editingMessageId"/);
   assert.match(store, /function rewindConversationTo\(id: string, messageId: string\) \{\s*const conversation = conversationById\(id\);\s*if \(!conversation \|\| conversation\.running \|\| conversation\.detailsLoaded === false\) return undefined;/);
 });

@@ -45,7 +45,6 @@ export interface KeybindingCommand {
   repeatable?: boolean;
 }
 
-export const PLUGIN_COMMAND_PREFIX = "plugin:";
 
 /**
  * A keymap preset rule's `command` as the plugin host accepts it (the same
@@ -54,7 +53,7 @@ export const PLUGIN_COMMAND_PREFIX = "plugin:";
  * (removal), a namespace, `:`, then the name. Every catalog id must match, or
  * a preset binding it fails the host's install validation.
  */
-export const KEYMAP_COMMAND_PATTERN = new RegExp("^-?(builtin|workbench|editor|terminal|project|ai|database|plugin):[A-Za-z0-9][A-Za-z0-9._:\\-]*$");
+export const KEYMAP_COMMAND_PATTERN = new RegExp("^-?(builtin|workbench|editor|terminal|project|ai|database):[A-Za-z0-9][A-Za-z0-9._:\\-]*$");
 /** backend/plugin/keymaps.go `keymapMaxCommandLength` (contract `keymaps.limits.commandMaxLength`). */
 export const KEYMAP_COMMAND_MAX_LENGTH = 200;
 
@@ -179,13 +178,8 @@ export function getKeybindingCommand(id: string): KeybindingCommand | undefined 
   return BY_ID.get(id);
 }
 
-export function isPluginCommandId(id: string): boolean {
-  return id.startsWith(PLUGIN_COMMAND_PREFIX) && id.length > PLUGIN_COMMAND_PREFIX.length && id.length <= 200;
-}
-
-/** A command id that a keybinding may target: a catalog command or a plugin command. */
 export function isBindableCommandId(id: string): boolean {
-  return BY_ID.has(id) || isPluginCommandId(id);
+  return BY_ID.has(id);
 }
 
 /** Maps a Monaco command id to its catalog entry (`editor.action.rename` → `editor:editor.action.rename`). */

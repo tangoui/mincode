@@ -5,7 +5,7 @@
  * no contribution contract, so the entry chunk stays small. No DOM, Vue or
  * IPC here.
  */
-import type { MonacoThemeDefinition } from "./plugin-theme.ts";
+import type { editor } from "@/services/monaco-runtime.js";
 
 export type EditorThemeKind = "light" | "dark";
 
@@ -55,7 +55,7 @@ export const MONACO_CUSTOM_EDITOR_THEME = "mincode-editor-custom";
  * editor background so a theme that sets only the required colors still
  * looks coherent.
  */
-export function editorMonacoTheme(theme: EditorThemeData): MonacoThemeDefinition {
+export function editorMonacoTheme(theme: EditorThemeData): editor.IStandaloneThemeData {
   const colors = { ...theme.colors };
   const background = colors["editor.background"];
   for (const key of ["editorGutter.background", "minimap.background", "editorWidget.background", "editorSuggestWidget.background", "editorHoverWidget.background"]) {
@@ -191,4 +191,83 @@ export function customEditorThemeFrom(theme: EditorThemeData): CustomEditorTheme
     if (color) custom.colors[field] = expandEditorHex(color);
   }
   return normalizeCustomEditorTheme(custom);
+}
+
+export interface Rgba {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+/** Expands #rgb to #rrggbb; #rrggbb and #rrggbbaa are returned lower-cased. */
+export function expandHexColor(hex: string): string {
+  const value = hex.replace(/^#/, "").toLowerCase();
+  if (value.length === 3) return `#${[...value].map((digit) => digit + digit).join("")}`;
+  return `#${value}`;
+}
+
+export function parseHexColor(hex: string): Rgba {
+  if (!EDITOR_HEX_PATTERN.test(hex)) throw new Error(`invalid hex color ${hex}`);
+  let value = expandEditorHex(hex).slice(1);
+  if (value.length === 6) value += "ff";
+  const parsed = Number.parseInt(value, 16);
+  return {
+    r: ((parsed >>> 24) & 0xff) / 255,
+    g: ((parsed >>> 16) & 0xff) / 255,
+    b: ((parsed >>> 8) & 0xff) / 255,
+    a: (parsed & 0xff) / 255,
+  };
+}
+
+/** Composites a (possibly translucent) color on an opaque backdrop. */
+export function compositeOver(color: Rgba, backdrop: Rgba): Rgba {
+  return {
+    r: color.r * color.a + backdrop.r * (1 - color.a),
+    g: color.g * color.a + backdrop.g * (1 - color.a),
+    b: color.b * color.a + backdrop.b * (1 - color.a),
+    a: 1,
+  };
+}
+
+export function relativeLuminance(color: Rgba): number {
+  const channel = (value: number) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
+}
+
+export function contrastRatio(foreground: Rgba, background: Rgba): number {
+  const first = relativeLuminance(foreground);
+  const second = relativeLuminance(background);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+/** Contrast floor (x:1) a custom theme field is held to; undefined when not checked. */
+function customFieldFloor(field: CustomEditorThemeField): number | undefined {
+  if (field === "foreground") return 4.5;
+  if (field === "cursor" || field === "selection") return 3;
+  if (["background", "lineHighlight", "lineNumber"].includes(field)) return undefined;
+  return 3;
+}
+
+/**
+ * Custom theme fields below the contrast floors, with their ratio.
+ * Custom themes are the user's choice, so these are warnings, not errors.
+ * The selection is checked as the foreground text on the selection.
+ */
+export function customEditorThemeLowContrast(theme: CustomEditorTheme): Array<{ field: CustomEditorThemeField; ratio: number; floor: number }> {
+  const background = parseHexColor(theme.colors.background);
+  const low: Array<{ field: CustomEditorThemeField; ratio: number; floor: number }> = [];
+  for (const field of CUSTOM_EDITOR_THEME_FIELDS) {
+    const floor = customFieldFloor(field);
+    if (floor === undefined) continue;
+    let ratio: number;
+    if (field === "selection") {
+      const selection = compositeOver(parseHexColor(theme.colors.selection), background);
+      ratio = contrastRatio(parseHexColor(theme.colors.foreground), selection);
+    } else {
+      ratio = contrastRatio(compositeOver(parseHexColor(theme.colors[field]), background), background);
+    }
+    if (ratio + 1e-9 < floor) low.push({ field, ratio, floor });
+  }
+  return low;
 }

@@ -1,9 +1,7 @@
 import type { MessageKey } from "@/i18n/locales/zh";
 
-import { taskMessagesEn } from "../../plugin-ui/task-messages";
 
 export const messagesEn = {
-  ...taskMessagesEn,
   "ssh.history.title": "SSH command history",
   "ssh.history.button": "Command history",
   "ssh.history.privacy": "Local history · Not uploaded or sent to AI",
@@ -3513,6 +3511,8 @@ export const messagesEn = {
   "database.typeCompatHint.postgres": "Also for PostgreSQL-compatible databases",
   "database.driverHint": "Connects through the {driver} driver",
   "database.driverUnavailable": "Driver unavailable",
+  "database.confirmBuiltinDriver": "Confirm built-in driver",
+  "database.confirmBuiltinDriverHint": "Confirm the built-in driver before connecting.",
   "database.driverUnavailableHint":
     "The desktop backend does not currently provide this database driver",
   "database.yashandbClientHint":

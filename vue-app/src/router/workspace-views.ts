@@ -46,18 +46,6 @@ const rawWorkspaceViewLoaders = {
     "sessions",
     () => import("@/views/SessionsWorkspaceView.vue"),
   ),
-  plugins: measuredWorkspaceLoader(
-    "plugins",
-    () => import("@/views/PluginManagerWorkspaceView.vue"),
-  ),
-  "plugin-view": measuredWorkspaceLoader(
-    "plugin-view",
-    () => import("@/views/PluginWorkspaceView.vue"),
-  ),
-  "service-result": measuredWorkspaceLoader(
-    "service-result",
-    () => import("@/views/PluginServiceResultWorkspaceView.vue"),
-  ),
   ai: measuredWorkspaceLoader(
     "ai",
     () => import("@/views/AiAssistantWorkspaceView.vue"),

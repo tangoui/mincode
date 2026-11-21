@@ -1,24 +1,13 @@
-/**
- * Editor theme setting (Settings > General > Editor theme): "follow" keeps
- * the UI theme's editor colors, "custom" uses the user's own colors and a
- * `<pluginId>.<name>` id uses a contributed theme (contributes.editorThemes).
- * Themes are defined with Monaco through the contribution hook, so Monaco is
- * never loaded eagerly; the chosen theme then overrides the UI theme in
- * resolveMonacoEditorTheme. A stored plugin id whose plugin is missing keeps
- * its id and follows the UI theme until the plugin is back. Every IPC
- * window follows the same setting.
- */
+/** Applies Monaco editor colors and keeps the same selection in every window. */
 import {
   EDITOR_THEME_CUSTOM,
   EDITOR_THEME_FOLLOW,
-  isPluginEditorThemeId,
   normalizeEditorThemePreference,
 } from "@/domain/themes/editor-theme-id";
 import {
   MONACO_CUSTOM_EDITOR_THEME,
   customEditorThemeData,
   editorMonacoTheme,
-  monacoEditorThemeName,
   normalizeCustomEditorTheme,
   type CustomEditorTheme,
   type EditorThemeData,
@@ -43,7 +32,6 @@ type StoredEditorThemeSettings = {
 
 let monacoApi: MonacoApi | undefined;
 let selection: EditorThemeSelection = { theme: EDITOR_THEME_FOLLOW, custom: normalizeCustomEditorTheme(undefined) };
-let pluginThemes = new Map<string, EditorThemeData>();
 const defined = new Map<string, string>();
 
 function normalizeSelection(value: StoredEditorThemeSettings | undefined): EditorThemeSelection {
@@ -67,8 +55,7 @@ function selectedThemeData(): { name: string; data: EditorThemeData } | undefine
   if (selection.theme === EDITOR_THEME_CUSTOM) {
     return { name: MONACO_CUSTOM_EDITOR_THEME, data: customEditorThemeData(selection.custom) };
   }
-  const plugin = isPluginEditorThemeId(selection.theme) ? pluginThemes.get(selection.theme) : undefined;
-  return plugin ? { name: monacoEditorThemeName(selection.theme), data: plugin } : undefined;
+  return undefined;
 }
 
 /** Defines the selected theme with Monaco and applies it (no-op until Monaco has loaded). */
@@ -103,12 +90,6 @@ export function currentEditorThemeSelection(): EditorThemeSelection {
 export function applyEditorThemePreference(theme: unknown, custom: unknown): void {
   const next = notifyEditorTheme({ theme, custom });
   if (isDesktopRuntime()) void emitAppEvent(EDITOR_THEME_CHANGED_EVENT, next);
-}
-
-/** Replaces the contributed themes (every window runs its own contribution consumer). */
-export function setAvailablePluginEditorThemes(themes: ReadonlyArray<{ id: string; data: EditorThemeData }>): void {
-  pluginThemes = new Map(themes.map((theme) => [theme.id, theme.data]));
-  sync();
 }
 
 function readStoredSelection(): EditorThemeSelection {

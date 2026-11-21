@@ -22,28 +22,9 @@ const routes: RouteRecordRaw[] = [
   { path: "/http", name: "http", component: workspaceViewLoaders.http },
   { path: "/notes", name: "notes", component: workspaceViewLoaders.notes },
   {
-    path: "/workflows",
-    redirect: { name: "plugins", query: { tab: "capabilities" } },
-  },
-  {
     path: "/sessions",
     name: "sessions",
     component: workspaceViewLoaders.sessions,
-  },
-  {
-    path: "/plugins",
-    name: "plugins",
-    component: workspaceViewLoaders.plugins,
-  },
-  {
-    path: "/plugins/:pluginId/:viewId",
-    name: "plugin-view",
-    component: workspaceViewLoaders["plugin-view"],
-  },
-  {
-    path: "/service-results/:resultId",
-    name: "service-result",
-    component: workspaceViewLoaders["service-result"],
   },
   { path: "/ai", name: "ai", component: workspaceViewLoaders.ai },
   { path: "/settings", redirect: { name: "dashboard" } },

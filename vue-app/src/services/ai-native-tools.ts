@@ -41,7 +41,6 @@ import {
 } from "./ai-tools/settings-tools";
 import { systemCapabilities } from "./ai-tools/system-tools";
 import { devtoolsCapabilities } from "./ai-tools/devtools-tools";
-import { pluginCapabilities } from "./ai-tools/plugin-tools";
 import { sessionsCapabilities } from "./ai-tools/sessions-tools";
 import { subagentCapabilities } from "./ai-tools/subagent-tools";
 import type { AiSqlSafety } from "./ai-tools/sql-safety";
@@ -254,19 +253,6 @@ export function syncNativeAiResources(
           metadata: {
             connectionId: connection.id,
             dbType,
-            // 非敏感的驱动标注：AI 只能看到绑定了哪个插件驱动，不能修改或授予。
-            ...(connection.driver &&
-            typeof connection.driver === "object" &&
-            typeof (connection.driver as { pluginId?: unknown }).pluginId === "string"
-              ? {
-                  pluginDriver: {
-                    pluginId: (connection.driver as { pluginId: string }).pluginId,
-                    driverId: String(
-                      (connection.driver as { driverId?: unknown }).driverId ?? "",
-                    ),
-                  },
-                }
-              : {}),
             ...(sessionId
               ? { sessionId, schema: databaseSnapshot?.schemas[connection.id] }
               : {}),
@@ -446,7 +432,6 @@ function globalCapabilities(
       ? httpCapabilities(dependencies)
       : []),
     ...devtoolsCapabilities(),
-    ...pluginCapabilities(dependencies, dependencies.nativeRuntime),
     ...sessionsCapabilities(dependencies, dependencies.nativeRuntime),
     ...settingsCapabilities(dependencies),
     ...(dependencies.nativeRuntime === true

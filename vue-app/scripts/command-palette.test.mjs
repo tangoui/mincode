@@ -4,9 +4,7 @@ import {
   filterCommandPaletteItems,
   groupCommandPaletteItems,
   parseCommandPaletteQuery,
-  pluginServicePaletteItems,
 } from "../src/domain/commands/command-palette.ts";
-import { paletteServiceInput, servicesForPalette } from "../src/domain/plugins/services.ts";
 
 const items = [
   { id: "settings", kind: "command", title: "Open Settings", keywords: ["preferences"], priority: 1, action: { type: "open-settings" } },
@@ -121,68 +119,4 @@ test("leaves kind groups unlabelled so the caller localizes them", () => {
   assert.equal(group.label, undefined);
   assert.equal(group.kind, "command");
   assert.equal(group.key, "command");
-});
-
-function serviceEntry(overrides = {}) {
-  return {
-    pluginId: "demo.provider",
-    pluginName: "Demo Provider",
-    entryId: "reverse",
-    service: "demo.text.reverse",
-    title: "Reverse text",
-    description: "Reverse the characters",
-    input: { kind: "text", maxBytes: 8192 },
-    output: { kind: "text" },
-    surfaces: ["selection", "palette"],
-    risk: "read",
-    timeoutMs: 30000,
-    isDefault: false,
-    ...overrides,
-  };
-}
-
-test("plugin services: lists palette services with the localized prefix and a plugin-service action", () => {
-  const entries = [
-    serviceEntry(),
-    serviceEntry({ pluginId: "other.provider", pluginName: "Other", entryId: "rev" }),
-    serviceEntry({ service: "demo.text.upper", entryId: "upper", title: "Upper case", surfaces: ["selection"] }),
-    serviceEntry({ service: "demo.image.resize", entryId: "resize", title: "Resize image", description: "", input: { kind: "files", accepts: ["image/*"], maxBytes: 1024, maxFiles: 4 }, surfaces: ["palette"] }),
-  ];
-  const items = pluginServicePaletteItems(servicesForPalette(entries), "Service: ");
-  assert.deepEqual(items.map((item) => item.title), ["Service: Resize image", "Service: Reverse text"]);
-  assert.ok(items.every((item) => item.kind === "plugin-service"));
-  assert.deepEqual(items[1].action, { type: "plugin-service", service: "demo.text.reverse" });
-  assert.equal(items[1].id, "plugin-service:demo.text.reverse");
-  // Both providers of a merged service can be found by plugin name.
-  assert.ok(items[1].keywords.includes("Other"));
-  assert.ok(items[1].keywords.includes("demo.text.reverse"));
-  // Services are commands: the ">" mode lists them, the "@" mode does not.
-  assert.deepEqual(filterCommandPaletteItems(items, ">reverse").map((item) => item.id), ["plugin-service:demo.text.reverse"]);
-  assert.deepEqual(filterCommandPaletteItems(items, "@reverse"), []);
-  assert.equal(groupCommandPaletteItems(items)[0].kind, "plugin-service");
-});
-
-test("plugin services: palette items show the title in the UI language and stay findable by the untranslated one", () => {
-  const entries = [serviceEntry({ titleLocalized: { zh: "反转文字" } }), serviceEntry({ service: "demo.text.upper", entryId: "upper", title: "Upper case" })];
-  const items = pluginServicePaletteItems(servicesForPalette(entries, ["zh"]), "服务：");
-  assert.deepEqual(items.map((item) => item.title).sort(), ["服务：Upper case", "服务：反转文字"].sort());
-  const reverse = items.find((item) => item.action.service === "demo.text.reverse");
-  assert.ok(reverse.keywords.includes("反转文字"));
-  assert.ok(reverse.keywords.includes("Reverse text"));
-  assert.equal(filterCommandPaletteItems(items, ">reverse text")[0]?.id, "plugin-service:demo.text.reverse");
-  assert.equal(pluginServicePaletteItems(servicesForPalette(entries, "en"), "Service: ").find((item) => item.action.service === "demo.text.reverse").title, "Service: Reverse text");
-});
-
-test("plugin services: palette input follows the preferred provider's input shape", () => {
-  const group = (entries) => servicesForPalette(entries)[0];
-  assert.deepEqual(paletteServiceInput(group([serviceEntry({ input: { kind: "none" } })])), { kind: "none" });
-  assert.deepEqual(paletteServiceInput(group([serviceEntry({ input: { kind: "text", maxBytes: 100 } }), serviceEntry({ pluginId: "b.provider", input: { kind: "text", maxBytes: 300 } })])), { kind: "text", maxBytes: 300 });
-  const files = paletteServiceInput(group([serviceEntry({ input: { kind: "files", accepts: [".csv", "image/png"], maxBytes: 10, maxFiles: 3 } })]));
-  assert.deepEqual(files, { kind: "files", accepts: [".csv", "image/png"], extensions: [".csv", ".png"], maxFiles: 3 });
-  const single = paletteServiceInput(group([serviceEntry({ input: { kind: "file", accepts: ["image/*"], maxBytes: 10 } })]));
-  assert.equal(single.kind, "file");
-  assert.equal(single.maxFiles, 1);
-  assert.ok(single.extensions.includes(".png") && single.extensions.includes(".jpeg") && !single.extensions.includes(".pdf"));
-  // The default provider decides the shape when providers disagree.
-  assert.equal(paletteServiceInput(group([serviceEntry(), serviceEntry({ pluginId: "b.provider", isDefault: true, input: { kind: "none" } })])).kind, "none");
 });

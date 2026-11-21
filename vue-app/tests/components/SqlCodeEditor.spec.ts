@@ -8,19 +8,6 @@ import SqlCodeEditor from "@/components/database/query/SqlCodeEditor.vue";
 import { buildKeybindingContext, keybindingFocusClass } from "@/domain/keybindings/context";
 import type { SqlCompletionItem } from "@/domain/database/sql-completion";
 import type { ProjectEditorViewState } from "@/domain/projects/types";
-import { parseWhenExpression } from "@/domain/commands/when";
-import type { PluginMenuItem } from "@/domain/plugins/menus";
-import { pluginMenuItems } from "@/services/contributions/menus";
-
-const plugin = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("@/services/plugin-commands", async () => {
-  const { shallowRef } = await import("vue");
-  return {
-    pluginCommandState: shallowRef({ commands: [{ pluginId: "demo.sql", id: "explain" }, { pluginId: "demo.sql", id: "pg-only" }], contexts: {} }),
-    executePluginCommand: (...args: unknown[]) => plugin.execute(...args),
-    setPluginCommandPaletteOverrides: () => {},
-  };
-});
 const clipboard = vi.hoisted(() => ({ text: "", copy: vi.fn(), read: vi.fn() }));
 vi.mock("@/services/desktop-bridge", async (original) => ({
   ...(await original<typeof import("@/services/desktop-bridge")>()),
@@ -38,19 +25,6 @@ const DropdownItem = defineComponent({
 });
 const ContextMenu = defineComponent({ setup(_, { slots }) { return () => h("ul", { class: "context-menu-stub" }, slots.default?.()); } });
 const menuStubs = { AppContextMenu: ContextMenu, ElDropdownItem: DropdownItem, "el-dropdown-item": DropdownItem };
-
-const PLUGIN_ITEM: PluginMenuItem = {
-  pluginId: "demo.sql",
-  pluginName: "Demo SQL",
-  menu: "sql/editor/context",
-  command: "explain",
-  title: "Explain with plugin",
-  whenClauses: parseWhenExpression("editor.hasSelection"),
-  group: "",
-  order: 0,
-  passContext: true,
-  hidden: false,
-};
 
 let wrapper: VueWrapper | undefined;
 afterEach(() => {
@@ -185,17 +159,11 @@ describe("SqlCodeEditor context menu", () => {
       setTimeout(() => dispatch(event), 0);
       return true;
     });
-    plugin.execute.mockReset();
     clipboard.copy.mockReset();
     clipboard.read.mockReset();
     clipboard.text = "";
-    pluginMenuItems.value = [
-      PLUGIN_ITEM,
-      { ...PLUGIN_ITEM, command: "pg-only", title: "Postgres only", whenClauses: parseWhenExpression('database.kind == "postgres"') },
-    ];
   });
   afterEach(() => {
-    pluginMenuItems.value = [];
     vi.mocked(document.dispatchEvent).mockRestore();
   });
 
@@ -212,27 +180,10 @@ describe("SqlCodeEditor context menu", () => {
   }
   const item = (label: string) => wrapper!.findAll("[role=menuitem]").find((entry) => entry.text().includes(label));
 
-  it("lists the plugin items of sql/editor/context whose when holds, and passes the SQL context", async () => {
-    const view = mountEditor({ modelValue: "SELECT * FROM users", databaseName: "shop" });
-    view.dispatch({ selection: { anchor: 0, head: 6 } });
-    const menu = await openMenu(view);
-    expect(menu.exists()).toBe(true);
-    expect(item("Explain with plugin")).toBeTruthy();
-    // database.kind is mysql here: the postgres-only item stays hidden.
-    expect(item("Postgres only")).toBeUndefined();
-    await item("Explain with plugin")!.trigger("click");
-    await flushPromises();
-    const [pluginId, command, invocation] = plugin.execute.mock.calls.at(-1)! as [string, string, { menu: string; context: Record<string, unknown> }];
-    expect([pluginId, command, invocation.menu]).toEqual(["demo.sql", "explain", "sql/editor/context"]);
-    expect(invocation.context).toEqual({ languageId: "sql", selection: "SELECT", database: { kind: "mysql", name: "shop" } });
-    expect(wrapper!.find(".context-menu-stub").exists()).toBe(false);
-  });
-
-  it("hides selection-only plugin items without a selection, and disables cut and copy", async () => {
+  it("disables cut and copy without a selection", async () => {
     const view = mountEditor();
     view.dispatch({ selection: { anchor: 0 } });
     await openMenu(view);
-    expect(item("Explain with plugin")).toBeUndefined();
     expect(item("剪切")!.attributes("aria-disabled")).toBe("true");
     expect(item("复制")!.attributes("aria-disabled")).toBe("true");
   });

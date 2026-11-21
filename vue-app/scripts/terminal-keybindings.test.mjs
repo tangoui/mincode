@@ -4,14 +4,13 @@ import { monacoDefaultRules } from "../src/domain/keybindings/monaco-defaults.ts
 import { HOST_KEYBINDING_RULES } from "../src/domain/keybindings/presets/index.ts";
 import { resolveKeybindings } from "../src/domain/keybindings/resolver.ts";
 import { createTerminalKeyHandler, decideTerminalKey } from "../src/domain/terminal/keybindings.ts";
-import { keymapPresetChainOf } from "./keymap-plugin-presets.mjs";
+import { keymapPresetChainOf } from "./keymap-presets-fixture.mjs";
 
 // Phase 4: the xterm custom key handler decides per keydown whether a
 // terminal command runs (preventDefault, false), the key bubbles to the window
 // dispatcher (false, no preventDefault) or the shell receives it (true).
 
 // Short names used by the matrix below → preset ids (VS Code and JetBrains ship as official keymap plugins).
-const PRESET_IDS = { mincode: "mincode", vscode: "keymaps.vscode", jetbrains: "keymaps.intellij", eclipse: "keymaps.eclipse", vim: "keymaps.vim" };
 const CODES = { c: "KeyC", v: "KeyV", f: "KeyF", k: "KeyK", a: "KeyA", l: "KeyL", r: "KeyR", w: "KeyW", p: "KeyP", i: "KeyI", q: "KeyQ" };
 // Commands registered at startup (use-app-commands.ts); everything else is not executable yet.
 const REGISTERED = new Set(["builtin:command-palette", "builtin:settings", "builtin:ai"]);
@@ -19,7 +18,7 @@ const REGISTERED = new Set(["builtin:command-palette", "builtin:settings", "buil
 function resolution(presetId, platform, user = []) {
   return resolveKeybindings({
     platform,
-    presets: keymapPresetChainOf(PRESET_IDS[presetId] ?? presetId),
+    presets: keymapPresetChainOf(presetId),
     defaults: monacoDefaultRules(platform),
     host: HOST_KEYBINDING_RULES,
     user,
@@ -120,29 +119,6 @@ const MATRIX = [
   ["mincode", "win", false, "ctrl+i", "shell"], // AI toggle is not a skip-shell command (Ctrl+I = Tab)
   ["mincode", "win", false, "ctrl+a", "shell"],
   ["mincode", "linux", true, "ctrl+c", "run:copy"],
-  ["vscode", "mac", false, "cmd+k", "run:clear"],
-  ["vscode", "mac", true, "cmd+c", "run:copy"],
-  ["vscode", "mac", false, "cmd+v", "run:paste"],
-  ["vscode", "win", true, "ctrl+c", "run:copy"],
-  ["vscode", "win", false, "ctrl+c", "shell"],
-  ["vscode", "win", false, "ctrl+v", "run:paste"],
-  ["vscode", "win", false, "ctrl+shift+p", "bubble"],
-  ["vscode", "win", false, "ctrl+p", "shell"], // quick open not executable yet → shell history
-  ["vscode", "win", false, "ctrl+k", "shell"], // chord prefix of non-skip-shell commands
-  ["vscode", "linux", true, "ctrl+c", "shell"], // Linux copies with Ctrl+Shift+C only
-  ["vscode", "linux", true, "ctrl+shift+c", "run:copy"],
-  ["vscode", "linux", false, "ctrl+v", "shell"],
-  ["vscode", "linux", false, "ctrl+shift+v", "run:paste"],
-  ["vscode", "win", false, "ctrl+f", "run:find"],
-  ["jetbrains", "mac", false, "cmd+k", "run:clear"],
-  ["jetbrains", "mac", false, "cmd+f", "run:find"],
-  ["jetbrains", "win", true, "ctrl+c", "shell"],
-  ["jetbrains", "win", false, "ctrl+shift+c", "run:copy"],
-  ["jetbrains", "win", false, "ctrl+Insert", "run:copy"],
-  ["jetbrains", "win", false, "shift+Insert", "run:paste"],
-  ["jetbrains", "linux", false, "ctrl+shift+a", "bubble"], // palette
-  ["jetbrains", "win", false, "ctrl+alt+s", "bubble"], // settings
-  ["jetbrains", "win", false, "ctrl+w", "shell"],
 ];
 
 test("execute / bubble / shell per preset and platform", () => {

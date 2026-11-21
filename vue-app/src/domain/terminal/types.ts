@@ -15,49 +15,12 @@ export type LocalShellType =
   | "cmd"
   | "wsl";
 
-/**
- * Reference to a plugin-contributed terminal profile (contributes.terminalProfiles).
- * Only the reference is stored: the backend resolves command, args, env and cwd from the
- * host's own manifest snapshot at every launch and checks the confirmed fingerprint.
- */
-export interface TerminalProfileRef {
-  pluginId: string;
-  profileId: string;
-  /** Plugin-supplied display title captured at creation; shown labelled as plugin content. */
-  title: string;
-  /**
-   * Value of `${workspaceFolder}` used when the launch was confirmed; the host
-   * resolves the same spec again at start, so the fingerprint stays stable.
-   */
-  workspaceFolder?: string;
-}
-
-/**
- * Reference to a plugin task (contributes.tasks) running in a pane. Only the
- * reference is persisted: the host re-resolves, re-validates and
- * re-fingerprints the task at every start. `launchToken` is set only when the
- * user just ran the task and is never persisted, so a restored layout only
- * re-attaches to a live session and never re-runs a task.
- */
-export interface PluginTaskRef {
-  pluginId: string;
-  /** `static:<id>` or `detected:<provider>:<id>`. */
-  taskKey: string;
-  /** Canonical project root the task was confirmed for. */
-  projectRoot: string;
-  /** Plugin-supplied display title captured at creation; shown labelled as plugin content. */
-  title: string;
-  launchToken?: string;
-}
-
 export interface LocalTerminalPaneOptions {
   shellType?: LocalShellType;
   customPath?: string;
   initialCwd?: string;
   initialCommand?: string;
   extraEnv?: Record<string, string>;
-  profile?: TerminalProfileRef;
-  task?: PluginTaskRef;
 }
 
 export interface LocalTerminalPane {
@@ -70,8 +33,6 @@ export interface LocalTerminalPane {
   cwd?: string;
   initialCommand?: string;
   extraEnv?: Record<string, string>;
-  profile?: TerminalProfileRef;
-  task?: PluginTaskRef;
   reloadVersion?: number;
 }
 
@@ -117,10 +78,6 @@ export function cloneTerminalPaneTree(
         customPath: node.customPath,
         initialCwd: cwd,
         cwd,
-        profile: node.profile ? { ...node.profile } : undefined,
-        task: node.task
-          ? { pluginId: node.task.pluginId, taskKey: node.task.taskKey, projectRoot: node.task.projectRoot, title: node.task.title }
-          : undefined,
       };
     }
     if (node.type === "ssh") {

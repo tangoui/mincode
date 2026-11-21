@@ -17,8 +17,6 @@ const {
   results,
   loading,
   executingId,
-  pluginSearch,
-  searchPrefixes,
   openPalette,
   execute,
 } = useCommandPalette({
@@ -42,8 +40,6 @@ watch(
     :loading="loading"
     :executing-id="executingId"
     :shortcut-label="shortcutLabel"
-    :plugin-search="pluginSearch"
-    :search-prefixes="searchPrefixes"
     @execute="execute"
   />
 </template>

@@ -10,9 +10,7 @@ import { presetRulesForPlatform } from "../src/domain/keybindings/preset.ts";
 import { HOST_KEYBINDING_RULES } from "../src/domain/keybindings/presets/index.ts";
 import { MINCODE_PRESET } from "../src/domain/keybindings/presets/mincode.ts";
 import { resolveKeybindings } from "../src/domain/keybindings/resolver.ts";
-import { keymapPresetById } from "./keymap-plugin-presets.mjs";
 
-const JETBRAINS_PRESET = keymapPresetById("keymaps.intellij");
 import {
   analyzeCandidate,
   applyImportedOverrides,
@@ -26,7 +24,6 @@ import {
   overridesAfterChange,
   overridesAfterRemove,
   overridesAfterReset,
-  pluginRowCommand,
   recordChord,
   RECORDER_CHORD_TIMEOUT_MS,
 } from "../src/domain/keybindings/settings-model.ts";
@@ -55,25 +52,21 @@ const row = (rows, id) => rows.find((item) => item.id === id);
 const chord = (text, platform = "mac") => parseKeySequence(text, platform).chords[0];
 
 test("rows list every catalog command with labels, sources and availability", () => {
-  const rows = rowsFor("mac", [], [MINCODE_PRESET], [pluginRowCommand("plugin:demo:run", "Demo run")]);
-  assert.equal(rows.length, KEYBINDING_COMMANDS.length + 1);
+  const rows = rowsFor("mac", [], [MINCODE_PRESET]);
+  assert.equal(rows.length, KEYBINDING_COMMANDS.length);
   const palette = row(rows, "builtin:command-palette");
   assert.equal(palette.bindings[0].label, "⌘K");
   assert.equal(palette.source, "default");
   assert.equal(palette.modified, false);
   assert.equal(row(rows, "builtin:quick-open").available, true);
   assert.equal(row(rows, "builtin:go-to-symbol").available, false);
-  assert.equal(row(rows, "plugin:demo:run").scope, "plugin");
-  assert.equal(row(rows, "plugin:demo:run").source, "none");
 
-  const jetbrains = rowsFor("mac", [], [MINCODE_PRESET, JETBRAINS_PRESET]);
-  assert.equal(row(jetbrains, "builtin:command-palette").source, "preset");
 
   const win = rowsFor("win");
   assert.equal(row(win, "builtin:command-palette").bindings[0].label, "Ctrl+K");
 });
 
-test("user overrides mark rows as user / removed and bound plugin commands get a row", () => {
+test("user overrides mark rows as user / removed and discarded plugin commands are ignored", () => {
   const overrides = [
     { command: "builtin:ai", key: "cmd+j", platform: "mac" },
     { command: "builtin:settings", remove: true, platform: "mac" },
@@ -85,7 +78,7 @@ test("user overrides mark rows as user / removed and bound plugin commands get a
   assert.equal(row(rows, "builtin:ai").modified, true);
   assert.equal(row(rows, "builtin:settings").source, "removed");
   assert.equal(row(rows, "builtin:settings").bindings.length, 0);
-  assert.equal(row(rows, "plugin:x:y").source, "user");
+  assert.equal(row(rows, "plugin:x:y"), undefined);
 });
 
 test("search matches title, id, key label and key text; filters by modified / conflicts / scope / key", () => {

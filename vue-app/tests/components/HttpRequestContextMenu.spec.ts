@@ -3,22 +3,8 @@ import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { defineComponent, h } from "vue";
 import HttpWorkspaceView from "@/views/HttpWorkspaceView.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import { parseWhenExpression } from "@/domain/commands/when";
-import type { PluginMenuItem } from "@/domain/plugins/menus";
-import { pluginMenuItems } from "@/services/contributions/menus";
 import { useHttpResourcesStore } from "@/stores/http-resources";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
-
-const plugin = vi.hoisted(() => ({ execute: vi.fn() }));
-vi.mock("@/services/plugin-commands", async () => {
-  const { shallowRef } = await import("vue");
-  return {
-    pluginCommandState: shallowRef({ commands: [{ pluginId: "demo.menus", id: "inspect" }], contexts: {} }),
-    executePluginCommand: (...args: unknown[]) => plugin.execute(...args),
-    setPluginCommandPaletteOverrides: () => {},
-  };
-});
 
 const dialogs = vi.hoisted(() => ({ confirm: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }));
 vi.mock("element-plus", async (importOriginal) => ({
@@ -75,23 +61,8 @@ const stubs = {
   ElDropdownItem: DropdownItem,
   "el-dropdown-item": DropdownItem,
   HttpBodyEditor: true,
-  HttpPluginTemplatesPanel: true,
   HttpMockServerPanel: true,
 };
-
-const MENU_ITEM: PluginMenuItem = {
-  pluginId: "demo.menus",
-  pluginName: "Demo Menus",
-  menu: "http/request/context",
-  command: "inspect",
-  title: "Inspect request",
-  whenClauses: [],
-  group: "",
-  order: 0,
-  passContext: true,
-  hidden: false,
-};
-const SECRETS = ["query-secret", "header-secret", "body-secret", "token-secret", "basic-secret", "api_key", "Authorization", "pw-secret"];
 
 let wrapper: VueWrapper | undefined;
 
@@ -113,16 +84,13 @@ beforeEach(() => {
       },
     ],
   };
-  plugin.execute.mockReset();
   dialogs.confirm.mockResolvedValue(undefined);
-  pluginMenuItems.value = [MENU_ITEM];
 });
 afterEach(() => {
   // A pointer press disarms the guard against the native contextmenu that follows Shift+F10.
   window.dispatchEvent(new MouseEvent("mousedown"));
   wrapper?.unmount();
   wrapper = undefined;
-  pluginMenuItems.value = [];
   vi.clearAllMocks();
 });
 
@@ -157,16 +125,8 @@ async function openMenu(name: string) {
   expect(menu().exists()).toBe(true);
 }
 
-function lastInvocation() {
-  const [, , invocation] = plugin.execute.mock.calls.at(-1)! as [string, string, { menu: string; context: Record<string, unknown> }];
-  expect(invocation.menu).toBe("http/request/context");
-  const serialized = JSON.stringify(invocation.context);
-  for (const secret of SECRETS) expect(serialized).not.toContain(secret);
-  return invocation.context;
-}
-
 describe("HTTP saved request context menu", () => {
-  it("opens with Open, Rename, linked notes, Delete and the plugin items after them", async () => {
+  it("opens with Open, Rename, linked notes and Delete", async () => {
     await mountView();
     await openMenu("List invoices");
     expect(menu().attributes("aria-label")).toMatch(/请求操作|Request actions/);
@@ -177,22 +137,7 @@ describe("HTTP saved request context menu", () => {
       expect.stringMatching(/新建关联笔记|New linked note/),
       expect.stringMatching(/查看关联笔记（0）|View linked notes \(0\)/),
       expect.stringMatching(/删除请求|Delete request/),
-      "Inspect request",
     ]);
-    expect(items[5]!.attributes("divided")).toBeDefined();
-    expect(wrapper!.findComponent(PluginMenuItems).props("host")).toEqual({ "http.method": "GET", "http.scheme": "https" });
-  });
-
-  it("passes a sanitized URL and no headers, auth or body", async () => {
-    await mountView();
-    await openMenu("List invoices");
-    await menuItems().at(-1)!.trigger("click");
-    await flushPromises();
-    expect(lastInvocation()).toEqual({
-      collection: { id: "col-1", name: "Billing" },
-      request: { id: "req-1", name: "List invoices", method: "GET", url: "https://api.example.com/invoices", redacted: true },
-    });
-    expect(menu().exists()).toBe(false);
   });
 
   it("opens for nested requests and from the keyboard", async () => {
@@ -203,37 +148,13 @@ describe("HTTP saved request context menu", () => {
     await row("Child").trigger("keydown", { key: "F10", shiftKey: true });
     await flushPromises();
     expect(menu().exists()).toBe(true);
-    await menuItems().at(-1)!.trigger("click");
+    await menuItems()[0]!.trigger("click");
     await flushPromises();
-    expect(lastInvocation()).toEqual({
-      collection: { id: "col-2", name: "Nested" },
-      request: { id: "req-4", name: "Child", method: "DELETE", url: "http://localhost:8080/x" },
-    });
+    expect(menu().exists()).toBe(false);
 
     await row("Create invoice").trigger("keydown", { key: "ContextMenu" });
     await flushPromises();
-    expect(wrapper!.findComponent(PluginMenuItems).props("host")).toEqual({ "http.method": "POST", "http.scheme": "" });
-  });
-
-  it("applies http.method when clauses and shows only the host items without plugin items", async () => {
-    pluginMenuItems.value = [{ ...MENU_ITEM, whenClauses: parseWhenExpression('http.method == "POST"') }];
-    await mountView();
-    await openMenu("List invoices");
-    expect(menuItems()).toHaveLength(5);
-    expect(wrapper!.findAll(".app-plugin-menu-item")).toHaveLength(0);
-    menu().vm.$emit("close");
-    await flushPromises();
-    await openMenu("Create invoice");
-    expect(menuItems()).toHaveLength(6);
-  });
-
-  it("refuses to send a URL over urlMaxLength", async () => {
-    await mountView();
-    await openMenu("Long");
-    await menuItems().at(-1)!.trigger("click");
-    await flushPromises();
-    expect(plugin.execute).not.toHaveBeenCalled();
-    expect(dialogs.error).toHaveBeenCalledWith(expect.stringMatching(/所选对象过长|too long/));
+    expect(menu().exists()).toBe(true);
   });
 
   it("host items behave like the inline buttons", async () => {
@@ -287,7 +208,6 @@ describe("HTTP saved request context menu", () => {
     store.collections[0]!.requests = store.collections[0]!.requests.filter((item) => item.id !== "req-1");
     await flushPromises();
     expect(menu().exists()).toBe(false);
-    expect(plugin.execute).not.toHaveBeenCalled();
   });
 
   it("closes the menu when search or collapse hides its row", async () => {

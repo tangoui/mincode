@@ -13,7 +13,7 @@ import type { EditorSaveContext } from "@/services/editor-save-participants";
 import { buildSqlCompletionItems, type SqlCompletionItem } from "@/domain/database/sql-completion";
 import { UI_SESSION_CAPTURE_EVENT } from "@/services/ui-session";
 import { getMonacoOverflowWidgetsHost } from "@/services/monaco-overflow-host";
-import { PLUGIN_LANGUAGES_CHANGED_EVENT, detectMonacoEditorLanguage } from "@/services/monaco-languages";
+import { detectMonacoEditorLanguage } from "@/services/monaco-languages";
 import { projectEditorModelUri } from "@/composables/project-file-uri";
 import { acquireMonacoModel, releaseMonacoModel } from "@/services/monaco-model-pool";
 import {
@@ -22,7 +22,6 @@ import {
   type MonacoEditorKind,
   type MonacoEditorRegistration,
 } from "@/services/monaco-keymap";
-import type { MonacoMenuContext } from "@/services/monaco-menus";
 import {
   readStoredUiTheme,
   resolveMonacoEditorTheme,
@@ -53,12 +52,6 @@ const props = defineProps<{
    * `mincodeEditorKind`). `sql` editors receive `database:run-query` as `run`.
    */
   kind?: MonacoEditorKind;
-  /**
-   * Extra plugin menu context (contributes.menus editor / SQL editor items):
-   * for example the SQL database kind and name. The project-relative path is
-   * derived from `path` and `projectRoot`.
-   */
-  menuContext?: MonacoMenuContext;
 }>();
 const emit = defineEmits<{
   "update:modelValue": [value: string];
@@ -111,15 +104,6 @@ function detectLanguage(path: string, value: string) {
 }
 
 /** Plugin languages changed: re-detect every model this editor owns. */
-function handlePluginLanguagesChanged() {
-  for (const [path, model] of ownedModels) {
-    if (model.isDisposed()) continue;
-    const languagePath = path === props.path ? props.languagePath || path : path;
-    const language = detectLanguage(languagePath, model.getLineCount() > 0 ? model.getLineContent(1) : "");
-    if (language !== model.getLanguageId()) monaco.editor.setModelLanguage(model, language);
-  }
-}
-
 function updateTheme(theme: UiTheme) {
   const nextTheme = resolveMonacoEditorTheme(theme);
   if (nextTheme === currentTheme) return;
@@ -132,16 +116,6 @@ function handleThemeChange(event: Event) {
   updateTheme(event.detail as UiTheme);
 }
 
-
-/** Project-relative path of the edited file for plugin menu context, if the file is inside `projectRoot`. */
-function menuRelativePath(): string | undefined {
-  const path = props.path.replace(/\\/g, "/");
-  if (!props.projectRoot) return undefined;
-  const isAbsolute = path.startsWith("/") || /^[A-Za-z]:\//.test(path);
-  if (!isAbsolute) return path.replace(/^\/+/, "") || undefined;
-  const root = props.projectRoot.replace(/\\/g, "/").replace(/\/+$/, "");
-  return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : undefined;
-}
 
 function modelUri(path: string) {
   return projectEditorModelUri(path, props.projectRoot);
@@ -541,10 +515,6 @@ onMounted(() => {
     kind: props.kind ?? "text",
     handlers: { save: () => emit("save"), run: () => emit("run") },
     statusElement: () => modeStatus.value,
-    menuContext: () => {
-      const relativePath = menuRelativePath();
-      return { ...(relativePath ? { relativePath } : {}), ...props.menuContext };
-    },
   });
   resizeObserver = new ResizeObserver(([entry]) => {
     if (!editor || !entry || entry.contentRect.width <= 0 || entry.contentRect.height <= 0) return;
@@ -553,7 +523,6 @@ onMounted(() => {
   resizeObserver.observe(host.value);
   window.addEventListener(UI_THEME_CHANGED_EVENT, handleThemeChange);
   window.addEventListener(UI_SESSION_CAPTURE_EVENT, handleUiSessionCapture);
-  window.addEventListener(PLUGIN_LANGUAGES_CHANGED_EVENT, handlePluginLanguagesChanged);
   restoreViewState(props.viewState);
   emitHistoryState();
   revealRequestedPosition(props.revealPosition);
@@ -632,7 +601,6 @@ onBeforeUnmount(() => {
   sqlCompletionDisposable?.dispose();
   window.removeEventListener(UI_THEME_CHANGED_EVENT, handleThemeChange);
   window.removeEventListener(UI_SESSION_CAPTURE_EVENT, handleUiSessionCapture);
-  window.removeEventListener(PLUGIN_LANGUAGES_CHANGED_EVENT, handlePluginLanguagesChanged);
   keymapRegistration?.dispose();
   keymapRegistration = null;
   editor?.dispose();

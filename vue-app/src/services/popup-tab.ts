@@ -37,9 +37,8 @@ export interface PopupCloseWorkbenchTabState {
 export type PopupWindowState = PopupTerminalLayoutState | PopupAiAssistantState | PopupCloseWorkbenchTabState;
 export type PopupWindowData = PopupTabData | AiAssistantPopupData;
 
-// A service result's content lives in this window's memory, so its tab cannot move to another window.
 // Notes keep their open drafts in one window's store; a second window would save over the other's edits.
-const nonPopoutViews = new Set<WorkspaceView>(["dashboard", "settings", "ai", "service-result", "notes"]);
+const nonPopoutViews = new Set<WorkspaceView>(["dashboard", "settings", "ai", "notes"]);
 let popupDataPromise: Promise<PopupWindowData | null> | undefined;
 
 export function isPopupWindow() {

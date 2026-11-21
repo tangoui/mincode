@@ -20,7 +20,6 @@ import {
   RefreshRight,
   Search,
   Star,
-  Tickets,
   VideoCamera,
   VideoCameraFilled,
   VideoPlay,
@@ -39,32 +38,10 @@ import {
   type TerminalContextMenuAction,
   type TerminalTextContext,
 } from "@/domain/terminal/context-menu";
-import type { LocalShellType, PluginTaskRef, TerminalProfileRef, TerminalSplitDirection } from "@/domain/terminal/types";
-import {
-  formatTerminalArgv,
-  terminalProfileErrorCode,
-  terminalProfileKey,
-  type TerminalProfileLaunch,
-} from "@/domain/terminal/profiles";
-import {
-  ensureTerminalProfileConfirmed,
-  prepareTerminalProfile,
-  startTerminalProfileSession,
-  terminalProfileErrorMessage,
-} from "@/services/terminal-profile-service";
-import { useTerminalProfilesStore } from "@/stores/terminal-profiles";
+import type { LocalShellType, TerminalSplitDirection } from "@/domain/terminal/types";
 import { useTerminalAttentionStore } from "@/stores/terminal-attention";
 import { isTerminalReport } from "@/domain/terminal/terminal-attention";
 import TerminalPaneAttention from "@/components/terminal/TerminalPaneAttention.vue";
-import { pluginTaskErrorCode } from "@/domain/tasks/plugin-tasks";
-import {
-  consumePluginTaskLaunchToken,
-  ensurePluginTaskConfirmed,
-  pluginTaskErrorMessage,
-  preparePluginTask,
-  startPluginTaskSession,
-  type PluginTaskLaunch,
-} from "@/services/plugin-task-service";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
 import {
   deleteTerminalSnapshot,
@@ -79,7 +56,6 @@ import {
   readTerminalPreferences,
 } from "@/services/terminal-preferences";
 import { createTerminalWebLinksAddon, type TerminalWebLinkFailure } from "@/services/terminal-web-links";
-import { attachPluginTerminalLinks } from "@/services/terminal-plugin-links";
 import { copyText, isDesktopRuntime, invokeBackend, listenAppEvent, readText } from "@/services/desktop-bridge";
 import {
   createTerminalInputBatcher,
@@ -127,9 +103,6 @@ const TerminalPasteConfirmDialog = defineAsyncComponent(
 const TerminalPlaybackDialog = defineAsyncComponent(
   () => import("@/components/terminal/TerminalPlaybackDialog.vue")
 );
-const TerminalCommandSnippetsPanel = defineAsyncComponent(
-  () => import("@/components/terminal/TerminalCommandSnippetsPanel.vue")
-);
 
 interface ShellEndedEvent {
   sessionId: string;
@@ -154,10 +127,6 @@ const props = withDefaults(
     initialCwd?: string;
     initialCommand?: string;
     extraEnv?: Record<string, string>;
-    /** Plugin terminal profile reference; the host resolves the launch spec. */
-    profile?: TerminalProfileRef;
-    /** Plugin task reference (contributes.tasks); the host resolves the launch spec. */
-    task?: PluginTaskRef;
     active?: boolean;
     canClose?: boolean;
     /** Shown on the disabled close button (e.g. the last pane of a pinned workbench tab). */
@@ -173,8 +142,6 @@ const props = withDefaults(
     initialCwd: undefined,
     initialCommand: undefined,
     extraEnv: undefined,
-    profile: undefined,
-    task: undefined,
     active: false,
     canClose: false,
     closeDisabledReason: undefined,
@@ -190,8 +157,6 @@ const emit = defineEmits<{
   reload: [];
   split: [direction: TerminalSplitDirection];
   activity: [snapshot: LocalTerminalActivity];
-  /** Replace this plugin-profile pane with the default shell (user choice only). */
-  "use-default-shell": [];
 }>();
 
 const { locale, t } = useVueI18n();
@@ -211,7 +176,6 @@ const playbackOpen = ref(false);
 const aiActionsOpen = ref(false);
 const pasteDialogOpen = ref(false);
 const pendingPasteText = ref("");
-const snippetsOpen = ref(false);
 
 // 低频弹窗只在首次打开时拉取 chunk；之后保持挂载以保留关闭过渡与内部状态。
 function useOnceOpened(source: Ref<boolean>) {
@@ -225,7 +189,6 @@ const pasteDialogMounted = useOnceOpened(pasteDialogOpen);
 const aiActionsMounted = useOnceOpened(aiActionsOpen);
 const bookmarksMounted = useOnceOpened(bookmarksOpen);
 const playbackMounted = useOnceOpened(playbackOpen);
-const snippetsMounted = useOnceOpened(snippetsOpen);
 const contextMenu = ref({
   open: false,
   x: 0,
@@ -236,35 +199,8 @@ const recording = ref(false);
 const status = ref<"connecting" | "ready" | "unavailable" | "ended" | "error">("connecting");
 const statusLabel = computed(() => t(`terminal.status.${status.value}` as MessageKey));
 
-// Plugin terminal profiles: a pane that cannot start never falls back to the
-// system shell; it shows why and lets the user review, switch or close.
-const terminalProfiles = useTerminalProfilesStore();
-const profileLaunch = ref<TerminalProfileLaunch>();
-const profileBlock = ref<"unavailable" | "changed" | "forbidden" | "failed">();
-const profileBlockMessage = ref("");
-const profileReviewing = ref(false);
-const profilePluginName = computed(() => {
-  if (!props.profile) return "";
-  return (
-    profileLaunch.value?.pluginName ??
-    terminalProfiles.profileByKey(terminalProfileKey(props.profile.pluginId, props.profile.profileId))?.pluginName ??
-    props.profile.pluginId
-  );
-});
-const profileCommandLine = computed(() => (profileLaunch.value ? formatTerminalArgv(profileLaunch.value.argv) : ""));
-
-// Plugin tasks: only a pane opened by a just-confirmed run (one-shot launch
-// token) or an explicit "Run again" starts a process. A restored or reloaded
-// pane only re-attaches to a live task session; otherwise it shows "not running".
-const taskLaunch = ref<PluginTaskLaunch>();
-const taskBlock = ref<"notRunning" | "exited" | "changed" | "failed">();
-const taskBlockMessage = ref("");
-const taskRerunning = ref(false);
-let taskFreshStart = false;
-const taskCommandLine = computed(() => (taskLaunch.value ? formatTerminalArgv(taskLaunch.value.argv) : ""));
 
 let xterm: Terminal | null = null;
-let pluginLinks: IDisposable | null = null;
 let fitAddon: FitAddon | null = null;
 let serializeAddon: SerializeAddon | null = null;
 let searchAddon: SearchAddon | null = null;
@@ -483,7 +419,7 @@ async function stopRecording() {
   if (!recordingFrames.length) return;
   const recorded = createTerminalRecording(
     recordingFrames,
-    props.profile?.title?.trim() || props.task?.title?.trim() || t("terminal.localShell")
+    t("terminal.localShell")
   );
   recordingFrames = [];
   await addTerminalRecording(recorded);
@@ -642,16 +578,6 @@ function pasteConfirmed(text: string) {
   focusTerminal();
 }
 
-function bracketedPasteMode() {
-  return xterm?.modes.bracketedPasteMode === true;
-}
-
-/** Command snippet from the drawer: already planned (no "\r", no trailing newline; multi-line only in bracketed paste). */
-function insertCommandSnippet(text: string) {
-  if (status.value !== "ready" || !text) return;
-  xterm?.paste(text);
-  focusTerminal();
-}
 
 async function confirmClosePane() {
   if (!props.canClose) return;
@@ -675,9 +601,6 @@ async function handleContextMenuAction(action: TerminalContextMenuAction) {
       return;
     case "paste":
       await requestPaste();
-      return;
-    case "insert-command-snippet":
-      snippetsOpen.value = true;
       return;
     case "select-all":
       xterm?.selectAll();
@@ -774,10 +697,6 @@ function applyShellEnded(event: ShellEndedEvent) {
   });
   if (!event.recoverable) deleteTerminalSnapshot(props.sessionId);
   xterm?.writeln(`\r\n\x1b[33m[MinCode] ${t("terminal.sessionEnded")}\x1b[0m`);
-  if (props.task && !event.recoverable) {
-    taskBlock.value = "exited";
-    taskBlockMessage.value = t("pluginContrib.tasks.exited");
-  }
 }
 
 function reloadPane() {
@@ -809,12 +728,6 @@ onMounted(async () => {
   if (props.active || props.visible) ensureFitRenderer();
   xterm.open(terminalHost.value);
   setTerminalTheme(xterm, resolveTerminalTheme());
-  pluginLinks = attachPluginTerminalLinks(xterm, {
-    kind: "local",
-    cwd: () => props.initialCwd,
-    host: terminalHost.value,
-    onWebLinkFailure: handleWebLinkFailure,
-  });
   const bufferTerminal = xterm;
   stopBufferProbe = registerTerminalBufferReader(props.sessionId, () => {
     const buffer = bufferTerminal.buffer.active;
@@ -900,108 +813,20 @@ onMounted(async () => {
 });
 
 async function startShellSession(cols: number, rows: number) {
-  if (props.task) return startTaskSession(props.task, cols, rows);
-  if (!props.profile) {
-    const cwd = props.initialCwd || await getUserHomeDirectory();
-    if (closed) return "";
-    return invokeBackend<string>("start_local_shell", {
-      payload: {
-        sessionId: props.sessionId,
-        shellType: props.shellType,
-        customPath: props.customPath,
-        cwd,
-        extraEnv: props.extraEnv,
-        attachIfExists: true,
-        cols,
-        rows,
-      },
-    });
-  }
-  // The host resolves the spec by reference and runs the full gate for both a
-  // new start and a re-attach (enabled, effective, `shell` granted, confirmed
-  // fingerprint). A failure blocks the pane ("profile unavailable"); a still
-  // running process is neither re-attached nor replaced.
-  const launch = await prepareTerminalProfile(props.profile);
-  profileLaunch.value = launch;
-  return startTerminalProfileSession(props.profile, {
-    sessionId: props.sessionId,
-    fingerprint: launch.fingerprint,
-    attachIfExists: true,
-    cols,
-    rows,
+  const cwd = props.initialCwd || await getUserHomeDirectory();
+  if (closed) return "";
+  return invokeBackend<string>("start_local_shell", {
+    payload: {
+      sessionId: props.sessionId,
+      shellType: props.shellType,
+      customPath: props.customPath,
+      cwd,
+      extraEnv: props.extraEnv,
+      attachIfExists: true,
+      cols,
+      rows,
+    },
   });
-}
-
-async function startTaskSession(task: PluginTaskRef, cols: number, rows: number) {
-  // The host re-resolves and re-validates the task, recomputes its fingerprint
-  // and checks the project confirmation for every start and re-attach.
-  const launch = await preparePluginTask(task);
-  taskLaunch.value = launch;
-  const fresh = taskFreshStart || consumePluginTaskLaunchToken(task.launchToken);
-  taskFreshStart = false;
-  return startPluginTaskSession(task, {
-    sessionId: props.sessionId,
-    fingerprint: launch.fingerprint,
-    attachIfExists: !fresh,
-    attachOnly: !fresh,
-    cols,
-    rows,
-  });
-}
-
-function blockTask(error: unknown) {
-  const code = pluginTaskErrorCode(error);
-  taskBlock.value =
-    code === "not_found" ? "notRunning" : code === "untrusted" || code === "changed" ? "changed" : "failed";
-  taskBlockMessage.value = code === "not_found" ? t("pluginContrib.tasks.notRunning") : pluginTaskErrorMessage(error);
-}
-
-async function rerunTask() {
-  if (!props.task || taskRerunning.value) return;
-  taskRerunning.value = true;
-  try {
-    const launch = await ensurePluginTaskConfirmed(props.task);
-    if (!launch || closed) return;
-    taskLaunch.value = launch;
-    taskBlock.value = undefined;
-    taskFreshStart = true;
-    status.value = "connecting";
-    await connectShell();
-  } catch (error) {
-    blockTask(error);
-  } finally {
-    taskRerunning.value = false;
-  }
-}
-
-function blockProfile(error: unknown) {
-  const code = terminalProfileErrorCode(error);
-  profileBlock.value =
-    code === "untrusted" || code === "changed"
-      ? "changed"
-      : code === "forbidden"
-        ? "forbidden"
-        : code === "unavailable" || code === "not_found"
-          ? "unavailable"
-          : "failed";
-  profileBlockMessage.value = terminalProfileErrorMessage(error);
-}
-
-async function reviewAndLaunchProfile() {
-  if (!props.profile || profileReviewing.value) return;
-  profileReviewing.value = true;
-  try {
-    const launch = await ensureTerminalProfileConfirmed(props.profile);
-    if (!launch || closed) return;
-    profileLaunch.value = launch;
-    profileBlock.value = undefined;
-    status.value = "connecting";
-    await connectShell();
-  } catch (error) {
-    blockProfile(error);
-  } finally {
-    profileReviewing.value = false;
-  }
 }
 
 async function connectShell() {
@@ -1027,18 +852,10 @@ async function connectShell() {
     }
     fitAndResize();
     focusTerminal();
-  } catch (error) {
+  } catch {
     status.value = "error";
     const endedAt = Date.now();
     emitActivity({ phase: "failed", updatedAt: endedAt, endedAt });
-    if (props.task) {
-      blockTask(error);
-      return;
-    }
-    if (props.profile) {
-      blockProfile(error);
-      return;
-    }
     xterm?.writeln(`\x1b[31m[MinCode] ${t("terminal.startFailed")}\x1b[0m`);
   }
 }
@@ -1068,8 +885,6 @@ onBeforeUnmount(() => {
   window.removeEventListener(UI_THEME_CHANGED_EVENT, handleThemeChange);
   window.removeEventListener("focus", handleWindowFocus);
   window.removeEventListener(TERMINAL_COLOR_SCHEME_CHANGED_EVENT, handleColorSchemeChange);
-  pluginLinks?.dispose();
-  pluginLinks = null;
   // Destroy xterm first to avoid rebuilding its DOM renderer during WebGL addon disposal.
   try {
     xterm?.dispose();
@@ -1090,23 +905,7 @@ onBeforeUnmount(() => {
     <header class="terminal-pane-toolbar">
       <div class="terminal-pane-toolbar__identity">
         <span class="terminal-pane-status" :class="`is-${status}`" />
-        <template v-if="profile">
-          <el-tooltip :content="profileCommandLine || profile.title" :disabled="!profileCommandLine" placement="bottom">
-            <strong dir="auto">{{ profile.title }}</strong>
-          </el-tooltip>
-          <el-tag size="small" type="info" disable-transitions class="terminal-pane-profile-badge">
-            {{ t("pluginContrib.terminalProfiles.pluginBadge", { name: profilePluginName }) }}
-          </el-tag>
-        </template>
-        <template v-else-if="task">
-          <el-tooltip :content="taskCommandLine || task.title" :disabled="!taskCommandLine" placement="bottom">
-            <strong dir="auto">{{ task.title }}</strong>
-          </el-tooltip>
-          <el-tag size="small" type="info" disable-transitions class="terminal-pane-profile-badge">
-            {{ t("pluginContrib.tasks.pluginBadge", { name: taskLaunch?.pluginName ?? task.pluginId }) }}
-          </el-tag>
-        </template>
-        <strong v-else>{{ shellType === "system" ? t("terminal.localShell") : shellType }}</strong>
+        <strong>{{ shellType === "system" ? t("terminal.localShell") : shellType }}</strong>
         <span>{{ statusLabel }}</span>
       </div>
       <div class="terminal-pane-toolbar__actions">
@@ -1186,15 +985,6 @@ onBeforeUnmount(() => {
               <el-icon><Star /></el-icon>
             </el-button>
           </el-tooltip>
-          <el-tooltip :content="t('pluginContrib.commandSnippets.open')" placement="bottom">
-            <el-button text
-              native-type="button"
-              :aria-label="t('pluginContrib.commandSnippets.open')"
-              @click.stop="snippetsOpen = true"
-            >
-              <el-icon><Tickets /></el-icon>
-            </el-button>
-          </el-tooltip>
           <el-tooltip :content="t('terminal.reload')" placement="bottom">
             <el-button text native-type="button" :aria-label="t('terminal.reload')" @click.stop="reloadPane">
               <el-icon><RefreshRight /></el-icon>
@@ -1242,47 +1032,6 @@ onBeforeUnmount(() => {
         <el-icon><Close /></el-icon>
       </el-button>
     </div>
-    <div v-if="profile && profileBlock" class="terminal-pane-profile-block" role="alert" @mousedown.stop>
-      <el-alert
-        :type="profileBlock === 'changed' ? 'warning' : 'error'"
-        :closable="false"
-        show-icon
-        :title="profileBlockMessage"
-      />
-      <div class="terminal-pane-profile-block__actions">
-        <el-button
-          v-if="profileBlock === 'changed'"
-          type="primary"
-          native-type="button"
-          :loading="profileReviewing"
-          @click="reviewAndLaunchProfile"
-        >
-          {{ t("pluginContrib.terminalProfiles.reviewAndLaunch") }}
-        </el-button>
-        <el-button native-type="button" @click="emit('use-default-shell')">
-          {{ t("pluginContrib.terminalProfiles.openDefaultShell") }}
-        </el-button>
-        <el-button native-type="button" :disabled="!canClose" @click="emit('close')">
-          {{ t("pluginContrib.terminalProfiles.closePane") }}
-        </el-button>
-      </div>
-    </div>
-    <div v-if="task && taskBlock" class="terminal-pane-profile-block" role="alert" @mousedown.stop>
-      <el-alert
-        :type="taskBlock === 'failed' ? 'error' : taskBlock === 'changed' ? 'warning' : 'info'"
-        :closable="false"
-        show-icon
-        :title="taskBlockMessage"
-      />
-      <div class="terminal-pane-profile-block__actions">
-        <el-button type="primary" native-type="button" :loading="taskRerunning" @click="rerunTask">
-          {{ t(taskBlock === "changed" ? "pluginContrib.tasks.review" : "pluginContrib.tasks.runAgain") }}
-        </el-button>
-        <el-button native-type="button" :disabled="!canClose" @click="emit('close')">
-          {{ t("pluginContrib.tasks.closePane") }}
-        </el-button>
-      </div>
-    </div>
     <div
       ref="terminalHost"
       class="terminal-pane-host"
@@ -1314,14 +1063,6 @@ onBeforeUnmount(() => {
       v-model="aiActionsOpen"
       :context-text="terminalAiContextText(contextMenu.context)"
       terminal-kind="local"
-    />
-    <TerminalCommandSnippetsPanel
-      v-if="snippetsMounted"
-      v-model="snippetsOpen"
-      terminal-kind="local"
-      :ready="status === 'ready'"
-      :bracketed-paste-mode="bracketedPasteMode"
-      @insert="insertCommandSnippet"
     />
     <TerminalBookmarksDialog
       v-if="bookmarksMounted"

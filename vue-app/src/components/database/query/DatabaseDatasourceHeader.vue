@@ -35,19 +35,8 @@ const SqlSafetyHistoryPanel = defineAsyncComponent({
   },
 });
 const databaseStore = useDatabaseWorkspaceStore();
-// 插件驱动连接显示“驱动 · 插件”，且不支持结构同步（后端返回 unsupported:）。
-const driverDescriptor = computed(() => databaseStore.connectionDescriptor(props.connection));
-const typeLabel = computed(() => {
-  const descriptor = driverDescriptor.value;
-  if (descriptor?.source !== "plugin") return databaseTypeLabels[props.connection.dbType].toUpperCase();
-  return t("pluginContrib.databaseDrivers.runtime.via", {
-    driver: descriptor.title,
-    plugin: descriptor.pluginName || descriptor.pluginId || "",
-  });
-});
-const schemaSyncDisabled = computed(
-  () => databaseStore.isRedis || driverDescriptor.value?.source === "plugin"
-);
+const typeLabel = computed(() => databaseTypeLabels[props.connection.dbType].toUpperCase());
+const schemaSyncDisabled = computed(() => databaseStore.isRedis);
 </script>
 
 <template>

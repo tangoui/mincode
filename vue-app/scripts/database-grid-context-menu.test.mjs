@@ -211,21 +211,6 @@ test("result pane renders cell and header context menus", () => {
   assert.ok(queryGridSection.includes(":frozen-count=\"gridState.frozenColumnCount\""));
 });
 
-test("workspace view wires header menu, bulk dialog and refresh", () => {
-  assert.match(viewSource, /const gridHeaderContextMenu = ref<ResultGridHeaderContextMenu>\(\)/);
-  assert.match(viewSource, /function canCopyGridHeaderAlterSql\(\)/);
-  assert.match(viewSource, /buildColumnAlterSql\(\{/);
-  assert.match(viewSource, /setFrozenColumnCount\(index \+ 1\)/);
-  assert.match(viewSource, /openBulkUpdate\(menu\.column, resultRows\.value\.map/);
-  assert.match(viewSource, /function refreshActiveGrid\(\)/);
-  assert.match(viewSource, /<DatabaseBulkUpdateDialog\s+v-if="openedDialogs\.bulk"/);
-  assert.match(viewSource, /const DatabaseBulkUpdateDialog = defineAsyncComponent\(/);
-  // Plugin services name where the rows came from: a table tab's connection, or what the query ran on.
-  assert.match(viewSource, /activeObject\.value === "table" \? activeTableTab\.value : activeQueryTab\.value\?\.resultSource\) \?\? \{\}/);
-  assert.match(viewSource, /:service-source="gridServiceSource"/);
-  assert.match(viewSource, /:header-context-menu="gridHeaderContextMenu"/);
-});
-
 test("bulk update dialog offers fixed value and generator modes", () => {
   assert.match(bulkDialogSource, /databaseValueGeneratorsForKind\(fieldKind\.value\)/);
   assert.match(bulkDialogSource, /parseDatabaseRowFieldValue\(fieldKind\.value, valueRaw\.value/);

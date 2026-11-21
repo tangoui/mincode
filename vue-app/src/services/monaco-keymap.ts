@@ -42,7 +42,6 @@ import { canRunKeybindingCommand, currentKeybindingContext } from "@/services/ke
 import { useKeybindingsStore } from "@/stores/keybindings";
 import { registerVimEditorMode } from "@/services/vim-editor-mode";
 import { ensureMonacoContributions } from "@/services/monaco-contributions";
-import { attachMonacoMenuContext, type MonacoMenuContext } from "@/services/monaco-menus";
 
 /** `editor.kind` of a MinCode text editor (the Monaco context key `mincodeEditorKind`). */
 export type MonacoEditorKind = "text" | "project" | "sql" | "sftp" | "json" | "conflict" | "ddl";
@@ -219,9 +218,7 @@ export function currentMonacoKeymap(): MonacoKeymapResult | null {
  * Registers a MinCode text editor: sets its `mincodeEditorKind` context key,
  * provides `editor.kind` to the MinCode keybinding context, routes
  * `mincode.editor.save` / `mincode.editor.run` to `handlers` while it has
- * focus, attaches the active editor-mode provider, and provides the plugin
- * menu context (`menuContext`: relative path, SQL database kind/name) to the
- * editor context menu items of services/monaco-menus.ts.
+ * focus, and attaches the active editor-mode provider.
  */
 export function registerMonacoEditor(
   editor: monaco.editor.IStandaloneCodeEditor,
@@ -229,7 +226,6 @@ export function registerMonacoEditor(
     kind: MonacoEditorKind;
     handlers: MonacoEditorHandlers;
     statusElement?: () => HTMLElement | null | undefined;
-    menuContext?: () => MonacoMenuContext | undefined;
   },
 ): MonacoEditorRegistration {
   ensureMonacoKeymap();
@@ -241,7 +237,6 @@ export function registerMonacoEditor(
   const disposeContext = registerKeybindingContext("editor.kind", (target) =>
     isInside(container, target) ? kind : undefined,
   );
-  const detachMenuContext = attachMonacoMenuContext(editor, { kind: () => kind, menuContext: options.menuContext });
 
   let modeAttachment: EditorModeDisposable | null = null;
   let modeGeneration = 0;
@@ -279,7 +274,6 @@ export function registerMonacoEditor(
       scope.stop();
       detachMode();
       disposeContext();
-      detachMenuContext();
       editors.delete(entry);
     },
   };

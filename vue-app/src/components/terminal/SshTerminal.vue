@@ -25,7 +25,6 @@ import {
   RefreshRight,
   Search,
   Star,
-  Tickets,
   VideoCamera,
   VideoCameraFilled,
   VideoPlay,
@@ -74,7 +73,6 @@ import {
   readTerminalPreferences,
 } from "@/services/terminal-preferences";
 import { createTerminalWebLinksAddon, type TerminalWebLinkFailure } from "@/services/terminal-web-links";
-import { attachPluginTerminalLinks } from "@/services/terminal-plugin-links";
 import { copyText, isDesktopRuntime, invokeBackend, listenAppEvent, readText } from "@/services/desktop-bridge";
 import { useSshMfaStore } from "@/stores/ssh-mfa";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
@@ -130,9 +128,6 @@ const TerminalPasteConfirmDialog = defineAsyncComponent(
 );
 const TerminalPlaybackDialog = defineAsyncComponent(
   () => import("@/components/terminal/TerminalPlaybackDialog.vue")
-);
-const TerminalCommandSnippetsPanel = defineAsyncComponent(
-  () => import("@/components/terminal/TerminalCommandSnippetsPanel.vue")
 );
 
 const props = withDefaults(
@@ -197,7 +192,6 @@ function fillHistoryCommand(command: string) {
   xterm?.focus();
 }
 const pendingPasteText = ref("");
-const snippetsOpen = ref(false);
 const contextMenu = ref({
   open: false,
   x: 0,
@@ -234,7 +228,6 @@ const pasteDialogMounted = useOnceOpened(pasteDialogOpen);
 const aiActionsMounted = useOnceOpened(aiActionsOpen);
 const bookmarksMounted = useOnceOpened(bookmarksOpen);
 const playbackMounted = useOnceOpened(playbackOpen);
-const snippetsMounted = useOnceOpened(snippetsOpen);
 const sftpMaximized = ref(false);
 const SFTP_MIN_WIDTH = 320;
 const TERMINAL_MIN_WIDTH = 280;
@@ -280,7 +273,6 @@ const terminalTitle = computed(
 );
 
 let xterm: Terminal | null = null;
-let pluginLinks: IDisposable | null = null;
 let fitAddon: FitAddon | null = null;
 let serializeAddon: SerializeAddon | null = null;
 let searchAddon: SearchAddon | null = null;
@@ -782,16 +774,6 @@ function pasteConfirmed(text: string) {
   focusTerminal();
 }
 
-function bracketedPasteMode() {
-  return xterm?.modes.bracketedPasteMode === true;
-}
-
-/** Command snippet from the drawer: already planned (no "\r", no trailing newline; multi-line only in bracketed paste). */
-function insertCommandSnippet(text: string) {
-  if (status.value !== "ready" || !text) return;
-  predictiveEcho.paste(text);
-  focusTerminal();
-}
 
 async function confirmClosePane() {
   if (!props.canClose) return;
@@ -845,9 +827,6 @@ async function handleContextMenuAction(action: TerminalContextMenuAction) {
       return;
     case "paste":
       await requestPaste();
-      return;
-    case "insert-command-snippet":
-      snippetsOpen.value = true;
       return;
     case "select-all":
       xterm?.selectAll();
@@ -963,11 +942,6 @@ onMounted(async () => {
   if (props.active || props.visible) ensureFitRenderer();
   xterm.open(terminalHost.value);
   setTerminalTheme(xterm, resolveTerminalTheme());
-  pluginLinks = attachPluginTerminalLinks(xterm, {
-    kind: "ssh",
-    host: terminalHost.value,
-    onWebLinkFailure: handleWebLinkFailure,
-  });
   const bufferTerminal = xterm;
   stopBufferProbe = registerTerminalBufferReader(props.sessionId, () => {
     const buffer = bufferTerminal.buffer.active;
@@ -1142,8 +1116,6 @@ onBeforeUnmount(() => {
   stopBufferProbe?.();
   stopBufferProbe = null;
   predictiveEcho.dispose();
-  pluginLinks?.dispose();
-  pluginLinks = null;
   // Destroy xterm first to avoid rebuilding its DOM renderer during WebGL addon disposal.
   try {
     xterm?.dispose();
@@ -1300,15 +1272,6 @@ onBeforeUnmount(() => {
               @click.stop="bookmarksOpen = true"
             >
               <el-icon><Star /></el-icon>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip :content="t('pluginContrib.commandSnippets.open')" placement="bottom" :teleported="false">
-            <el-button text
-              native-type="button"
-              :aria-label="t('pluginContrib.commandSnippets.open')"
-              @click.stop="snippetsOpen = true"
-            >
-              <el-icon><Tickets /></el-icon>
             </el-button>
           </el-tooltip>
           <el-tooltip :content="t('ssh.editConnection')" placement="bottom" :teleported="false">
@@ -1470,14 +1433,6 @@ onBeforeUnmount(() => {
       v-model="aiActionsOpen"
       :context-text="terminalAiContextText(contextMenu.context)"
       terminal-kind="ssh"
-    />
-    <TerminalCommandSnippetsPanel
-      v-if="snippetsMounted"
-      v-model="snippetsOpen"
-      terminal-kind="ssh"
-      :ready="status === 'ready'"
-      :bracketed-paste-mode="bracketedPasteMode"
-      @insert="insertCommandSnippet"
     />
     <TerminalBookmarksDialog
       v-if="bookmarksMounted"

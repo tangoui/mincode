@@ -100,7 +100,7 @@ test("the drawer loads connectors on demand instead of every enabled server", as
   const drawer = await readFile(new URL("../src/components/ai/AiAssistantDrawer.vue", import.meta.url), "utf8");
   assert.doesNotMatch(drawer, /availableMcpTools|selectMcpTools/);
   assert.match(drawer, /historyServerIds: mcpServersFromHistory\(toolHistory\)/);
-  assert.match(drawer, /const toolHistory = relayedTurnRun\?\.history === "none" \? \[\] : persistedHistory;/);
+  assert.match(drawer, /const toolHistory = persistedHistory;/);
   assert.match(drawer, /const mcpLoader = mcpPlan\.offerLoader \? \[mcpLoadToolDefinition\(mcpServerIds\)\] : \[\];/);
   assert.match(drawer, /const currentTools = \(\) => \[\.\.\.nativeTools, \.\.\.mcpLoader, \.\.\.mcpTools\];/);
   assert.match(drawer, /currentTools,\s*compactHistory/);

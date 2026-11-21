@@ -37,24 +37,3 @@ test("database overview marks each connection type with its brand color", async 
   assert.match(source, /databaseConnectionBrand\(connection\)\.color/);
   assert.match(source, /db-connection-overview__type-swatch/);
 });
-
-test("plugin driver connections take the driver's own color instead of the gray fallback", async () => {
-  const { databaseConnectionBrand } = await import("../src/domain/database/type-brands.ts");
-  assert.equal(databaseConnectionBrand({ dbType: "plugin", driver: { pluginId: "hive-driver", driverId: "hive" } }).color, "#d9a21b");
-  assert.equal(databaseConnectionBrand({ dbType: "plugin", driver: { pluginId: "phoenix-driver", driverId: "phoenix" } }).color, "#b4321e");
-  assert.equal(databaseConnectionBrand({ dbType: "plugin", driver: { pluginId: "db2-driver", driverId: "db2" } }).color, "#0f62fe");
-  assert.equal(databaseConnectionBrand({ dbType: "plugin", driver: { pluginId: "xugudb-driver", driverId: "xugu" } }).color, "#0e7c66");
-  // Built-in types keep their color; an unknown third-party driver keeps the neutral fallback.
-  assert.equal(databaseConnectionBrand({ dbType: "mysql" }).color, "#4479a1");
-  assert.equal(databaseConnectionBrand({ dbType: "plugin", driver: { pluginId: "acme", driverId: "x" } }).color, "#718096");
-});
-
-test("overview and sidebar tint plugin connections by driver and show the plugin icon", async () => {
-  for (const path of ["../src/components/database/DatabaseConnectionOverview.vue", "../src/components/database/sidebar/DatabaseConnectionSidebar.vue"]) {
-    const source = await readFile(new URL(path, import.meta.url), "utf8");
-    assert.match(source, /databaseConnectionBrand\(connection\)\.color/, path);
-    assert.doesNotMatch(source, /<DatabaseTypeIcon :db-type="connection\.dbType" size="small" \/>/, path);
-  }
-  const icon = await readFile(new URL("../src/components/database/DatabaseTypeIcon.vue", import.meta.url), "utf8");
-  assert.match(icon, /databaseConnectionBrand\(/);
-});

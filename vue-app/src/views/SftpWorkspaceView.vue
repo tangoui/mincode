@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, shallowRef, watch, watchEffect } from "vue";
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch, watchEffect } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useRoute } from "vue-router";
 import {
@@ -19,15 +19,6 @@ import {
   Upload,
 } from "@element-plus/icons-vue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import PluginServiceMenuItems from "@/components/plugins/PluginServiceMenuItems.vue";
-import { usePluginMenuTarget } from "@/composables/use-plugin-menu-target";
-import {
-  sftpFileMenuTarget,
-  sftpFileServiceTarget,
-  sftpMenuConnection,
-  type SftpMenuConnection,
-} from "@/domain/sftp/menu-target";
 import SftpFileList from "@/components/sftp/SftpFileList.vue";
 import SftpTransferPanel from "@/components/sftp/SftpTransferPanel.vue";
 import { formatSftpTransferBytes, type SftpFileListCells } from "@/components/sftp/sftp-file-list";
@@ -133,30 +124,11 @@ interface RemoteContextMenuState { item?: Entry; x: number; y: number }
 interface LocalContextMenuState { item: LocalEntry; x: number; y: number }
 const remoteContextMenu = ref<RemoteContextMenuState | null>(null);
 const localContextMenu = ref<LocalContextMenuState | null>(null);
-// The session that is open and the endpoint it was opened with: row menus describe
-// this connection, never a profile edited (or switched) after connecting.
-const connectedSession = shallowRef<{ id: string; connection: SftpMenuConnection } | null>(null);
-function openRowMenuTarget() {
-  const item = remoteContextMenu.value?.item;
-  const session = connectedSession.value;
-  return item && session && session.id === sessionId.value ? { item, session } : null;
-}
-// Plugin items (contributes.menus sftp/file/context) of the open remote row menu;
-// the blank-area menu has no item and so no target.
-const { host: remotePluginMenuHost, context: remotePluginMenuContext } = usePluginMenuTarget("sftp/file/context", () => {
-  const open = openRowMenuTarget();
-  return open ? sftpFileMenuTarget(open.session.connection, open.item) : null;
-});
-// Plugin services (surface sftpFile) on a remote file row: read through the open session.
-function remoteServiceTarget() {
-  const open = openRowMenuTarget();
-  return open ? sftpFileServiceTarget(open.session.id, open.session.connection, open.item) : null;
-}
 // A row menu belongs to one session's listing: never pair its row with another profile's endpoint.
 watch([profileId, sessionId], () => {
   remoteContextMenu.value = null;
 });
-// This view is KeepAlive'd: leaving the route must not leave a row menu (and its target) open.
+// This view is KeepAlive'd: leaving the route must not leave a row menu open.
 onDeactivated(() => {
   remoteContextMenu.value = null;
 });
@@ -298,7 +270,6 @@ async function connect() {
   }
   if (sessionId.value && !(await requestDisconnect())) return;
   const openedSessionId = `sftp-${encodeURIComponent(workspaceScopeId)}-${selectedProfile.id}`;
-  const openedConnection = sftpMenuConnection(selectedProfile);
   sessionId.value = openedSessionId;
   loading.value = true;
   try {
@@ -321,11 +292,9 @@ async function connect() {
       profileId: selectedProfile.id,
       protocol: protocol.value,
     });
-    connectedSession.value = { id: openedSessionId, connection: openedConnection };
     await loadRemoteEntries();
   } catch (error) {
     sftpSessions.disconnected(openedSessionId);
-    if (connectedSession.value?.id === openedSessionId) connectedSession.value = null;
     if (sessionId.value === openedSessionId) sessionId.value = "";
     await disconnectSftp(openedSessionId).catch(() => undefined);
     ElMessage.error(String(error));
@@ -340,7 +309,6 @@ async function disconnect() {
   transferQueue.cancelQueued();
   remoteListSequence++;
   sessionId.value = "";
-  connectedSession.value = null;
   sftpSessions.disconnected(closingSession);
   entries.value = [];
   selected.value = undefined;
@@ -1431,13 +1399,8 @@ onBeforeUnmount(() => {
       <el-dropdown-item class="is-danger" :icon="Delete" @click="remove(); remoteContextMenu = null">
         {{ t("common.delete") }}
       </el-dropdown-item>
-      <PluginMenuItems
-        menu="sftp/file/context"
-        :host="remotePluginMenuHost"
-        :context="remotePluginMenuContext"
-        @run="remoteContextMenu = null"
-      />
-      <PluginServiceMenuItems :target="remoteServiceTarget" @run="remoteContextMenu = null" />
+
+
     </template>
   </AppContextMenu>
 

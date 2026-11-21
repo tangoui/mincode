@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, watchEffect } from "vue";
+import { computed } from "vue";
 import {
   databaseTypeLabels,
-  type DatabaseDriverRef,
   type DbType,
 } from "@/domain/database/types";
 import { databaseConnectionBrand, type DatabaseTypeBrand } from "@/domain/database/type-brands";
-import { useDatabaseDriversStore } from "@/stores/database-drivers";
 
 defineOptions({ name: "DatabaseTypeIcon" });
 
@@ -14,24 +12,12 @@ const props = withDefaults(
   defineProps<{
     dbType: DbType;
     size?: "small" | "medium";
-    /** Plugin driver binding: its sanitized icon replaces the built-in glyph when available. */
-    driver?: DatabaseDriverRef;
   }>(),
   { size: "medium" }
 );
 
-const driversStore = useDatabaseDriversStore();
-const pluginDriver = computed(() => driversStore.driverFor(props.driver));
-// Plugin icons are host-sanitized assets rendered only in image context (blob: URL).
-const pluginIconUrl = computed(() => driversStore.iconUrl(pluginDriver.value) ?? null);
-const iconTitle = computed(() =>
-  pluginDriver.value
-    ? `${pluginDriver.value.title} · ${pluginDriver.value.pluginName}`
-    : databaseTypeLabels[props.dbType],
-);
-watchEffect(() => driversStore.ensureIcon(pluginDriver.value));
-
-const brand = computed<DatabaseTypeBrand>(() => databaseConnectionBrand({ dbType: props.dbType, driver: props.driver }));
+const iconTitle = computed(() => databaseTypeLabels[props.dbType]);
+const brand = computed<DatabaseTypeBrand>(() => databaseConnectionBrand({ dbType: props.dbType }));
 </script>
 
 <template>
@@ -42,8 +28,7 @@ const brand = computed<DatabaseTypeBrand>(() => databaseConnectionBrand({ dbType
     :title="iconTitle"
     aria-hidden="true"
   >
-    <img v-if="pluginIconUrl" :src="pluginIconUrl" alt="" draggable="false" />
-    <svg v-else-if="brand.icon === 'leaf'" viewBox="0 0 24 24" fill="none">
+    <svg v-if="brand.icon === 'leaf'" viewBox="0 0 24 24" fill="none">
       <path d="M12 3c4.1 3.4 5.1 7.2 2.8 11.2-1 1.8-2 3.2-2.8 4.3-.8-1.1-1.8-2.5-2.8-4.3C6.9 10.2 7.9 6.4 12 3Z" fill="currentColor" />
       <path d="M12 7v13" stroke="var(--app-surface)" stroke-width="1.2" stroke-linecap="round" />
     </svg>

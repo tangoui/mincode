@@ -77,7 +77,7 @@ test("the closed-tab stack is LIFO, deduplicated per tab and bounded", () => {
   assert.equal(pushClosedEntry(bounded, { kind: "document", path: "/x" }, 3).length, 3);
 });
 
-test("closedEntryForTab reopens singleton views, terminals and plugin views only", () => {
+test("closedEntryForTab reopens singleton views and terminals", () => {
   assert.deepEqual(closedEntryForTab({ id: "ws:database", workspaceId: "ws", view: "database" }), {
     kind: "view",
     view: "database",
@@ -86,16 +86,6 @@ test("closedEntryForTab reopens singleton views, terminals and plugin views only
     kind: "terminal",
     title: "Shell 2",
   });
-  assert.deepEqual(
-    closedEntryForTab({
-      id: "plugin",
-      workspaceId: "ws",
-      view: "plugin-view",
-      title: "Etcd",
-      pluginView: { pluginId: "etcd", viewId: "main" },
-    }),
-    { kind: "plugin-view", pluginId: "etcd", viewId: "main", title: "Etcd" },
-  );
   assert.equal(closedEntryForTab({ id: "ws:sftp:uuid", workspaceId: "ws", view: "sftp" }), null);
   assert.equal(closedEntryForTab({ id: "ws:dashboard", workspaceId: "ws", view: "dashboard" }), null);
 });

@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, toRaw, watch, watchEffect } from "vue";
+import { computed, nextTick, reactive, ref, toRaw, watch } from "vue";
 import { ElMessage, type FormInstance, type FormRules } from "element-plus";
-import { useRouter } from "vue-router";
-import { WarningFilled } from "@element-plus/icons-vue";
 import { parseDatabaseConnectionUrl } from "@/domain/database/connection-url";
 import {
   extraSummary,
@@ -10,12 +8,6 @@ import {
   tunnelSummary,
   type ConnectionFormSection,
 } from "@/domain/database/connection-form-layout";
-import {
-  pluginDriverSuggestionKey,
-  pluginDriverSuggestionKeywords,
-  searchPluginDriverSuggestions,
-  type PluginDriverSuggestionMatch,
-} from "@/domain/database/plugin-driver-suggestions";
 import { databaseTypeSearchKeywords } from "@/domain/database/type-picker-search";
 import { loadSupportedDatabaseTypes } from "@/services/database-capabilities";
 import {
@@ -42,33 +34,6 @@ import {
   recentDatabaseTypes,
 } from "@/domain/database/type-picker";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
-import {
-  bindConnectionToPluginDriver,
-  databaseDriverDescription,
-  databaseDriverOptionFields,
-  databaseDriverSecretFields,
-  databaseDriverTitle,
-  invalidDatabaseDriverOptions,
-  missingDatabaseDriverFields,
-  databaseDriverReleaseAllowed,
-  normalizeDatabaseDriverRef,
-  pluginDatabaseDriverKey,
-  sameDatabaseDriverRef,
-  sanitizeDatabaseDriverOptions,
-  unbindConnectionDriver,
-  type DatabaseDriverField,
-  type PluginDatabaseDriver,
-} from "@/domain/plugins/database-drivers";
-import {
-  confirmDatabaseDriverCredentialRelease,
-  databaseDriverErrorMessage,
-  databaseDriverGrantRef,
-  grantDatabaseDriver,
-  setDatabaseDriverTrust,
-} from "@/services/database-driver-service";
-import { useDatabaseDriversStore } from "@/stores/database-drivers";
-import { listPlugins } from "@/services/plugin-service";
-
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
@@ -90,18 +55,9 @@ const emit = defineEmits<{
   test: [connection: DatabaseConnection];
 }>();
 
-const { t, localeChain } = useVueI18n();
-const driversStore = useDatabaseDriversStore();
+const { t } = useVueI18n();
 const databaseStore = useDatabaseWorkspaceStore();
-const router = useRouter();
-const JDBC_BRIDGE_DRIVER = { pluginId: "jdbc-bridge", driverId: "generic" } as const;
 const RECENT_CATEGORY_ID = "recent";
-const PLUGIN_CATEGORY_ID = "plugin";
-const BUILTIN_DRIVER_VALUE = "builtin";
-// True once the user explicitly picked the bound plugin driver in this dialog
-// session (with the credential disclosure visible): Save/Test then record the
-// grant without a second confirm. Other bindings need the protected confirm.
-const driverChosenInDialog = ref(false);
 const formRef = ref<FormInstance>();
 const step = ref<"picker" | "form">("picker");
 const activeCategoryId = ref("rel");
@@ -225,16 +181,7 @@ const availableCategories = computed(() => {
   const recent = recentTypes.value.length
     ? [{ id: RECENT_CATEGORY_ID, labelKey: "database.category.recent" as MessageKey, types: recentTypes.value }]
     : [];
-  if (!driversStore.drivers.length) return [...recent, ...builtins];
-  return [
-    ...recent,
-    ...builtins,
-    {
-      id: PLUGIN_CATEGORY_ID,
-      labelKey: "pluginContrib.databaseDrivers.group" as MessageKey,
-      types: [] as DbType[],
-    },
-  ];
+  return [...recent, ...builtins];
 });
 const activeCategory = computed(
   () =>
@@ -246,7 +193,6 @@ const activeCategory = computed(
 const databaseTypeGroups = computed(() => {
   const query = databaseTypeQuery.value;
   if (!normalizeDatabaseTypeSearch(query)) {
-    if (activeCategory.value.id === PLUGIN_CATEGORY_ID) return [];
     return [{ id: activeCategory.value.id, labelKey: activeCategory.value.labelKey, types: activeCategory.value.types.filter(isTypeSupported) }];
   }
   return groupDatabaseTypeMatches(
@@ -263,189 +209,17 @@ const databaseTypeGroups = computed(() => {
   ).map(({ category, types }) => ({ id: category.id, labelKey: (category as (typeof categories)[number]).labelKey, types }));
 });
 const visibleDatabaseTypes = computed(() => databaseTypeGroups.value.flatMap((group) => group.types));
-const visiblePluginDrivers = computed(() => {
-  const query = normalizeDatabaseTypeSearch(databaseTypeQuery.value);
-  if (!query) return activeCategory.value.id === PLUGIN_CATEGORY_ID ? driversStore.drivers : [];
-  return driversStore.drivers.filter((driver) =>
-    normalizeDatabaseTypeSearch(
-      [
-        databaseDriverTitle(driver, localeChain.value),
-        driver.driverId,
-        driver.pluginName,
-        driver.pluginId,
-        driver.sqlDialect,
-        driver.replaces ?? "",
-        ...pluginDriverSuggestionKeywords(driver.pluginId, driver.driverId),
-        t("pluginContrib.databaseDrivers.group"),
-      ].join(" "),
-    ).includes(query),
-  );
-});
-watchEffect(() => {
-  if (props.modelValue && step.value === "picker") {
-    for (const driver of visiblePluginDrivers.value) driversStore.ensureIcon(driver);
-  }
-  // The form's type row shows the chosen plugin driver's icon, also when the picker was skipped.
-  if (props.modelValue && step.value !== "picker") driversStore.ensureIcon(pluginDriver.value);
-});
-/**
- * Ids of installed plugins (enabled or not), read once per picker opening. A
- * plugin installed here but missing from the driver catalog is disabled (or
- * inactive in this workspace): its entries say "enable" instead of "install".
- * Failure (e.g. browser preview) leaves the set empty, i.e. "install".
- */
-const installedPluginIds = ref<ReadonlySet<string>>(new Set());
-let installedPluginsGeneration = 0;
-function loadInstalledPlugins() {
-  const generation = ++installedPluginsGeneration;
-  void listPlugins()
-    .then((plugins) => {
-      if (generation === installedPluginsGeneration) installedPluginIds.value = new Set(plugins.map((plugin) => plugin.id));
-    })
-    .catch(() => undefined);
-}
-/** The generic JDBC driver when jdbc-bridge is installed and enabled (it is in the driver catalog). */
-const jdbcGenericDriver = computed(() => driversStore.driverFor(JDBC_BRIDGE_DRIVER));
-const jdbcBridgeNeedsEnable = computed(() => !jdbcGenericDriver.value && installedPluginIds.value.has(JDBC_BRIDGE_DRIVER.pluginId));
-const jdbcButtonHint = computed(() =>
-  jdbcGenericDriver.value
-    ? t("database.jdbcConnection.hint")
-    : jdbcBridgeNeedsEnable.value
-      ? t("database.jdbcConnection.enableHint")
-      : t("database.jdbcConnection.installHint"),
+const canConfirmBuiltinDriver = computed(() =>
+  Boolean(draft.driver) && draft.dbType !== "plugin" && supportedDatabaseTypes.value?.has(draft.dbType) === true
 );
-/**
- * Search matches from official plugins that are not installed (or not enabled):
- * a card that opens the plugin manager. Built-in replacements available in this
- * build are not suggested again.
- */
-const visibleDriverSuggestions = computed<PluginDriverSuggestionMatch[]>(() =>
-  // A plugin counts as installed once any of its drivers is in the catalog (installed, enabled, gate-checked).
-  searchPluginDriverSuggestions(databaseTypeQuery.value, (pluginId) =>
-    driversStore.drivers.some((driver) => driver.pluginId === pluginId),
-  ).filter(({ suggestion }) => !suggestion.replaces || !isTypeSupported(suggestion.replaces)),
-);
+const builtinDriverMissing = computed(() => Boolean(draft.driver) || draft.dbType === "plugin" || !isTypeSupported(draft.dbType));
 
-/** The plugin driver the draft is bound to (undefined: built-in or not in the catalog). */
-const pluginDriver = computed(() => driversStore.driverFor(draft.driver));
-/** The draft names a plugin driver the catalog does not offer (disabled, missing, failed). */
-const missingPluginDriver = computed(() => Boolean(draft.driver && !pluginDriver.value));
-const driverStatus = computed(() =>
-  draft.driver ? driversStore.statusFor(databaseDriverGrantRef(draft.id, draft.driver)) : undefined,
-);
-const driverUnavailableReason = computed(() => {
-  if (!draft.driver) return undefined;
-  if (driverStatus.value && !driverStatus.value.available) return driverStatus.value.reason ?? "notInstalled";
-  return pluginDriver.value ? undefined : "notInstalled";
-});
-const builtinDriverAvailable = computed(
-  () => draft.dbType !== "plugin" && (supportedDatabaseTypes.value?.has(draft.dbType) ?? true),
-);
-/** A saved connection on a built-in driver this build leaves out (e.g. the nocoredrivers profile). */
-const builtinDriverMissing = computed(
-  () =>
-    !draft.driver &&
-    draft.dbType !== "plugin" &&
-    supportedDatabaseTypes.value !== null &&
-    !supportedDatabaseTypes.value.has(draft.dbType),
-);
-const compatiblePluginDrivers = computed(() => driversStore.compatibleDrivers(draft.dbType));
-const showDriverSection = computed(
-  () => Boolean(draft.driver) || compatiblePluginDrivers.value.length > 0 || builtinDriverMissing.value,
-);
-const driverSelectValue = computed(() =>
-  draft.driver ? pluginDatabaseDriverKey(draft.driver) : BUILTIN_DRIVER_VALUE,
-);
-const driverOptionFields = computed(() =>
-  pluginDriver.value ? databaseDriverOptionFields(pluginDriver.value, localeChain.value) : [],
-);
-// Whether saving or testing already counts as consent (else the user must re-confirm).
-const pluginReleaseConfirmed = computed(() => databaseDriverReleaseAllowed(driverStatus.value) || driverChosenInDialog.value);
-// One sentence pair for the compact credential notice. Chinese sentences join directly;
-// other languages get a space after the full stop.
-const pluginReleaseNotice = computed(() => {
-  const driver = pluginDriver.value;
-  if (!driver) return "";
-  const body = pluginSecretFieldsLabel.value
-    ? t("pluginContrib.databaseDrivers.releaseSecretBody", { plugin: driver.pluginName, fields: pluginSecretFieldsLabel.value })
-    : t("pluginContrib.databaseDrivers.releaseBody", { plugin: driver.pluginName });
-  const consent = pluginReleaseConfirmed.value
-    ? t("pluginContrib.databaseDrivers.releaseOnSave")
-    : t("pluginContrib.databaseDrivers.releaseNeedsConfirm");
-  return /[。！？]$/.test(body) ? body + consent : `${body} ${consent}`;
-});
-const pluginSecretFieldsLabel = computed(() =>
-  pluginDriver.value
-    ? databaseDriverSecretFields(pluginDriver.value)
-        .map((field) => pluginFieldLabel(field))
-        .join(t("pluginContrib.databaseDrivers.listSeparator"))
-    : "",
-);
-const pluginFileFilterPattern = computed(() =>
-  pluginDriver.value?.fileExtensions.length
-    ? pluginDriver.value.fileExtensions.map((extension) => `*${extension}`).join(";")
-    : "",
-);
-function pluginField(field: DatabaseDriverField) {
-  return Boolean(pluginDriver.value?.fields.includes(field));
+function confirmBuiltinDriver() {
+  if (!canConfirmBuiltinDriver.value) return;
+  draft.driver = undefined;
+  draft.options = undefined;
 }
-function pluginFieldRequired(field: DatabaseDriverField) {
-  return Boolean(pluginDriver.value?.required.includes(field));
-}
-function pluginFieldLabel(field: DatabaseDriverField) {
-  switch (field) {
-    case "host":
-      return t("database.host");
-    case "port":
-      return t("database.port");
-    case "database":
-      return t("database.defaultDatabase");
-    case "username":
-      return t("database.username");
-    case "password":
-      return t("database.password");
-    case "token":
-      return t("database.token");
-    case "filePath":
-      return t("database.filePath");
-    case "ssl":
-      return t("database.ssl");
-    case "org":
-      return t("database.org");
-    case "authSource":
-      return t("database.authSource");
-  }
-  return field;
-}
-function driverReasonMessage(reason: string | undefined) {
-  switch (reason) {
-    case "disabled":
-      return t("pluginContrib.databaseDrivers.disabled");
-    case "error":
-    case "protocol":
-      return t("pluginContrib.databaseDrivers.failed");
-    case "workspace":
-      return t("pluginContrib.databaseDrivers.workspace");
-    case "capability":
-      return t("pluginContrib.databaseDrivers.capability");
-    case "noDriver":
-      return t("pluginContrib.databaseDrivers.noDriver");
-    default:
-      return t("pluginContrib.databaseDrivers.notInstalled");
-  }
-}
-function pluginDriverLabel(driver: PluginDatabaseDriver) {
-  return t("pluginContrib.databaseDrivers.driverLabel", {
-    title: databaseDriverTitle(driver, localeChain.value),
-    plugin: driver.pluginName,
-  });
-}
-
-const fileDatabase = computed(() =>
-  pluginDriver.value
-    ? pluginField("filePath") && !pluginField("host")
-    : draft.dbType === "sqlite" || draft.dbType === "duckdb",
-);
+const fileDatabase = computed(() => draft.dbType === "sqlite" || draft.dbType === "duckdb");
 const tokenPrimaryDatabase = computed(() =>
   [
     "influxdb",
@@ -539,16 +313,7 @@ const hasDatabase = computed(
       "weaviate",
     ].includes(draft.dbType),
 );
-/**
- * Display name of the chosen type: the plugin driver title; for the generic "plugin" type whose
- * driver is not in the catalog, the bound driver's id; else the built-in type label.
- */
-const typeLabel = computed(() => {
-  if (pluginDriver.value) return databaseDriverTitle(pluginDriver.value, localeChain.value);
-  // A built-in type keeps its own name; only the generic "plugin" type falls back to the id.
-  if (draft.driver && draft.dbType === "plugin") return draft.driver.driverId;
-  return databaseTypeLabels[draft.dbType];
-});
+const typeLabel = computed(() => databaseTypeLabels[draft.dbType]);
 const dialogTitle = computed(() => {
   if (step.value === "picker") return t("database.pickTypeDialogTitle");
   return props.initial
@@ -586,9 +351,7 @@ const rules: FormRules<DatabaseConnection> = {
   host: [
     {
       validator: (_rule, value: string, callback) => {
-        const required = pluginDriver.value
-          ? pluginFieldRequired("host")
-          : !fileDatabase.value;
+        const required = !fileDatabase.value;
         if (required && !value.trim())
           callback(new Error(t("database.validation.host")));
         else callback();
@@ -599,16 +362,12 @@ const rules: FormRules<DatabaseConnection> = {
   filePath: [
     {
       validator: (_rule, value: string, callback) => {
-        const required = pluginDriver.value
-          ? pluginFieldRequired("filePath")
-          : fileDatabase.value;
+        const required = fileDatabase.value;
         if (required && !value.trim()) {
           callback(
             new Error(
               t("database.validation.file", {
-                type: pluginDriver.value
-                  ? databaseDriverTitle(pluginDriver.value, localeChain.value)
-                  : databaseTypeLabels[draft.dbType],
+                type: databaseTypeLabels[draft.dbType],
               }),
             ),
           );
@@ -620,11 +379,7 @@ const rules: FormRules<DatabaseConnection> = {
   database: [
     {
       validator: (_rule, value: string, callback) => {
-        if (pluginDriver.value) {
-          if (pluginFieldRequired("database") && !value.trim())
-            callback(new Error(t("pluginContrib.databaseDrivers.requiredField", { field: pluginFieldLabel("database") })));
-          else callback();
-        } else if (firebirdDatabase.value && !value.trim()) {
+        if (firebirdDatabase.value && !value.trim()) {
           callback(new Error(t("database.validation.firebirdDatabase")));
         } else callback();
       },
@@ -655,7 +410,6 @@ function categoryForType(dbType: DbType) {
 
 /** 新建连接默认打开“最近使用”；编辑或切换类型时定位到当前类型所在分类。 */
 function defaultCategoryId() {
-  if (draft.driver) return PLUGIN_CATEGORY_ID;
   if (!props.initial && step.value !== "form" && recentTypes.value.length) return RECENT_CATEGORY_ID;
   return categoryForType(draft.dbType);
 }
@@ -724,7 +478,7 @@ function selectCategory(categoryId: string) {
 
 function openTypePicker() {
   databaseTypeQuery.value = "";
-  activeCategoryId.value = draft.driver ? PLUGIN_CATEGORY_ID : categoryForType(draft.dbType);
+  activeCategoryId.value = categoryForType(draft.dbType);
   step.value = "picker";
   focusTypeSearch();
 }
@@ -756,7 +510,7 @@ function resetDraft(connection?: DatabaseConnection) {
     favorite: connection?.favorite ?? false,
     // toRaw: the connection comes from a reactive store and structuredClone cannot clone a proxy.
     tunnel: connection?.tunnel ? structuredClone(toRaw(connection.tunnel)) : undefined,
-    driver: normalizeDatabaseDriverRef(connection?.driver),
+    driver: connection?.driver ? { ...connection.driver } : undefined,
     options:
       connection?.options && typeof connection.options === "object"
         ? { ...connection.options }
@@ -764,7 +518,6 @@ function resetDraft(connection?: DatabaseConnection) {
     createdAt: connection?.createdAt ?? now,
     updatedAt: now,
   });
-  driverChosenInDialog.value = false;
   openSections.value = connection ? initialOpenSections(connection) : [];
   activeCategoryId.value = defaultCategoryId();
   step.value = connection ? "form" : "picker";
@@ -779,7 +532,6 @@ watch(
   (visible) => {
     if (!visible) return;
     resetDraft(props.initial);
-    loadInstalledPlugins();
     void loadSupportedDatabaseTypes().then((types) => {
       supportedDatabaseTypes.value = types;
       if (!props.initial && types && !types.has(draft.dbType)) {
@@ -788,14 +540,6 @@ watch(
       activeCategoryId.value = defaultCategoryId();
       focusTypeSearch();
     });
-    if (isDesktopRuntime()) {
-      void driversStore.refresh();
-      if (draft.driver) {
-        void driversStore
-          .refreshStatuses([databaseDriverGrantRef(draft.id, draft.driver)])
-          .catch(() => undefined);
-      }
-    }
   },
 );
 
@@ -834,95 +578,7 @@ function pickDatabaseType(dbType: DbType) {
 }
 
 function isGeneratedName(previousType: DbType) {
-  const name = draft.name.trim();
-  if (!name || draft.name === databaseTypeLabels[previousType]) return true;
-  const previous = pluginDriver.value;
-  return Boolean(previous && name === databaseDriverTitle(previous, localeChain.value));
-}
-
-/** Applies an explicit plugin driver choice to the draft (credentials untouched). */
-function applyPluginDriver(driver: PluginDatabaseDriver) {
-  const previousType = draft.dbType;
-  const previousDriver = draft.driver;
-  const shouldReplaceGeneratedName = isGeneratedName(previousType);
-  const next = bindConnectionToPluginDriver({ ...draft, tags: [...(draft.tags ?? [])] }, driver);
-  draft.dbType = next.dbType;
-  draft.driver = next.driver;
-  draft.options = next.options;
-  if (!sameDatabaseDriverRef(previousDriver, driver)) {
-    if (previousType !== next.dbType) {
-      draft.filePath = "";
-      draft.ssl = false;
-    }
-    if (driver.defaultPort && (previousType !== next.dbType || !previousDriver)) {
-      draft.port = driver.defaultPort;
-    } else if (!driver.fields.includes("port")) {
-      draft.port = 0;
-    } else if (!draft.port) {
-      draft.port = driver.defaultPort ?? 0;
-    }
-  }
-  // Plugin drivers dial their own endpoints; MinCode tunnels do not apply (v1).
-  draft.tunnel = undefined;
-  if (shouldReplaceGeneratedName) draft.name = databaseDriverTitle(driver, localeChain.value);
-  driverChosenInDialog.value = true;
-}
-
-function pickPluginDriver(driver: PluginDatabaseDriver) {
-  applyPluginDriver(driver);
-  step.value = "form";
-}
-
-/** Closes the dialog and opens the plugin manager searching for `pluginId`. */
-async function openPluginInstall(pluginId: string) {
-  emit("update:modelValue", false);
-  await router.push({ name: "plugins", query: { search: pluginId } });
-}
-
-/** "JDBC connection": the generic JDBC driver when available, else install jdbc-bridge. */
-function openJdbcConnection() {
-  const driver = jdbcGenericDriver.value;
-  if (driver) pickPluginDriver(driver);
-  else void openPluginInstall(JDBC_BRIDGE_DRIVER.pluginId);
-}
-
-function pickDriverSuggestion({ suggestion }: PluginDriverSuggestionMatch) {
-  void openPluginInstall(suggestion.pluginId);
-}
-
-function driverSuggestionHint({ suggestion }: PluginDriverSuggestionMatch) {
-  const plugin = suggestion.pluginName;
-  const provider = installedPluginIds.value.has(suggestion.pluginId)
-    ? t("database.pluginSuggestion.enable", { plugin })
-    : t("database.pluginSuggestion.install", { plugin });
-  return suggestion.requiresDriverJar ? t("database.pluginSuggestion.registerJarHint", { provider }) : provider;
-}
-
-/** Driver select in the form: explicit rebinding between built-in and plugin drivers. */
-function selectDriver(value: string) {
-  if (value === BUILTIN_DRIVER_VALUE) {
-    useBuiltinDriver();
-    return;
-  }
-  const driver = driversStore.drivers.find((item) => item.key === value);
-  if (driver) applyPluginDriver(driver);
-}
-
-/** E-10 escape: go back to the built-in driver of the same type (never for "plugin" types). */
-function useBuiltinDriver() {
-  if (!builtinDriverAvailable.value) return;
-  const next = unbindConnectionDriver({ ...draft });
-  if (!next) return;
-  draft.driver = undefined;
-  draft.options = undefined;
-  driverChosenInDialog.value = false;
-}
-
-function setDriverOption(key: string, value: unknown) {
-  const next = { ...(draft.options ?? {}) };
-  if (value === undefined || value === null) delete next[key];
-  else next[key] = value;
-  draft.options = next;
+  return !draft.name.trim() || draft.name === databaseTypeLabels[previousType];
 }
 
 function applyQuickConnectionUrl(value: string) {
@@ -967,31 +623,7 @@ function setTunnelType(type: "none" | DatabaseTunnelConfig["type"]) {
 }
 
 async function validateDraft() {
-  if (!(await formRef.value?.validate().catch(() => false))) return false;
-  const driver = pluginDriver.value;
-  if (!driver) return true;
-  const missing = missingDatabaseDriverFields(driver, draft);
-  if (missing.length) {
-    ElMessage.error(
-      t("pluginContrib.databaseDrivers.requiredField", {
-        field: missing.map(pluginFieldLabel).join(t("pluginContrib.databaseDrivers.listSeparator")),
-      }),
-    );
-    return false;
-  }
-  const invalid = invalidDatabaseDriverOptions(driver, draft.options);
-  if (invalid.length) {
-    const titles = driverOptionFields.value
-      .filter((field) => invalid.includes(field.key))
-      .map((field) => field.title || field.key);
-    ElMessage.error(
-      t("pluginContrib.databaseDrivers.invalidOption", {
-        option: titles.join(t("pluginContrib.databaseDrivers.listSeparator")),
-      }),
-    );
-    return false;
-  }
-  return true;
+  return Boolean(await formRef.value?.validate().catch(() => false));
 }
 function connectionPayload(): DatabaseConnection {
   const payload: DatabaseConnection = {
@@ -1000,107 +632,23 @@ function connectionPayload(): DatabaseConnection {
     tags: [...(draft.tags ?? [])],
     tunnel: draft.tunnel ? structuredClone(toRaw(draft.tunnel)) : undefined,
   };
-  const driver = pluginDriver.value;
-  if (driver) {
-    payload.options = sanitizeDatabaseDriverOptions(driver, draft.options);
-    payload.tunnel = undefined;
-    // Undeclared fields are never sent to (or stored for) the plugin driver.
-    if (!driver.fields.includes("password")) payload.password = "";
-    if (!driver.fields.includes("token")) payload.token = "";
-  } else if (draft.driver) {
-    // Bound driver is unavailable: keep the binding and options as they are.
-    payload.driver = { ...draft.driver };
-  } else {
-    delete payload.driver;
-    delete payload.options;
-  }
   return payload;
-}
-
-/**
- * Records the credential-release grant before Save/Test sends anything to a
- * plugin driver. A driver picked in this dialog (disclosure visible) counts
- * as consent; any other binding (imported, synced, earlier session) needs the
- * protected confirm unless the host already holds the grant. Save keeps the
- * connection even without a grant (connect asks again); Test aborts.
- */
-async function ensureDriverGrant(mode: "save" | "test"): Promise<boolean> {
-  const ref = draft.driver;
-  if (!ref || !isDesktopRuntime()) return mode === "save" || !ref;
-  const driver = pluginDriver.value;
-  if (!driver) {
-    if (mode === "test") ElMessage.error(driverReasonMessage(driverUnavailableReason.value));
-    return mode === "save";
-  }
-  const grantRef = databaseDriverGrantRef(draft.id, ref);
-  if (!driverChosenInDialog.value) {
-    let status = driversStore.statusFor(grantRef);
-    if (!status) {
-      status = (await driversStore.refreshStatuses([grantRef]).catch(() => []))[0];
-    }
-    if (databaseDriverReleaseAllowed(status)) return true;
-    const decision = await confirmDatabaseDriverCredentialRelease({
-      connectionName: draft.name.trim() || databaseDriverTitle(driver, localeChain.value),
-      host: driver.fields.includes("host") ? draft.host : draft.filePath,
-      port: driver.fields.includes("port") ? draft.port : undefined,
-      username: driver.fields.includes("username") ? draft.username : undefined,
-      pluginName: driver.pluginName,
-      pluginId: driver.pluginId,
-      pluginVersion: driver.pluginVersion,
-      driverTitle: databaseDriverTitle(driver, localeChain.value),
-    });
-    if (!decision.confirmed) {
-      if (mode === "test") ElMessage.info(t("pluginContrib.databaseDrivers.cancelUnconfirmed"));
-      return mode === "save";
-    }
-    if (decision.trust) {
-      await setDatabaseDriverTrust(driver.pluginId, true).catch((error) =>
-        ElMessage.warning(t("pluginContrib.databaseDrivers.trustFailed", { error: databaseDriverErrorMessage(error) })),
-      );
-    }
-  }
-  try {
-    await grantDatabaseDriver(grantRef);
-    driversStore.markGranted(grantRef);
-    driverChosenInDialog.value = true;
-    return true;
-  } catch (error) {
-    const message = databaseDriverErrorMessage(error);
-    if (mode === "save") {
-      ElMessage.warning(t("pluginContrib.databaseDrivers.grantFailed", { error: message }));
-      return true;
-    }
-    ElMessage.error(message);
-    return false;
-  }
 }
 
 async function submit() {
   if (!(await validateDraft())) return;
-  if (!(await ensureDriverGrant("save"))) return;
-  // The store's saveConnection drops grants of a replaced binding without touching
-  // the grant recorded above for the new driver.
   emit("save", connectionPayload());
 }
 async function testConnection() {
   if (!(await validateDraft())) return;
-  if (!(await ensureDriverGrant("test"))) return;
+  if (builtinDriverMissing.value) {
+    ElMessage.warning(t("database.driverUnavailable"));
+    return;
+  }
   emit("test", connectionPayload());
 }
 async function chooseDatabaseFile() {
   if (!isDesktopRuntime()) return;
-  if (pluginDriver.value) {
-    const title = databaseDriverTitle(pluginDriver.value, localeChain.value);
-    const filters = pluginFileFilterPattern.value
-      ? [{ DisplayName: title, Pattern: pluginFileFilterPattern.value }]
-      : [];
-    const picked = await chooseNativeFile(t("database.chooseDatabaseFile"), [
-      ...filters,
-      { DisplayName: t("database.allFiles"), Pattern: "*" },
-    ]);
-    if (picked) draft.filePath = picked;
-    return;
-  }
   const pattern =
     draft.dbType === "duckdb" ? "*.duckdb;*.db" : "*.sqlite;*.sqlite3;*.db";
   const selected = await chooseNativeFile(t("database.chooseDatabaseFile"), [
@@ -1190,17 +738,13 @@ function closeDialog() {
               @click="selectCategory(category.id)"
             >
               <span>{{ t(category.labelKey) }}</span>
-              <small>{{
-                category.id === PLUGIN_CATEGORY_ID
-                  ? driversStore.drivers.length
-                  : category.types.filter(isTypeSupported).length
-              }}</small>
+              <small>{{ category.types.filter(isTypeSupported).length }}</small>
             </el-button>
           </template>
         </nav>
         <el-scrollbar class="db-type-picker__scroll">
           <div ref="typeGrid" class="db-type-picker__scroll-content">
-            <template v-if="visibleDatabaseTypes.length || visiblePluginDrivers.length || visibleDriverSuggestions.length">
+            <template v-if="visibleDatabaseTypes.length">
               <section
                 v-for="group in databaseTypeGroups"
                 :key="group.id"
@@ -1243,65 +787,6 @@ function closeDialog() {
                   </button>
                 </div>
               </section>
-              <section v-if="visiblePluginDrivers.length" class="db-type-picker__group">
-                <h4>{{ t("pluginContrib.databaseDrivers.group") }}</h4>
-                <div class="db-type-picker__grid">
-                  <button
-                    v-for="driver in visiblePluginDrivers"
-                    :key="driver.key"
-                    type="button"
-                    class="db-type-card is-plugin"
-                    :class="{
-                      'is-selected': driver.key === (draft.driver ? driverSelectValue : ''),
-                      'is-focused': visibleDatabaseTypes.length + visiblePluginDrivers.indexOf(driver) === focusedTypeIndex,
-                    }"
-                    :title="databaseDriverDescription(driver, localeChain) || undefined"
-                    @click="pickPluginDriver(driver)"
-                  >
-                    <span class="db-type-card__logo db-type-card__logo--plugin">
-                      <img
-                        v-if="driversStore.iconUrl(driver)"
-                        :src="driversStore.iconUrl(driver) ?? undefined"
-                        alt=""
-                        draggable="false"
-                      />
-                      <template v-else>{{
-                        databaseDriverTitle(driver, localeChain).slice(0, 2).toUpperCase()
-                      }}</template>
-                    </span>
-                    <span class="db-type-card__content">
-                      <b>{{ databaseDriverTitle(driver, localeChain) }}</b>
-                      <small>{{ t("pluginContrib.databaseDrivers.providedBy", { plugin: driver.pluginName }) }}</small>
-                    </span>
-                    <AppChevron class="db-type-card__arrow" direction="right" />
-                  </button>
-                </div>
-              </section>
-              <section v-if="visibleDriverSuggestions.length" class="db-type-picker__group">
-                <h4>{{ t("database.pluginSuggestion.group") }}</h4>
-                <div class="db-type-picker__grid">
-                  <button
-                    v-for="(match, index) in visibleDriverSuggestions"
-                    :key="pluginDriverSuggestionKey(match.suggestion)"
-                    type="button"
-                    class="db-type-card is-plugin is-suggestion"
-                    :class="{
-                      'is-focused': visibleDatabaseTypes.length + visiblePluginDrivers.length + index === focusedTypeIndex,
-                    }"
-                    :title="driverSuggestionHint(match)"
-                    @click="pickDriverSuggestion(match)"
-                  >
-                    <span class="db-type-card__logo db-type-card__logo--plugin" aria-hidden="true">{{
-                      databaseDriverTitle(match.suggestion, localeChain).slice(0, 2).toUpperCase()
-                    }}</span>
-                    <span class="db-type-card__content">
-                      <b>{{ databaseDriverTitle(match.suggestion, localeChain) }}</b>
-                      <small>{{ driverSuggestionHint(match) }}</small>
-                    </span>
-                    <AppChevron class="db-type-card__arrow" direction="right" />
-                  </button>
-                </div>
-              </section>
             </template>
             <el-empty
               v-else
@@ -1318,17 +803,6 @@ function closeDialog() {
           <kbd>↵</kbd>{{ t("database.pickerKeyNext") }}
         </span>
         <span class="db-type-picker__actions">
-          <el-button
-            class="db-type-picker__jdbc"
-            :title="jdbcButtonHint"
-            :aria-description="jdbcButtonHint"
-            @click="openJdbcConnection"
-          >
-            {{ t("database.jdbcConnection.button") }}
-            <small v-if="!jdbcGenericDriver" class="db-type-picker__jdbc-note">{{
-              jdbcBridgeNeedsEnable ? t("database.jdbcConnection.needsEnable") : t("database.jdbcConnection.needsPlugin")
-            }}</small>
-          </el-button>
           <el-button @click="closeDialog">{{ t("common.cancel") }}</el-button>
         </span>
       </div>
@@ -1345,40 +819,10 @@ function closeDialog() {
         >
           <div class="db-type-row">
             <div class="db-type-row__head">
-              <span
-                v-if="pluginDriver"
-                class="db-type-card__logo db-type-card__logo--plugin db-type-row__icon"
-                aria-hidden="true"
-              >
-                <img
-                  v-if="driversStore.iconUrl(pluginDriver)"
-                  :src="driversStore.iconUrl(pluginDriver) ?? undefined"
-                  alt=""
-                  draggable="false"
-                />
-                <template v-else>{{ typeLabel.slice(0, 2).toUpperCase() }}</template>
-              </span>
-              <DatabaseTypeIcon v-else :db-type="draft.dbType" class="db-type-row__icon" />
+              <DatabaseTypeIcon :db-type="draft.dbType" class="db-type-row__icon" />
               <div class="db-type-row__text">
                 <strong>{{ typeLabel }}</strong>
-                <!-- Provider and the credential notice share one line; the full consent text is
-                     in the tooltip on the label (hover or keyboard focus). -->
-                <p v-if="pluginDriver" class="db-driver-section__provider">
-                  <span>{{
-                    t("pluginContrib.databaseDrivers.providedByDetail", {
-                      plugin: pluginDriver.pluginName,
-                      id: pluginDriver.pluginId,
-                      version: pluginDriver.pluginVersion || "-",
-                      dialect: pluginDriver.sqlDialect,
-                    })
-                  }}</span>
-                  <el-tooltip v-if="!driverUnavailableReason" :content="pluginReleaseNotice" placement="top" :show-after="150">
-                    <span class="db-driver-section__release-label" tabindex="0" :aria-label="pluginReleaseNotice">
-                      <el-icon><WarningFilled /></el-icon>{{ t("pluginContrib.databaseDrivers.releaseTitle") }}
-                    </span>
-                  </el-tooltip>
-                </p>
-                <p v-else-if="!draft.driver" class="db-type-row__hint">
+                <p class="db-type-row__hint">
                   <span>{{
                     databaseDriverInfo[draft.dbType].available && !builtinDriverMissing
                       ? t("database.driverHint", { driver: databaseDriverInfo[draft.dbType].label })
@@ -1397,95 +841,10 @@ function closeDialog() {
                 }}
               </el-button>
             </div>
-            <el-form-item
-              v-if="showDriverSection"
-              class="db-type-row__driver"
-              :label="t('pluginContrib.databaseDrivers.driverSelect')"
-            >
-              <el-select
-                class="w-full"
-                size="small"
-                :model-value="driverSelectValue"
-                @update:model-value="selectDriver"
-              >
-                <el-option
-                  v-if="builtinDriverAvailable"
-                  :value="BUILTIN_DRIVER_VALUE"
-                  :label="
-                    t('pluginContrib.databaseDrivers.builtinOption', {
-                      type: databaseTypeLabels[draft.dbType],
-                    })
-                  "
-                />
-                <el-option
-                  v-if="builtinDriverMissing"
-                  disabled
-                  :value="BUILTIN_DRIVER_VALUE"
-                  :label="
-                    t('pluginContrib.databaseDrivers.builtinMissingOption', {
-                      type: databaseTypeLabels[draft.dbType],
-                    })
-                  "
-                />
-                <el-option
-                  v-for="driver in compatiblePluginDrivers"
-                  :key="driver.key"
-                  :value="driver.key"
-                  :label="pluginDriverLabel(driver)"
-                />
-                <el-option
-                  v-if="missingPluginDriver && draft.driver"
-                  :value="driverSelectValue"
-                  :label="
-                    t('pluginContrib.databaseDrivers.missingOption', {
-                      plugin: draft.driver.pluginId,
-                      driver: draft.driver.driverId,
-                    })
-                  "
-                />
-              </el-select>
-            </el-form-item>
-          </div>
-
-          <div v-if="showDriverSection" class="db-type-row__alerts">
-            <el-alert
-              v-if="builtinDriverMissing"
-              type="error"
-              :closable="false"
-              show-icon
-              :title="t('pluginContrib.databaseDrivers.runtime.builtinMissingTitle')"
-            >
-              <p>
-                {{
-                  t("pluginContrib.databaseDrivers.builtinMissingHint", {
-                    type: databaseTypeLabels[draft.dbType],
-                  })
-                }}
-              </p>
+            <el-alert v-if="canConfirmBuiltinDriver" type="warning" :closable="false" show-icon>
+              <p>{{ t("database.confirmBuiltinDriverHint") }}</p>
+              <el-button @click="confirmBuiltinDriver">{{ t("database.confirmBuiltinDriver") }}</el-button>
             </el-alert>
-            <template v-if="draft.driver">
-              <el-alert
-                v-if="driverUnavailableReason"
-                type="error"
-                :closable="false"
-                show-icon
-                :title="t('pluginContrib.databaseDrivers.unavailable')"
-              >
-                <p>{{ driverReasonMessage(driverUnavailableReason) }}</p>
-                <p>{{ t("pluginContrib.databaseDrivers.reloadPlugin") }}</p>
-                <el-button
-                  v-if="builtinDriverAvailable"
-                  size="small"
-                  @click="useBuiltinDriver"
-                >
-                  {{ t("pluginContrib.databaseDrivers.useBuiltin") }}
-                </el-button>
-              </el-alert>
-              <!-- Needs an explicit re-confirmation, so it stays visible rather than hover-only. -->
-              <p v-else-if="pluginDriver && !pluginReleaseConfirmed" class="db-driver-section__reconfirm">
-                {{ t("pluginContrib.databaseDrivers.releaseNeedsConfirm") }}
-              </p>
-            </template>
           </div>
 
           <section class="db-form-section db-form-main">
@@ -1529,124 +888,6 @@ function closeDialog() {
                 <template #prepend>URL</template>
               </el-input>
             </div>
-            <template v-if="pluginDriver">
-              <el-form-item
-                v-if="pluginField('filePath')"
-                :label="t('database.filePath')"
-                prop="filePath"
-                :required="pluginFieldRequired('filePath')"
-              >
-                <el-input
-                  v-model="draft.filePath"
-                  :placeholder="t('database.filePathPlaceholder')"
-                >
-                  <template #append
-                    ><el-button
-                      :disabled="!isDesktopRuntime()"
-                      @click="chooseDatabaseFile"
-                      >{{ t("database.chooseFile") }}</el-button
-                    ></template
-                  >
-                </el-input>
-              </el-form-item>
-              <div
-                v-if="pluginField('host') || pluginField('port')"
-                class="db-form-grid db-form-grid--host"
-              >
-                <el-form-item
-                  v-if="pluginField('host')"
-                  :label="t('database.host')"
-                  prop="host"
-                  :required="pluginFieldRequired('host')"
-                  ><el-input v-model="draft.host" placeholder="localhost"
-                /></el-form-item>
-                <el-form-item
-                  v-if="pluginField('port')"
-                  :label="t('database.port')"
-                  :required="pluginFieldRequired('port')"
-                  ><el-input-number
-                    v-model="draft.port"
-                    :min="0"
-                    :max="65535"
-                    controls-position="right"
-                /></el-form-item>
-              </div>
-              <div
-                v-if="pluginField('username') || pluginField('password')"
-                class="db-form-grid"
-              >
-                <el-form-item
-                  v-if="pluginField('username')"
-                  :label="t('database.username')"
-                  :required="pluginFieldRequired('username')"
-                  ><el-input v-model="draft.username" autocomplete="off"
-                /></el-form-item>
-                <el-form-item
-                  v-if="pluginField('password')"
-                  :label="t('database.password')"
-                  :required="pluginFieldRequired('password')"
-                >
-                  <el-input
-                    v-model="draft.password"
-                    type="password"
-                    show-password
-                    autocomplete="off"
-                  />
-                </el-form-item>
-              </div>
-              <div
-                v-if="pluginField('token') || pluginField('database')"
-                class="db-form-grid"
-              >
-                <el-form-item
-                  v-if="pluginField('token')"
-                  :label="t('database.token')"
-                  :required="pluginFieldRequired('token')"
-                >
-                  <el-input
-                    v-model="draft.token"
-                    type="password"
-                    show-password
-                    autocomplete="off"
-                  />
-                </el-form-item>
-                <el-form-item
-                  v-if="pluginField('database')"
-                  prop="database"
-                  :label="t('database.defaultDatabase')"
-                  :required="pluginFieldRequired('database')"
-                  ><el-input v-model="draft.database"
-                /></el-form-item>
-              </div>
-              <div
-                v-if="pluginField('org') || pluginField('authSource')"
-                class="db-form-grid"
-              >
-                <el-form-item
-                  v-if="pluginField('org')"
-                  :label="t('database.org')"
-                  :required="pluginFieldRequired('org')"
-                  ><el-input v-model="draft.org"
-                /></el-form-item>
-                <el-form-item
-                  v-if="pluginField('authSource')"
-                  :label="t('database.authSource')"
-                  :required="pluginFieldRequired('authSource')"
-                  ><el-input v-model="draft.authSource"
-                /></el-form-item>
-              </div>
-              <div class="db-check-row">
-                <el-checkbox v-if="pluginField('ssl')" v-model="draft.ssl">{{
-                  t("database.ssl")
-                }}</el-checkbox>
-                <el-checkbox
-                  v-if="pluginField('password') || pluginField('token')"
-                  v-model="draft.savePassword"
-                  >{{ t("database.savePassword") }}</el-checkbox
-                >
-              </div>
-            </template>
-            <template v-else>
             <el-alert
               v-if="yashanDatabase"
               :title="t('database.yashandbClientHint')"
@@ -1764,69 +1005,6 @@ function closeDialog() {
               <el-checkbox v-model="draft.savePassword">{{
                 t("database.savePassword")
               }}</el-checkbox>
-            </div>
-            </template>
-          </section>
-
-          <section
-            v-if="pluginDriver && driverOptionFields.length"
-            class="db-form-section db-form-options"
-          >
-            <header>
-              <div>
-                <strong>{{ t("pluginContrib.databaseDrivers.optionsSection") }}</strong>
-              </div>
-            </header>
-            <p class="db-driver-section__provider">
-              {{ t("pluginContrib.databaseDrivers.optionsHint") }}
-            </p>
-            <div class="db-form-grid">
-              <el-form-item
-                v-for="field in driverOptionFields"
-                :key="field.key"
-                :label="field.title || field.key"
-              >
-                <el-switch
-                  v-if="field.control === 'boolean'"
-                  :model-value="draft.options?.[field.key] === true"
-                  @update:model-value="setDriverOption(field.key, $event === true)"
-                />
-                <el-select
-                  v-else-if="field.control === 'enum'"
-                  class="w-full"
-                  clearable
-                  :model-value="(draft.options?.[field.key] as string | number | undefined)"
-                  @update:model-value="setDriverOption(field.key, $event === '' ? undefined : $event)"
-                >
-                  <el-option
-                    v-for="option in field.options"
-                    :key="String(option.value)"
-                    :label="option.label"
-                    :value="option.value"
-                  />
-                </el-select>
-                <el-input-number
-                  v-else-if="field.control === 'integer' || field.control === 'number'"
-                  :model-value="(draft.options?.[field.key] as number | undefined)"
-                  :min="field.property.minimum"
-                  :max="field.property.maximum"
-                  :step="field.control === 'integer' ? 1 : 0.1"
-                  :step-strictly="field.control === 'integer'"
-                  controls-position="right"
-                  @update:model-value="setDriverOption(field.key, $event ?? undefined)"
-                />
-                <el-input
-                  v-else
-                  :model-value="(draft.options?.[field.key] as string | undefined) ?? ''"
-                  :maxlength="field.property.maxLength"
-                  autocomplete="off"
-                  spellcheck="false"
-                  @update:model-value="setDriverOption(field.key, $event)"
-                />
-                <small v-if="field.description" class="db-driver-option__hint">{{
-                  field.description
-                }}</small>
-              </el-form-item>
             </div>
           </section>
 

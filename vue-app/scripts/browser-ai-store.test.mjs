@@ -442,13 +442,30 @@ test("browser store_apply_batch accepts only delete_ai_scope and changes nothing
 test("browser-local settings keep AI keys in sessionStorage and never in localStorage", async () => {
   const { BROWSER_AI_KEYS_STORAGE_KEY, browserAiKey, setBrowserAiKey } = await import("../src/services/browser-ai-keys.ts");
   assert.equal(BROWSER_AI_KEYS_STORAGE_KEY, "mincode_browser_ai_keys_v1");
-  localStorage.setItem("app_settings_v2", JSON.stringify({ aiProfiles: [{ id: "p1", apiKey: "" }, { id: "p2", apiKey: "" }] }));
+  const legacyProfile = {
+    id: "p1",
+    provider: "plugin",
+    source: { pluginId: "demo.providers", providerId: "local" },
+    baseUrl: "https://example.test/v1",
+    model: "local-model",
+    noToolModels: ["local-model"],
+    apiKey: "",
+  };
+  localStorage.setItem("app_settings_v2", JSON.stringify({ aiProfiles: [legacyProfile, { id: "p2", apiKey: "" }] }));
   sessionStorage.setItem(BROWSER_AI_KEYS_STORAGE_KEY, JSON.stringify({ p1: "sk-session" }));
 
   const settings = await import("../src/services/settings-persistence.ts");
   assert.equal(settings.readSettingsSnapshot().aiProfiles[0].apiKey, "sk-session", "read before hydration");
   const hydrated = await settings.hydrateSettingsSnapshot();
   assert.deepEqual(hydrated.aiProfiles.map((profile) => profile.apiKey), ["sk-session", ""]);
+  assert.deepEqual(hydrated.aiProfiles[0], {
+    id: "p1",
+    provider: "custom",
+    baseUrl: "https://example.test/v1",
+    model: "local-model",
+    noToolModels: ["local-model"],
+    apiKey: "sk-session",
+  });
 
   await settings.persistSettingsSnapshot({ aiProfiles: [{ id: "p1", apiKey: "" }, { id: "p2", apiKey: "sk-two" }] });
   assert.deepEqual(

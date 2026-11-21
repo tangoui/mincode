@@ -19,9 +19,6 @@ export const viewTitleKeys: Record<WorkspaceView, WorkspaceTab["titleKey"]> = {
   http: "nav.http",
   notes: "nav.notes",
   sessions: "nav.sessions",
-  plugins: "nav.plugins",
-  "plugin-view": "plugins.viewTitle",
-  "service-result": "plugins.services.result.title",
   settings: "nav.settings",
   ai: "ai.chat",
 };
@@ -68,71 +65,10 @@ function isWorkspaceView(value: unknown): value is WorkspaceView {
   );
 }
 
-function normalizedPersistedTabId(
-  value: unknown,
-  workspaceId: string,
-  rawTabs: unknown,
-) {
-  if (typeof value !== "string") return "";
-  const legacyWorkflowTab =
-    Array.isArray(rawTabs) &&
-    rawTabs.some(
-      (item) =>
-        isRecord(item) &&
-        item.id === value &&
-        item.workspaceId === workspaceId &&
-        item.view === "workflows",
-    );
-  return legacyWorkflowTab ? `${workspaceId}:plugins` : value;
-}
-
-/**
- * Tabs whose content lives only in memory (service results): never written to
- * the session store, dropped from a restored one, and not archived with a
- * deleted workspace, since their content is gone once the tab is.
- */
-export function isTransientTab(tab: Pick<WorkspaceTab, "view">) {
-  return tab.view === "service-result";
-}
-
-export function pluginViewTabId(
-  workspaceId: string,
-  pluginId: string,
-  viewId: string,
-) {
-  return `${workspaceId}:plugin-view:${pluginId}:${viewId}`;
-}
-
-export function serviceResultTabId(workspaceId: string, resultId: string) {
-  return `${workspaceId}:service-result:${resultId}`;
-}
-
 function boundedString(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
   const trimmed = value.trim();
   return trimmed.length > 0 && trimmed.length <= maxLength ? trimmed : "";
-}
-
-export function isPluginViewTab(
-  tab: WorkspaceTab,
-  workspaceId: string,
-  pluginId: string,
-  viewId: string,
-) {
-  return (
-    tab.workspaceId === workspaceId &&
-    tab.view === "plugin-view" &&
-    tab.pluginView?.pluginId === pluginId &&
-    tab.pluginView.viewId === viewId
-  );
-}
-
-function pluginViewIdentityKey(
-  workspaceId: string,
-  pluginId: string,
-  viewId: string,
-) {
-  return JSON.stringify([workspaceId, pluginId, viewId]);
 }
 
 export function normalizeWorkspaces(value: unknown): WorkspaceDefinition[] {
@@ -172,17 +108,10 @@ export function normalizeTabs(
   if (!Array.isArray(value)) return [];
   const workspaceIds = new Set(workspaces.map((workspace) => workspace.id));
   const tabIds = new Set<string>();
-  const pluginViewIdentities = new Set<string>();
   const restored: WorkspaceTab[] = [];
   for (const item of value) {
     if (!isRecord(item)) continue;
-    const { id: rawId, workspaceId, view: rawView } = item;
-    const migratingWorkflow = rawView === "workflows";
-    const view = migratingWorkflow ? "plugins" : rawView;
-    const id =
-      migratingWorkflow && typeof workspaceId === "string"
-        ? `${workspaceId}:plugins`
-        : rawId;
+    const { id, workspaceId, view } = item;
     if (
       typeof id !== "string" ||
       !id ||
@@ -190,24 +119,9 @@ export function normalizeTabs(
       typeof workspaceId !== "string" ||
       !workspaceIds.has(workspaceId) ||
       !isWorkspaceView(view) ||
-      view === "dashboard" ||
-      isTransientTab({ view })
+      view === "dashboard"
     ) {
       continue;
-    }
-    let pluginView: WorkspaceTab["pluginView"];
-    if (view === "plugin-view") {
-      const metadata = isRecord(item.pluginView) ? item.pluginView : undefined;
-      const pluginId =
-        typeof metadata?.pluginId === "string" ? metadata.pluginId.trim() : "";
-      const viewId =
-        typeof metadata?.viewId === "string" ? metadata.viewId.trim() : "";
-      if (!pluginId || pluginId.length > 128 || !viewId || viewId.length > 128)
-        continue;
-      const identity = pluginViewIdentityKey(workspaceId, pluginId, viewId);
-      if (pluginViewIdentities.has(identity)) continue;
-      pluginViewIdentities.add(identity);
-      pluginView = { pluginId, viewId };
     }
     tabIds.add(id);
     restored.push({
@@ -216,14 +130,12 @@ export function normalizeTabs(
       view,
       titleKey: viewTitleKeys[view],
       title:
-        !migratingWorkflow &&
         typeof item.title === "string" &&
         item.title.trim()
           ? item.title.trim().slice(0, 256)
           : undefined,
       closable: true,
       pinned: item.pinned === true,
-      pluginView,
     });
     if (restored.length >= MAX_PERSISTED_TABS) break;
   }
@@ -250,15 +162,11 @@ export function normalizeDeletedWorkspaces(
     )
       continue;
     const archivedTabs = normalizeTabs(candidate.tabs, [workspace]);
-    const normalizedLastActiveTabId = normalizedPersistedTabId(
-      candidate.lastActiveTabId,
-      workspace.id,
-      candidate.tabs,
-    );
+    const savedTabId = typeof candidate.lastActiveTabId === "string" ? candidate.lastActiveTabId : "";
     const lastActiveTabId = archivedTabs.some(
-      (tab) => tab.id === normalizedLastActiveTabId,
+      (tab) => tab.id === savedTabId,
     )
-      ? normalizedLastActiveTabId
+      ? savedTabId
       : (archivedTabs[0]?.id ?? "");
     restored.push({
       workspace,
@@ -297,21 +205,17 @@ export function normalizeWorkbenchSession(
   const scopedTabs = tabs.filter(
     (tab) => tab.workspaceId === activeWorkspaceId,
   );
-  const persistedActiveTabId = normalizedPersistedTabId(
-    value.activeTabId,
-    activeWorkspaceId,
-    value.tabs,
-  );
+  const persistedActiveTabId = typeof value.activeTabId === "string" ? value.activeTabId : "";
   const activeTabId = scopedTabs.some((tab) => tab.id === persistedActiveTabId)
     ? persistedActiveTabId
     : "";
   const lastActiveTabByWorkspace: Record<string, string> = {};
   if (isRecord(value.lastActiveTabByWorkspace)) {
-    for (const [workspaceId, rawTabId] of Object.entries(
+    for (const [workspaceId, tabId] of Object.entries(
       value.lastActiveTabByWorkspace,
     )) {
-      const tabId = normalizedPersistedTabId(rawTabId, workspaceId, value.tabs);
       if (
+        typeof tabId === "string" &&
         workspaceIds.has(workspaceId) &&
         tabs.some((tab) => tab.id === tabId && tab.workspaceId === workspaceId)
       ) {

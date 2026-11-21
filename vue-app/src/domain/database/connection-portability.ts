@@ -2,14 +2,23 @@ import {
   databaseDefaultPorts,
   databaseTypeLabels,
   type DatabaseConnection,
+  type DatabaseDriverRef,
   type DatabaseTunnelConfig,
   type DbType,
 } from "./types.ts";
-import {
-  DATABASE_DRIVER_OPTION_STRING_MAX_LENGTH,
-  DATABASE_DRIVER_OPTIONS_MAX,
-  normalizeDatabaseDriverRef,
-} from "../plugins/database-drivers.ts";
+
+const DATABASE_DRIVER_OPTIONS_MAX = 16;
+const DATABASE_DRIVER_OPTION_STRING_MAX_LENGTH = 1024;
+const LEGACY_DRIVER_OWNER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const LEGACY_DRIVER_ID = /^[a-z][a-z0-9-]{0,31}$/;
+
+export function normalizeDatabaseDriverRef(value: unknown): DatabaseDriverRef | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const { pluginId, driverId } = value as Record<string, unknown>;
+  if (typeof pluginId !== "string" || !LEGACY_DRIVER_OWNER.test(pluginId)) return undefined;
+  if (typeof driverId !== "string" || !LEGACY_DRIVER_ID.test(driverId)) return undefined;
+  return { pluginId, driverId };
+}
 
 const PORTABLE_OPTION_KEY = /^[a-z][a-zA-Z0-9]{0,63}$/;
 

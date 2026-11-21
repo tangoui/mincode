@@ -10,7 +10,6 @@ const AI_OPENABLE_WORKSPACE_VIEWS = [
   "sftp",
   "http",
   "sessions",
-  "plugins",
 ] as const satisfies readonly WorkspaceView[];
 
 type AiOpenableWorkspaceView = (typeof AI_OPENABLE_WORKSPACE_VIEWS)[number];

@@ -14,7 +14,6 @@ import "@/styles/workspaces/settings/keybindings.css";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
 import { formatKeySequence, keyChordFromEvent, sequenceId, type KeyboardPlatform, type ModifierName } from "@/domain/keybindings/keys";
-import { analyzeGlobalShortcutCandidate, GLOBAL_SHORTCUT_RECORDER_REGISTERED_HINT_KEY } from "@/domain/keybindings/plugin-global-shortcuts";
 import type { KeybindingResolution } from "@/domain/keybindings/resolver";
 import {
   analyzeCandidate,
@@ -38,10 +37,6 @@ const props = defineProps<{
   globalShortcutEnabled: boolean;
   doubleModifierEnabled: boolean;
   titleOf: (command: string) => string;
-  /** "global": record a plugin global shortcut (one chord, saved as an accelerator). */
-  variant?: "command" | "global";
-  /** In-app keys as accelerators, for the global variant's overlap note. */
-  inAppKeys?: readonly string[];
 }>();
 
 const emit = defineEmits<{
@@ -66,21 +61,7 @@ const doubleOptions = computed(() =>
   })),
 );
 
-const isGlobal = computed(() => props.variant === "global");
-
-const globalAnalysis = computed(() => {
-  const chord = isGlobal.value ? recorder.value.chords[0] : undefined;
-  return chord
-    ? analyzeGlobalShortcutCandidate({
-        chord,
-        platform: props.platform,
-        inAppKeys: props.inAppKeys ?? [],
-      })
-    : null;
-});
-
 const key = computed(() => {
-  if (isGlobal.value) return globalAnalysis.value?.key ?? "";
   if (doubleModifier.value) return `${doubleModifier.value} ${doubleModifier.value}`;
   const sequence = recorderSequence(recorder.value);
   return sequence ? sequenceId(sequence) : "";
@@ -93,7 +74,7 @@ const recordedLabel = computed(() => {
 });
 
 const analysis = computed(() =>
-  key.value && !isGlobal.value
+  key.value
     ? analyzeCandidate({
         resolution: props.resolution,
         platform: props.platform,
@@ -108,12 +89,9 @@ const analysis = computed(() =>
 const whenInvalid = computed(() => analysis.value?.error === "when");
 const blocked = computed(() => analysis.value?.reserved?.severity === "reserved");
 const canSave = computed(() =>
-  isGlobal.value
-    ? Boolean(key.value && globalAnalysis.value && !globalAnalysis.value.issue)
-    : Boolean(key.value && analysis.value && !analysis.value.error && !blocked.value),
+  Boolean(key.value && analysis.value && !analysis.value.error && !blocked.value),
 );
 const dialogTitle = computed(() => {
-  if (isGlobal.value) return t("settings.keybindings.pluginGlobal.recorderTitle");
   return t(props.mode === "add" ? "settings.keybindings.recorder.titleAdd" : "settings.keybindings.recorder.titleChange");
 });
 
@@ -160,8 +138,7 @@ function onCaptureKeydown(event: KeyboardEvent) {
   if (!chord) return;
   doubleModifier.value = "";
   const now = performance.now();
-  // A global shortcut is one chord: every press replaces the recording.
-  recorder.value = isGlobal.value ? { chords: [chord], at: now } : recordChord(recorder.value, chord, now);
+  recorder.value = recordChord(recorder.value, chord, now);
 }
 
 watch(
@@ -193,10 +170,10 @@ onBeforeUnmount(() => {
     @opened="focusCapture"
   >
     <el-form label-position="top" class="app-keybinding-recorder__form" @submit.prevent>
-      <el-form-item :label="t(isGlobal ? 'settings.keybindings.pluginGlobal.recorderShortcut' : 'settings.keybindings.recorder.command')">
+      <el-form-item :label="t('settings.keybindings.recorder.command')">
         <div class="app-keybinding-recorder__command">
-          <strong :title="isGlobal ? commandId : undefined">{{ commandTitle }}</strong>
-          <code v-if="!isGlobal">{{ commandId }}</code>
+          <strong>{{ commandTitle }}</strong>
+          <code>{{ commandId }}</code>
           <span v-if="mode === 'change' && currentLabel" class="app-keybinding-recorder__current">
             {{ t("settings.keybindings.recorder.current") }} <kbd class="app-keybinding-kbd">{{ currentLabel }}</kbd>
           </span>
@@ -211,7 +188,7 @@ onBeforeUnmount(() => {
           role="textbox"
           aria-readonly="true"
           :aria-label="t('settings.keybindings.recorder.captureLabel')"
-          :aria-describedby="isGlobal ? 'app-keybinding-recorder-hint app-keybinding-recorder-registered-hint' : 'app-keybinding-recorder-hint'"
+          aria-describedby="app-keybinding-recorder-hint"
           data-testid="keybinding-recorder-capture"
           @keydown.capture="onCaptureKeydown"
         >
@@ -219,19 +196,10 @@ onBeforeUnmount(() => {
           <span v-else class="app-keybinding-recorder__placeholder">{{ t("settings.keybindings.recorder.placeholder") }}</span>
         </div>
         <p id="app-keybinding-recorder-hint" class="app-keybinding-recorder__hint">
-          {{ t(isGlobal ? "settings.keybindings.pluginGlobal.recorderHint" : "settings.keybindings.recorder.hint") }}
-        </p>
-        <!-- macOS / Windows hand an already-registered combo to its owner before the WebView sees it. -->
-        <p
-          v-if="isGlobal"
-          id="app-keybinding-recorder-registered-hint"
-          class="app-keybinding-recorder__hint is-warning"
-          data-testid="keybinding-recorder-registered-hint"
-        >
-          {{ t(GLOBAL_SHORTCUT_RECORDER_REGISTERED_HINT_KEY) }}
+          {{ t("settings.keybindings.recorder.hint") }}
         </p>
       </el-form-item>
-      <el-form-item v-if="!isGlobal" :label="t('settings.keybindings.recorder.double')">
+      <el-form-item :label="t('settings.keybindings.recorder.double')">
         <el-select
           v-model="doubleModifier"
           clearable
@@ -245,7 +213,7 @@ onBeforeUnmount(() => {
           {{ t("settings.keybindings.recorder.doubleDisabled") }}
         </p>
       </el-form-item>
-      <el-form-item v-if="!isGlobal" :label="t('settings.keybindings.recorder.when')" :error="whenInvalid ? t('settings.keybindings.recorder.whenInvalid') : ''">
+      <el-form-item :label="t('settings.keybindings.recorder.when')" :error="whenInvalid ? t('settings.keybindings.recorder.whenInvalid') : ''">
         <el-input
           v-model="when"
           clearable
@@ -255,31 +223,7 @@ onBeforeUnmount(() => {
       </el-form-item>
     </el-form>
 
-    <div v-if="isGlobal" class="app-keybinding-recorder__status" aria-live="polite" data-testid="keybinding-recorder-status">
-      <el-alert
-        v-if="globalAnalysis?.issue"
-        type="error"
-        :closable="false"
-        show-icon
-        :title="t(`settings.keybindings.pluginGlobal.issue.${globalAnalysis.issue}` as MessageKey)"
-      />
-      <el-alert
-        v-if="globalAnalysis?.inAppOverlap"
-        type="warning"
-        :closable="false"
-        show-icon
-        :title="t('settings.keybindings.pluginGlobal.inAppOverlap')"
-      />
-      <el-alert
-        v-if="globalAnalysis?.appStandard"
-        type="warning"
-        :closable="false"
-        show-icon
-        :title="t('settings.keybindings.pluginGlobal.appStandard')"
-        data-testid="keybinding-recorder-app-standard"
-      />
-    </div>
-    <div v-else class="app-keybinding-recorder__status" aria-live="polite" data-testid="keybinding-recorder-status">
+    <div class="app-keybinding-recorder__status" aria-live="polite" data-testid="keybinding-recorder-status">
       <el-alert
         v-if="analysis?.error === 'key'"
         type="error"

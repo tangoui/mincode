@@ -1,5 +1,5 @@
 import type { HttpKeyValueRow } from "../request-collection";
-import { isSensitiveHttpKey, looksLikeHttpCredential } from "../plugin-collections";
+import { isSensitiveHttpKey, looksLikeHttpCredential } from "../credential-detection";
 
 const PLACEHOLDER = /^\s*\{\{\s*[^{}\s]+\s*\}\}\s*$/;
 

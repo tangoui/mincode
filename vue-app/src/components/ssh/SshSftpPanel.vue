@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onDeactivated, ref, shallowRef, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onDeactivated, ref, watch } from "vue";
 import { ElMessage, ElMessageBox, type ScrollbarInstance } from "element-plus";
 import MonacoTextEditor from "@/components/ui/MonacoTextEditor.vue";
 import SftpTransferPanel from "@/components/sftp/SftpTransferPanel.vue";
 import { useSftpTransferQueue } from "@/composables/useSftpTransferQueue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import PluginServiceMenuItems from "@/components/plugins/PluginServiceMenuItems.vue";
 import {
   Back,
   Close,
@@ -26,13 +24,6 @@ import {
   View,
 } from "@element-plus/icons-vue";
 import { useVirtualRows } from "@/components/sftp/use-virtual-rows";
-import { usePluginMenuTarget } from "@/composables/use-plugin-menu-target";
-import {
-  sftpFileMenuTarget,
-  sftpFileServiceTarget,
-  sftpMenuConnection,
-  type SftpMenuConnection,
-} from "@/domain/sftp/menu-target";
 import { isSafeSftpEntryName } from "@/domain/sftp/transfer-queue";
 import type { SshConnectionProfile, SshRuntimeCredentials } from "@/domain/ssh/types";
 import { useVueI18n } from "@/i18n/messages";
@@ -89,29 +80,12 @@ const remoteHome = ref("/");
 const entries = ref<SftpEntry[]>([]);
 const selected = ref<SftpEntry>();
 const contextMenu = ref<{ item?: SftpEntry; x: number; y: number } | null>(null);
-// The session that is open and the endpoint it was opened with: row menus describe
-// this connection, never a profile prop edited after connecting.
-const connectedSession = shallowRef<{ id: string; connection: SftpMenuConnection } | null>(null);
-function openRowMenuTarget() {
-  const item = contextMenu.value?.item;
-  const session = connectedSession.value;
-  return item && session && session.id === sessionId.value ? { item, session } : null;
-}
-// Plugin items (contributes.menus sftp/file/context) of the open row menu; the blank-area menu has no target.
-const { host: pluginMenuHost, context: pluginMenuContext } = usePluginMenuTarget("sftp/file/context", () => {
-  const open = openRowMenuTarget();
-  return open ? sftpFileMenuTarget(open.session.connection, open.item) : null;
-});
-// Plugin services (surface sftpFile) on a file row: read through the panel's open session.
-function serviceTarget() {
-  const open = openRowMenuTarget();
-  return open ? sftpFileServiceTarget(open.session.id, open.session.connection, open.item) : null;
-}
+const connectedSessionId = ref<string>();
 // A row menu belongs to one session's listing: never pair its row with another endpoint.
 watch([sessionId, () => props.profile.id], () => {
   contextMenu.value = null;
 });
-// Inside a KeepAlive'd workspace, leaving it must not leave a row menu (and its target) open.
+// Inside a KeepAlive'd workspace, leaving it must not leave a row menu open.
 onDeactivated(() => {
   contextMenu.value = null;
 });
@@ -189,7 +163,6 @@ async function connect() {
     return;
   }
   const openedSessionId = sessionId.value;
-  const openedConnection = sftpMenuConnection(props.profile);
   const sequence = ++listSequence;
   connectStarted.value = true;
   loading.value = true;
@@ -203,7 +176,7 @@ async function connect() {
       return;
     }
     connected.value = true;
-    connectedSession.value = { id: openedSessionId, connection: openedConnection };
+    connectedSessionId.value = openedSessionId;
     sftpSessions.connected({
       id: openedSessionId,
       name: `${props.profile.name.trim()} ${protocolLabel.value}`,
@@ -214,7 +187,7 @@ async function connect() {
     if (sequence === listSequence) entries.value = initialEntries;
   } catch (cause) {
     connected.value = false;
-    connectedSession.value = null;
+    connectedSessionId.value = undefined;
     clearImagePreview();
     editor.value = undefined;
     sftpSessions.disconnected(openedSessionId);
@@ -454,7 +427,7 @@ async function downloadSelected() {
   // Selection can change while a native dialog is open. Keep the chosen
   // source and session fixed, just like the upload destination.
   const entry = selected.value;
-  const targetSession = connectedSession.value?.id;
+  const targetSession = connectedSessionId.value;
   if (!entry || !targetSession || !connected.value) return;
   if (!isSafeSftpEntryName(entry.name)) {
     ElMessage.warning(t("sftp.invalidEntryName").replace("{name}", entry.name));
@@ -469,7 +442,7 @@ async function downloadSelected() {
       localPath = await chooseNativeSaveFile(t("sftp.download"), entry.name);
     }
     if (!localPath || disposed || !props.visible || !connected.value
-      || connectedSession.value?.id !== targetSession || sessionId.value !== targetSession) return;
+      || connectedSessionId.value !== targetSession || sessionId.value !== targetSession) return;
     transferPanelOpen.value = true;
     transferQueue.enqueue([{
       sessionId: targetSession,
@@ -488,7 +461,7 @@ async function downloadSelected() {
 const transferPanelOpen = ref(false);
 const transferQueue = useSftpTransferQueue({
   async execute(item, reportProgress) {
-    if (!connected.value || connectedSession.value?.id !== item.sessionId || sessionId.value !== item.sessionId) {
+    if (!connected.value || connectedSessionId.value !== item.sessionId || sessionId.value !== item.sessionId) {
       throw new Error(t("sftp.transferSessionClosed"));
     }
     if (!item.backendJobId) throw new Error(t("sftp.transferJobUnavailable"));
@@ -518,7 +491,7 @@ const transferQueue = useSftpTransferQueue({
     if (item.backendJobId) await cancelSftpTransfer(item.backendJobId, item.sessionId);
   },
   async onSettled(item) {
-    if (disposed || item.sessionId !== connectedSession.value?.id) return;
+    if (disposed || item.sessionId !== connectedSessionId.value) return;
     if (item.status === "completed") {
       if (item.direction === "upload") {
         await listRemote();
@@ -536,12 +509,12 @@ const transferCount = computed(() => transferQueue.items.value.length);
 async function upload() {
   // Capture the destination before opening the native picker, so navigation
   // while it is open cannot silently redirect the chosen file to another path.
-  const targetSession = connectedSession.value?.id;
+  const targetSession = connectedSessionId.value;
   const targetPath = remotePath.value;
   try {
     const localPath = await chooseNativeFile(t("sftp.chooseUploadFile"));
     if (!localPath || disposed || !props.visible || !connected.value || !targetSession
-      || connectedSession.value?.id !== targetSession || sessionId.value !== targetSession) return;
+      || connectedSessionId.value !== targetSession || sessionId.value !== targetSession) return;
     const name = localPath.split(/[\\/]/).pop();
     if (!name) return;
     transferPanelOpen.value = true;
@@ -608,7 +581,7 @@ onBeforeUnmount(() => {
   disposed = true;
   transferQueue.dispose();
   contextMenu.value = null;
-  connectedSession.value = null;
+  connectedSessionId.value = undefined;
   clearImagePreview();
   sftpSessions.disconnected(sessionId.value);
   if (connected.value) void disconnectSftp(sessionId.value).catch(() => undefined);
@@ -783,14 +756,8 @@ onBeforeUnmount(() => {
       <el-dropdown-item :icon="Refresh" @click="runContextAction(listRemote)">
         {{ t("common.refresh") }}
       </el-dropdown-item>
-      <PluginMenuItems
-        v-if="contextMenu.item"
-        menu="sftp/file/context"
-        :host="pluginMenuHost"
-        :context="pluginMenuContext"
-        @run="contextMenu = null"
-      />
-      <PluginServiceMenuItems :target="serviceTarget" @run="contextMenu = null" />
+
+
     </AppContextMenu>
   </aside>
 </template>

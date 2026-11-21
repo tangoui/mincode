@@ -4,7 +4,7 @@
  * sends back, and output matching that cannot be satisfied by local echo.
  */
 
-export const SMOKE_SCENARIOS = ["terminal", "ssh", "database", "plugin", "ai", "associations", "ebook", "ai-catalogs", "ai-prompts", "ai-sidebar", "rust-plugin", "ts-plugin", "port-manager", "terminal-attention", "services", "mail-client", "sql-safety", "sftp-transfers", "plugin-providers", "ui-runtime", "perf-database", "perf-http", "perf-ai", "perf-remote", "perf-sessions", "perf-pages", "perf-plugins", "perf-plugin-startup", "terminal-tabs", "terminal-size"] as const;
+export const SMOKE_SCENARIOS = ["terminal", "ssh", "database", "ai", "ai-sidebar", "terminal-attention", "sql-safety", "sftp-transfers", "perf-database", "perf-http", "perf-ai", "perf-remote", "perf-sessions", "perf-pages", "terminal-tabs", "terminal-size"] as const;
 export type SmokeScenario = (typeof SMOKE_SCENARIOS)[number];
 
 export interface SmokeConfig {
@@ -14,23 +14,15 @@ export interface SmokeConfig {
   timeoutMs: number;
   ssh?: { host: string; port: number; username: string; password: string };
   database?: { filePath: string };
-  /** Packaged python-debug plugin, an interpreter with debugpy, and a fixture project/script with logpoint and stop lines. */
-  debugger?: { packagePath: string; python: string; projectRoot: string; program: string; logLine: number; stopLine: number };
   sqlSafety?: { filePath: string };
-  /** Packaged process showcase plugin and a git repository with two staged files plus a staged .env. */
-  pluginProviders?: { packagePath: string; repoRoot: string };
   /** Upload source, download destination and the exact byte size (needs the ssh fixture). */
   sftpTransfers?: { uploadPath: string; downloadPath: string; size: number };
-  plugin?: { packagePath: string; pluginId: string };
-  fileTemplates?: {packagePath:string; projectRoot:string; phase:"setup"|"cold"};
   /** Disposable Go module; gopls must be installed on the harness PATH. */
   lsp?: { projectRoot: string };
   largeText?: { filePath: string };
   perfDatabase?: { filePath: string; table: string; rows: number; columns: number; extraTables?: number; redis?: { port: number; keys: number } };
   perfAi?: { turns: number };
   perfPages?: { sshProfiles: number; browserUrls: string[] };
-  perfPlugins?: { packages: { pluginId: string; packagePath: string; view: boolean }[] };
-  perfPluginStartup?: { phase: "setup" | "cold"; packages: { pluginId: string; packagePath: string; enable: boolean }[] };
   perfGit?: { repoRoot: string; modified: number; untracked: number; historyCommits?: number };
   perfSessions?: { projects: number; sessionsPerProject: number; longTitle: string; longMessages: number; expandProjects?: number };
   perfRemote?: {
@@ -40,37 +32,8 @@ export interface SmokeConfig {
   };
   perfHttp?: { baseUrl: string; bodies: { label: string; path: string; marker: string }[] };
   perf?: { projectRoot: string; fileCount: number; bigFile: string; bigFileLines: number; bigPlainFile?: string; smallFiles: string[]; terminalLines: number; only?: "pages" };
-  /** Packaged Port Manager plugin and a TCP server the harness started (its port and PID). */
-  portManager?: { packagePath: string; port: number; pid: number };
-  /**
-   * Packaged service providers (crypto-toolkit, image-toolkit, optional ai-translator and ocr), an
-   * optional built service-consumer-demo and invoice-manager (OCR consumer), image fixtures (the
-   * invoice scan is a copy of the OCR plugin's committed test image), the directory output files
-   * are saved into, and an optional OpenAI-compatible loopback mock for ai-translator.
-   */
-  services?: {
-    packages: { cryptoToolkit: string; imageToolkit: string; aiTranslator?: string; consumerDemo?: string; ocr?: string; invoiceManager?: string };
-    invoiceImagePath?: string;
-    pngPath: string;
-    exifJpegPath: string;
-    outputDir: string;
-    ai?: { baseUrl: string; model: string; apiKey: string; sourceText: string; expectedText: string };
-  };
-  /** Packaged external-linters plugin and a project with PHP and ESLint config; php must be on PATH. */
-  linters?: { packagePath: string; projectRoot: string };
-  /** Packaged laravel-helper and i18n-helper plugins, a synthetic Laravel project and a secret canary that must never surface. */
-  laravel?: { laravelPackage: string; i18nPackage: string; projectRoot: string; canary: string };
   /** A repository with one staged file and an OpenAI-compatible endpoint: silent, then a 45 s reasoning model, then silent. */
   gitAiCommit?: { repoRoot: string; baseUrl: string; apiKey: string; model: string; answer: string };
-  rustPlugin?: { packagePath: string; pluginId: string };
-  associations?: { packagePath: string; torrentPath: string; ordinaryPath: string; phase: "setup" | "cold" };
-  ebook?: { packagePath: string; paths: string[] };
-  formatter?: { packagePath: string; imagePath: string };
-  mailClient?: {packagePath:string;outputDir:string;attachmentPath:string;controlUrl:string;expectedSubject:string};
-  aiCatalogs?: { packagePath: string };
-  aiPrompts?: { packagePath: string };
-  tsPlugin?: { packagePath: string };
-  uiRuntime?: { plain: { pluginId: string; packagePath: string }; wasm: { pluginId: string; packagePath: string } };
   browser?: {
     firstUrl: string;
     secondUrl: string;
@@ -138,39 +101,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
   if (!/^[A-Za-z0-9]+$/.test(nonce)) throw new Error("invalid smoke config: nonce");
   const timeoutMs = Number.isInteger(raw.timeoutMs) && (raw.timeoutMs as number) > 0 ? raw.timeoutMs as number : 30_000;
   const config: SmokeConfig = { scenarios: [...new Set(scenarios as SmokeScenario[])], nonce, timeoutMs };
-  if (config.scenarios.includes("port-manager")) {
-    const fixture = record(raw.portManager);
-    const pid = fixture?.pid;
-    if (!Number.isInteger(pid) || (pid as number) < 1) throw new Error("invalid smoke config: portManager.pid");
-    config.portManager = { packagePath: text(fixture?.packagePath, "portManager.packagePath"), port: port(fixture?.port, "portManager.port"), pid: pid as number };
-  }
-  if (config.scenarios.includes("services")) {
-    const fixture = record(raw.services);
-    const packages = record(fixture?.packages);
-    const optional = (value: unknown, field: string) => value === undefined ? undefined : text(value, field);
-    const ai = record(fixture?.ai);
-    config.services = {
-      packages: {
-        cryptoToolkit: text(packages?.cryptoToolkit, "services.packages.cryptoToolkit"),
-        imageToolkit: text(packages?.imageToolkit, "services.packages.imageToolkit"),
-        aiTranslator: optional(packages?.aiTranslator, "services.packages.aiTranslator"),
-        consumerDemo: optional(packages?.consumerDemo, "services.packages.consumerDemo"),
-        ocr: optional(packages?.ocr, "services.packages.ocr"),
-        invoiceManager: optional(packages?.invoiceManager, "services.packages.invoiceManager"),
-      },
-      invoiceImagePath: optional(fixture?.invoiceImagePath, "services.invoiceImagePath"),
-      pngPath: text(fixture?.pngPath, "services.pngPath"),
-      exifJpegPath: text(fixture?.exifJpegPath, "services.exifJpegPath"),
-      outputDir: text(fixture?.outputDir, "services.outputDir"),
-      ai: ai ? {
-        baseUrl: loopbackUrl(ai.baseUrl, "services.ai.baseUrl"),
-        model: text(ai.model, "services.ai.model", 128),
-        apiKey: text(ai.apiKey, "services.ai.apiKey", 256),
-        sourceText: text(ai.sourceText, "services.ai.sourceText"),
-        expectedText: text(ai.expectedText, "services.ai.expectedText"),
-      } : undefined,
-    };
-  }
   if (config.scenarios.includes("perf-database")) {
     const db = record(raw.perfDatabase);
     config.perfDatabase = {
@@ -179,23 +109,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
       ...(Number(db?.extraTables) > 0 ? { extraTables: Number(db?.extraTables) } : {}),
       ...(Number(record(db?.redis)?.port) > 0 ? { redis: { port: Number(record(db?.redis)?.port), keys: Number(record(db?.redis)?.keys) || 0 } } : {}),
     };
-  }
-  if (config.scenarios.includes("perf-plugin-startup")) {
-    const startup = record(raw.perfPluginStartup);
-    if (startup?.phase !== "setup" && startup?.phase !== "cold") throw new Error("invalid perfPluginStartup phase");
-    const packages = Array.isArray(startup.packages) ? startup.packages.map((item, index) => {
-      const entry = record(item);
-      return { pluginId: text(entry?.pluginId, `perfPluginStartup.packages[${index}].pluginId`), packagePath: text(entry?.packagePath, `perfPluginStartup.packages[${index}].packagePath`), enable: entry?.enable === true };
-    }) : [];
-    config.perfPluginStartup = { phase: startup.phase, packages };
-  }
-  if (config.scenarios.includes("perf-plugins")) {
-    const plugins = record(raw.perfPlugins);
-    const packages = Array.isArray(plugins?.packages) ? plugins!.packages.map((item, index) => {
-      const entry = record(item);
-      return { pluginId: text(entry?.pluginId, `perfPlugins.packages[${index}].pluginId`), packagePath: text(entry?.packagePath, `perfPlugins.packages[${index}].packagePath`), view: entry?.view === true };
-    }) : [];
-    config.perfPlugins = { packages };
   }
   if (config.scenarios.includes("perf-pages")) {
     const pages = record(raw.perfPages);
@@ -244,10 +157,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
   if (config.scenarios.includes("database")) {
     config.database = { filePath: text(record(raw.database)?.filePath, "database.filePath") };
   }
-  if (config.scenarios.includes("plugin-providers")) {
-    const fixture = record(raw.pluginProviders);
-    config.pluginProviders = { packagePath: text(fixture?.packagePath, "pluginProviders.packagePath"), repoRoot: text(fixture?.repoRoot, "pluginProviders.repoRoot") };
-  }
   if (config.scenarios.includes("sql-safety")) {
     config.sqlSafety = { filePath: text(record(raw.sqlSafety)?.filePath, "sqlSafety.filePath") };
   }
@@ -258,47 +167,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
     if (!Number.isInteger(size) || (size as number) < 1) throw new Error("invalid smoke config: sftpTransfers.size");
     config.sftpTransfers = { uploadPath: text(fixture?.uploadPath, "sftpTransfers.uploadPath"), downloadPath: text(fixture?.downloadPath, "sftpTransfers.downloadPath"), size: size as number };
   }
-  if (config.scenarios.includes("ui-runtime")) {
-    const runtime = record(raw.uiRuntime);
-    const fixture = (name: "plain" | "wasm") => ({
-      pluginId: text(record(runtime?.[name])?.pluginId, `uiRuntime.${name}.pluginId`),
-      packagePath: text(record(runtime?.[name])?.packagePath, `uiRuntime.${name}.packagePath`),
-    });
-    config.uiRuntime = { plain: fixture("plain"), wasm: fixture("wasm") };
-  }
-  if (config.scenarios.includes("ts-plugin")) {
-    config.tsPlugin = { packagePath: text(record(raw.tsPlugin)?.packagePath, "tsPlugin.packagePath") };
-  }
-  if (config.scenarios.includes("ai-prompts")) {
-    config.aiPrompts = { packagePath: text(record(raw.aiPrompts)?.packagePath, "aiPrompts.packagePath") };
-  }
-  if (config.scenarios.includes("ai-catalogs")) {
-    config.aiCatalogs = { packagePath: text(record(raw.aiCatalogs)?.packagePath, "aiCatalogs.packagePath") };
-  }
-  if (config.scenarios.includes("rust-plugin")) {
-    const plugin = record(raw.rustPlugin);
-    config.rustPlugin = { packagePath: text(plugin?.packagePath, "rustPlugin.packagePath"), pluginId: text(plugin?.pluginId, "rustPlugin.pluginId", 128) };
-  }
-  if (config.scenarios.includes("plugin")) {
-    const plugin = record(raw.plugin);
-    config.plugin = { packagePath: text(plugin?.packagePath, "plugin.packagePath"), pluginId: text(plugin?.pluginId, "plugin.pluginId", 128) };
-  }
-  if (config.scenarios.includes("associations")) {
-    const fixture = record(raw.associations);
-    if (fixture?.phase !== "setup" && fixture?.phase !== "cold") throw new Error("invalid smoke config: associations.phase");
-    config.associations = {
-      packagePath: text(fixture.packagePath, "associations.packagePath"),
-      torrentPath: text(fixture.torrentPath, "associations.torrentPath"),
-      ordinaryPath: text(fixture.ordinaryPath, "associations.ordinaryPath"),
-      phase: fixture.phase,
-    };
-  }
-  if (config.scenarios.includes("ebook")) {
-    const fixture = record(raw.ebook);
-    if (!Array.isArray(fixture?.paths) || fixture.paths.length < 1 || fixture.paths.length > 16) throw new Error("invalid smoke config: ebook.paths");
-    config.ebook = { packagePath: text(fixture.packagePath, "ebook.packagePath"), paths: fixture.paths.map(value => text(value, "ebook.paths")) };
-  }
-  if(config.scenarios.includes("mail-client")){const fixture=record(raw.mailClient);config.mailClient={packagePath:text(fixture?.packagePath,"mailClient.packagePath"),outputDir:text(fixture?.outputDir,"mailClient.outputDir"),attachmentPath:text(fixture?.attachmentPath,"mailClient.attachmentPath"),controlUrl:loopbackUrl(fixture?.controlUrl,"mailClient.controlUrl"),expectedSubject:text(fixture?.expectedSubject,"mailClient.expectedSubject")};}
   if (config.scenarios.includes("ai")) {
     const ai = record(raw.ai);
     config.ai = {

@@ -17,10 +17,10 @@ test("the Element Plus language follows the interface language", async () => {
   assert.equal(en.el.messagebox.confirm, "OK");
 });
 
-test("both app entries give Element Plus the current language", async () => {
+test("app startup gives Element Plus the current language", async () => {
   const main = await readSource("../src/main.ts");
   assert.match(main, /installElementPlusLocale\(/, "main.ts installs the Element Plus locale");
   const mounts = main.split("\n").filter((line) => line.includes(".mount("));
-  assert.equal(mounts.length, 2, "the main window and the floating plugin window");
+  assert.equal(mounts.length, 1);
   for (const mount of mounts) assert.match(mount, /installElementPlusLocale\(createApp\(/, `${mount.trim()} gets the locale`);
 });

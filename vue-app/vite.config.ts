@@ -147,19 +147,6 @@ export default defineConfig({
     // WKWebView 原生支持 link rel=modulepreload，无需注入 polyfill shim，
     // 减少首屏内联脚本与运行时 link 处理开销。
     modulePreload: { polyfill: false },
-    // The synchronous subscriber must be ready before startup IPC; keep this small
-    // feature entry separate from the shell, and its dialog/state/parser lazy.
-    rolldownOptions: {
-      output: {
-        codeSplitting: {
-          groups: [{
-            name: "plugin-host-listeners",
-            test: /[/\\]services[/\\]plugin-(?:publish-listener|host-ui)\.ts$/,
-            includeDependenciesRecursively: false,
-          }],
-        },
-      },
-    },
     chunkSizeWarningLimit: 900,
   },
 });

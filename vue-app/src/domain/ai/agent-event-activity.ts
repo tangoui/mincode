@@ -214,7 +214,7 @@ function prefixActivity(
   if (toolName.startsWith("ssh.") || toolName.startsWith("sftp.")) {
     return { kind: "remoteAction", target, expandable };
   }
-  if (toolName === "settings.call_mcp_tool" || toolName === "plugin.invoke") {
+  if (toolName === "settings.call_mcp_tool") {
     return { kind: "connectorCall", target, expandable };
   }
   if (toolName.startsWith("system.") || toolName.startsWith("devtools.")) {
@@ -239,46 +239,46 @@ export function describeAiAgentEventActivity(event: AiAgentEventActivityInput): 
   }
 
   const toolName = normalizedToolName(event);
-  if (READ_FILE_TOOL_NAMES.has(toolName) || titleLooksLike(event, "read file", "读取文件")) {
+  if (READ_FILE_TOOL_NAMES.has(toolName) || (!toolName && titleLooksLike(event, "read file", "读取文件"))) {
     return {
       kind: OPEN_FILE_TOOL_NAMES.has(toolName) ? "openFile" : "readFile",
       target: toolTarget(event, ["path", "filePath", "relativePath", "uri", "target"]),
       expandable: Boolean(event.detail.trim()) || isFailed(event),
     };
   }
-  if (SEARCH_CODE_TOOL_NAMES.has(toolName) || titleLooksLike(event, "search code", "代码搜索", "搜索代码")) {
+  if (SEARCH_CODE_TOOL_NAMES.has(toolName) || (!toolName && titleLooksLike(event, "search code", "代码搜索", "搜索代码"))) {
     return {
       kind: "searchCode",
       target: toolTarget(event, ["query", "pattern", "search", "keyword"]),
       expandable: true,
     };
   }
-  if (SEARCH_FILE_TOOL_NAMES.has(toolName) || titleLooksLike(event, "search file", "文件搜索", "搜索文件")) {
+  if (SEARCH_FILE_TOOL_NAMES.has(toolName) || (!toolName && titleLooksLike(event, "search file", "文件搜索", "搜索文件"))) {
     return {
       kind: "searchFiles",
       target: toolTarget(event, ["query", "pattern", "search", "keyword", "path"]),
       expandable: true,
     };
   }
-  if (COMMAND_TOOL_NAMES.has(toolName) || titleLooksLike(event, "run command", "运行命令", "执行命令")) {
+  if (COMMAND_TOOL_NAMES.has(toolName) || (!toolName && titleLooksLike(event, "run command", "运行命令", "执行命令"))) {
     const command = toolTarget(event, ["command", "cmd", "script", "input"]);
     return { kind: commandActivityKind(command), target: command, expandable: true };
   }
-  if (WRITE_FILE_TOOL_NAMES.has(toolName) || titleLooksLike(event, "write file", "写入文件", "保存文件", "编辑文件")) {
+  if (WRITE_FILE_TOOL_NAMES.has(toolName) || (!toolName && titleLooksLike(event, "write file", "写入文件", "保存文件", "编辑文件"))) {
     return {
       kind: "writeFile",
       target: toolTarget(event, ["path", "filePath", "relativePath", "target"]),
       expandable: true,
     };
   }
-  if (CREATE_FILE_TOOL_NAMES.has(toolName) || titleLooksLike(event, "create file", "创建文件", "创建目录")) {
+  if (CREATE_FILE_TOOL_NAMES.has(toolName) || (!toolName && titleLooksLike(event, "create file", "创建文件", "创建目录"))) {
     return {
       kind: "createFile",
       target: toolTarget(event, ["path", "filePath", "relativePath", "target"]),
       expandable: true,
     };
   }
-  if (DELETE_FILE_TOOL_NAMES.has(toolName) || titleLooksLike(event, "delete file", "删除文件", "删除目录")) {
+  if (DELETE_FILE_TOOL_NAMES.has(toolName) || (!toolName && titleLooksLike(event, "delete file", "删除文件", "删除目录"))) {
     return {
       kind: "deleteFile",
       target: toolTarget(event, ["path", "filePath", "relativePath", "target"]),
@@ -290,7 +290,7 @@ export function describeAiAgentEventActivity(event: AiAgentEventActivityInput): 
   if (categorized) return categorized;
   return {
     kind: "genericTool",
-    target: fallbackTarget(event) ?? event.toolName?.trim(),
+    target: event.toolName?.trim() || fallbackTarget(event),
     expandable: Boolean(event.detail.trim()) || isFailed(event),
   };
 }
