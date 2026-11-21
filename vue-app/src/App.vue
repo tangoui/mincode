@@ -161,6 +161,7 @@ const keybindings = useKeybindingsStore();
 const settingsOpen = ref(false);
 const settingsInitialCategory = ref<SettingsNavigationCategory | undefined>();
 const settingsLoaded = ref(false);
+const settingsUpdateRequest = ref(0);
 const assistantLoaded = ref(false);
 const popupWindow = isPopupWindow();
 const unifiedTitleBar = isDesktopRuntime() && currentKeyboardPlatform() === "mac";
@@ -479,6 +480,15 @@ if (!popupWindow) {
     // Desktop navigation (notification clicks, tray items, mincode:// links): live
     // desktop:navigate events and the targets queued before these listeners existed.
     const handleDesktopTarget = (target: { kind?: string; value?: string } | null | undefined) => {
+      if (target?.kind === "check-update") {
+        openSettings("about");
+        settingsUpdateRequest.value += 1;
+        return;
+      }
+      if (target?.kind === "view" && target.value === "settings") {
+        openSettings();
+        return;
+      }
       if (target?.kind === "ai") {
         void assistant.show("agentic");
         return;
@@ -625,6 +635,7 @@ onBeforeUnmount(() => {
       v-if="settingsLoaded"
       v-model="settingsOpen"
       :initial-category="settingsInitialCategory"
+      :update-request="settingsUpdateRequest"
     />
   </div>
   <SshMfaDialog v-if="sshMfa.current" />

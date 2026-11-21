@@ -85,6 +85,10 @@ func appIdentity() (name, id string) {
 	return name, id
 }
 
+func shouldFocusNavigationWindow(kind string) bool {
+	return kind != "check-update" || os.Getenv("TANGO_LAUNCH_BACKGROUND") != "1"
+}
+
 var urlSchemes = []string{"mincode"}
 
 func mustReadStdin() []byte {
@@ -125,7 +129,9 @@ func main() {
 		}
 		navMu.Unlock()
 		win.Show()
-		win.Focus()
+		if shouldFocusNavigationWindow(target.Kind) {
+			win.Focus()
+		}
 		if _, queued := desktop.DeferUntilFrontendReady(target); queued {
 			return
 		}

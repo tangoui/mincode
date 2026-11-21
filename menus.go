@@ -34,7 +34,7 @@ func (m *appMenu) build() *menu.Menu {
 	app := root.Submenu("MinCode")
 	app.Role(menu.About)
 	app.Add("设置…", func() { m.navigate("view", "settings") }).Accelerator = "CmdOrCtrl+,"
-	app.Add("检查更新…", func() { m.navigate("view", "settings") })
+	app.Add("检查更新…", func() { m.navigate("check-update", "") })
 	app.Separator()
 	app.Role(menu.Hide)
 	app.Separator()

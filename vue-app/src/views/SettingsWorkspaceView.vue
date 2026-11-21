@@ -57,6 +57,7 @@ import {
   fetchAiModels,
   testAiConnection,
   getAppVersion,
+  getRuntimePlatform,
   getAutostartEnabled,
   getUserHomeDirectory,
   loadProtocolStatuses,
@@ -296,7 +297,7 @@ interface VueSettings extends RuntimePerformanceSettings {
   editorCustomTheme: CustomEditorTheme;
 }
 
-const props = defineProps<{ modelValue: boolean; initialCategory?: Category }>();
+const props = defineProps<{ modelValue: boolean; initialCategory?: Category; updateRequest?: number }>();
 const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
 const fullscreen = ref(false);
 const importInput = ref<HTMLInputElement>();
@@ -318,7 +319,7 @@ const approvalMode = ref<AiApprovalMode>(DEFAULT_AI_APPROVAL_MODE);
 const approvalSaving = ref(false);
 const authorizationUpdating = ref(false);
 const version = ref("—");
-const platform = ref(navigator.platform || "Web");
+const platform = ref(isDesktopRuntime() ? "—" : "Web");
 
 const appUpdate = useAppUpdateStore();
 void appUpdate.hydrate();
@@ -869,7 +870,10 @@ async function init() {
   if (settings.locale !== locale.value) setLocale(settings.locale);
 
   if (!isDesktopRuntime()) return;
-  version.value = await getAppVersion().catch(() => "—");
+  [version.value, platform.value] = await Promise.all([
+    getAppVersion().catch(() => "—"),
+    getRuntimePlatform().then(({ os, arch }) => `${os === "darwin" ? "macOS" : os} / ${arch}`).catch(() => "—"),
+  ]);
   settings.autostart = await getAutostartEnabled().catch(() => settings.autostart);
   await loadProtocolStatus();
 }
@@ -1413,6 +1417,15 @@ async function checkUpdate() {
     });
   }
 }
+watch(
+  () => props.updateRequest,
+  (request) => {
+    if (!request || !props.modelValue) return;
+    selectCategory("about");
+    void checkUpdate();
+  },
+  { immediate: true },
+);
 async function downloadUpdate() {
   if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
   if (!updateInfo.value?.available || updateDownloading.value || updateChecking.value) return;

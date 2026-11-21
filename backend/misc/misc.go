@@ -52,6 +52,7 @@ func init() {
 	core.Register("set_autostart", setAutostartHandler)
 	core.Register("get_app_version", getAppVersionHandler)
 	core.Register("get_platform_info", getPlatformInfoHandler)
+	core.Register("get_runtime_platform", getRuntimePlatformHandler)
 	core.Register("get_user_home_dir", getUserHomeDirHandler)
 	core.Register("get_ssh_build_info", getSshBuildInfoHandler)
 	core.Register("focus_main_window", focusMainWindowHandler)
@@ -186,6 +187,13 @@ func getPlatformInfoHandler(_, _ string) (string, error) {
 		return core.EncodeResult("macos")
 	}
 	return core.EncodeResult(runtime.GOOS)
+}
+
+func getRuntimePlatformHandler(_, _ string) (string, error) {
+	return core.EncodeResult(struct {
+		OS   string `json:"os"`
+		Arch string `json:"arch"`
+	}{OS: runtime.GOOS, Arch: runtime.GOARCH})
 }
 
 // ---- get_user_home_dir ----

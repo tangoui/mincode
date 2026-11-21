@@ -1,7 +1,7 @@
 import { shallowRef } from "vue";
 
 /** An app-wide request to open a settings category. */
-export type SettingsNavigationCategory = "ai" | "shortcuts";
+export type SettingsNavigationCategory = "ai" | "shortcuts" | "about";
 
 export interface SettingsNavigationRequest {
   seq: number;

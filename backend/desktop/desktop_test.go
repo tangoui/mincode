@@ -31,6 +31,7 @@ func TestValidateTarget(t *testing.T) {
 		{Kind: "ai"},
 		{Kind: "ai-conversation", Value: `{"conversationId":"conversation-1","workspaceScopeId":"workspace:one"}`},
 		{Kind: "view", Value: "settings"},
+		{Kind: "check-update"},
 		{Kind: "app"},
 		{Kind: "agent-runs"},
 		{Kind: "agent-run", Value: "run-0123456789abcdef0123456789abcdef"},

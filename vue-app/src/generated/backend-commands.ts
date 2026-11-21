@@ -133,6 +133,7 @@ export const BACKEND_COMMANDS = [
   "get_platform_info",
   "get_popup_tab_data",
   "get_project_sessions",
+  "get_runtime_platform",
   "get_session_messages",
   "get_ssh_agent_status",
   "get_ssh_build_info",

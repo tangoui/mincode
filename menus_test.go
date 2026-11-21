@@ -28,3 +28,22 @@ func TestAppMenuSettingsAccelerator(t *testing.T) {
 	}
 	t.Fatal("no settings item")
 }
+
+func TestAppMenuCheckUpdateNavigation(t *testing.T) {
+	t.Setenv("TANGO_LAUNCH_BACKGROUND", "1")
+	var target []string
+	m := newAppMenu(nil, func() {}, func(kind, value string) {
+		target = append(target, kind, value)
+		if shouldFocusNavigationWindow(kind) {
+			t.Errorf("background navigation %q would focus the window", kind)
+		}
+	})
+	for _, item := range m.build().Items[0].Submenu.Items {
+		if item.Label == "检查更新…" {
+			item.OnClick()
+		}
+	}
+	if want := []string{"check-update", ""}; !reflect.DeepEqual(target, want) {
+		t.Fatalf("navigation target = %q, want %q", target, want)
+	}
+}

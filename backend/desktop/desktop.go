@@ -202,6 +202,10 @@ func ValidateTarget(target NavigationTarget) error {
 		if allowedView(target.Value) {
 			return nil
 		}
+	case "check-update":
+		if target.Value == "" {
+			return nil
+		}
 
 	}
 	return fmt.Errorf("不支持的桌面导航目标")

@@ -95,6 +95,9 @@ function parseUpdateInstallResult(value: unknown): UpdateInstallResult {
 export function setMinimizeToTray(value: boolean) { return invokeBackend("set_minimize_to_tray", { value }); }
 export function setAutostart(value: boolean) { return invokeBackend("set_autostart", { value }); }
 export function getAppVersion() { return invokeBackend<string>("get_app_version", {}); }
+export function getRuntimePlatform() {
+  return invokeBackend<{ os: string; arch: string }>("get_runtime_platform", {});
+}
 export function getAutostartEnabled() { return invokeBackend<boolean>("get_autostart_enabled", {}); }
 export function loadProtocolStatuses() {
   return Promise.all([
