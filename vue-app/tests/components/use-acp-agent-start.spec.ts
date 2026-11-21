@@ -2,7 +2,7 @@ import { flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { effectScope, type EffectScope } from "vue";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AcpMcpServerSet } from "@/domain/ai/acp-mcp-servers";
+import type { AcpMcpServer } from "@/domain/ai/acp-mcp-servers";
 
 const ui = vi.hoisted(() => ({
   warning: vi.fn(),
@@ -47,14 +47,10 @@ import { applySavedLocale } from "@/i18n/messages";
 import { useAiAssistantStore } from "@/stores/ai-assistant";
 
 const FINGERPRINT = "c".repeat(64);
-const servers: AcpMcpServerSet = {
-  servers: [
-    { type: "stdio", name: "github", command: "gh-mcp" },
-    { type: "http", name: "linear", url: "https://mcp.linear.app" },
-  ],
-  signInRequired: [],
-  networkFailed: [],
-};
+const servers: AcpMcpServer[] = [
+  { type: "stdio", name: "github", command: "gh-mcp" },
+  { type: "http", name: "linear", url: "https://mcp.linear.app" },
+];
 
 function launchSpec(trusted = false) {
   return { pluginId: "acme.agents", agentId: "helper", trusted, previouslyTrusted: false, fingerprint: FINGERPRINT, argv: ["agent"] };
@@ -66,7 +62,7 @@ function setup(selected: string, markServersDisconnected: (serverIds: string[]) 
   const addSystemMessage = vi.fn();
   const startNewConversation = vi.fn();
   const launchCommandAgent = vi.fn(async (_adapterId: string) => {});
-  const mcpServers = vi.fn(async () => servers);
+  const mcpServers = vi.fn(() => servers);
   scope = effectScope();
   const { startConversationAgent } = scope.run(() =>
     useAcpAgentStart({
@@ -101,7 +97,7 @@ afterEach(() => {
 describe("pluginAcpAgentNotices", () => {
   it("discloses the environment, every forwarded connector and the workbench tools", async () => {
     await applySavedLocale("zh");
-    const notices = pluginAcpAgentNotices(servers.servers);
+    const notices = pluginAcpAgentNotices(servers);
     expect(notices).toHaveLength(3);
     expect(notices[0]).toContain("全部环境变量");
     expect(notices[0]).toContain("API 密钥");

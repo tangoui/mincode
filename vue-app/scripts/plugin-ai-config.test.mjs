@@ -15,7 +15,6 @@ import {
 import {
   AI_CONFIG_FIELD_NAMES,
   aiConfigReviewRows,
-  AI_CONFIG_SKILL_EXCERPT_LENGTH,
   visibleReviewText,
 } from "../src/domain/plugin-ui/ai-config.ts";
 
@@ -50,14 +49,6 @@ const remote = {
   sourceApp: "codex",
   mcp: { transport: "http", command: "", args: [], url: "https://mcp.example.test/sse", env: {}, headers: { Authorization: "Bearer header-secret" } },
 };
-const skill = {
-  kind: "skill",
-  sourceId: "s1",
-  name: "review",
-  sourceApp: "claude",
-  skill: { content: `---\nname: review\ndescription: Review code\n---\n${"x".repeat(400)}`, hasExtraFiles: true },
-};
-
 function entry(item, status, extra = {}) {
   return {
     key: `${PLUGIN}/${item.kind}/${item.sourceId}`,
@@ -100,26 +91,23 @@ test("protocol parses ai-config requests", () => {
 });
 
 test("review rows show what is written, never secret values", () => {
-  const items = [profile, mcp, remote, skill];
+  const items = [profile, mcp, remote];
   const entries = [
     entry(profile, "new", { targetName: "Kimi (2)", notes: ["possible-duplicate"] }),
     entry(mcp, "update", { secretChanged: true }),
     entry(remote, "unchanged"),
-    entry(skill, "conflict", { targetName: "my review" }),
   ];
   const choices = [
     { key: entries[0].key, action: "add" },
     { key: entries[1].key, action: "overwrite" },
     { key: entries[2].key, action: "overwrite" },
-    { key: entries[3].key, action: "overwrite" },
   ];
   const rows = aiConfigReviewRows(items, entries, choices);
   assert.deepEqual(rows.map((row) => [row.kind, row.action, row.targetName]), [
     ["profile", "add", "Kimi (2)"],
     ["mcp", "overwrite", "fetch"],
-    ["skill", "overwrite", "my review"],
   ], "an unchanged item cannot be overwritten, so it is not listed");
-  const [profileRow, mcpRow, skillRow] = rows;
+  const [profileRow, mcpRow] = rows;
   assert.equal(profileRow.apiKey, "set");
   assert.equal(profileRow.anthropicAuth, "x-api-key", "a missing auth mode is written as x-api-key");
   assert.equal(profileRow.baseUrl, "https://api.example.test");
@@ -127,11 +115,6 @@ test("review rows show what is written, never secret values", () => {
   assert.equal(mcpRow.commandLine, "npx -y '@scope/fetch server' ''");
   assert.deepEqual(mcpRow.envKeys, ["API_TOKEN", "EMPTY"]);
   assert.deepEqual(mcpRow.headerKeys, []);
-  assert.equal(skillRow.excerpt.length, AI_CONFIG_SKILL_EXCERPT_LENGTH);
-  assert.equal(skillRow.truncated, true);
-  assert.equal(skillRow.fullText, skill.skill.content, "the full text is available to expand");
-  assert.equal(skillRow.extraFiles, true);
-  assert.equal(skillRow.conflict, true);
   const serialized = JSON.stringify(rows);
   for (const secret of ["sk-secret-value", "env-secret-value", "header-secret"]) assert.ok(!serialized.includes(secret), secret);
 
@@ -174,8 +157,7 @@ test("overwrite rows list the fields that change and whether secrets change", ()
   assert.deepEqual(added.changedFields, [], "an add has no changed fields");
 
   for (const name of ["provider", "baseUrl", "model", "apiFormat", "anthropicAuth", "commonModels", "subagentModel",
-    "reasoningEffort", "contextWindow", "transport", "command", "args", "url", "env", "headers", "content",
-    "description", "docsUrl"]) {
+    "reasoningEffort", "contextWindow", "transport", "command", "args", "url", "env", "headers"]) {
     assert.ok(AI_CONFIG_FIELD_NAMES.includes(name), name);
   }
 });
@@ -213,13 +195,6 @@ test("mcp rows list prompts and whether each is filled", () => {
   assert.deepEqual(plain.prompts, []);
 });
 
-test("mcp rows show oauth", () => {
-  const signIn = { ...remote, mcp: { ...remote.mcp, auth: "oauth" } };
-  const key = `${PLUGIN}/mcp/m2`;
-  assert.equal(aiConfigReviewRows([signIn], [entry(signIn, "new")], [{ key, action: "add" }])[0].auth, "oauth");
-  assert.equal(aiConfigReviewRows([remote], [entry(remote, "new")], [{ key, action: "add" }])[0].auth, "none");
-  assert.ok(AI_CONFIG_FIELD_NAMES.includes("auth"));
-});
 
 test("a secret fill-in row says only the keys are filled", () => {
   const key = (item) => `${PLUGIN}/${item.kind}/${item.sourceId}`;
@@ -297,7 +272,6 @@ test("apply always shows the host confirmation", async () => {
   assert.match(dialog, /<ElDialog\b/);
   assert.ok(!/v-html/.test(dialog), "plugin text is never rendered as HTML");
   assert.match(dialog, /t\("plugins\.aiConfig\.title", \{ plugin: visibleReviewText\(props\.pluginName\) \}\)/);
-  assert.match(dialog, /<ElCollapseItem[^>]*>\s*<ElScrollbar[^>]*>\s*<code[^>]*>\{\{ row\.fullText \}\}<\/code>/, "the full skill text can be expanded");
   assert.match(dialog, /<dt>\{\{ t\("plugins\.aiConfig\.apiKeyLabel"\) \}\}<\/dt>/);
   assert.match(dialog, /row\.anthropicAuth/);
 });

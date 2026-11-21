@@ -6,7 +6,6 @@ import PluginManagerWorkspaceView from "@/views/PluginManagerWorkspaceView.vue";
 
 const mocks = vi.hoisted(() => ({
   installPreview: vi.fn(),
-  cloudStatus: vi.fn(),
   warning: vi.fn(),
   error: vi.fn(),
   setScope: vi.fn(async () => undefined),
@@ -43,12 +42,6 @@ vi.mock("@/services/desktop-bridge", () => ({
   chooseNativeFile: vi.fn(async () => ""),
   chooseNativeSaveFile: vi.fn(async () => ""),
 }));
-
-vi.mock("@/services/cloud-companion-service", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/services/cloud-companion-service")>()),
-  cloudStatus: mocks.cloudStatus,
-}));
-
 
 vi.mock("@/services/plugin-service", () => ({
   getPluginLogs: vi.fn(),
@@ -102,7 +95,6 @@ const menuItem = (label: string) =>
 
 beforeEach(() => {
   plugins.list = [plugin(1), plugin(2), plugin(3)];
-  mocks.cloudStatus.mockReset().mockResolvedValue({ signedIn: true, configured: true, deviceAvailable: false });
   mocks.setScope.mockClear();
   mocks.exportData.mockClear();
 });
