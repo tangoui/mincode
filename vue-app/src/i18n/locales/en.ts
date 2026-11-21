@@ -3007,7 +3007,6 @@ export const messagesEn = {
   "settings.terminalAttentionHint": "When a terminal or AI session finishes, waits for your choice, rings or exits, its tab shows a bell and the Dock badge counts it; typing in that terminal or clicking its tab clears it.",
   "settings.terminalAttentionSystemNotify": "Pop up a notification (in the window corner while MinCode is in front, a system notification while it is in the background)",
   "terminal.maxPanes": "Up to 8 terminal panes can be open side by side.",
-  "terminal.maxTabs": "A terminal workspace can hold up to 12 terminal tabs",
   "terminal.tabs.add": "New terminal",
   "terminal.tabs.addMenu": "More ways to open a terminal",
   "terminal.tabs.configuredShell": "Configured shell…",

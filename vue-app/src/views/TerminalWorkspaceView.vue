@@ -46,7 +46,7 @@ const workspaceStateScope = useWorkspaceStateScope();
 const workbench = workspaceStateScope.workbench;
 const workspaceStatePreferences = workspaceStateScope.preferences;
 const workspaceStateScopeId = workspaceStateScope.scopeId;
-const { tabs, activeTabId, activeTab, canClose, canSplit, canAddTab } = storeToRefs(terminalWorkspace);
+const { tabs, activeTabId, activeTab, canClose, canSplit } = storeToRefs(terminalWorkspace);
 const { t } = useVueI18n();
 const router = useRouter();
 const route = useRoute();
@@ -190,26 +190,12 @@ async function reloadPane(paneId: string) {
   terminalWorkspace.reloadPane(paneId);
 }
 
-function warnMaxTabs() {
-  ElMessage.warning(t("terminal.maxTabs"));
-}
-
-function ensureCanAddTab() {
-  if (canAddTab.value) return true;
-  warnMaxTabs();
-  return false;
-}
-
-function addLocalTab(options: LocalTerminalPaneOptions) {
-  if (!terminalWorkspace.addLocalTab(options)) warnMaxTabs();
-}
-
 function addShellTab(options: LocalTerminalPaneOptions) {
-  if (ensureCanAddTab()) addLocalTab(options);
+  terminalWorkspace.addLocalTab(options);
 }
 
 async function addShellTabInFolder() {
-  if (!isDesktopRuntime() || !ensureCanAddTab()) return;
+  if (!isDesktopRuntime()) return;
   try {
     const path = await chooseNativeDirectory(t("project.chooseFolder"));
     if (path) addShellTab({ initialCwd: path });
@@ -218,12 +204,7 @@ async function addShellTabInFolder() {
   }
 }
 
-function addConfiguredShell(options: LocalTerminalPaneOptions) {
-  addLocalTab(options);
-}
-
 function openNewSsh() {
-  if (!ensureCanAddTab()) return;
   editingSshPaneId.value = undefined;
   savedSshProfileId.value = "";
   void sshConnections.hydrate().catch(() => undefined);
@@ -251,7 +232,7 @@ async function connectSsh(draft: SshConnectionDraft) {
     editingSshPaneId.value = undefined;
     return;
   }
-  if (!terminalWorkspace.addSshTab(draft)) warnMaxTabs();
+  terminalWorkspace.addSshTab(draft);
 }
 
 function terminalLayoutTarget(tabId: string) {
@@ -311,7 +292,7 @@ function handleTerminalCreate(event: Event) {
 }
 
 function openShellConfiguration() {
-  if (ensureCanAddTab()) shellConfigurationVisible.value = true;
+  shellConfigurationVisible.value = true;
 }
 
 function handleAddMenu(kind: TerminalTabAddMenuCommand) {
@@ -401,7 +382,6 @@ onBeforeUnmount(() => {
     <TerminalTabStrip
       :tabs="tabs"
       :active-tab-id="activeTab.id"
-      :can-add="canAddTab"
       :label-for="tabLabel"
       :attention-for="tabNeedsAttention"
       :usage-for="tabUsage"
@@ -442,7 +422,7 @@ onBeforeUnmount(() => {
     </div>
   </section>
 
-  <ShellConfigurationDialog v-model="shellConfigurationVisible" @create="addConfiguredShell" />
+  <ShellConfigurationDialog v-model="shellConfigurationVisible" @create="addShellTab" />
   <!-- SshConnectionDialog is an inline form (the SSH workspace embeds it in its detail
        pane); here it needs a real dialog, or it renders below the full-height terminal. -->
   <el-dialog

@@ -34,7 +34,6 @@ function mountStrip(props: Partial<InstanceType<typeof TerminalTabStrip>["$props
     props: {
       tabs,
       activeTabId: "t1",
-      canAdd: true,
       profiles: [],
       labelFor: (item: TerminalTab) => item.title ?? item.id,
       attentionFor: () => false,
@@ -72,18 +71,12 @@ describe("TerminalTabStrip", () => {
     expect(wrapper.emitted("close")).toEqual([["t2"]]);
   });
 
-  it("emits add from the + button and disables it at the limit", async () => {
+  it("emits add from the + button", async () => {
     const wrapper = mountStrip();
     const add = wrapper.get(".terminal-tab-strip__add");
     expect(add.attributes("aria-label")).toBe("新建终端");
     await add.trigger("click");
     expect(wrapper.emitted("add")).toHaveLength(1);
-
-    const full = mountStrip({ canAdd: false });
-    const disabled = full.get(".terminal-tab-strip__add");
-    expect(disabled.attributes("disabled")).toBeDefined();
-    await disabled.trigger("click");
-    expect(full.emitted("add")).toBeUndefined();
   });
 
   it("renames inline after a double click: Enter submits, Escape cancels", async () => {

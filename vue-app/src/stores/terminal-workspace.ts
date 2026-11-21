@@ -16,7 +16,6 @@ import type {
 } from "@/domain/terminal/types";
 import { inheritSplitCwd, isTerminalLeafPane, cloneTerminalPaneTree } from "@/domain/terminal/types";
 import {
-  MAX_TERMINAL_TABS,
   TERMINAL_TAB_TITLE_MAX,
   activeTerminalTab,
   adjacentTerminalTabId,
@@ -232,7 +231,6 @@ function restoreWorkspaceSnapshot(snapshot: unknown): TerminalWorkspaceSnapshot 
     if (!tab) continue;
     seenTabIds.add(tab.id);
     tabs.push(tab);
-    if (tabs.length >= MAX_TERMINAL_TABS) break;
   }
   if (tabs.length === 0) return null;
   const activeTabId =
@@ -576,7 +574,6 @@ export const useTerminalWorkspaceStore = defineStore("terminal-workspace", () =>
   const paneCount = computed(() => paneIds.value.length);
   const canSplit = computed(() => paneCount.value < MAX_TERMINAL_PANES);
   const canClose = computed(() => paneCount.value > 1);
-  const canAddTab = computed(() => tabs.value.length < MAX_TERMINAL_TABS);
 
   function activateTab(
     tabId: string,
@@ -645,22 +642,17 @@ export const useTerminalWorkspaceStore = defineStore("terminal-workspace", () =>
     });
   }
 
-  function addTab(pane: TerminalLeafPane): TerminalTab | null {
-    if (!canAddTab.value) return null;
+  function addTab(pane: TerminalLeafPane): TerminalTab {
     const tab: TerminalTab = { id: nextId("terminal-tab"), root: pane, activePaneId: pane.id };
-    const next = insertTerminalTab(tabsState(), tab);
-    if (!next) return null;
-    setTabsState(next);
+    setTabsState(insertTerminalTab(tabsState(), tab));
     return tab;
   }
 
   function addLocalTab(options: LocalTerminalPaneOptions = {}) {
-    if (!canAddTab.value) return null;
     return addTab(createLocalPane(options));
   }
 
   function addSshTab(options: SshTerminalPaneOptions) {
-    if (!canAddTab.value) return null;
     return addTab(createSshPane(options));
   }
 
@@ -891,7 +883,6 @@ export const useTerminalWorkspaceStore = defineStore("terminal-workspace", () =>
     paneCount,
     canSplit,
     canClose,
-    canAddTab,
     activateTab,
     hasLayout,
     duplicateTab,

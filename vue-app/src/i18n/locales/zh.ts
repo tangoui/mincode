@@ -2876,7 +2876,6 @@ export const messagesZh = {
   "settings.terminalAttentionHint": "终端或 AI 会话跑完、等你选择、响铃或退出时，在它的标签上显示铃铛并计入 Dock 角标；在那个终端里打字或点它的标签即清除。",
   "settings.terminalAttentionSystemNotify": "弹出通知（MinCode 在前台时显示在窗口右下角，在后台时为系统通知）",
   "terminal.maxPanes": "最多同时分出 8 个终端窗格。",
-  "terminal.maxTabs": "每个终端工作区最多 12 个终端标签",
   "terminal.tabs.add": "新建终端",
   "terminal.tabs.addMenu": "更多新建方式",
   "terminal.tabs.configuredShell": "已配置的 Shell…",

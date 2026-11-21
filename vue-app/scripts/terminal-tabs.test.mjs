@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  MAX_TERMINAL_TABS,
   TERMINAL_TAB_TITLE_MAX,
   activeTerminalTab,
   adjacentTerminalTabId,
@@ -37,7 +36,6 @@ const stateOf = (ids, activeTabId) => ({ tabs: ids.map((id) => tab(id)), activeT
 const ids = (state) => state.tabs.map((t) => t.id);
 
 test("constants", () => {
-  assert.equal(MAX_TERMINAL_TABS, 12);
   assert.equal(TERMINAL_TAB_TITLE_MAX, 60);
 });
 
@@ -55,11 +53,12 @@ test("insertTerminalTab inserts right of the active tab and selects it", () => {
   assert.deepEqual(ids(state), ["a", "b", "c"], "input is not mutated");
 });
 
-test("insertTerminalTab refuses the 13th tab", () => {
-  const full = stateOf(Array.from({ length: 12 }, (_, i) => `t${i}`), "t0");
-  assert.equal(insertTerminalTab(full, tab("x")), null);
-  const eleven = stateOf(Array.from({ length: 11 }, (_, i) => `t${i}`), "t10");
-  assert.equal(insertTerminalTab(eleven, tab("x")).tabs.length, 12);
+test("insertTerminalTab inserts after the active tab even beyond twelve tabs", () => {
+  const state = stateOf(Array.from({ length: 13 }, (_, i) => `t${i}`), "t0");
+  const next = insertTerminalTab(state, tab("x"));
+  assert.equal(next.tabs.length, 14);
+  assert.equal(next.tabs[1].id, "x");
+  assert.equal(next.activeTabId, "x");
 });
 
 test("removeTerminalTab closing the active middle tab selects the right neighbour", () => {

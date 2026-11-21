@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { MAX_TERMINAL_TABS } from "@/domain/terminal/terminal-tabs";
 
 const persisted = vi.hoisted(() => ({
   load: vi.fn<(key: string) => Promise<unknown>>(),
@@ -75,7 +74,7 @@ describe("terminal workspace store with terminal tabs", () => {
     expect(store.activePaneId).toBe("pane-x");
   });
 
-  it("adds local tabs up to the limit; paneIds covers only the active tab", async () => {
+  it("adds more than 13 local tabs; paneIds covers only the active tab", async () => {
     const store = await hydratedStore();
     const firstPaneId = store.activePaneId;
     const firstTabId = store.activeTabId;
@@ -90,10 +89,24 @@ describe("terminal workspace store with terminal tabs", () => {
     expect(store.allPaneIds).toHaveLength(2);
     expect(store.activeTabId).not.toBe(firstTabId);
 
-    while (store.tabs.length < MAX_TERMINAL_TABS) expect(store.addLocalTab()).not.toBeNull();
-    expect(store.canAddTab).toBe(false);
-    expect(store.addLocalTab()).toBeNull();
-    expect(store.tabs).toHaveLength(MAX_TERMINAL_TABS);
+    for (let i = 0; i < 13; i++) expect(store.addLocalTab()).not.toBeNull();
+    expect(store.tabs).toHaveLength(15);
+  });
+
+  it("restores every tab and the active pane from a snapshot with 15 tabs", async () => {
+    const tabs = Array.from({ length: 15 }, (_, i) => ({
+      id: `terminal-tab-${i}`,
+      root: localPane(`pane-${i}`),
+      activePaneId: `pane-${i}`,
+    }));
+    const store = await hydratedStore({
+      version: 5,
+      current: { version: 4, tabs, activeTabId: "terminal-tab-14" },
+      layoutsByTabId: {},
+    });
+    expect(store.tabs.map((tab) => tab.id)).toEqual(tabs.map((tab) => tab.id));
+    expect(store.activeTabId).toBe("terminal-tab-14");
+    expect(store.activePaneId).toBe("pane-14");
   });
 
   it("new local tabs use the default directory unless a folder is supplied", async () => {

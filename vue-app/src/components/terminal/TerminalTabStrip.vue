@@ -21,7 +21,6 @@ export type TerminalTabAddMenuCommand = "configured" | "ssh" | "folder";
 const props = defineProps<{
   tabs: TerminalTab[];
   activeTabId: string;
-  canAdd: boolean;
   labelFor: (tab: TerminalTab) => string;
   attentionFor: (tab: TerminalTab) => boolean;
   /** Memory of a tab's local terminals; shown from 1 GB on. */
@@ -285,14 +284,13 @@ function handleAddMenu(command: string | number | object) {
     </AppContextMenu>
 
     <div class="terminal-tab-strip__actions">
-      <el-tooltip :content="canAdd ? t('terminal.tabs.add') : t('terminal.maxTabs')" placement="bottom">
+      <el-tooltip :content="t('terminal.tabs.add')" placement="bottom">
         <span class="terminal-tab-strip__add-wrap">
           <el-button
             text
             native-type="button"
             class="terminal-tab-strip__add"
             :aria-label="t('terminal.tabs.add')"
-            :disabled="!canAdd"
             @click="emit('add')"
           >
             <el-icon><Plus /></el-icon>
@@ -302,7 +300,6 @@ function handleAddMenu(command: string | number | object) {
       <el-dropdown
         trigger="click"
         placement="bottom-end"
-        :disabled="!canAdd"
         @command="handleAddMenu"
       >
         <el-button
@@ -311,7 +308,6 @@ function handleAddMenu(command: string | number | object) {
           class="terminal-tab-strip__add-menu"
           :aria-label="t('terminal.tabs.addMenu')"
           :title="t('terminal.tabs.addMenu')"
-          :disabled="!canAdd"
         >
           <AppChevron direction="down" />
         </el-button>

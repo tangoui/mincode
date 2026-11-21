@@ -5,7 +5,6 @@ import type { TerminalLeafPane, TerminalPaneNode } from "@/domain/terminal/types
  * 纯函数、不可变更新，不依赖 Vue / DOM / IPC。
  */
 
-export const MAX_TERMINAL_TABS = 12;
 export const TERMINAL_TAB_TITLE_MAX = 60;
 
 export interface TerminalTab {
@@ -46,12 +45,11 @@ function activeTabIndex(state: TerminalTabsState): number {
   return index >= 0 ? index : 0;
 }
 
-/** 插在当前标签右侧并选中；已满 MAX_TERMINAL_TABS 个返回 null。 */
+/** 插在当前标签右侧并选中。 */
 export function insertTerminalTab(
   state: TerminalTabsState,
   tab: TerminalTab
-): TerminalTabsState | null {
-  if (state.tabs.length >= MAX_TERMINAL_TABS) return null;
+): TerminalTabsState {
   const tabs = [...state.tabs];
   tabs.splice(activeTabIndex(state) + 1, 0, tab);
   return { tabs, activeTabId: tab.id };
