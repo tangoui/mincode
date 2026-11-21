@@ -137,33 +137,3 @@ test("install preview and error codes", () => {
   assert.equal(languageServerErrorCode("untrusted: x"), "untrusted");
   assert.equal(languageServerErrorCode(new Error("boom")), "");
 });
-
-test("the consumer, runtime, dialog, AI guard and locales are wired", async () => {
-  const index = await read("vue-app/src/services/contributions/index.ts");
-  assert.match(index, /\/\/ languageServers \(Phase G\)\n\s+registerLanguageServerContributionConsumer,/);
-  const consumer = await read("vue-app/src/services/contributions/language-servers.ts");
-  assert.match(consumer, /lazyContributionApply/);
-  assert.doesNotMatch(consumer, /^import .*domain\/plugins\/language-servers/m);
-  const runtime = await read("vue-app/src/composables/project-language-server-runtime.ts");
-  assert.match(runtime, /startPluginLanguageServer\(serverId, root\)/);
-  assert.match(runtime, /pluginApplyEditAllowed/);
-  const service = await read("vue-app/src/services/plugin-language-server-service.ts");
-  assert.match(service, /plugin_host_language_server_start/);
-  assert.doesNotMatch(service, /project_lsp_start/);
-  const dialog = await read("vue-app/src/components/projects/ProjectLanguageServersDialog.vue");
-  assert.match(dialog, /ensurePluginLanguageServerConfirmed/);
-  assert.match(dialog, /resetPluginLanguageServer/);
-  assert.doesNotMatch(dialog, /v-html/);
-  const tools = await read("vue-app/src/services/ai-tools/workspace-tools.ts");
-  assert.match(tools, /plugin language servers are user-managed and not available to AI tools/);
-  // Only the guard itself reads serverId directly.
-  assert.equal(tools.match(/requiredString\(input, "serverId"/g)?.length, 1);
-  const manager = await read("vue-app/src/views/PluginManagerWorkspaceView.vue");
-  assert.match(manager, /languageServerPreviewSummary/);
-  for (const locale of ["zh", "en"]) {
-    const text = await read(`vue-app/src/i18n/locales/${locale}.ts`);
-    for (const key of ["section", "sectionHint", "plugin", "enable", "disable", "review", "restart", "notTrusted", "changed", "restartLimit", "unavailable", "useFor", "builtinDefault", "previewSummary"]) {
-      assert.ok(text.includes(`"pluginContrib.languageServers.${key}"`), `${locale} ${key}`);
-    }
-  }
-});

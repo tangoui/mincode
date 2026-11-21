@@ -1246,19 +1246,20 @@ const homeDirectoryReady = isDesktopRuntime()
   ? getUserHomeDirectory().then((path) => { homeDirectory.value = path; })
   : Promise.resolve();
 void homeDirectoryReady.catch(() => undefined);
-const canChooseWorkingDirectory = computed(() => {
+function canChooseWorkingDirectory() {
   const conversation = assistant.activeConversation;
   return isDesktopRuntime() && Boolean(conversation && !conversation.external && !conversation.running
-    && !conversation.agentReady && !agentStartPromises.has(conversation.id));
-});
+    && !conversation.agentReady && !agentStartPromises.has(conversation.id)
+    && !acpSendGate.isClaimed(conversation.id) && !agenticSendGate.isClaimed(conversation.id));
+}
 const choosingWorkingDirectory = ref(false);
 async function chooseWorkingDirectory() {
   const conversation = assistant.activeConversation;
-  if (!conversation || !canChooseWorkingDirectory.value || choosingWorkingDirectory.value) return;
+  if (!conversation || !canChooseWorkingDirectory() || choosingWorkingDirectory.value) return;
   choosingWorkingDirectory.value = true;
   try {
     const path = await chooseNativeDirectory(t("project.chooseFolder"), workspaceRoot());
-    if (!path || assistant.activeConversationId !== conversation.id || !canChooseWorkingDirectory.value) return;
+    if (!path || assistant.activeConversationId !== conversation.id || !canChooseWorkingDirectory()) return;
     assistant.setConversationWorkspace(conversation.id, {
       workspaceId: conversation.workspaceId ?? workbench.activeWorkspaceId,
       workspaceName: conversation.workspaceName,
@@ -1267,6 +1268,7 @@ async function chooseWorkingDirectory() {
     });
     conversationWorkspaceContexts.delete(conversation.id);
     unavailableAcpDirectories.delete(conversation.id);
+    await stopDefaultDirectoryAgent(conversation.id);
   } catch (error) {
     ElMessage.error(nativeErrorMessage(error));
   } finally {
@@ -6231,7 +6233,7 @@ onBeforeUnmount(() => {
           text
           size="small"
           :icon="FolderOpened"
-          :disabled="!canChooseWorkingDirectory"
+          :disabled="!canChooseWorkingDirectory()"
           :loading="choosingWorkingDirectory"
           :title="workspaceRoot()"
           @click="chooseWorkingDirectory"

@@ -172,6 +172,21 @@ describe("local agent directory in the assistant", () => {
     expect(calls("acp_launch")).toEqual([expect.objectContaining({ cwd: replacementProject })]);
   });
 
+  it("restarts an idle home-directory agent in the newly chosen folder", async () => {
+    host.chooseDirectory.mockResolvedValue(replacementProject);
+    const session = await mountAssistant();
+    await session.start();
+    const originalServer = calls("acp_launch")[0]?.serverId;
+    expect(calls("acp_launch")).toEqual([expect.objectContaining({ cwd: defaultPath })]);
+
+    await session.folderButton().trigger("click");
+    await flushPromises();
+    await session.start();
+
+    expect(calls("acp_disconnect")).toContainEqual({ serverId: originalServer });
+    expect(calls("acp_launch").map((args) => args?.cwd)).toEqual([defaultPath, replacementProject]);
+  });
+
   it("requires one-time consent and routes the live session while preserving the original recovery ID", async () => {
     const session = await mountAssistant(project);
     const { assistant, conversation, thread, composer } = session;

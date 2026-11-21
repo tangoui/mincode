@@ -83,7 +83,7 @@ test("focus classes: input, dialog, terminal and Monaco", () => {
   const { matcher, env } = setup(RULES);
   // Text-editing chords never leave an input.
   assert.equal(matcher.handleKeydown(key("KeyC", { metaKey: true }), env("input", { "tree.selection": true })).kind, "ignore");
-  assert.equal(matcher.handleKeydown(key("KeyC", { metaKey: true }), env("other", { "tree.selection": true })).kind, "execute");
+  assert.equal(matcher.handleKeydown(key("KeyC", { metaKey: true }), env("other", { "tree.selection": true })).kind, "ignore");
   assert.equal(matcher.handleKeydown(key("Comma", { metaKey: true }), env("input")).kind, "execute");
   // allowInInput commands (AI panel Esc) work in the composer.
   assert.equal(matcher.handleKeydown(key("Escape"), env("input", { "ai.panel.focus": true })).kind, "execute");

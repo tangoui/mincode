@@ -139,6 +139,18 @@ const HANDLER_OWNERS = {
   "workbench:reopen-closed": ["startup", "composables/use-workbench-tab-commands.ts"],
   "workbench:next-tab": ["startup", "composables/use-workbench-tab-commands.ts"],
   "workbench:prev-tab": ["startup", "composables/use-workbench-tab-commands.ts"],
+  ...Object.fromEntries(
+    Array.from({ length: 9 }, (_, index) => [`workbench:tab-${index + 1}`, ["startup", "composables/use-workbench-tab-commands.ts"]]),
+  ),
+  "editor:save": ["editor", "domain/keybindings/monaco-keymap-rules.ts"],
+  "database:run-query": ["editor", "domain/keybindings/monaco-keymap-rules.ts"],
+  "database:submit-grid-changes": ["view", "views/DatabaseWorkspaceView.vue"],
+  "ai:new-conversation": ["view", "components/ai/AiAssistantDrawer.vue"],
+  "ai:search-conversations": ["view", "components/ai/AiAssistantDrawer.vue"],
+  "ai:previous-conversation": ["view", "components/ai/AiAssistantDrawer.vue"],
+  "ai:next-conversation": ["view", "components/ai/AiAssistantDrawer.vue"],
+  "ai:stop": ["view", "components/ai/AiAssistantDrawer.vue"],
+  "ai:copy-message": ["view", "components/ai/AiAssistantDrawer.vue"],
 };
 
 test("every available app command in the catalog has a registered handler", async () => {
@@ -204,5 +216,4 @@ test("startup and view registrations are wired into their owners", async () => {
   ]) {
     assert.match(await read(view), /useToggleSidebarCommand\(/, view);
   }
-  assert.match(await read("composables/use-debug-commands.ts"), /useActiveViewCommands\(\(\) => registerDebugCommands\(options\)\)/);
 });

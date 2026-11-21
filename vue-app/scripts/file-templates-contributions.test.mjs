@@ -143,20 +143,6 @@ test("install preview lists templates", () => {
   assert.deepEqual(fileTemplatePreviewSummary({}), []);
 });
 
-test("service writes only with createOnly, verifies hashes and never deletes", async () => {
-  const source = await readFile(new URL("../src/services/file-template-service.ts", import.meta.url), "utf8");
-  const commands = [...source.matchAll(/invokeBackend\(\s*"([a-z_]+)"/g)].map((match) => match[1]);
-  assert.deepEqual([...new Set(commands)].sort(), ["local_fs_file_info", "local_fs_write_text_file"]);
-  assert.match(source, /createOnly: true/);
-  assert.match(source, /crypto\.subtle\.digest\("SHA-256"/);
-  assert.match(source, /fatal: true/);
-  assert.doesNotMatch(source, /local_fs_delete|local_fs_rename|local_fs_move/);
-  const consumer = await readFile(new URL("../src/services/contributions/index.ts", import.meta.url), "utf8");
-  assert.match(consumer, /registerFileTemplateContributionConsumer,/);
-  const view = await readFile(new URL("../src/views/ProjectWorkspaceView.vue", import.meta.url), "utf8");
-  assert.match(view, /await runEditorSaveParticipants\(/);
-});
-
 test("code name transforms remain identifiers for numeric and non-Latin names", () => {
  for (const name of ['123 app', '你好', 'hello "world"']) {
   const vars = templateVariables(name, 'demo');

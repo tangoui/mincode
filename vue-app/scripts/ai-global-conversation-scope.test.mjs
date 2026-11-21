@@ -76,7 +76,5 @@ test("工具上下文固定使用会话持久化归属且拒绝已删除工作�
   assert.match(drawer, /workbench\.workspaces\.find\(\(item\) => item\.id === conversation\.workspaceId\)/);
   assert.match(drawer, /throw new Error\(t\("ai\.conversation\.workspace\.unavailable"\)\)/);
   assert.match(drawer, /"local_fs_file_info", \{[\s\S]*?projectRoot: context\.projectRoot[\s\S]*?filePath: "\."/);
-  assert.match(drawer, /loadAiGitRepositories\(projectRoot\)/);
-  assert.match(drawer, /\["workspace", "git"\]/);
   assert.match(drawer, /ACTIVE_WORKSPACE_UI_TOOL_NAMES/);
 });

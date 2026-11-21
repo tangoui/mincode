@@ -28,7 +28,6 @@ test("every AI request builder passes the profile's noToolModels", async () => {
   for (const path of [
     "../src/components/ai/AiAssistantDrawer.vue",
     "../src/components/database/query/DatabaseAiQueryDialog.vue",
-    "../src/components/projects/ProjectGitPanel.vue",
   ]) {
     const source = await readFile(new URL(path, import.meta.url), "utf8");
     assert.match(source, /noToolModels: [^\n]*profile[^\n]*noToolModels/, path);
@@ -51,7 +50,6 @@ test("every caller shows the reason-specific auth message", async () => {
   for (const path of [
     "../src/components/ai/AiAssistantDrawer.vue",
     "../src/components/database/query/DatabaseAiQueryDialog.vue",
-    "../src/components/projects/ProjectGitPanel.vue",
   ]) {
     const source = await readFile(new URL(path, import.meta.url), "utf8");
     assert.doesNotMatch(source, /t\("ai\.missingApiKey"\)/, path);

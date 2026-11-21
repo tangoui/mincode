@@ -24,7 +24,6 @@ const [
   readFile(new URL("../src/domain/workspace/state-scope.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/stores/terminal-workspace.ts", import.meta.url), "utf8"),
 ]);
-const lspSource = lspRuntimeSource;
 
 test("终端快照同时受过期时间、条目数和总字节限制", () => {
   assert.match(snapshotSource, /MAX_SNAPSHOT_AGE_MS/);

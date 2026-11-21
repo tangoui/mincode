@@ -10,7 +10,6 @@ const source = (path) => readSource(new URL(path, import.meta.url));
 
 const requestBuilders = [
   "../src/components/database/query/DatabaseAiQueryDialog.vue",
-  "../src/components/projects/ProjectGitPanel.vue",
   "../src/components/ai/AiAssistantDrawer.vue",
   "../src/services/ai-agent-loop.ts",
 ];

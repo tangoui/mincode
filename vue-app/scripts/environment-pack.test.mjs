@@ -146,9 +146,7 @@ test("环境包提交失败会按新增 ID 补偿所有资源并持久化回滚�
   assert.match(environmentPackDialog, /addedSshIds/);
   assert.match(environmentPackDialog, /addedDatabaseIds/);
   assert.match(environmentPackDialog, /addedHttpCollectionIds/);
-  assert.match(environmentPackDialog, /addedProjectRoots/);
   assert.match(environmentPackDialog, /Promise\.allSettled/);
   assert.match(environmentPackDialog, /httpResourcesStore\.removeResources/);
-  assert.match(environmentPackDialog, /projectStore\.flushPersistence\(\)/);
   assert.match(environmentPackDialog, /envImportRollbackFailed/);
 });

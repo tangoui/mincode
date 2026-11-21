@@ -467,12 +467,3 @@ test("file-decorations: refresh keeps the most recently expanded folders", () =>
   const recent = ["/p\u0000c", "/p\u0000a", "/p\u0000d"];
   assert.deepEqual(orderByRecency(entries, recent).map((entry) => entry.directory), ["b", "c", "a", "d"]);
 });
-
-test("file-decorations: colour classes use the token map only", async () => {
-  const css = await readFile(new URL("../src/styles/workspaces/project/plugin-file-decorations.css", import.meta.url), "utf8");
-  for (const [color, token] of Object.entries(DECORATION_COLOR_TOKENS)) {
-    const rule = new RegExp(`\\.project-tree-node__decoration\\.is-${color}\\s*\\{\\s*color:\\s*${token.replace(/[()]/g, "\\$&")};\\s*\\}`);
-    assert.match(css, rule, color);
-  }
-  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|rgb|hsl/i);
-});

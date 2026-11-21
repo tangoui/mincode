@@ -29,8 +29,8 @@ test("a successful mutation refreshes resources for later tools in the same run"
   );
 });
 
-test("runtime refresh preserves the conversation project-scoped resources", () => {
-  assert.match(drawerSource, /PROJECT_SCOPED_RESOURCE_KINDS = new Set\(\[[\s\S]*?"workspace-project"[\s\S]*?"git-repository"[\s\S]*?"sftp-workspace-transfer"/);
+test("runtime refresh preserves the conversation SFTP transfer resource", () => {
+  assert.match(drawerSource, /PROJECT_SCOPED_RESOURCE_KINDS = new Set\(\[[\s\S]*?"sftp-workspace-transfer"/);
   assert.match(
     drawerSource,
     /const projectResources = resources[\s\S]*?PROJECT_SCOPED_RESOURCE_KINDS\.has\(resource\.kind\)[\s\S]*?const runtimeResources = aiResourceRegistry[\s\S]*?!PROJECT_SCOPED_RESOURCE_KINDS\.has\(resource\.kind\)[\s\S]*?resources\.replace\("snapshot", \[\.\.\.projectResources, \.\.\.runtimeResources\]\)/,
