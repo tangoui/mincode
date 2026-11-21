@@ -52,6 +52,23 @@ func runInShell(t *testing.T, sessionID string) int {
 	return 0
 }
 
+// processEnded reports whether pid has exited. An exited child the shell has
+// not reaped yet still answers kill(pid, 0): dash, /bin/sh on Debian and
+// Ubuntu, only reaps background jobs when it next reads a command, so a
+// zombie also counts as ended.
+func processEnded(pid int) bool {
+	if syscall.Kill(pid, 0) == syscall.ESRCH {
+		return true
+	}
+	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return false
+	}
+	// The state follows the parenthesised command name: "pid (comm) S ...".
+	i := strings.LastIndexByte(string(stat), ')')
+	return i >= 0 && i+2 < len(stat) && stat[i+2] == 'Z'
+}
+
 func usageFor(t *testing.T, sessionID string) localShellUsage {
 	t.Helper()
 	out, err := cmdLocalShellResourceUsage("", `{"payload":{"sessionIds":["`+sessionID+`","unknown-session"]}}`)
@@ -106,7 +123,7 @@ func TestLocalShellEndProcessOnlyEndsProcessesOfTheSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
-		if syscall.Kill(pid, 0) == syscall.ESRCH {
+		if processEnded(pid) {
 			if syscall.Kill(proc.localPTY.Pid(), 0) != nil {
 				t.Fatal("the shell was ended too")
 			}
