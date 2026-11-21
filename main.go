@@ -26,6 +26,7 @@ import (
 	"mincode/app/backend/e2esmoke"
 	"mincode/app/backend/misc"
 	"mincode/app/backend/terminalactivity"
+	"mincode/app/backend/updater"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/ipc"
@@ -49,7 +50,7 @@ var trayIconLight []byte
 //go:embed icons/tray-dark.png
 var trayIconDark []byte
 
-const appID = "com.tangoui.mincode"
+const appID = updater.AppID
 
 // appIdentity 是应用名和 ID。测试可用 MINCODE_APP_NAME / MINCODE_APP_ID 换一套身份：
 // tango 按应用名给 WebView 的本地存储分目录（macOS 为 ~/Library/WebKit/<名字>），按 ID
@@ -215,6 +216,7 @@ func main() {
 		navMu.Unlock()
 		native.AddSurface(h, s, "main")
 		s.OnClosed(func() { native.RemoveSurface(h, s) })
+		updater.Confirm(app.Quit)
 		if e2esmoke.Enabled() {
 			// 冒烟测试与用户共用桌面：窗口被遮挡时也保持渲染（否则 rAF 暂停，计时失真）。
 			if err := e2esmoke.KeepRenderingWhenCovered(s.Native()); err != nil {

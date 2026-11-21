@@ -3,7 +3,7 @@ import {
   type StoredMcpServer,
 } from "@/domain/ai/mcp-servers";
 import type { AiAnthropicAuth } from "@/domain/ai/anthropic-auth";
-import { chooseNativeDirectory, chooseNativeFile, invokeBackend } from "@/services/desktop-bridge";
+import { chooseNativeDirectory, chooseNativeFile, invokeBackend, listenAppEvent } from "@/services/desktop-bridge";
 
 export interface AiModelFetchConfig {
   baseUrl: string;
@@ -38,8 +38,13 @@ export interface UpdateInfo {
 
 export interface UpdateInstallResult {
   version: string;
-  fileName: string;
-  opened: boolean;
+  ready: true;
+}
+
+interface UpdateProgress {
+  kind: string;
+  done?: number;
+  total?: number;
 }
 
 interface SettingsDirectoryEntry {
@@ -90,10 +95,10 @@ function parseUpdateInfo(value: unknown): UpdateInfo {
 
 function parseUpdateInstallResult(value: unknown): UpdateInstallResult {
   if (!isRecord(value)) throw new Error("Invalid update install response");
-  if (typeof value.version !== "string" || typeof value.fileName !== "string" || value.opened !== true) {
+  if (typeof value.version !== "string" || value.ready !== true) {
     throw new Error("Invalid update install response fields");
   }
-  return { version: value.version, fileName: value.fileName, opened: true };
+  return { version: value.version, ready: true };
 }
 
 export function setMinimizeToTray(value: boolean) { return invokeBackend("set_minimize_to_tray", { value }); }
@@ -149,6 +154,14 @@ export async function checkForUpdates() {
   return parseUpdateInfo(await invokeBackend<unknown>("check_update", {}));
 }
 
-export async function downloadAndOpenUpdate() {
-  return parseUpdateInstallResult(await invokeBackend<unknown>("download_and_install", {}));
+export async function downloadAndStageUpdate(version: string) {
+  return parseUpdateInstallResult(await invokeBackend<unknown>("download_and_install", { version }));
+}
+
+export function restartForUpdate() {
+  return invokeBackend("restart_app");
+}
+
+export function listenUpdateProgress(handler: (event: UpdateProgress) => void) {
+  return listenAppEvent<UpdateProgress>("app-update:progress", handler);
 }

@@ -30,6 +30,7 @@ import (
 	"mincode/app/backend/storage"
 	"mincode/app/backend/terminal"
 	"mincode/app/backend/terminalactivity"
+	_ "mincode/app/backend/updater"
 )
 
 func startupDomains(ctx context.Context) error {
