@@ -87,8 +87,12 @@ jobs:
             target: darwin/amd64
           - runner: windows-latest
             target: windows/amd64
+          - runner: windows-11-arm
+            target: windows/arm64
           - runner: ubuntu-22.04
             target: linux/amd64
+          - runner: ubuntu-24.04-arm
+            target: linux/arm64
     env:
       TARGET: ${{ matrix.target }}
       VERSION: ${{ needs.verify.outputs.version }}
@@ -112,6 +116,22 @@ jobs:
           go env GOPATH | sed 's|$|/bin|' >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile
 
+      - name: Install the Windows ARM64 C toolchain
+        if: matrix.target == 'windows/arm64'
+        shell: pwsh
+        run: |
+          $version = '20251118'
+          $name = "llvm-mingw-$version-ucrt-aarch64"
+          $archive = Join-Path $env:RUNNER_TEMP "$name.zip"
+          Invoke-WebRequest "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/$name.zip" -OutFile $archive
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash
+          if ($hash -ne '21a0d62c80992402a5c9bcef40fc623452124453886a6319322a272ca8ed4e3e') {
+            throw 'LLVM-MinGW archive SHA-256 did not match'
+          }
+          Expand-Archive -Path $archive -DestinationPath $env:RUNNER_TEMP
+          (Join-Path $env:RUNNER_TEMP "$name\bin") >> $env:GITHUB_PATH
+          'CC=aarch64-w64-mingw32-clang' >> $env:GITHUB_ENV
+
       - name: Configure Windows signing
         if: runner.os == 'Windows'
         shell: pwsh
@@ -121,11 +141,47 @@ jobs:
           if (!$env:WINDOWS_CERT_BASE64) { exit 0 }
           $certificate = Join-Path $env:RUNNER_TEMP 'mincode-signing.pfx'
           [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
-          $tool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+          $arch = if ($env:RUNNER_ARCH -eq 'ARM64') { 'arm64' } else { 'x64' }
+          $tool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\$arch\signtool.exe" |
             Sort-Object FullName -Descending | Select-Object -First 1
           if (!$tool) { throw 'Windows SDK signtool.exe was not found' }
           $tool.DirectoryName >> $env:GITHUB_PATH
           "TANGO_WINDOWS_CERT=$certificate" >> $env:GITHUB_ENV
+
+      - name: Install Linux build and AppImage tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev \
+            desktop-file-utils file squashfs-tools
+          case "$TARGET" in
+            linux/amd64)
+              arch=x86_64
+              tool_sha=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+              runtime_sha=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+              ;;
+            linux/arm64)
+              arch=aarch64
+              tool_sha=f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158
+              runtime_sha=00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444
+              ;;
+            *) exit 1 ;;
+          esac
+          bin="$RUNNER_TEMP/appimage-bin"
+          mkdir -p "$bin"
+          tool="$bin/appimagetool.AppImage"
+          runtime="$bin/runtime"
+          curl -fsSL --retry 3 "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-$arch.AppImage" -o "$tool"
+          curl -fsSL --retry 3 "https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-$arch" -o "$runtime"
+          printf '%s  %s\n' "$tool_sha" "$tool" "$runtime_sha" "$runtime" | sha256sum --check
+          # Use the verified runtime and run the tool on runners without FUSE.
+          cat > "$bin/appimagetool" <<'SH'
+          #!/bin/sh
+          bin="$(dirname "$0")"
+          APPIMAGE_EXTRACT_AND_RUN=1 exec "$bin/appimagetool.AppImage" --runtime-file "$bin/runtime" "$@"
+          SH
+          chmod +x "$tool" "$bin/appimagetool"
+          echo "$bin" >> "$GITHUB_PATH"
 
       - name: Build the frontend and package the desktop app
         env:
@@ -163,6 +219,9 @@ jobs:
           args=(-platform "$TARGET")
           if [[ "$TARGET" != darwin/* ]]; then
             args+=(-features all)
+          fi
+          if [[ "$TARGET" == linux/* ]]; then
+            args+=(-format "tar,appimage,deb,rpm")
           fi
           pnpm package:desktop "${args[@]}"
 
@@ -210,7 +269,10 @@ jobs:
           case "$TARGET" in
             darwin/*) assets=(dist/*.dmg) ;;
             windows/*) assets=(dist/*-setup.exe) ;;
-            linux/*) assets=(dist/*.tar.gz dist/*.AppImage) ;;
+            linux/*)
+              assets=(dist/*.tar.gz dist/*.AppImage dist/*.deb dist/*.rpm)
+              test "${#assets[@]}" -eq 4
+              ;;
           esac
           test "${#assets[@]}" -gt 0
           tar -cf packages.tar -- "${assets[@]}" "dist/${TARGET/\//-}"
@@ -242,7 +304,7 @@ jobs:
           done
           shopt -s nullglob
           mkdir release
-          cp dist/*.dmg dist/*-setup.exe dist/*.tar.gz dist/*.AppImage release/
+          cp dist/*.dmg dist/*-setup.exe dist/*.tar.gz dist/*.AppImage dist/*.deb dist/*.rpm release/
       - name: Generate the signed update manifest and patches
         env:
           GH_TOKEN: ${{ github.token }}
@@ -260,7 +322,7 @@ jobs:
             --json tagName --jq '.[0].tagName // empty')"
           prev_args=()
           if [[ -n "$published" ]]; then
-            previous="$(gh release view --json tagName,assets \
+            previous="$(gh release view "$published" --json tagName,assets \
               --jq 'select(any(.assets[]; .name == "latest.json")) | .tagName')"
             if [[ -n "$previous" && "$previous" != "$GITHUB_REF_NAME" ]]; then
               gh release download "$previous" --dir prev --pattern latest.json \
@@ -276,9 +338,11 @@ jobs:
           if [[ -f "$notes" ]]; then
             notes_args=(-notes "@$notes")
           fi
-          # Seed a separate output directory: tan copies update payloads into
-          # it, including the Linux tarball when no AppImage was built.
-          "$tan" release-manifest -build dist -o release -url "" "${prev_args[@]}" "${notes_args[@]}"
+          # Keep the tarball update format used by existing Linux installations.
+          "$tan" release-manifest -build dist -o release -url "" -linux dir "${prev_args[@]}" "${notes_args[@]}"
+          jq -e '.manifest.platforms |
+            (keys == ["darwin-amd64", "darwin-arm64", "linux-amd64", "linux-arm64", "windows-amd64", "windows-arm64"]) and
+            (.["linux-amd64"].format == "dir" and .["linux-arm64"].format == "dir")' release/latest.json
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: release-assets

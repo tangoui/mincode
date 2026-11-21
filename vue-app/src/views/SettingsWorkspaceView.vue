@@ -46,6 +46,7 @@ import {
   isBrowserLocalMode,
   isDesktopRuntime,
   nativeErrorMessage,
+  openExternalUrl,
 } from "@/services/desktop-bridge";
 import { notifyApp } from "@/services/notifications";
 import { openSystemBrowser } from "@/services/web-automation-service";
@@ -1432,6 +1433,7 @@ async function downloadUpdate() {
   updateError.value = "";
   try {
     const result = await appUpdate.stageUpdate(updateInfo.value.version);
+    if (!result.ready) return;
     const title = t("settings.update.ready", { version: result.version });
     ElMessage.success(title);
     notifyApp({ source: "update", level: "success", title });
@@ -1444,6 +1446,15 @@ async function downloadUpdate() {
       title: t("notifications.update.downloadFailed"),
       message,
     });
+  }
+}
+
+async function openUpdateRelease() {
+  if (!updateInfo.value?.releaseURL) return;
+  try {
+    await openExternalUrl(updateInfo.value.releaseURL);
+  } catch (error) {
+    ElMessage.error(t("settings.update.openReleaseFailed", { message: nativeErrorMessage(error) }));
   }
 }
 
@@ -2749,9 +2760,9 @@ onBeforeUnmount(() => {
                     : t("settings.update.latest")
                 }}</strong>
                 <p>{{
-                  updateInfo.available
-                    ? t("settings.update.availableHint")
-                    : t("settings.update.latestHint")
+                  !updateInfo.available
+                    ? t("settings.update.latestHint")
+                    : t(updateInfo.releaseURL ? "settings.update.manualDownload" : "settings.update.availableHint")
                 }}</p>
               </div>
               <el-tag :type="updateInfo.available ? 'warning' : 'success'" effect="plain">
@@ -2771,7 +2782,7 @@ onBeforeUnmount(() => {
                 <dt>{{ t("settings.update.pubDate") }}</dt>
                 <dd>{{ formatUpdateDate(updateInfo.pubDate) }}</dd>
               </div>
-              <div v-if="updateInfo.available">
+              <div v-if="updateInfo.available && !updateInfo.releaseURL">
                 <dt>{{ t("settings.update.packageSize") }}</dt>
                 <dd>{{ formatUpdateSize(updateInfo.downloadSize) }}</dd>
               </div>
@@ -2789,7 +2800,11 @@ onBeforeUnmount(() => {
               <span>{{ t("settings.update.ready", { version: appUpdate.readyVersion }) }}</span>
             </footer>
             <footer v-else-if="updateInfo.available" class="settings-update-card__footer">
+              <el-button v-if="updateInfo.releaseURL" type="primary" :icon="TopRight" @click="openUpdateRelease">
+                {{ t("settings.update.openRelease") }}
+              </el-button>
               <el-button
+                v-else
                 type="primary"
                 :icon="Download"
                 :loading="updateDownloading"

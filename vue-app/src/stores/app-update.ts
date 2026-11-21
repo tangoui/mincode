@@ -160,7 +160,11 @@ export const useAppUpdateStore = defineStore("app-update", () => {
     });
     try {
       const result = await downloadAndStageUpdate(version);
-      readyVersion.value = result.version;
+      if (result.ready) {
+        readyVersion.value = result.version;
+      } else if (info.value?.version === result.version) {
+        info.value = { ...info.value, releaseURL: result.releaseURL };
+      }
       return result;
     } finally {
       stopProgress();

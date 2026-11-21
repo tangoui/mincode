@@ -39,7 +39,9 @@
   },
   "linux": {
     "package": "mincode",
-    "description": "A native developer workspace\nMinCode desktop developer workspace: terminals, SSH, databases and HTTP in one app.",
+    "description": "A desktop developer workspace\nMinCode brings terminals, SSH/SFTP, databases, HTTP debugging, notes, an AI assistant and AI CLI sessions into one app.\nMinCode 桌面开发工作台集成终端、SSH/SFTP、数据库、HTTP 调试、笔记、AI 助手与 AI CLI 会话。",
+    "maintainer": "tango <903300326@qq.com>",
+    "homepage": "https://github.com/tangoui/mincode",
     "license": "AGPL-3.0"
   },
   "installer": {

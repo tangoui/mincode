@@ -6,6 +6,18 @@
 
 [English](README.en.md)
 
+## 下载
+
+按系统和处理器选择安装包。[GitHub Releases](https://github.com/tangoui/mincode/releases/latest)
+
+| 系统 | 架构 | 安装包 |
+|---|---|---|
+| macOS | Apple 芯片（ARM64）、Intel（x64） | `.dmg` |
+| Windows | x64、ARM64 | `-setup.exe` |
+| Linux | x64、ARM64 | `.tar.gz`、`.AppImage`、`.deb`、`.rpm` |
+
+Linux 可以从 `.tar.gz` 解压后的目录直接运行，或给 `.AppImage` 添加执行权限后启动。Debian、Ubuntu 等发行版可用 `.deb`，Fedora、openSUSE 等发行版可用 `.rpm`。AppImage、deb 和 rpm 安装的版本可在设置里检查更新，发现新版时可打开 GitHub Releases 下载对应安装包。
+
 ## 功能
 
 | 模块 | 说明 |
@@ -22,7 +34,7 @@
 
 ## 系统要求
 
-- macOS 12+、Windows 10+（x64）、Linux（x64）
+- macOS 12+、Windows 10+（x64）或 Windows 11（ARM64）、Linux（GTK 3 和 WebKitGTK 4.1）
 - 从源码构建：Go（版本见 `go.mod`）、Node.js 26、pnpm 11（见 `package.json` 的 `packageManager`）、C 编译器（需启用 cgo）
 
 ## 开发
@@ -50,7 +62,7 @@ E2E 测试每次用独立的应用名、ID 和临时数据目录启动（`MINCOD
 
 ## 发布与自动更新
 
-推送 `vX.Y.Z` 标签后，GitHub Actions 会在四个平台上打包，生成签名的更新清单和增量补丁，并创建一个 Release 草稿；草稿发布后，已安装的客户端才会收到更新。更新由 Tango 的 `service/updater` 完成：先校验清单签名和文件摘要，优先下载补丁，失败时回退完整包，新版本启动后确认，确认失败则回滚。
+推送 `vX.Y.Z` 标签后，GitHub Actions 会在六种系统和架构组合上打包，生成签名的更新清单和增量补丁，并创建 Release 草稿。草稿发布后，已安装的客户端才会收到更新。应用内安装由 Tango 的 `service/updater` 完成。它校验清单签名和文件摘要，优先使用增量补丁，必要时下载完整包。新版本启动后确认更新，确认失败则回滚。
 
 首次发布前需要用 `tan keygen` 生成密钥，把私钥存入仓库 Secret `TANGO_UPDATE_KEY`。完整步骤见 [docs/release.md](docs/release.md)。
 

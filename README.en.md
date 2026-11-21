@@ -6,6 +6,18 @@ This repository is the open source edition of MinCode, and a complete example of
 
 [中文](README.md)
 
+## Download
+
+Choose the installer for your system and processor. [GitHub Releases](https://github.com/tangoui/mincode/releases/latest)
+
+| Operating system | Architectures | Installers |
+|---|---|---|
+| macOS | Apple silicon (ARM64), Intel (x64) | `.dmg` |
+| Windows | x64, ARM64 | `-setup.exe` |
+| Linux | x64, ARM64 | `.tar.gz`, `.AppImage`, `.deb`, `.rpm` |
+
+On Linux, extract the `.tar.gz` and run MinCode from the extracted directory, or make the `.AppImage` executable and launch it. Use the `.deb` on Debian-based distributions such as Ubuntu and the `.rpm` on distributions such as Fedora or openSUSE. AppImage, deb, and rpm installations can check for updates in Settings and open GitHub Releases to download the new installer.
+
 ## Features
 
 | Module | What it does |
@@ -22,7 +34,7 @@ This repository is the open source edition of MinCode, and a complete example of
 
 ## Requirements
 
-- macOS 12+, Windows 10+ (x64), Linux (x64)
+- macOS 12+, Windows 10+ (x64) or Windows 11 (ARM64), Linux (GTK 3 and WebKitGTK 4.1)
 - To build from source: Go (see `go.mod`), Node.js 26, pnpm 11 (see `packageManager` in `package.json`) and a C compiler (cgo is required)
 
 ## Development
@@ -50,7 +62,7 @@ E2E tests launch the app with their own name, ID and temporary data directory (`
 
 ## Releases and updates
 
-Pushing a `vX.Y.Z` tag makes GitHub Actions package four platforms, generate a signed update manifest with binary patches, and create a draft release; installed apps see the update once the draft is published. Updates use Tango's `service/updater`: the manifest signature and file digests are verified, a patch is preferred with fallback to the full package, and the new version is confirmed on launch or rolled back.
+Pushing a `vX.Y.Z` tag makes GitHub Actions build six platform and architecture combinations, generate a signed update manifest with patches, and create a draft release. Installed apps see the update once the draft is published. Tango's `service/updater` verifies the manifest signature and file digests, tries the patch first, and downloads the full package if needed. The new version confirms the update on launch, and the updater rolls back if confirmation fails.
 
 Before the first release, generate a key with `tan keygen` and store the private key as the repository secret `TANGO_UPDATE_KEY`. See [docs/release.md](docs/release.md).
 
