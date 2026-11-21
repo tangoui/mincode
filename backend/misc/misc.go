@@ -104,7 +104,7 @@ func captureScreenshotHandler(_, _ string) (string, error) {
 var minimizeToTray atomic.Bool
 
 // AppVersion is injected by tagged release builds; local builds retain the development default.
-var AppVersion = "0.4.1"
+var AppVersion = "0.4.2"
 
 var autostartManager interface {
 	Enable() error
