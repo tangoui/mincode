@@ -7,7 +7,7 @@ import { parseKeySequence } from "../src/domain/keybindings/keys.ts";
 import { monacoDefaultRules } from "../src/domain/keybindings/monaco-defaults.ts";
 import { buildMonacoKeymapRules } from "../src/domain/keybindings/monaco-keymap-rules.ts";
 import { HOST_KEYBINDING_RULES } from "../src/domain/keybindings/presets/index.ts";
-import { ALL_KEYMAP_PRESETS, keymapPresetChainOf } from "./keymap-plugin-presets.mjs";
+import { ALL_KEYMAP_PRESETS, keymapPresetChainOf } from "./keymap-presets-fixture.mjs";
 import { resolveKeybindings } from "../src/domain/keybindings/resolver.ts";
 import {
   createVimAttachment,

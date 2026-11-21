@@ -15,26 +15,10 @@ export interface WorkspaceViewNotificationTarget {
   view: WorkspaceView;
 }
 
-/** Opens a plugin's page; without viewId its first view. */
-export interface PluginNotificationTarget {
-  kind: "plugin";
-  pluginId: string;
-  viewId?: string;
-}
-
 export type NotificationTarget =
   | AiNotificationTarget
   | AiConversationNotificationTarget
-  | WorkspaceViewNotificationTarget
-  | PluginNotificationTarget;
-
-const PLUGIN_TARGET_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-
-function pluginTarget(pluginId: unknown, viewId: unknown): PluginNotificationTarget | undefined {
-  if (typeof pluginId !== "string" || !PLUGIN_TARGET_ID.test(pluginId)) return undefined;
-  if (viewId === undefined || viewId === "") return { kind: "plugin", pluginId };
-  return typeof viewId === "string" && PLUGIN_TARGET_ID.test(viewId) ? { kind: "plugin", pluginId, viewId } : undefined;
-}
+  | WorkspaceViewNotificationTarget;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -62,19 +46,7 @@ export function readNotificationTarget(value: unknown): NotificationTarget | und
       ? { kind: "view", view: view as WorkspaceView }
       : undefined;
   }
-  if (value.kind === "plugin") return pluginTarget(value.pluginId, value.viewId);
   return undefined;
-}
-
-/** Reads the JSON value of a native "plugin" navigation target. */
-export function parseDesktopPluginTarget(value: unknown): PluginNotificationTarget | undefined {
-  if (typeof value !== "string" || !value.trim()) return undefined;
-  try {
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    return pluginTarget(parsed?.pluginId, parsed?.viewId);
-  } catch {
-    return undefined;
-  }
 }
 
 export function desktopNotificationTarget(target: NotificationTarget | undefined) {
@@ -88,9 +60,6 @@ export function desktopNotificationTarget(target: NotificationTarget | undefined
         workspaceScopeId: target.workspaceScopeId,
       }),
     };
-  }
-  if (target.kind === "plugin") {
-    return { kind: "plugin", value: JSON.stringify({ pluginId: target.pluginId, viewId: target.viewId }) };
   }
   return { kind: "view", value: target.view };
 }

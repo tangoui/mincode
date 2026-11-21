@@ -84,13 +84,6 @@ import {
   type TerminalPaneNode,
   type TerminalSplitDirection,
 } from "@/domain/terminal/types";
-import { replaceProfilePaneWithDefaultShell } from "@/domain/terminal/profiles";
-import { deleteTerminalSnapshot } from "@/services/terminal-session-cache";
-import type { PluginSessionMessage, PluginSessionSource, PluginSessionSummary } from "@/domain/plugins/session-sources";
-import { resolvePluginTitle } from "@/domain/plugins/title";
-import { providerErrorText } from "@/services/plugin-provider-invoke";
-import { loadPluginSessionMessages } from "@/services/plugin-session-sources";
-import { usePluginDataProvidersStore } from "@/stores/plugin-data-providers";
 
 // Markdown and live terminals are rendered on demand; loading them lazily keeps them out of this view's startup chunk.
 const MarkdownPreview = defineAsyncComponent(() => import("@/components/projects/MarkdownPreview.vue"));
@@ -98,10 +91,6 @@ const TerminalPaneLayout = defineAsyncComponent(() => import("@/components/termi
 const SessionToolSettingsDialog = defineAsyncComponent(
   () => import("@/components/sessions/SessionToolSettingsDialog.vue"),
 );
-// Plugin session sources (contributes.sessionSources): rendered only when a plugin contributes one.
-const PluginSessionSources = defineAsyncComponent(() => import("@/components/sessions/PluginSessionSources.vue"));
-const PluginSessionTranscript = defineAsyncComponent(() => import("@/components/sessions/PluginSessionTranscript.vue"));
-
 const SESSION_MESSAGE_LIMIT = 200;
 
 interface ClaudeProject {
@@ -134,10 +123,8 @@ interface SessionMessage {
   msgType?: string;
 }
 
-// 内置工具 id、`custom:<slug>` 形式的自定义工具 id，或 `plugin:<pluginId>/<sourceId>` 形式的插件来源。
+// 内置工具 id 或 `custom:<slug>` 形式的自定义工具 id。
 type ProviderId = string;
-
-const PLUGIN_PROVIDER_PREFIX = "plugin:";
 
 interface ProviderDefinition {
   id: ProviderId;
@@ -247,7 +234,7 @@ interface PersistedLiveTerminals {
   terminals: PersistedLiveTerminal[];
 }
 
-const { t, localeChain } = useVueI18n();
+const { t } = useVueI18n();
 const route = useRoute();
 const router = useRouter();
 const workbench = useWorkbenchStore();
@@ -332,18 +319,6 @@ const projectContextMenu = ref<ProjectContextMenuState | null>(null);
 const sessionMenu = ref<{ provider: ProviderId; session: Session; x: number; y: number } | null>(null);
 const tabBarScrollEl = ref<HTMLElement | null>(null);
 let messageLoadSequence = 0;
-// Plugin sources: lists live in PluginSessionSources; the open transcript lives here, in memory only.
-const pluginDataProviders = usePluginDataProvidersStore();
-const pluginSessionSources = computed(() =>
-  pluginDataProviders.sessionSources.filter((source) => source.activeInWorkspace),
-);
-const pluginRefreshToken = ref(0);
-const pluginMessages = ref<PluginSessionMessage[]>([]);
-const pluginMessagesTruncated = ref(false);
-const pluginMessageError = ref("");
-const selectedPluginSession = ref<PluginSessionSummary>();
-let pluginMessageController: AbortController | undefined;
-let reloadPluginMessagesOnActivate = false;
 let liveTerminalSequence = 0;
 let sessionListScopeLoadSequence = 0;
 // 终端标签写回的工作区作用域在恢复时固定，切换工作区不会把旧标签写进新作用域。
@@ -417,28 +392,9 @@ function providerDefinition(provider: ProviderId) {
   return providers.value.find((item) => item.id === provider);
 }
 
-function isPluginProvider(provider: ProviderId) {
-  return provider.startsWith(PLUGIN_PROVIDER_PREFIX);
-}
-
-function pluginSourceFor(provider: ProviderId) {
-  return isPluginProvider(provider) ? pluginSessionSources.value.find((source) => source.key === provider) : undefined;
-}
-
-const selectedIsPlugin = computed(() => Boolean(selected.value && isPluginProvider(selected.value.provider)));
-const selectedPluginMeta = computed(() => {
-  const session = selectedPluginSession.value;
-  if (!session) return "";
-  const parts = [session.detail || session.model || ""];
-  if (session.messageCount !== undefined) parts.push(`${session.messageCount} ${t("sessions.messageCount")}`);
-  if (session.lastAt !== undefined) parts.push(formatTime(session.lastAt));
-  return parts.filter(Boolean).join(" · ");
-});
-
 function isKnownProvider(provider: unknown): provider is ProviderId {
   return (
     typeof provider === "string" &&
-    !isPluginProvider(provider) &&
     (isBuiltinSessionToolId(provider) || Boolean(findCustomSessionTool(toolPrefs.value, provider)))
   );
 }
@@ -446,15 +402,11 @@ function isKnownProvider(provider: unknown): provider is ProviderId {
 function providerLabel(provider: ProviderDefinition | ProviderId) {
   if (typeof provider !== "string") return provider.label;
   if (isBuiltinSessionToolId(provider)) return t(BUILTIN_PROVIDER_META[provider].labelKey);
-  const pluginSource = pluginSourceFor(provider);
-  if (pluginSource) return resolvePluginTitle(pluginSource, localeChain.value);
   return findCustomSessionTool(toolPrefs.value, provider)?.name ?? provider;
 }
 
 function providerMark(provider: ProviderId) {
   if (isBuiltinSessionToolId(provider)) return BUILTIN_PROVIDER_META[provider].mark;
-  const pluginSource = pluginSourceFor(provider);
-  if (pluginSource) return pluginSource.mark;
   return (
     findCustomSessionTool(toolPrefs.value, provider)?.mark ??
     provider.replace(/^custom:/, "").slice(0, 2).toUpperCase()
@@ -756,7 +708,7 @@ function persistLiveTerminals() {
     {
       version: 1,
       activeKey: activeLiveTerminalKey.value,
-      terminals: liveTerminals.value.filter((entry) => !isPluginProvider(entry.provider)).map((entry) => ({
+      terminals: liveTerminals.value.map((entry) => ({
         key: entry.key,
         provider: entry.provider,
         session: entry.session,
@@ -853,21 +805,6 @@ function closeSessionPane(terminalKey: string, paneId: string) {
     const paneActivities = { ...item.paneActivities };
     delete paneActivities[paneId];
     return { ...item, paneRoot: newRoot, activePaneId: nextActive, paneActivities };
-  });
-}
-
-// Explicit user choice from a blocked plugin-profile pane ("Open default shell"),
-// as in the terminal workspace: close whatever the session left behind and start
-// the default shell in the same pane.
-async function useDefaultShellInSessionPane(terminalKey: string, paneId: string) {
-  deleteTerminalSnapshot(paneId);
-  if (isDesktopRuntime()) {
-    await invokeBackend<void>("close_local_shell", { payload: { sessionId: paneId } }).catch(() => {});
-  }
-  liveTerminals.value = liveTerminals.value.map((item) => {
-    if (item.key !== terminalKey) return item;
-    const paneRoot = replaceProfilePaneWithDefaultShell(item.paneRoot, paneId);
-    return paneRoot === item.paneRoot ? item : { ...item, paneRoot };
   });
 }
 
@@ -1150,21 +1087,18 @@ async function refreshAll() {
   if (!isDesktopRuntime()) return;
   refreshing.value = true;
   try {
-    // Built-in and custom tools only; plugin sources reload themselves when
-    // expanded (collapsed ones are never called).
     await Promise.all(providers.value.map(loadProvider));
   } finally {
     refreshing.value = false;
-    pluginRefreshToken.value += 1;
   }
 }
 
-/** 丢弃已停用或已删除工具的缓存，重新启用时会重新加载。插件来源由 PluginSessionSources 与插件快照管理。 */
+/** 丢弃已停用或已删除工具的缓存，重新启用时会重新加载。*/
 function pruneInactiveProviders() {
   const active = new Set(providers.value.map((provider) => provider.id));
   for (const record of [sessionsByProvider, openProviders, providerLoading]) {
     for (const id of Object.keys(record)) {
-      if (!active.has(id) && !isPluginProvider(id)) delete record[id];
+      if (!active.has(id)) delete record[id];
     }
   }
   for (const id of [...visibleProviderProjectGroupsById.keys()]) {
@@ -1173,7 +1107,7 @@ function pruneInactiveProviders() {
   for (const key of Object.keys(openProviderProjects)) {
     if (![...active].some((id) => key.startsWith(`${id}:`))) delete openProviderProjects[key];
   }
-  if (selected.value && !isPluginProvider(selected.value.provider) && !isKnownProvider(selected.value.provider)) {
+  if (selected.value && !isKnownProvider(selected.value.provider)) {
     selected.value = undefined;
     messages.value = [];
     activePanel.value = "conversation";
@@ -1282,82 +1216,9 @@ async function createProviderTerminal(provider: ProviderId, projectPath?: string
   await nextTick();
 }
 
-/** Cancels the plugin transcript being read (the host request is cancelled too). */
-function cancelPluginMessages() {
-  const controller = pluginMessageController;
-  pluginMessageController = undefined;
-  controller?.abort();
-}
-
-function clearPluginTranscript() {
-  pluginMessages.value = [];
-  pluginMessagesTruncated.value = false;
-  pluginMessageError.value = "";
-}
-
-function pluginSummaryToSession(summary: PluginSessionSummary): Session {
-  return {
-    id: summary.id,
-    title: summary.title,
-    ...(summary.model ? { model: summary.model } : {}),
-    lastAt: summary.lastAt ?? 0,
-    messageCount: summary.messageCount ?? 0,
-  };
-}
-
-function openPluginSessionFromList(source: PluginSessionSource, summary: PluginSessionSummary) {
-  selectedPluginSession.value = summary;
-  void openSession(source.key, pluginSummaryToSession(summary));
-}
-
-/** Reads a plugin session's transcript: only when the user opens it, rendered as plain text. */
-async function openPluginSession(requestId: number, provider: ProviderId, session: Session) {
-  activePanel.value = "conversation";
-  messages.value = [];
-  clearPluginTranscript();
-  const source = pluginSourceFor(provider);
-  const id = sessionId(session);
-  if (!source || !id) {
-    messageLoading.value = false;
-    return;
-  }
-  const controller = new AbortController();
-  pluginMessageController = controller;
-  messageLoading.value = true;
-  try {
-    const result = await loadPluginSessionMessages(source, id, controller.signal);
-    if (requestId !== messageLoadSequence || controller.signal.aborted) return;
-    if (!result.ok) {
-      if (result.error.code !== "cancelled") pluginMessageError.value = providerErrorText(result.error);
-      return;
-    }
-    pluginMessages.value = result.response.messages;
-    pluginMessagesTruncated.value = result.response.truncated;
-    await nextTick();
-    if (requestId !== messageLoadSequence) return;
-    const messageList = messageListElement.value;
-    messageList?.setScrollTop(messageList.wrapRef?.scrollHeight ?? 0);
-  } finally {
-    if (pluginMessageController === controller) pluginMessageController = undefined;
-    if (requestId === messageLoadSequence) messageLoading.value = false;
-  }
-}
-
-function retryPluginMessages() {
-  if (selected.value && selectedIsPlugin.value) void openSession(selected.value.provider, selected.value.session);
-}
-
 async function openSession(provider: ProviderId, session: Session) {
   const requestId = ++messageLoadSequence;
-  cancelPluginMessages();
-  reloadPluginMessagesOnActivate = false;
   selected.value = { provider, session };
-  if (isPluginProvider(provider)) {
-    await openPluginSession(requestId, provider, session);
-    return;
-  }
-  selectedPluginSession.value = undefined;
-  clearPluginTranscript();
   const existingTerminal = liveTerminals.value.find(
     (entry) =>
       entry.provider === provider && sessionId(entry.session) === sessionId(session),
@@ -1571,7 +1432,6 @@ async function copyCommand(command: string) {
 }
 
 async function openEmbeddedTerminal() {
-  if (selectedIsPlugin.value) return;
   if (!isDesktopRuntime()) {
     ElMessage.warning(t("terminal.onlyDesktop"));
     return;
@@ -1806,8 +1666,7 @@ function askAssistant(kind: "summary" | "todo") {
 }
 
 function resumeSelectedSession() {
-  // Plugin sessions are read only: there is no CLI to resume them with.
-  if (!selected.value || selectedIsPlugin.value || !selectedLaunchCommand.value) return;
+  if (!selected.value || !selectedLaunchCommand.value) return;
   const terminalCount = workbench.workspaceTabs.filter((tab) => tab.view === "terminal").length;
   const title = `${providerLabel(selected.value.provider)} ${terminalCount + 1}`;
   const tab = workbench.createTab("terminal", title);
@@ -1912,41 +1771,6 @@ watch(activeLiveTerminalKey, async () => {
 onActivated(startBackgroundRefresh);
 onDeactivated(stopBackgroundRefresh);
 
-// Leaving the page drops a plugin transcript (memory only, like the lists)
-// and cancels it while it is read; coming back reads it again.
-onDeactivated(() => {
-  if (!selectedIsPlugin.value) return;
-  messageLoadSequence += 1;
-  cancelPluginMessages();
-  clearPluginTranscript();
-  messageLoading.value = false;
-  reloadPluginMessagesOnActivate = true;
-});
-onActivated(() => {
-  if (!reloadPluginMessagesOnActivate) return;
-  reloadPluginMessagesOnActivate = false;
-  retryPluginMessages();
-});
-
-// Selecting anything else cancels a plugin transcript being read.
-watch(selected, (next) => {
-  if (!next || !isPluginProvider(next.provider)) cancelPluginMessages();
-});
-
-// A plugin disabled, uninstalled or inactive in this workspace takes its open session with it.
-watch(pluginSessionSources, () => {
-  const current = selected.value;
-  if (!current || !isPluginProvider(current.provider) || pluginSourceFor(current.provider)) return;
-  messageLoadSequence += 1;
-  cancelPluginMessages();
-  reloadPluginMessagesOnActivate = false;
-  selected.value = undefined;
-  selectedPluginSession.value = undefined;
-  clearPluginTranscript();
-  messageLoading.value = false;
-  activePanel.value = "conversation";
-});
-
 // Terminal attention: which panes are ours (and their tab labels), which one is on
 // screen, and focusing a pane when its system notification is clicked.
 watch(
@@ -1979,7 +1803,6 @@ function sessionAttention(provider: ProviderId, session: Session) {
 
 onBeforeUnmount(() => {
   projectSessionsBatch.dispose();
-  cancelPluginMessages();
   window.removeEventListener(SESSION_TOOLS_EVENT, onToolPrefsChanged);
   tabBarScrollEl.value?.removeEventListener("wheel", onTabBarWheel);
   stopClaudeActivity?.();
@@ -2314,17 +2137,6 @@ onBeforeUnmount(() => {
             </template>
           </div>
         </section>
-        <PluginSessionSources
-          v-if="pluginSessionSources.length"
-          :sources="pluginSessionSources"
-          :scope="effectiveSessionListScope"
-          :project-root="workspaceProjectRoot || undefined"
-          :selected-key="selected?.provider"
-          :selected-session-id="selectedIsPlugin ? selectedSessionId : undefined"
-          :refresh-token="pluginRefreshToken"
-          :query="search"
-          @open="openPluginSessionFromList"
-        />
       </el-scrollbar>
         </aside>
       </template>
@@ -2347,14 +2159,6 @@ onBeforeUnmount(() => {
                 <el-tag class="sessions-provider-badge" effect="plain" disable-transitions>
                   {{ providerLabel(selected.provider) }}
                 </el-tag>
-                <el-tag
-                  v-if="selectedIsPlugin"
-                  class="sessions-provider-badge"
-                  effect="plain"
-                  type="info"
-                  disable-transitions
-                  :title="t('sessions.pluginSessionReadOnly')"
-                >{{ t("sessions.pluginSourceBadge") }}</el-tag>
               </div>
               <div class="sessions-conversation__subline">
                 <span
@@ -2366,9 +2170,6 @@ onBeforeUnmount(() => {
                 <span v-if="selectedIsNew" class="sessions-conversation__meta">
                   {{ t("sessions.newCliSessionHint") }}
                 </span>
-                <span v-else-if="selectedIsPlugin" class="sessions-conversation__meta">
-                  {{ selectedPluginMeta }}
-                </span>
                 <span v-else class="sessions-conversation__meta">
                   {{ selected.session.model || t("sessions.unknownModel") }} ·
                   {{ selected.session.messageCount }} {{ t("sessions.messageCount") }} ·
@@ -2378,8 +2179,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="sessions-conversation__actions">
-            <!-- Plugin sessions are read only: no resume, terminal, copy-command or AI actions. -->
-            <template v-if="!selectedIsNew && !selectedIsPlugin">
+            <template v-if="!selectedIsNew">
               <el-tooltip :content="t('sessions.summary')" placement="bottom">
                 <el-button
                   text
@@ -2479,14 +2279,6 @@ onBeforeUnmount(() => {
           >
             <el-skeleton animated :rows="6" />
           </div>
-          <template v-else-if="selectedIsPlugin">
-            <div v-if="pluginMessageError" class="app-plugin-session-error" role="alert">
-              <span>{{ t("sessions.pluginMessagesError", { error: pluginMessageError }) }}</span>
-              <el-button size="small" @click="retryPluginMessages">{{ t("sessions.pluginSourceRetry") }}</el-button>
-            </div>
-            <!-- Untrusted plugin text: plain text only, never MarkdownPreview. -->
-            <PluginSessionTranscript v-else :messages="pluginMessages" :truncated="pluginMessagesTruncated" />
-          </template>
           <template v-else>
             <div class="sessions-message-stream">
               <div v-if="visibleMessageStart > 0" class="sessions-message-stream__earlier">
@@ -2609,7 +2401,6 @@ onBeforeUnmount(() => {
                 :can-split="true"
                 @select="selectSessionPane(entry.key, $event)"
                 @close="closeSessionPane(entry.key, $event)"
-                @use-default-shell="useDefaultShellInSessionPane(entry.key, $event)"
                 @split="(paneId, direction) => splitSessionPane(entry.key, paneId, direction)"
                 @resize="(splitId, sizes) => resizeSessionSplit(entry.key, splitId, sizes)"
                 @resize-end="() => {}"

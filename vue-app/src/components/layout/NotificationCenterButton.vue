@@ -34,10 +34,6 @@ function activateNotification(item: AppNotification) {
   requestNotificationNavigation(target);
 }
 
-function activateNotificationAction(item: AppNotification) {
-  notifications.markRead(item.id);
-  visible.value = false;
-}
 </script>
 
 <template>
@@ -96,7 +92,6 @@ function activateNotificationAction(item: AppNotification) {
           :key="item.id"
           :item="item"
           @activate="activateNotification"
-          @activate-action="activateNotificationAction"
           @remove="notifications.remove"
         />
         <el-empty v-if="!notifications.items.length" :description="t('notifications.empty')" />

@@ -9,16 +9,6 @@
 import type { SmokeConfig } from "@/domain/e2e/desktop-smoke";
 import type { DatabaseQueryResult } from "@/domain/database/types";
 import type { SqlSafetyCheck } from "@/domain/database/sql-safety";
-import type { DebugEvent } from "@/domain/debug/types";
-import {
-  debugRequest,
-  onDebugEvent,
-  prepareDebugger,
-  startDebugger,
-  stopDebugSession,
-  trustDebugger,
-} from "@/services/debug-service";
-import { installLocalPlugin, previewLocalPlugin, setPluginEnabled, uninstallPlugin } from "@/services/plugin-service";
 import { checkSqlSafety, runWithSafety, sqlSafetyArgs } from "@/services/sql-safety-service";
 import { listSqlSafetyHistory, previewSqlSafetyUndo, undoSqlSafety } from "@/services/sql-safety-history";
 import { runSftpTransfer, type SftpTransferSnapshot } from "@/services/sftp-service";
@@ -44,63 +34,6 @@ async function until<T>(read: () => T | undefined | false | null | Promise<T | u
 
 function randomId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-// ---- debugger ----
-
-/**
- * Installs the packaged python-debug plugin, then launches debugpy on a
- * fixture script with a logpoint and a later ordinary breakpoint through the
- * same prepare → trust → start path the UI uses. The program must log the
- * interpolated message without pausing there, stop at the ordinary
- * breakpoint, and finish after continue.
- */
-export async function debuggerScenario(config: SmokeConfig, log: StepLog) {
-  const fixture = config.debugger!;
-  const preview = await previewLocalPlugin(fixture.packagePath);
-  if (preview.manifest.id !== "python-debug") throw new Error(`unexpected package id ${preview.manifest.id}`);
-  await installLocalPlugin(fixture.packagePath);
-  await setPluginEnabled("python-debug", true);
-  log.done("python-debug plugin installed from the packaged .min and enabled");
-  const events: DebugEvent[] = [];
-  const stop = onDebugEvent((event) => events.push(event));
-  let sessionId = "";
-  try {
-    const configuration = { request: "launch", program: fixture.program, python: fixture.python, console: "internalConsole", justMyCode: true };
-    let prepared = await prepareDebugger({ pluginId: "python-debug", type: "python", projectRoot: fixture.projectRoot, configuration, noDebug: false });
-    if (!prepared.launch.argv.includes("debugpy.adapter")) throw new Error(`unexpected adapter command ${prepared.launch.argv.join(" ")}`);
-    if (!prepared.launch.trusted) prepared = await trustDebugger(prepared.prepareId, prepared.launch.fingerprint);
-    log.done("prepare resolved the debugpy adapter; the confirmed fingerprint was trusted");
-    const started = await startDebugger({
-      prepareId: prepared.prepareId,
-      fingerprint: prepared.launch.fingerprint,
-      breakpoints: { [fixture.program]: [
-        { line: fixture.logLine, logMessage: `LOG value={value} ${config.nonce}`, enabled: true },
-        { line: fixture.stopLine, enabled: true },
-      ] },
-      exceptionFilters: [],
-    });
-    sessionId = started.sessionId;
-    if (started.capabilities.supportsLogPoints !== true) throw new Error("debugpy did not advertise logpoint support");
-    log.done("session started; adapter advertised supportsLogPoints");
-    const stopped = await until(() => events.find((event) => event.sessionId === sessionId && event.event === "stopped"), "stopped event", config.timeoutMs);
-    const threadId = Number(stopped.body?.threadId);
-    const trace = await debugRequest<{ stackFrames: Array<{ line: number }> }>(sessionId, "stackTrace", { threadId, startFrame: 0, levels: 5 });
-    if (trace.stackFrames[0]?.line !== fixture.stopLine) throw new Error(`first stop was line ${trace.stackFrames[0]?.line}, want the ordinary breakpoint on ${fixture.stopLine}`);
-    log.done(`first stop is the ordinary breakpoint (line ${fixture.stopLine}); the logpoint did not pause`);
-    await debugRequest(sessionId, "continue", { threadId });
-    await until(() => events.find((event) => event.sessionId === sessionId && event.event === "mincode.sessionEnded"), "session end", config.timeoutMs);
-    const output = events.filter((event) => event.sessionId === sessionId && event.event === "output").map((event) => String(event.body?.output ?? "")).join("");
-    if (!output.includes(`LOG value=7 ${config.nonce}`)) throw new Error(`interpolated logpoint output missing: ${JSON.stringify(output.slice(-400))}`);
-    if (!output.includes("done 8")) throw new Error("program output after continue missing");
-    log.done("console received the interpolated logpoint message and the program finished after continue");
-  } finally {
-    stop();
-    if (sessionId) await stopDebugSession(sessionId).catch(() => undefined);
-    await setPluginEnabled("python-debug", false).catch(() => undefined);
-    await uninstallPlugin("python-debug", true).catch(() => undefined);
-  }
-  log.done("plugin disabled and uninstalled");
 }
 
 // ---- SQL safety net ----
@@ -186,58 +119,4 @@ export async function sftpTransfersScenario(config: SmokeConfig, log: StepLog) {
   } finally {
     await invokeBackend("sftp_disconnect", { sessionId }).catch(() => undefined);
   }
-}
-
-// ---- plugin data providers and full trust ----
-
-/**
- * Installs the process showcase plugin and calls its sessionSources,
- * scmCommitMessage and fileDecorations providers through the real host
- * commands; then toggles full trust: it binds to the package fingerprint,
- * is audited, and lapses when the plugin is disabled.
- */
-export async function pluginProvidersScenario(config: SmokeConfig, log: StepLog) {
-  const fixture = config.pluginProviders!;
-  const pluginId = "contributions-process-showcase";
-  const { loadPluginSessions, loadPluginSessionMessages } = await import("@/services/plugin-session-sources");
-  const { generatePluginCommitMessage } = await import("@/services/plugin-scm-commit-message");
-  const { requestFileDecorations } = await import("@/services/plugin-file-decorations");
-  const { getFullTrust, setFullTrust, getFullTrustAudit } = await import("@/services/plugin-full-trust");
-  const preview = await previewLocalPlugin(fixture.packagePath);
-  if (preview.manifest.id !== pluginId) throw new Error(`unexpected package id ${preview.manifest.id}`);
-  await installLocalPlugin(fixture.packagePath);
-  try {
-    await setPluginEnabled(pluginId, true);
-    log.done("process showcase plugin installed and enabled");
-    const base = { pluginId, pluginName: preview.manifest.name, activeInWorkspace: true };
-    const source = { ...base, key: `plugin:${pluginId}/showcase`, id: "showcase", title: "Showcase sessions", icon: "magic" as const, mark: "S" };
-    const sessions = await loadPluginSessions(source, "all", undefined);
-    if (!sessions.ok || !sessions.response.sessions.length) throw new Error(`session list failed: ${JSON.stringify(sessions)}`);
-    const first = sessions.response.sessions[0]!;
-    const messages = await loadPluginSessionMessages(source, first.id);
-    if (!messages.ok || !messages.response.messages.length) throw new Error(`session messages failed: ${JSON.stringify(messages)}`);
-    log.done(`sessionSources listed ${sessions.response.sessions.length} sessions and read ${messages.response.messages.length} messages as plain text`);
-    const draft = await generatePluginCommitMessage({ ...base, id: "showcase", title: "Showcase draft" }, fixture.repoRoot, fixture.repoRoot);
-    if (!draft.ok || !draft.response.message.startsWith("chore(showcase): update 2 files")) throw new Error(`commit draft: ${JSON.stringify(draft)}`);
-    if (/secret/i.test(draft.response.message)) throw new Error("commit draft leaked the staged .env content");
-    log.done("scmCommitMessage drafted from the staged diff (.env excluded); nothing was committed");
-    const decorations = await requestFileDecorations({ ...base, id: "showcase", title: "Showcase markers" }, fixture.repoRoot, "", ["README.md", "TODO", "main.go"], new AbortController().signal);
-    if (decorations === "failed" || decorations === "rejected") throw new Error(`file decorations ${decorations}`);
-    if (decorations.get("README.md")?.badge !== "M" || !decorations.has("TODO") || decorations.has("main.go")) throw new Error(`decorations: ${JSON.stringify([...decorations])}`);
-    log.done("fileDecorations returned markers for README.md and TODO only");
-    const status = await getFullTrust(pluginId, { full: true });
-    if (status.trusted || !status.subject.eligible || !status.subject.fingerprint) throw new Error(`full trust preconditions: ${JSON.stringify(status)}`);
-    const trusted = await setFullTrust(pluginId, true, status.subject.fingerprint);
-    if (!trusted.trusted) throw new Error("full trust was not granted");
-    await setPluginEnabled(pluginId, false);
-    const lapsed = await getFullTrust(pluginId);
-    if (lapsed.trusted) throw new Error("full trust survived disabling the plugin");
-    const audit = await getFullTrustAudit(pluginId);
-    if (!audit.some((entry) => entry.kind === "granted") || !audit.some((entry) => entry.kind === "lapsed")) throw new Error(`audit: ${JSON.stringify(audit.map((entry) => entry.kind))}`);
-    log.done("full trust granted for the exact package fingerprint, lapsed on disable, both audited");
-  } finally {
-    await setPluginEnabled(pluginId, false).catch(() => undefined);
-    await uninstallPlugin(pluginId, true).catch(() => undefined);
-  }
-  log.done("plugin uninstalled with its data");
 }

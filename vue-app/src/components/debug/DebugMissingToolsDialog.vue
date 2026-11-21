@@ -8,7 +8,7 @@
  * says so. Nothing runs from here.
  */
 import { computed } from "vue";
-import { visibleTerminalText } from "@/domain/terminal/profiles";
+import { visibleTerminalText } from "@/domain/terminal/launch-display";
 import { useVueI18n } from "@/i18n/messages";
 import type { GuidedMissingTool } from "@/services/debug-guidance";
 

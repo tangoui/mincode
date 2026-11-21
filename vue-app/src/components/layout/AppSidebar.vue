@@ -9,14 +9,11 @@ import {
   sidebarLabelsVisible,
   toggleSidebarLabels,
 } from "@/services/sidebar-label-preferences";
-import { localizedPluginTitle } from "@/services/plugin-titles";
-import { pluginViewIcon } from "@/services/plugin-view-icon";
 import { useVueI18n } from "@/i18n/messages";
 import { useWorkbenchStore } from "@/stores/workbench";
 import { useAiAssistantShellStore } from "@/stores/ai-assistant-shell";
 import { useKeybindingsStore } from "@/stores/keybindings";
 import { useAppUpdateStore } from "@/stores/app-update";
-import { usePluginUpdatesStore } from "@/stores/plugin-updates";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 import {
   sidebarItemIsActive,
@@ -36,40 +33,8 @@ import {
 } from "@/services/sidebar-preferences";
 import type { WorkspaceView } from "@/types/workspace";
 
-import { listPluginViews, type PluginView } from "@/services/plugin-service";
-import { listenAppEvent } from "@/services/desktop-bridge";
-import { loadPluginMenu, normalizePluginMenu, PLUGIN_MENU_EVENT, PLUGIN_CATALOG_EVENT } from "@/services/plugin-menu-preferences";
-import { openPluginViewTab } from "@/domain/workspace/open-plugin-view";
-import { scheduleIdleTask } from "@/services/idle-task";
-const menuPlugins = ref<string[]>([]);
-const pluginViews = ref<PluginView[]>([]);
-const menuViews = computed(() => pluginViews.value.filter(view => view.enabled && view.activeInWorkspace && menuPlugins.value.includes(view.pluginId)));
-let catalogGeneration = 0;
-let stopPluginWorkspaceWatch: (() => void) | null = null;
-let stopPluginStartupWatch: (() => void) | null = null;
-let cancelInitialPluginMenu: (() => void) | null = null;
 let disposed = false;
 let visibilityChangedByEvent = false;
-async function refreshPluginMenu() {
-  const generation = ++catalogGeneration;
-  try {
-    const [ids, views] = await Promise.all([loadPluginMenu(), listPluginViews()]);
-    if (generation !== catalogGeneration) return;
-    menuPlugins.value = ids; pluginViews.value = views;
-  } catch { /* Browser preview or unavailable host: no plugin shortcuts. */ }
-}
-function handlePluginMenu(event: Event) {
-  menuPlugins.value = normalizePluginMenu((event as CustomEvent).detail);
-  void refreshPluginMenu();
-}
-function pluginTitle(view: PluginView) { return localizedPluginTitle(view); }
-function openPluginMenu(view: PluginView) {
-  openPluginViewTab(workbench, router, view.pluginId, view.id, pluginTitle(view));
-}
-function pluginActive(view: PluginView) {
-  const tab = workbench.activeTab;
-  return tab?.view === "plugin-view" && tab.pluginView?.pluginId === view.pluginId && tab.pluginView?.viewId === view.id;
-}
 const props = defineProps<{ settingsOpen?: boolean }>();
 const emit = defineEmits<{ "open-settings": [] }>();
 
@@ -80,8 +45,7 @@ const emit = defineEmits<{ "open-settings": [] }>();
 const ORDER_KEY = "app_sidebar_order_v2";
 // Keep the manager registered for command-palette navigation, but pin its
 // sidebar entry above the footer instead of including it in the draggable list.
-const pluginManagerItem = sidebarMainItems.find((item) => item.id === "plugins")!;
-const defaultItems = sidebarMainItems.filter((item) => item.id !== "plugins");
+const defaultItems = sidebarMainItems;
 
 function mergeOrder(value: unknown) {
   const known = new Set<SidebarItemId>(defaultItems.map((item) => item.id));
@@ -134,10 +98,6 @@ const appUpdate = useAppUpdateStore();
 const settingsLabel = computed(() => appUpdate.pendingVersion
   ? t("nav.settingsUpdate", { version: appUpdate.pendingVersion })
   : t("nav.settings"));
-const pluginUpdates = usePluginUpdatesStore();
-const pluginManagerLabel = computed(() => pluginUpdates.count
-  ? t("nav.pluginsUpdate", { count: pluginUpdates.count })
-  : t(pluginManagerItem.labelKey));
 const order = ref(loadOrder());
 const labelsVisible = sidebarLabelsVisible();
 const visibility = ref(createDefaultSidebarVisibility());
@@ -234,12 +194,6 @@ watch(
 
 onMounted(async () => {
   window.addEventListener(SIDEBAR_VISIBILITY_EVENT, handleVisibilityChange);
-  window.addEventListener(PLUGIN_MENU_EVENT, handlePluginMenu);
-  window.addEventListener(PLUGIN_CATALOG_EVENT, refreshPluginMenu);
-  stopPluginWorkspaceWatch = listenAppEvent("plugin:workspace-changed", () => void refreshPluginMenu());
-  stopPluginStartupWatch = listenAppEvent("plugin:startup-completed", () => void refreshPluginMenu());
-  // The first plugin_host_* call lazily starts the plugin domain; keep it off the first paint.
-  cancelInitialPluginMenu = scheduleIdleTask(() => void refreshPluginMenu());
   const [storedOrder, storedVisibility] = await Promise.all([
     loadPersistedValue<unknown>(ORDER_KEY),
     loadSidebarVisibility(),
@@ -252,12 +206,6 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => {
   disposed = true;
-  ++catalogGeneration;
-  stopPluginWorkspaceWatch?.();
-  stopPluginStartupWatch?.();
-  cancelInitialPluginMenu?.();
-  window.removeEventListener(PLUGIN_MENU_EVENT, handlePluginMenu);
-  window.removeEventListener(PLUGIN_CATALOG_EVENT, refreshPluginMenu);
   clearSidebarTooltips();
   window.removeEventListener(SIDEBAR_VISIBILITY_EVENT, handleVisibilityChange);
 });
@@ -308,43 +256,8 @@ onBeforeUnmount(() => {
           <span v-if="labelsVisible" class="app-activity-button__label" :title="t(item.labelKey)">{{ t(item.labelKey) }}</span>
         </el-button>
       </el-tooltip>
-      <el-tooltip v-for="view in menuViews" :key="`${view.pluginId}:${view.id}`" :content="`${view.pluginName} · ${pluginTitle(view)}`" placement="right" :disabled="labelsVisible"
-        @before-show="showSidebarTooltip(`plugin:${view.pluginId}:${view.id}`)" @hide="hideSidebarTooltip(`plugin:${view.pluginId}:${view.id}`)">
-        <el-button class="app-activity-button" text native-type="button" :class="{ 'is-active': pluginActive(view) }" :aria-label="`${view.pluginName} · ${pluginTitle(view)}`" :aria-current="pluginActive(view) ? 'page' : undefined" @click="openPluginMenu(view)">
-          <el-icon><component :is="pluginViewIcon(view.icon)" /></el-icon>
-          <span v-if="labelsVisible" class="app-activity-button__label" :title="`${view.pluginName} · ${pluginTitle(view)}`">{{ pluginTitle(view) }}</span>
-        </el-button>
-      </el-tooltip>
       </nav>
     </el-scrollbar>
-    <div v-if="visibility.plugins" class="app-activity-bar__plugin-manager">
-      <el-tooltip
-        :content="pluginManagerLabel"
-        placement="right"
-        :disabled="labelsVisible"
-        @before-show="showSidebarTooltip('plugins')"
-        @hide="hideSidebarTooltip('plugins')"
-      >
-        <el-button
-          class="app-activity-button"
-          text
-          native-type="button"
-          :class="{ 'is-active': isItemActive(pluginManagerItem) }"
-          :aria-label="pluginManagerLabel"
-          :aria-current="isItemActive(pluginManagerItem) ? 'page' : undefined"
-          @pointerenter="warmItem(pluginManagerItem)"
-          @pointerdown="warmItem(pluginManagerItem)"
-          @focus="warmItem(pluginManagerItem)"
-          @click="openItem(pluginManagerItem)"
-        >
-          <span class="app-activity-button__icon">
-            <el-icon><component :is="pluginManagerItem.icon" /></el-icon>
-            <span v-if="pluginUpdates.count" class="app-activity-button__dot" data-testid="plugin-updates-dot" aria-hidden="true" />
-          </span>
-          <span v-if="labelsVisible" class="app-activity-button__label" :title="pluginManagerLabel">{{ t(pluginManagerItem.labelKey) }}</span>
-        </el-button>
-      </el-tooltip>
-    </div>
     <div class="app-activity-bar__bottom">
       <el-tooltip
         :content="labelsVisible ? t('nav.hideSidebarLabels') : t('nav.showSidebarLabels')"

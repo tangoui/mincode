@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolveConnectionDriver } from "@/domain/database/driver-descriptor";
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import { ArrowDown, ArrowRight, Plus, StarFilled, Upload } from "@element-plus/icons-vue";
 import AppSearchField from "@/components/ui/AppSearchField.vue";
@@ -15,7 +16,6 @@ import {
   type DatabaseSchemaInfo,
 } from "@/domain/database/types";
 import { useVueI18n } from "@/i18n/messages";
-import { useDatabaseDriverLabels } from "@/composables/database/useDatabaseDriverRuntime";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 
 /** Connections last connected at or before this time are hidden from "Recently opened". */
@@ -37,7 +37,8 @@ const emit = defineEmits<{
 }>();
 
 const { t, intlLocale } = useVueI18n();
-const { driverUnavailable, connectionTypeLabel } = useDatabaseDriverLabels();
+const driverUnavailable = (connection: DatabaseConnection) => !resolveConnectionDriver(connection).available;
+const connectionTypeLabel = (connection: DatabaseConnection) => resolveConnectionDriver(connection).title;
 const connectionsSection = ref<HTMLElement>();
 const searchField = ref<{ focus: () => void }>();
 const query = ref("");
@@ -365,7 +366,7 @@ onBeforeUnmount(stopClock);
               >
                 <DatabaseTypeIcon
                   :db-type="connectionsById.get(item.id)!.dbType"
-                  :driver="connectionsById.get(item.id)!.driver"
+
                 />
               </ConnectionAvatar>
             </template>
@@ -397,7 +398,7 @@ onBeforeUnmount(stopClock);
                   status="online"
                   :size="26"
                 >
-                  <DatabaseTypeIcon :db-type="connection.dbType" :driver="connection.driver" size="small" />
+                  <DatabaseTypeIcon :db-type="connection.dbType" size="small" />
                 </ConnectionAvatar>
                 <span class="db-connection-overview__live-text">
                   <strong class="connection-overview__name">{{ connection.name }}</strong>

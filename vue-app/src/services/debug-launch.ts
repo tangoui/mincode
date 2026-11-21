@@ -19,7 +19,9 @@
  * would answer the second one busy; it also must follow the confirmation.
  * Only reading the saved configurations overlaps prepare.
  */
-import { ElMessage } from "element-plus";
+import { h } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import DebugLaunchConfirmContent from "@/components/debug/DebugLaunchConfirmContent.vue";
 import { DEBUGGER_ADDRESS_LIMITS, isValidDebuggerAddress } from "@/domain/debug/address-breakpoints";
 import { configurationPayload } from "@/domain/debug/configurations";
 import { sessionDataBreakpointList, type StoredDataBreakpoint } from "@/domain/debug/data-breakpoints";
@@ -38,7 +40,6 @@ import {
   type OutgoingSourceBreakpoint,
 } from "@/services/debug-service";
 import { holdLspServer } from "@/services/lsp-server-holds";
-import { confirmPluginLaunch } from "@/services/plugin-launch-confirm";
 import { useDebugConfigsStore } from "@/stores/debug-configs";
 
 /**
@@ -176,11 +177,26 @@ async function prepareAndStart(
   if (opts.signal?.aborted) return null;
   if (!prepared.launch.trusted) {
     const { t } = useVueI18n();
-    const confirmed = await confirmPluginLaunch(prepared.launch, {
-      changed: prepared.launch.previouslyTrusted,
-      notices: debuggeeNotices(prepared, t("debug.launch.fullArguments")),
-    });
-    if (!confirmed || opts.signal?.aborted) return null;
+    try {
+      await ElMessageBox.confirm(
+        h(DebugLaunchConfirmContent, {
+          launch: prepared.launch,
+          changed: prepared.launch.previouslyTrusted,
+          notices: debuggeeNotices(prepared, t("debug.launch.fullArguments")),
+        }),
+        t("pluginContrib.processLaunch.confirmTitle"),
+        {
+          type: "warning",
+          confirmButtonText: t("pluginContrib.processLaunch.confirmRun"),
+          cancelButtonText: t("common.cancel"),
+          distinguishCancelAndClose: true,
+          autofocus: false,
+        },
+      );
+    } catch {
+      return null;
+    }
+    if (opts.signal?.aborted) return null;
     prepared = await trustDebugger(prepared.prepareId, prepared.launch.fingerprint);
   }
 

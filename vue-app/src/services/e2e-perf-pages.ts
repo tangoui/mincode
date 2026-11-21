@@ -114,7 +114,7 @@ export async function perfPagesScenario(config: SmokeConfig, log: PerfLog) {
 
   // ---- Notification center: a burst of notifications (capped at 200), then the drawer open while more arrive.
   const notifications = useNotificationsStore();
-  const notice = (i: number) => ({ source: "plugin" as const, level: (["info", "success", "warning", "error"] as const)[i % 4], title: `Perf notice ${i}`, message: `Body of notification ${i} with some explanatory text.` });
+  const notice = (i: number) => ({ source: "system" as const, level: (["info", "success", "warning", "error"] as const)[i % 4], title: `Perf notice ${i}`, message: `Body of notification ${i} with some explanatory text.` });
   try {
     await measure("连续推送 200 条通知", async () => {
       for (let i = 0; i < 200; i++) { notifications.push(notice(i)); if (i % 10 === 9) await nextFrame(); }

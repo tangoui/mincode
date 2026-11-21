@@ -87,7 +87,7 @@ test("LSP composable is a Monaco-free facade over a lazily imported runtime", ()
 });
 
 test("Project editor keeps the Monaco model authoritative while typing", () => {
-  assert.match(projectView, /const openDocumentPaths = computed\(\(\) =>\s*project\.documents\.filter\(\(document\) => !document\.editor\)\.map/);
+  assert.match(projectView, /const openDocumentPaths = computed\(\(\) =>\s*project\.documents\.map/);
   assert.match(projectView, /:open-paths="openDocumentPaths"/);
   assert.match(projectView, /defer-content-sync/);
   assert.match(projectView, /@sync-content="project\.updateDocumentContent"/);

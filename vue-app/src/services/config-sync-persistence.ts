@@ -23,16 +23,6 @@ import {
 } from "@/services/secure-persistent-store";
 import { isRetiredAiHistoryStorageKey } from "@/services/ai-conversation-persistence";
 import {
-  parsePluginConfigurationSync,
-  pluginConfigurationSyncEntry,
-  PLUGIN_CONFIGURATION_SYNC_KEY,
-} from "@/domain/plugins/configuration";
-import {
-  exportPluginConfigurationSync,
-  importPluginConfigurationSync,
-} from "@/services/plugin-configuration-service";
-import { isDesktopRuntime } from "@/services/desktop-bridge";
-import {
   mergeSettingsWithLocalSecrets,
   sanitizeSettingsForSync,
   SETTINGS_STORAGE_KEY,
@@ -190,13 +180,8 @@ export async function createConfigSyncSnapshot(): Promise<ConfigSyncSnapshot> {
   );
 
   const persistedValues: Record<string, ConfigSyncPersistedEntry> = Object.fromEntries(
-    entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null && entry[0] !== PLUGIN_CONFIGURATION_SYNC_KEY)
+    entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
   );
-  // Plugin settings are a synthetic entry owned by the Go host: only global,
-  // non-secret values; secrets and workspace overrides are never synced.
-  const pluginSettings = pluginConfigurationSyncEntry(await exportPluginConfigurationSync());
-  if (pluginSettings) persistedValues[PLUGIN_CONFIGURATION_SYNC_KEY] = pluginSettings;
-
   return {
     format: CONFIG_SYNC_FORMAT,
     version: CONFIG_SYNC_VERSION,
@@ -215,22 +200,6 @@ export async function applyConfigSyncSnapshot(
   let nextSettingsSnapshot: Record<string, unknown> | undefined;
 
   for (const [key, entry] of Object.entries(snapshot.persistedValues)) {
-    if (key === PLUGIN_CONFIGURATION_SYNC_KEY) {
-      // Applied through the Go host (which re-validates against each installed
-      // plugin's schema), never persisted as a frontend store value.
-      const data = entry.storage === "plain" ? parsePluginConfigurationSync(entry.value) : undefined;
-      if (!data || !isDesktopRuntime()) {
-        skippedKeys.push(key);
-        continue;
-      }
-      try {
-        await importPluginConfigurationSync(data);
-      } catch {
-        // Reported through skippedKeys like any other entry that was not applied.
-        skippedKeys.push(key);
-      }
-      continue;
-    }
     if (isRetiredAiHistoryStorageKey(key)) {
       skippedKeys.push(key);
       continue;

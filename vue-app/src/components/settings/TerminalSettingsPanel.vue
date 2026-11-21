@@ -1,14 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import AppHintIcon from "@/components/ui/AppHintIcon.vue";
-import {
-  isPluginTerminalColorSchemeId,
-  TERMINAL_COLOR_SCHEME_SWATCHES,
-  terminalColorSchemeTitle,
-  type TerminalColorSchemeRecord,
-} from "@/domain/themes/terminal-color-schemes";
 import { useVueI18n } from "@/i18n/messages";
-import { useTerminalColorSchemesStore } from "@/stores/terminal-color-schemes";
 
 interface TerminalSettingsModel {
   shellType: string;
@@ -26,20 +18,10 @@ interface TerminalSettingsModel {
   terminalFontFamily: string;
 }
 
-const props = defineProps<{ settings: TerminalSettingsModel }>();
+defineProps<{ settings: TerminalSettingsModel }>();
 const emit = defineEmits<{ change: [patch: Partial<TerminalSettingsModel>] }>();
-const { t, localeChain } = useVueI18n();
+const { t } = useVueI18n();
 
-// Contributed schemes (contributes.terminalColorSchemes). A stored plugin id
-// whose plugin is gone stays selected (the terminal falls back to "default").
-const colorSchemes = useTerminalColorSchemesStore();
-const unavailableScheme = computed(() => {
-  const id = props.settings.terminalColorScheme;
-  return isPluginTerminalColorSchemeId(id) && colorSchemes.loaded && !colorSchemes.schemeById(id) ? id : "";
-});
-function schemeSwatches(scheme: TerminalColorSchemeRecord) {
-  return TERMINAL_COLOR_SCHEME_SWATCHES.map((key) => scheme.colors[key]).filter((color): color is string => Boolean(color));
-}
 </script>
 
 <template>
@@ -82,37 +64,8 @@ function schemeSwatches(scheme: TerminalColorSchemeRecord) {
     <div class="settings-flat-row"><strong>{{ t("settings.colorScheme") }}</strong>
       <el-select :model-value="settings.terminalColorScheme" @update:model-value="emit('change', { terminalColorScheme: $event as string })">
         <el-option value="default" :label="t('settings.option.default')" /><el-option value="dark" :label="t('settings.theme.dark')" /><el-option value="light" :label="t('settings.theme.light')" /><el-option value="solarized" label="Solarized" />
-        <el-option-group v-if="colorSchemes.schemes.length" :label="t('pluginContrib.terminalColorSchemes.group')">
-          <el-option
-            v-for="scheme in colorSchemes.schemes"
-            :key="scheme.id"
-            :value="scheme.id"
-            :label="terminalColorSchemeTitle(scheme, localeChain)"
-          >
-            <span class="terminal-scheme-option">
-              <span class="terminal-scheme-option__swatches" :style="{ background: scheme.colors.background }" aria-hidden="true">
-                <i v-for="(color, index) in schemeSwatches(scheme)" :key="index" :style="{ background: color }" />
-              </span>
-              <span class="terminal-scheme-option__title" dir="auto">{{ terminalColorSchemeTitle(scheme, localeChain) }}</span>
-              <small>{{ scheme.pluginName }}</small>
-            </span>
-          </el-option>
-        </el-option-group>
-        <el-option
-          v-if="unavailableScheme"
-          :value="unavailableScheme"
-          :label="t('pluginContrib.terminalColorSchemes.unavailableOption', { id: unavailableScheme })"
-        />
       </el-select>
     </div>
-    <el-alert
-      v-if="unavailableScheme"
-      class="terminal-scheme-alert"
-      type="warning"
-      :closable="false"
-      show-icon
-      :title="t('pluginContrib.terminalColorSchemes.unavailable', { id: unavailableScheme })"
-    />
     <div class="settings-flat-row"><strong>{{ t("settings.cursorStyle") }}</strong>
       <el-select :model-value="settings.cursorStyle" @update:model-value="emit('change', { cursorStyle: $event as TerminalSettingsModel['cursorStyle'] })">
         <el-option value="block" :label="t('settings.cursor.block')" /><el-option value="underline" :label="t('settings.cursor.underline')" /><el-option value="bar" :label="t('settings.cursor.bar')" />
@@ -122,43 +75,3 @@ function schemeSwatches(scheme: TerminalColorSchemeRecord) {
     <p class="settings-page-note">{{ t("settings.terminalHint") }}</p>
   </section>
 </template>
-
-<style scoped>
-.terminal-scheme-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.terminal-scheme-option__swatches {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--app-border);
-  border-radius: 4px;
-}
-
-.terminal-scheme-option__swatches i {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-}
-
-.terminal-scheme-option__title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.terminal-scheme-option small {
-  margin-left: auto;
-  color: var(--app-text-muted);
-  font-size: 11px;
-}
-
-.terminal-scheme-alert {
-  margin: 4px 0 8px;
-}
-</style>

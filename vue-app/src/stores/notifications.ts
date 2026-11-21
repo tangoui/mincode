@@ -4,9 +4,8 @@ import { useVueI18n } from "@/i18n/messages";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 import { isDesktopRuntime, listenAppEvent } from "@/services/desktop-bridge";
 import { readNotificationTarget, type NotificationTarget } from "@/domain/notifications/target";
-import type { AppNotificationAction } from "@/domain/notifications/plugin-actions";
 
-export type NotificationSource = "db" | "git" | "ssh" | "update" | "ai" | "plugin" | "system";
+export type NotificationSource = "db" | "git" | "ssh" | "update" | "ai" | "system";
 export type NotificationLevel = "info" | "success" | "warning" | "error" | "progress";
 
 export interface NotificationProgress {
@@ -31,9 +30,6 @@ export interface AppNotification {
    * Plugin notification buttons (host.notify actions). Memory only: never
    * persisted, so after a restart the notification is back without buttons.
    */
-  actions?: AppNotificationAction[];
-  /** The plugin's display name for the action buttons' labels; memory only, set together with `actions`. */
-  pluginName?: string;
 }
 
 export interface AppNotificationInput {
@@ -45,8 +41,6 @@ export interface AppNotificationInput {
   progressKey?: string;
   progress?: NotificationProgress;
   target?: NotificationTarget;
-  actions?: AppNotificationAction[];
-  pluginName?: string;
 }
 
 interface NativeNotificationPayload {
@@ -63,7 +57,7 @@ interface NativeNotificationPayload {
 
 const storageKey = "app_notifications_v2";
 const maxNotifications = 200;
-const sources = new Set<NotificationSource>(["db", "git", "ssh", "update", "ai", "plugin", "system"]);
+const sources = new Set<NotificationSource>(["db", "git", "ssh", "update", "ai", "system"]);
 const levels = new Set<NotificationLevel>(["info", "success", "warning", "error", "progress"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -199,8 +193,7 @@ export const useNotificationsStore = defineStore("notifications", () => {
 
   function persist() {
     if (!hydrated.value) return;
-    // Action buttons and their plugin name stay in memory (the plugin may be updated or gone after a restart).
-    const stored = items.value.slice(0, maxNotifications).map(({ actions: _actions, pluginName: _pluginName, ...rest }) => rest);
+    const stored = items.value.slice(0, maxNotifications);
     void savePersistedValue(storageKey, stored);
   }
 
@@ -222,7 +215,6 @@ export const useNotificationsStore = defineStore("notifications", () => {
       progressKey: input.progressKey,
       progress: input.progress,
       target: input.target ?? existing?.target,
-      ...(input.actions?.length ? { actions: input.actions, pluginName: input.pluginName } : {}),
     };
     items.value = [item, ...items.value.filter((entry) => entry.id !== item.id)].slice(0, maxNotifications);
     persist();

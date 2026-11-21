@@ -35,18 +35,8 @@ import {
   loadsTablesPerDatabase,
 } from "@/domain/database/db-type-capabilities";
 import {
-  isPluginDriverConnection,
   resolveConnectionDriver,
-  type DatabaseDriverDescriptor,
 } from "@/domain/database/driver-descriptor";
-import { databaseDriverErrorCode, sameDatabaseDriverRef } from "@/domain/plugins/database-drivers";
-import {
-  databaseDriverGrantRef,
-  ensureDatabaseDriverGrant,
-  pruneDatabaseDriverGrants,
-  revokeDatabaseDriverGrant,
-} from "@/services/database-driver-service";
-import { useDatabaseDriversStore } from "@/stores/database-drivers";
 import type { InsertSqlMode } from "@/domain/database/insert-sql";
 import type { TableDataFormat } from "@/domain/database/object-naming";
 import {
@@ -121,31 +111,9 @@ function connectionConfig(connection: DatabaseConnection): DatabaseConnectionCon
     org: optional(connection.org),
     authSource: optional(connection.authSource),
     ssl: connection.ssl,
-    // 所有连接都带 connectionId：SQL 安全网按它归属操作记录；插件驱动还用它匹配凭据授权。
+    // 所有连接都带 connectionId：SQL 安全网按它归属操作记录。
     connectionId: connection.id,
-    // 插件驱动绑定：宿主按 (connectionId, pluginId, driverId) 的授权释放凭据。
-    ...(isPluginDriverConnection(connection)
-      ? {
-          driver: { pluginId: connection.driver.pluginId, driverId: connection.driver.driverId },
-          options: connection.options ? { ...connection.options } : undefined,
-        }
-      : {}),
   };
-}
-
-/** 插件驱动会话关闭事件（驱动插件被禁用、崩溃、重载或卸载）。 */
-export interface DatabaseSessionsClosedEvent {
-  sessionIds?: string[];
-  pluginId?: string;
-  reason?: string;
-}
-
-/** 最近一次驱动插件停止的通知，供工作区展示“驱动插件已停止”。 */
-export interface DatabaseDriverStoppedNotice {
-  pluginId: string;
-  reason?: string;
-  connectionIds: string[];
-  at: number;
 }
 
 async function decryptSecret(value: string | undefined) {
@@ -257,7 +225,6 @@ async function persistConnections(connections: DatabaseConnection[]) {
   if (isPersistedWriteFrozen(DATABASE_CONNECTIONS_KEY)) return;
   await invokeBackend<void>("store_set", { key: DATABASE_CONNECTIONS_KEY, value: persisted });
   // 已删除连接的凭据释放授权不能残留；授权本身从不随连接持久化或导出。
-  await pruneDatabaseDriverGrants(connections.map((connection) => connection.id)).catch(() => undefined);
 }
 
 function connectionPersistenceSnapshot(connections: DatabaseConnection[]) {
@@ -375,25 +342,8 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
   let stopQueryChunks: (() => void) | undefined;
   let queryChunksReady: Promise<boolean> | undefined;
   let stopExpiredSessions: (() => void) | undefined;
-  let stopClosedSessions: (() => void) | undefined;
-  const driversStore = useDatabaseDriversStore();
-  const driverStoppedNotice = ref<DatabaseDriverStoppedNotice>();
-
-  /**
-   * 连接的驱动描述符：内置驱动直接由 dbType 得出；插件驱动取目录条目与宿主状态，
-   * 缺失或禁用时 available=false，绝不回落到内置驱动（E-15）。
-   */
-  function connectionDescriptor(
-    connection: Pick<DatabaseConnection, "id" | "dbType" | "driver"> | undefined,
-  ): DatabaseDriverDescriptor | undefined {
-    if (!connection) return undefined;
-    if (!isPluginDriverConnection(connection)) return resolveConnectionDriver(connection);
-    const ref = databaseDriverGrantRef(connection.id, connection.driver);
-    const status = driversStore.statusFor(ref);
-    const source = driversStore.driverFor(connection.driver);
-    // 目录尚未加载且没有宿主状态时不预判不可用；连接时由宿主失败关闭。
-    const assumed = !source && !status && !driversStore.loaded ? { available: true } : status;
-    return resolveConnectionDriver(connection, source ? [source] : [], assumed);
+  function connectionDescriptor(connection: Pick<DatabaseConnection, "dbType" | "driver"> | undefined) {
+    return connection ? resolveConnectionDriver(connection) : undefined;
   }
 
   function connectionCapabilities(
@@ -406,53 +356,9 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
     return connectionDescriptor(connection)?.dialectType ?? connection.dbType;
   }
 
-  /** 刷新插件驱动连接的宿主状态（可用性与授权）；失败时保留缓存。 */
-  async function refreshDriverStatuses(ids?: readonly string[]) {
-    const refs = connections.value
-      .filter((connection) => (!ids || ids.includes(connection.id)) && isPluginDriverConnection(connection))
-      .map((connection) => databaseDriverGrantRef(connection.id, connection.driver!));
-    if (refs.length === 0) return [];
-    return driversStore.refreshStatuses(refs).catch(() => []);
-  }
-
-  function driverReleaseTarget(connection: DatabaseConnection, descriptor: DatabaseDriverDescriptor) {
-    const source = connection.driver ? driversStore.driverFor(connection.driver) : undefined;
-    return {
-      connectionName: connection.name,
-      host: connection.host || connection.filePath || undefined,
-      port: connection.host ? connection.port : undefined,
-      username: connection.username || undefined,
-      pluginName: descriptor.pluginName || descriptor.pluginId || "",
-      pluginId: descriptor.pluginId || "",
-      pluginVersion: source?.pluginVersion,
-      driverTitle: descriptor.title,
-    };
-  }
-
-  /**
-   * 打开会话。插件驱动连接遇到 untrusted:（未在本机授权，如导入、同步、复制的连接）时
-   * 弹出受保护确认，用户确认后写入授权再重试一次；取消则按原错误失败。
-   * 授权在所有审批模式下都需要用户确认，AI 工具无法调用授权命令。
-   */
   async function openSession(connection: DatabaseConnection) {
-    const descriptor = connectionDescriptor(connection);
-    if (descriptor?.source === "plugin" && !descriptor.available) {
-      throw new Error(`unavailable: plugin database driver ${descriptor.key} (${descriptor.unavailableReason ?? "error"})`);
-    }
-    const open = () => invokeBackend<string>("db_connect", { config: connectionConfig(connection) });
-    try {
-      return await open();
-    } catch (cause) {
-      if (!isPluginDriverConnection(connection) || !descriptor || databaseDriverErrorCode(cause) !== "untrusted") {
-        if (isPluginDriverConnection(connection)) void refreshDriverStatuses([connection.id]);
-        throw cause;
-      }
-      const ref = databaseDriverGrantRef(connection.id, connection.driver);
-      const granted = await ensureDatabaseDriverGrant(ref, driverReleaseTarget(connection, descriptor));
-      if (!granted) throw cause;
-      driversStore.markGranted(ref);
-      return open();
-    }
+    if (!resolveConnectionDriver(connection).available) throw new Error("driver_required");
+    return invokeBackend<string>("db_connect", { config: connectionConfig(connection) });
   }
 
   function ensureDatabaseEventListeners() {
@@ -555,43 +461,6 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
         }
       }
     });
-    // 驱动插件停止时宿主关闭其会话：标记为已断开，已打开的结果标签页保留数据。
-    stopClosedSessions ??= listenAppEvent<DatabaseSessionsClosedEvent>("db:sessions-closed", (event) => {
-      handleSessionsClosed(event);
-    });
-  }
-
-  function handleSessionsClosed(event: DatabaseSessionsClosedEvent) {
-    const closed = new Set(Array.isArray(event.sessionIds) ? event.sessionIds : []);
-    if (closed.size === 0) return;
-    const runtimes = new Map(workspaceRuntimes);
-    runtimes.set(activeWorkspaceScopeId.value, runtimeSnapshot());
-    const connectionIds = new Set<string>();
-    for (const [scopeId, runtime] of runtimes) {
-      for (const [connectionId, sessionId] of Object.entries(runtime.sessionIds)) {
-        if (!closed.has(sessionId)) continue;
-        connectionIds.add(connectionId);
-        metadataCache.invalidate({ sessionId });
-        requestGate.invalidateSession(sessionId);
-        invalidateDatabaseTableLoads(sessionId);
-        updateRuntimeForScope(scopeId, (current) => {
-          delete current.sessionIds[connectionId];
-          if (current.activeConnectionId === connectionId) {
-            current.queryRunning = false;
-            current.loading = false;
-          }
-        });
-      }
-    }
-    if (typeof event.pluginId === "string" && event.pluginId) {
-      driverStoppedNotice.value = {
-        pluginId: event.pluginId,
-        reason: typeof event.reason === "string" ? event.reason : undefined,
-        connectionIds: [...connectionIds],
-        at: Date.now(),
-      };
-      void refreshDriverStatuses([...connectionIds]);
-    }
   }
 
   const desktopRuntime = computed(() => isDesktopRuntime());
@@ -790,7 +659,6 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
       connections.value = storedConnections;
       connectionGroupOrder.value = normalizeConnectionGroupOrder(storedGroupOrder);
       connectionsStatus.value = "ready";
-      if (isDesktopRuntime()) void refreshDriverStatuses();
     } catch (cause) {
       error.value = String(cause);
       connectionsStatus.value = "failed";
@@ -851,21 +719,8 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
       createdAt: connection.createdAt || now,
     };
     const index = connections.value.findIndex((item) => item.id === normalized.id);
-    const previousDriver = index >= 0 ? connections.value[index].driver : undefined;
     if (index >= 0) connections.value[index] = normalized;
     else connections.value.push(normalized);
-    // 驱动绑定变化（换插件或改回内置）时撤销旧插件的授权，下次连接需要用户重新确认。
-    // 只撤销旧插件：连接对话框/改绑对话框在保存前已为新驱动记录了用户刚确认的授权，
-    // 按连接撤销全部授权会把它一起删掉，导致已确认的连接再次弹出凭据确认。
-    // 同一插件换驱动时授权记录按驱动 ID 匹配，旧驱动的授权不会放行新驱动。
-    if (previousDriver && !sameDatabaseDriverRef(previousDriver, normalized.driver)) {
-      if (normalized.driver?.pluginId !== previousDriver.pluginId) {
-        await revokeDatabaseDriverGrant({ connectionId: normalized.id, pluginId: previousDriver.pluginId }).catch(
-          () => undefined,
-        );
-      }
-      driversStore.forgetStatuses(normalized.id);
-    }
     await persistConnectionsNow();
   }
 
@@ -890,14 +745,7 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
     );
     const added = await task;
     await persistConnectionsNow();
-    await refreshDriverStatuses(added.map((connection) => connection.id));
     return added;
-  }
-
-  /** 撤销某连接的插件驱动凭据释放授权（导入覆盖等场景），失败时静默；下次连接重新确认。 */
-  async function revokeDriverGrant(connectionId: string) {
-    await revokeDatabaseDriverGrant({ connectionId }).catch(() => undefined);
-    driversStore.forgetStatuses(connectionId);
   }
 
   async function deleteConnection(id: string) {
@@ -917,13 +765,7 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
       );
     }
     applyRuntime(workspaceRuntimes.get(activeWorkspaceScopeId.value) ?? emptyRuntime());
-    const removed = connections.value.find((connection) => connection.id === id);
     connections.value = connections.value.filter((connection) => connection.id !== id);
-    // 删除连接即撤销其凭据释放授权（不区分插件），并清掉状态缓存。
-    if (removed?.driver) {
-      await revokeDatabaseDriverGrant({ connectionId: id }).catch(() => undefined);
-      driversStore.forgetStatuses(id);
-    }
     await persistConnectionsNow();
     // 连接删除后它的 SQL 安全网留底不再有入口，一并清理；失败不影响删除（过期清理兜底）。
     if (isDesktopRuntime()) {
@@ -1522,9 +1364,7 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
     const queryId = crypto.randomUUID();
     const queryConnection = connections.value.find((item) => item.id === connectionId);
     const connectionType = queryConnection?.dbType;
-    // 插件驱动由宿主按页拉取结果，所有语句都走流式通道。
-    const pluginStream = Boolean(queryConnection && isPluginDriverConnection(queryConnection));
-    const canStream = pluginStream || Boolean(
+    const canStream = Boolean(
       connectionType
       && STREAMING_QUERY_DB_TYPES.has(connectionType)
       && /^(?:SELECT|SHOW|WITH|EXPLAIN|DESC|DESCRIBE|PRAGMA|VALUES|TABLE|CALL)\b/i.test(query.trim()),
@@ -1830,8 +1670,6 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
     const dbIndex = runtime.redisDbIndex;
     const execute = (token: SqlSafetyToken) =>
       invokeBackend(command, { sessionId, dbIndex, key, ...extra, ...sqlSafetyArgs(token) }).then(() => true);
-    const connection = connections.value.find((item) => item.id === runtime.activeConnectionId);
-    if (connection && isPluginDriverConnection(connection)) return execute({ checkId: "" });
     const action = { redis_set_key: "set", redis_add_key: "add", redis_delete_key: "delete", redis_set_ttl: "ttl" }[command];
     return (await runWithSafety({
       sessionId,
@@ -1887,14 +1725,10 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
   return {
     initialized,
     connectionsStatus,
-    driverStoppedNotice,
     connectionDescriptor,
     connectionCapabilities,
     connectionDialectType,
-    refreshDriverStatuses,
     importConnectionsFromBackend,
-    revokeDriverGrant,
-    handleSessionsClosed,
     activeWorkspaceScopeId,
     connections,
     connectionGroupOrder,

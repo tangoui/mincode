@@ -7,11 +7,10 @@ vi.mock("@/services/desktop-bridge", () => ({ invokeBackend: (...args: unknown[]
 const file = { path: "{{mincode.namePascal}}.txt", source: "a".repeat(64), size: 5 };
 const summary = { id: "one", revision: 1, kind: "file", title: "Mine", description: "", category: "", defaultName: "Example", files: [file] };
 describe("custom template resources", () => {
-    it("preserves custom templates when plugin contributions are revoked", async () => {
+    it("loads saved custom templates", async () => {
         bridge.invoke.mockResolvedValue({ version: 1, revision: 1, templates: [summary] });
         const store = useFileTemplatesStore();
         await store.hydrateCustom();
-        store.setContributed([]);
         expect(store.templates).toHaveLength(1);
         expect(store.templates[0]?.origin).toBe("custom");
     });
@@ -68,21 +67,6 @@ it("late hydration cannot replace a newer mutation", async () => {
     await pending;
     expect(store.custom.revision).toBe(2);
     expect(store.custom.templates).toHaveLength(1);
-});
-
-it("rechecks plugin source authority instead of reusing verified cached bytes", async () => {
-    const { loadTemplateSources } = await import('@/services/file-template-service');
-    const { releasePluginAssets } = await import('@/services/contribution-assets');
-    const bytes = new TextEncoder().encode('hello');
-    const key = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
-    const item = { key: 'fixture.example', pluginId: 'fixture', pluginName: 'Fixture', id: 'example', kind: 'file' as const, title: 'Example', description: '', category: '', defaultName: 'Example', files: [{ path: 'hello.txt', source: key, size: 5 }] };
-    releasePluginAssets('fixture');
-    bridge.invoke.mockReset();
-    bridge.invoke.mockResolvedValueOnce({ assets: [{ key, mime: 'text/plain', data: 'aGVsbG8=' }], missing: [], stale: [], deferred: [] });
-    expect((await loadTemplateSources(item)).get(key)).toBe('hello');
-    bridge.invoke.mockResolvedValueOnce({ assets: [], missing: [], stale: [key], deferred: [] });
-    await expect(loadTemplateSources(item)).rejects.toThrow('changed or are unavailable');
-    releasePluginAssets('fixture');
 });
 
 it("does not label a partial stale library as a complete newer snapshot", async () => {

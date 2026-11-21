@@ -398,11 +398,3 @@ test("redis: a high-risk key edit asks even in full-access and declining skips t
   assert.equal(h.confirms.length, 1);
   assert.equal(h.commands("redis_delete_key").length, 0);
 });
-
-test("redis on a plugin driver session runs without a check (the backend requires none)", async () => {
-  const h = harness({ replies: { redis_delete_key: true } });
-  const item = capability(redisCapabilities(h.dependencies), "redis.delete");
-  await item.execute(executeContext({ key: "k" }, redisResource({ pluginDriver: { pluginId: "p", driverId: "d" } })));
-  assert.equal(h.commands("db_safety_check").length, 0);
-  assert.deepEqual(h.commands("redis_delete_key").map((call) => call.args), [{ sessionId: "r1", dbIndex: 0, key: "k" }]);
-});

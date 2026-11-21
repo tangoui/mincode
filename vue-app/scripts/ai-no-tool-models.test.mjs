@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { toolsForModel } from "../src/domain/ai/plugin-provider-profile.ts";
+import { toolsForModel } from "../src/domain/ai/model-tool-support.ts";
 
 const tools = [{ name: "read_file", description: "Read", inputSchema: { type: "object" } }];
 
@@ -67,7 +67,7 @@ test("the assistant tells the user once per model that tools are off", async () 
 });
 
 test("plainChatHistory folds tool calls and results into plain assistant text", async () => {
-  const { plainChatHistory } = await import("../src/domain/ai/plugin-provider-profile.ts");
+  const { plainChatHistory } = await import("../src/domain/ai/model-tool-support.ts");
   const history = [
     { role: "system", content: "sys" },
     { role: "user", content: "list files" },

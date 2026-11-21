@@ -54,18 +54,11 @@ export interface RegistryEntry {
   id: string;
   name: string;
   description: string;
-  source: "builtin" | "git" | "registry" | "plugin";
+  source: "builtin" | "git" | "registry";
   installRef?: string;
   docsUrl?: string;
   inlinePayload?: string;
-  /** Set for items of a plugin catalog (contributes.aiCatalogs). */
-  plugin?: { pluginId: string; pluginName: string; catalogId: string; itemId: string; kind?: "mcp" | "skill"; fingerprint?: string };
 }
-
-/** Supplies plugin catalog items for a Discover query; failures are the supplier's to absorb. */
-export type PluginRegistrySearch = (query: string) => Promise<RegistryEntry[]>;
-
-const noPluginEntries: PluginRegistrySearch = async () => [];
 
 interface HttpResponse {
   status: number;
@@ -369,21 +362,18 @@ function mergeEntries(...lists: RegistryEntry[][]) {
   });
 }
 
-export async function searchMcpRegistry(query: string, searchPlugins = noPluginEntries) {
+export async function searchMcpRegistry(query: string) {
   const direct = directUrlEntry(query, ".json");
-  const plugin = await searchPlugins(query).catch(() => []);
   return mergeEntries(
     direct ? [direct] : [],
     BUILTIN_MCP_CATALOG.filter((entry) => matches(entry, query)),
-    plugin
   );
 }
 
-export async function searchSkillRegistry(query: string, searchPlugins = noPluginEntries) {
+export async function searchSkillRegistry(query: string) {
   const direct = directUrlEntry(query, ".md");
-  const plugin = await searchPlugins(query).catch(() => []);
-  if (direct) return mergeEntries([direct], plugin);
-  return mergeEntries(BUILTIN_SKILL_CATALOG.filter((entry) => matches(entry, query)), plugin);
+  if (direct) return [direct];
+  return BUILTIN_SKILL_CATALOG.filter((entry) => matches(entry, query));
 }
 
 function normaliseMcpServer(id: string, value: unknown): StoredMcpServer | null {
@@ -571,7 +561,6 @@ export function parseMcpConfig(text: string) {
 /** Plugin catalog items carry their content inline; their `plugin:` id is never a URL to fetch. */
 async function registryEntryText(entry: RegistryEntry) {
   if (entry.inlinePayload !== undefined) return entry.inlinePayload;
-  if (entry.source === "plugin") throw new Error("missing_plugin_install_content");
   return entry.installRef ? fetchRemoteText(entry.installRef) : "";
 }
 

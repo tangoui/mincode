@@ -32,10 +32,8 @@ import {
 } from "@/domain/debug/function-breakpoints";
 import {
   frameInChangedTypes,
-  hotCodeReplaceMode,
   parseHotCodeReplaceEvent,
   parseHotCodeReplaceResult,
-  type HotCodeReplaceMode,
   type HotCodeReplaceResult,
 } from "@/domain/debug/hot-code-replace";
 import { debugErrorText } from "@/domain/debug/errors";
@@ -1173,17 +1171,6 @@ export const useDebugSessionsStore = defineStore("debug-sessions", () => {
    * the host at install), read when a build comes so a change applies at
    * once; auto without a declared setting or when it cannot be read.
    */
-  async function hotCodeReplaceModeFor(view: DebugSessionView): Promise<HotCodeReplaceMode> {
-    const key = view.hotCodeReplace?.modeSetting;
-    if (!view.pluginId || !key) return "auto";
-    try {
-      const { getPluginConfiguration } = await import("@/services/plugin-configuration-service");
-      const state = await getPluginConfiguration(view.pluginId);
-      return hotCodeReplaceMode(state.effective[key]);
-    } catch {
-      return "auto";
-    }
-  }
 
   function setHotCodeReplaceMessage(id: string, message: DebugSessionView["hotCodeReplaceMessage"]) {
     update(id, (view) => ({ ...view, hotCodeReplaceMessage: message }));
@@ -1212,12 +1199,6 @@ export const useDebugSessionsStore = defineStore("debug-sessions", () => {
       return;
     }
     if (event.kind !== "buildComplete") return;
-    const mode = await hotCodeReplaceModeFor(find(id)!);
-    if (mode === "never" || !liveHotCodeReplace(find(id))) return;
-    if (mode === "manual") {
-      update(id, (view) => ({ ...view, pendingCodeChanges: true }));
-      return;
-    }
     await applyCodeChanges(id);
   }
 

@@ -31,7 +31,6 @@ import {
   Lock,
   Postcard,
   Connection,
-  Grid,
   MagicStick,
   Monitor,
   Plus,
@@ -49,7 +48,6 @@ import { useCommandPaletteStore } from "@/stores/command-palette";
 import {
   canInvoke,
   chooseNativeFile,
-  chooseNativeSaveFile,
   isBrowserLocalMode,
   isDesktopRuntime,
   nativeErrorMessage,
@@ -79,7 +77,6 @@ import {
 import {
   aiSkillSource,
   createManualAiSkill,
-  describeMcpServersForReview,
   findMcpPathPlaceholder,
   getBuiltinMcpCatalog,
   hasAiSkillNamed,
@@ -102,21 +99,6 @@ import {
   type StoredAiSkill,
   type StoredMcpServer,
 } from "@/domain/ai/settings-integrations";
-import { usePluginAiCatalogsStore } from "@/stores/plugin-ai-catalogs";
-import { usePluginAiProvidersStore } from "@/stores/plugin-ai-providers";
-import { aiProviderText, type PluginAiProvider } from "@/domain/plugins/ai-providers";
-import {
-  PLUGIN_PROVIDER_VALUE_PREFIX,
-  aiProviderSelectOptions,
-  aiProviderSelectValue,
-  fillAiProviderPlaceholder,
-  pluginProviderProfilePatch,
-  unresolvedBaseUrlPlaceholders,
-  type AiProfileSource,
-  type AiProviderSelectOption,
-} from "@/domain/ai/plugin-provider-profile";
-import { confirmPluginRegistryInstall } from "@/services/settings-plugin-catalog-review";
-import { resolvePluginRegistryEntry, searchPluginAiCatalogs } from "@/services/plugin-ai-catalog-service";
 import { normalizeAiApiFormat, type AiApiFormat } from "@/domain/ai/api-format";
 import { isMcpAuthRequired, mcpAuthErrorCode } from "@/domain/ai/mcp-auth";
 import { normalizeAnthropicAuth, type AiAnthropicAuth } from "@/domain/ai/anthropic-auth";
@@ -141,9 +123,8 @@ import {
   normalizeAiMaxLoops,
 } from "@/domain/ai/agent-loop-limit";
 import { validateAiProviderAuth } from "@/domain/ai/provider-auth";
-import { ACP_BUILTIN_AGENTS, acpBuiltinAgentCommandLine, parseAcpAdapterId } from "@/domain/ai/acp-agents";
+import { ACP_BUILTIN_AGENTS, acpBuiltinAgentCommandLine } from "@/domain/ai/acp-agents";
 import { entryAvatarInitial, entryAvatarTone, type EntryAvatarTone } from "@/domain/settings/entry-avatar";
-import { pluginAcpAgents, pluginAcpAgentsReady } from "@/services/contributions/acp-agents-state";
 import {
   DEFAULT_AI_APPROVAL_MODE,
   normalizeAiApprovalMode,
@@ -164,12 +145,8 @@ import {
 import {
   applyConfigImport,
   buildConfigExport,
-  importConfigPluginData,
   parseConfigImport,
-  readConfigImportFile,
-  writeConfigExportWithPluginData,
   type ParsedConfigImport,
-  type PluginDataImportResult,
 } from "@/services/config-portability";
 import {
   APP_LOCK_AUTO_LOCK_CHOICES,
@@ -185,7 +162,6 @@ import {
   confirmSecretExport,
   confirmSecretImport,
 } from "@/composables/use-secret-export-confirm";
-import { usePluginSettingsAvailability } from "@/composables/use-plugin-settings-availability";
 import {
   applyConfigSyncSnapshot as applyPersistedConfigSyncSnapshot,
   createConfigSyncSnapshot,
@@ -206,7 +182,6 @@ import {
   DEFAULT_WORKSPACE_CACHE_LIMIT,
   normalizeWorkspaceCacheLimit,
 } from "@/domain/workspace/state-scope";
-import { DEFAULT_PLUGIN_VIEW_WARM_LIMIT, normalizePluginViewWarmLimit } from "@/domain/plugin-ui/warm-pool";
 import {
   DEFAULT_RUNTIME_PERFORMANCE_SETTINGS,
   resolveRuntimePerformanceSettings,
@@ -221,15 +196,6 @@ import {
   type SidebarItemId,
   type SidebarVisibility,
 } from "@/services/sidebar-preferences";
-import {
-  DEFAULT_FILE_ICON_THEME,
-  normalizeFileIconTheme,
-  normalizeUiLocale,
-  normalizeUiLocalePlugin,
-} from "@/domain/plugins/contribution-settings";
-import { isPluginSettingsCategoryListed } from "@/domain/plugins/configuration-refresh";
-import { applyFileIconThemePreference } from "@/services/contributions/file-icons";
-import { localePackSelectionFromSettings, localePackState, setLocalePackSelection } from "@/services/locale-pack-loader";
 import { applyTerminalColorScheme } from "@/services/terminal-theme";
 import { applyEditorThemePreference } from "@/services/editor-theme";
 import { EDITOR_THEME_FOLLOW, normalizeEditorThemePreference } from "@/domain/themes/editor-theme-id";
@@ -241,7 +207,7 @@ import {
   normalizeUiScale,
   type UiFontFamily,
 } from "@/services/ui-appearance";
-import { applyUiTheme, readStoredUiTheme, type UiTheme, type UiThemeKind } from "@/services/ui-theme";
+import { applyUiTheme, readStoredUiTheme, type UiTheme } from "@/services/ui-theme";
 import { cloudStatus, fetchFrameworkPlans, fetchMemberQuota, redeemMemberCode, type CloudStatus, type FrameworkPlan, type MemberQuotaResult } from "@/services/cloud-companion-service";
 import { useWorkbenchStore } from "@/stores/workbench";
 import { useWorkspaceStatePreferencesStore } from "@/stores/workspace-state-preferences";
@@ -256,15 +222,7 @@ import {
 const MonacoTextEditor = defineAsyncComponent(() => import("@/components/projects/MonacoTextEditor.vue"));
 // The keybinding table (resolver, presets, recorder) loads only when the shortcuts page opens.
 const KeybindingSettingsPanel = defineAsyncComponent(() => import("@/components/settings/KeybindingSettingsPanel.vue"));
-// Plugin settings (contributes.configuration) load only when the plugins page opens.
-const PluginSettingsPanel = defineAsyncComponent(() => import("@/components/settings/PluginSettingsPanel.vue"));
 const DatabaseSafetySettingsSection = defineAsyncComponent(() => import("@/components/settings/DatabaseSafetySettingsSection.vue"));
-// Plugin-contributed AI prompts and skills (contributes.aiPrompts).
-const AiMarketDiscoverBanner = defineAsyncComponent(() => import("@/components/settings/AiMarketDiscoverBanner.vue"));
-const PluginAiPromptsSection = defineAsyncComponent(() => import("@/components/settings/PluginAiPromptsSection.vue"));
-const PluginMcpServersSection = defineAsyncComponent(() => import("@/components/settings/PluginMcpServersSection.vue"));
-// Plugin-contributed ACP agents (contributes.acpAgents) load only when a plugin offers one or one is selected.
-const PluginAcpAgentsGroup = defineAsyncComponent(() => import("@/components/settings/PluginAcpAgentsGroup.vue"));
 const McpServerAuthControls = defineAsyncComponent(() => import("@/components/settings/McpServerAuthControls.vue"));
 
 type Category =
@@ -275,7 +233,6 @@ type Category =
   | "pro"
   | "cloud"
   | "external-mcp"
-  | "plugins"
   | "database"
   | "security"
   | "data"
@@ -298,9 +255,7 @@ type AiProvider =
   | "zhipu"
   | "kimi"
   | "doubao"
-  | "custom"
-  /** A preset from a plugin (contributes.aiProviders); `source` names it. */
-  | "plugin";
+  | "custom";
 
 interface AiProfile {
   id: string;
@@ -323,8 +278,6 @@ interface AiProfile {
   maxInputTokens: number;
   maxOutputTokens: number;
   openaiStreamUsage: "auto" | "always" | "never";
-  /** Set when the profile was made from a plugin preset; kept when the plugin is gone. */
-  source?: AiProfileSource;
   /** Models that cannot take tool definitions; requests to them carry no tools. */
   noToolModels: string[];
 }
@@ -360,8 +313,6 @@ interface VueSettings extends RuntimePerformanceSettings {
   autostart: boolean;
   globalShortcutEnabled: boolean;
   uiTheme: UiTheme;
-  /** Kind of the selected plugin theme; the fallback when its plugin is missing on this machine. */
-  uiThemeKind?: UiThemeKind;
   uiScale: number;
   uiFontFamily: UiFontFamily;
   shellType: string;
@@ -387,15 +338,6 @@ interface VueSettings extends RuntimePerformanceSettings {
   acpInjectRules: boolean;
   acpAgents: AcpAgent[];
   workspaceCacheLimit: number;
-  /** Closed plugin view tabs kept warm for a fast reopen (0 disables). */
-  /** Renamed from pluginViewWarmLimit when the default became 0; the old saved default no longer applies. */
-  pluginViewWarmFrames: number;
-  /** Contributed UI locale tag (localizations point); undefined uses `locale`. */
-  uiLocale?: string;
-  /** Plugin that provides `uiLocale`. */
-  uiLocalePlugin?: string;
-  /** "mincode" or a contributed file icon theme ID (fileIcons point). */
-  fileIconTheme: string;
   /** "follow", "custom" or a contributed editor theme ID (editorThemes point). */
   editorColorTheme: string;
   /** Colors of the "custom" editor theme. */
@@ -406,7 +348,6 @@ const props = defineProps<{ modelValue: boolean; initialCategory?: Category; ini
 const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
 const fullscreen = ref(false);
 const importInput = ref<HTMLInputElement>();
-const exportPluginData = ref(true);
 const environmentPackOpen = ref(false);
 const configSyncOpen = ref(false);
 const { t, locale, setLocale, intlLocale } = useVueI18n();
@@ -436,7 +377,6 @@ const workspaceStatePreferences = useWorkspaceStatePreferencesStore();
 void workspaceStatePreferences.hydrate();
 const active = ref<Category>("general");
 const cloudTab = ref<"account" | "pro">("account");
-const pluginSettings = usePluginSettingsAvailability();
 function selectCategory(category: Category) {
   if (category === "pro") {
     cloudTab.value = "pro";
@@ -477,22 +417,8 @@ const skillSearch = ref("");
 const skillSearchResults = ref<RegistryEntry[]>([]);
 const skillSearching = ref(false);
 const installingSkillId = ref<string>();
-const pluginAiCatalogs = usePluginAiCatalogsStore();
-const pluginAiProviders = usePluginAiProvidersStore();
 let mcpSearchController: AbortController | undefined;
 let skillSearchController: AbortController | undefined;
-function catalogEntryAvailable(entry: RegistryEntry) {
-  if (entry.source !== "plugin") return true;
-  const origin = entry.plugin;
-  return origin && pluginAiCatalogs.catalogs.some((catalog) =>
-    catalog.pluginId === origin.pluginId && catalog.id === origin.catalogId &&
-    catalog.kind === origin.kind && (catalog.fingerprint ?? "") === (origin.fingerprint ?? "")
-  );
-}
-watch(() => pluginAiCatalogs.catalogs, () => {
-  mcpSearchResults.value = mcpSearchResults.value.filter(catalogEntryAvailable);
-  skillSearchResults.value = skillSearchResults.value.filter(catalogEntryAvailable);
-}, { flush: "sync" });
 const skillEditorOpen = ref(false);
 const skillEditorText = ref("");
 const editingSkillId = ref<string>();
@@ -517,12 +443,9 @@ const REGISTRY_SOURCE_LABELS: Record<RegistryEntry["source"], MessageKey> = {
   builtin: "settings.registry.source.builtin",
   git: "settings.registry.source.git",
   registry: "settings.registry.source.registry",
-  plugin: "settings.registry.source.plugin",
 };
 function registrySourceText(entry: RegistryEntry) {
-  return entry.plugin
-    ? t("settings.registry.source.pluginNamed", { name: entry.plugin.pluginName })
-    : t(REGISTRY_SOURCE_LABELS[entry.source]);
+  return t(REGISTRY_SOURCE_LABELS[entry.source]);
 }
 const SKILL_SOURCE_LABELS: Record<AiSkillSource, MessageKey> = {
   manual: "settings.skills.sourceManual",
@@ -895,8 +818,6 @@ const defaults: VueSettings = {
   acpInjectRules: true,
   acpAgents: [],
   workspaceCacheLimit: DEFAULT_WORKSPACE_CACHE_LIMIT,
-  pluginViewWarmFrames: DEFAULT_PLUGIN_VIEW_WARM_LIMIT,
-  fileIconTheme: DEFAULT_FILE_ICON_THEME,
   editorColorTheme: EDITOR_THEME_FOLLOW,
   editorCustomTheme: normalizeCustomEditorTheme(undefined),
   ...DEFAULT_RUNTIME_PERFORMANCE_SETTINGS,
@@ -908,12 +829,6 @@ function createId(prefix: string) {
     : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 /** Models that replace a saved profile's retired ones: its provider preset, else the default preset. */
-/** Keeps a plugin preset source only on plugin profiles. */
-function normalizeAiProfileSource(provider: unknown, source: unknown): AiProfileSource | undefined {
-  if (provider !== "plugin" || typeof source !== "object" || source === null) return undefined;
-  const { pluginId, providerId } = source as Record<string, unknown>;
-  return typeof pluginId === "string" && typeof providerId === "string" ? { pluginId, providerId } : undefined;
-}
 function retiredModelReplacement(provider: unknown) {
   const preset = providerPresets.find((item) => item.value === provider);
   return preset?.model ? preset : defaultProviderPreset;
@@ -949,7 +864,6 @@ function normalizeSettings(raw: Partial<VueSettings> & { fontSize?: unknown }): 
                 .filter((model): model is string => typeof model === "string" && Boolean(model.trim()))
                 .map((model) => model.trim())
               : [],
-            source: normalizeAiProfileSource(profile.provider, profile.source),
             noToolModels: Array.isArray(profile.noToolModels)
               ? profile.noToolModels.filter((model): model is string => typeof model === "string" && Boolean(model.trim()))
               : [],
@@ -980,10 +894,6 @@ function normalizeSettings(raw: Partial<VueSettings> & { fontSize?: unknown }): 
     aiRules: Array.isArray(raw.aiRules) ? raw.aiRules : [],
     acpAgents: Array.isArray(raw.acpAgents) ? raw.acpAgents : [],
     workspaceCacheLimit: normalizeWorkspaceCacheLimit(raw.workspaceCacheLimit),
-    pluginViewWarmFrames: normalizePluginViewWarmLimit(raw.pluginViewWarmFrames),
-    uiLocale: normalizeUiLocale(raw.uiLocale),
-    uiLocalePlugin: normalizeUiLocalePlugin(raw.uiLocalePlugin),
-    fileIconTheme: normalizeFileIconTheme(raw.fileIconTheme),
     editorColorTheme: normalizeEditorThemePreference(raw.editorColorTheme),
     editorCustomTheme: normalizeCustomEditorTheme(raw.editorCustomTheme),
     ...resolveRuntimePerformanceSettings(raw),
@@ -1032,7 +942,6 @@ const categoryList: Array<{ id: Category; label: MessageKey; icon: typeof Settin
   { id: "ai", label: "settings.cat.ai", icon: MagicStick },
   { id: "cloud", label: "settings.cat.cloud", icon: Connection },
   { id: "external-mcp", label: "settings.externalMcp.title", icon: Connection },
-  { id: "plugins", label: "pluginContrib.configuration.category", icon: Grid },
   { id: "database", label: "settings.cat.database", icon: DataAnalysis },
   { id: "security", label: "settings.cat.security", icon: Lock },
   { id: "data", label: "settings.cat.data", icon: DataBoard },
@@ -1040,7 +949,6 @@ const categoryList: Array<{ id: Category; label: MessageKey; icon: typeof Settin
 ];
 const categories = computed(() =>
   categoryList
-    .filter((item) => item.id !== "plugins" || isPluginSettingsCategoryListed(pluginSettings.availability.value, active.value === "plugins"))
     .map((item) => (item.id === "about" && appUpdate.pendingVersion ? { ...item, badge: true } : item))
 );
 async function skipUpdateVersion(version: string) {
@@ -1113,7 +1021,6 @@ async function hydrateSettings() {
     return;
   }
   settings.locale = locale.value;
-  setLocalePackSelection(localePackSelectionFromSettings(settings));
   // Let the deep settings watcher see the hydration writes while persistence is still off.
   await nextTick();
   settingsHydrated.value = true;
@@ -1175,27 +1082,16 @@ watch(aiSettingsExternalRevision, () => {
   settings.aiSkills = external.aiSkills;
   persist();
 });
-// Language pack selection: settings (hydration, config sync) drive the
-// runtime; the language row changes the runtime selection, stored here.
-watch(() => [settings.uiLocale, settings.uiLocalePlugin], () => {
-  if (settingsHydrated.value) setLocalePackSelection(localePackSelectionFromSettings(settings));
-});
-watch(localePackState.selection, (selection) => {
-  if (!settingsHydrated.value) return;
-  settings.uiLocale = selection?.tag;
-  settings.uiLocalePlugin = selection?.pluginId;
-});
 watch(aiApprovalMode, (mode) => {
   approvalMode.value = mode;
 }, { immediate: true });
-watch(() => settings.uiTheme, (theme) => applyUiTheme(theme, settings.uiThemeKind), { immediate: true });
+watch(() => settings.uiTheme, (theme) => applyUiTheme(theme), { immediate: true });
 watch(
   [() => settings.uiScale, () => settings.uiFontFamily],
   ([uiScale, uiFontFamily]) => applyUiAppearance({ uiScale, uiFontFamily }),
   { immediate: true }
 );
 watch(() => settings.terminalColorScheme, applyTerminalColorScheme);
-watch(() => settings.fileIconTheme, applyFileIconThemePreference, { immediate: true });
 watch(
   [() => settings.editorColorTheme, () => settings.editorCustomTheme],
   ([theme, custom]) => applyEditorThemePreference(theme, custom),
@@ -1218,9 +1114,6 @@ watch(
   (open) => {
     if (open) {
       if (props.initialCategory) selectCategory(props.initialCategory);
-      // A Plugins page left open last time is not reopened once it is no longer listed.
-      else if (active.value === "plugins" && !isPluginSettingsCategoryListed(pluginSettings.availability.value, false)) selectCategory("general");
-      void pluginSettings.refresh();
       void ensureHydrated().catch(() => undefined).then(init);
     }
   },
@@ -1232,18 +1125,9 @@ watch(
     if (props.modelValue && category) selectCategory(category);
   }
 );
-// The plugin to focus on the plugins page; re-requests while open refocus it.
-const pluginSettingsTarget = ref(props.initialPluginId);
-watch(
-  () => props.initialPluginId,
-  (pluginId) => {
-    pluginSettingsTarget.value = pluginId;
-  }
-);
 watch(settingsNavigationRequest, (request) => {
   if (!props.modelValue || !request.category) return;
   selectCategory(request.category);
-  if (request.category === "plugins") pluginSettingsTarget.value = request.pluginId;
 });
 watch([() => props.modelValue, active, cloudTab], ([open, category, tab]) => {
   if (open && category === "cloud" && tab === "pro") void refreshProAccount();
@@ -1307,10 +1191,6 @@ function selectAiProfile(id: string) {
 }
 function profileProviderLabel(profile: AiProfile) {
   if (profile.provider === "custom") return t("settings.ai.custom");
-  if (profile.provider === "plugin") {
-    const provider = pluginProviderFor(profile);
-    return provider ? aiProviderText(provider.label, provider.labelLocalized, locale.value) : profile.name;
-  }
   return (
     providerPresets.find((item) => item.value === profile.provider)?.label ?? profile.provider
   );
@@ -1330,7 +1210,6 @@ function duplicateAiProfile(source: AiProfile) {
     commonModels: [...source.commonModels],
     failoverModels: [...source.failoverModels],
     noToolModels: [...source.noToolModels],
-    ...(source.source ? { source: { ...source.source } } : {}),
     id: createId("profile"),
     name: `${source.name} Copy`,
   };
@@ -1346,65 +1225,17 @@ function deleteAiProfile(profile: AiProfile) {
     settings.activeAiProfileId = settings.aiProfiles[Math.max(0, index - 1)]!.id;
   }
 }
-function pluginProviderFor(profile: AiProfile | undefined): PluginAiProvider | undefined {
-  if (profile?.provider !== "plugin" || !profile.source) return undefined;
-  const providerId = profile.source.providerId;
-  return pluginAiProviders.providers.find((provider) => provider.id === providerId);
-}
-const activePluginProvider = computed(() => pluginProviderFor(activeProfile.value));
-const providerOptions = computed(() =>
-  activeProfile.value
-    ? aiProviderSelectOptions(providerPresets.map((preset) => preset.value), pluginAiProviders.providers, activeProfile.value)
-    : []);
-const providerSelection = computed(() => (activeProfile.value ? aiProviderSelectValue(activeProfile.value) : ""));
-function providerOptionLabel(option: AiProviderSelectOption) {
-  if (option.provider) return aiProviderText(option.provider.label, option.provider.labelLocalized, locale.value);
-  if (option.kind === "orphan") return t("settings.ai.pluginProvider.unavailableOption");
-  if (option.value === "custom") return t("settings.ai.custom");
-  return providerPresets.find((preset) => preset.value === option.value)?.label ?? option.value;
-}
-function selectProvider(value: string) {
+function selectProvider(provider: AiProviderPreset["value"]) {
   const profile = activeProfile.value;
-  if (!profile) return;
-  if (value.startsWith(PLUGIN_PROVIDER_VALUE_PREFIX)) {
-    const provider = pluginAiProviders.providers.find((item) => `${PLUGIN_PROVIDER_VALUE_PREFIX}${item.id}` === value);
-    if (provider) Object.assign(profile, pluginProviderProfilePatch(provider));
-    return;
-  }
-  profile.provider = value as AiProvider;
-  delete profile.source;
+  if (!profile || !providerPresets.some((item) => item.value === provider)) return;
+  profile.provider = provider;
   profile.noToolModels = [];
-  applyProviderPreset(profile.provider);
-}
-const pluginProviderNotes = computed(() => {
-  const provider = activePluginProvider.value;
-  if (!provider) return undefined;
-  return {
-    quota: aiProviderText(provider.quotaNote, provider.quotaNoteLocalized, locale.value),
-    caveat: aiProviderText(provider.caveat, provider.caveatLocalized, locale.value),
-    verifiedMonth: provider.verifiedAt.slice(0, 7),
-  };
-});
-const unresolvedPlaceholders = computed(() => unresolvedBaseUrlPlaceholders(activeProfile.value?.baseUrl ?? ""));
-const placeholderDrafts = reactive<Record<string, string>>({});
-function placeholderLabel(name: string) {
-  const placeholder = activePluginProvider.value?.placeholders.find((item) => item.name === name);
-  return placeholder ? aiProviderText(placeholder.label, placeholder.labelLocalized, locale.value) : name;
-}
-function applyPlaceholder(name: string) {
-  const profile = activeProfile.value;
-  const value = (placeholderDrafts[name] ?? "").trim();
-  if (!profile || !value) return;
-  const filled = fillAiProviderPlaceholder(profile.baseUrl, name, value);
-  if (!filled) return ElMessage.warning(t("settings.ai.pluginProvider.placeholderInvalid"));
-  profile.baseUrl = filled;
-  delete placeholderDrafts[name];
+  applyProviderPreset(provider);
 }
 function modelOptionLabel(model: string) {
-  const tags = [];
-  if (activePluginProvider.value?.models.some((item) => item.id === model && item.free)) tags.push(t("settings.ai.pluginProvider.free"));
-  if (activeProfile.value?.noToolModels.includes(model)) tags.push(t("settings.ai.pluginProvider.chatOnly"));
-  return tags.length ? `${model} · ${tags.join(" · ")}` : model;
+  return activeProfile.value?.noToolModels.includes(model)
+    ? model + " · " + t("settings.ai.pluginProvider.chatOnly")
+    : model;
 }
 function applyProviderPreset(provider: AiProvider) {
   if (!activeProfile.value) return;
@@ -1428,7 +1259,7 @@ function applyProviderPreset(provider: AiProvider) {
 const addableCommonModels = computed(() => {
   const profile = activeProfile.value;
   const preset = profile && providerPresets.find((item) => item.value === profile.provider);
-  const models = preset?.commonModels ?? activePluginProvider.value?.models.map((model) => model.id) ?? [];
+  const models = preset?.commonModels ?? [];
   return profile ? models.filter((model) => !profile.commonModels.includes(model)) : [];
 });
 function addCommonModel(value?: string) {
@@ -1673,11 +1504,9 @@ async function searchMcpServers() {
   mcpSearchController = controller;
   mcpSearching.value = true;
   try {
-    const results = await searchMcpRegistry(mcpSearch.value, (query) =>
-      searchPluginAiCatalogs("mcp", query, locale.value, controller.signal)
-    );
+    const results = await searchMcpRegistry(mcpSearch.value);
     if (controller.signal.aborted) return;
-    mcpSearchResults.value = results.filter(catalogEntryAvailable);
+    mcpSearchResults.value = results;
     if (!mcpSearchResults.value.length) ElMessage.info(t("settings.registry.empty"));
   } catch (error) {
     if (!controller.signal.aborted) ElMessage.error(t("settings.registry.searchFailed", { message: String(error) }));
@@ -1688,8 +1517,7 @@ async function searchMcpServers() {
 async function installMcpEntry(entry: RegistryEntry) {
   installingMcpId.value = entry.id;
   try {
-    const servers = await loadMcpRegistryEntry(await resolvePluginRegistryEntry(entry, locale.value));
-    if (!(await confirmPluginRegistryInstall(entry, describeMcpServersForReview(servers), t))) return;
+    const servers = await loadMcpRegistryEntry(entry);
     const configured: McpServer[] = [];
     for (const server of servers) {
       const placeholder = findMcpPathPlaceholder(server);
@@ -1842,11 +1670,9 @@ async function searchSkills() {
   skillSearchController = controller;
   skillSearching.value = true;
   try {
-    const results = await searchSkillRegistry(skillSearch.value, (query) =>
-      searchPluginAiCatalogs("skill", query, locale.value, controller.signal)
-    );
+    const results = await searchSkillRegistry(skillSearch.value);
     if (controller.signal.aborted) return;
-    skillSearchResults.value = results.filter(catalogEntryAvailable);
+    skillSearchResults.value = results;
     if (!skillSearchResults.value.length) ElMessage.info(t("settings.registry.empty"));
   } catch (error) {
     if (!controller.signal.aborted) ElMessage.error(t("settings.registry.searchFailed", { message: String(error) }));
@@ -1857,9 +1683,7 @@ async function searchSkills() {
 async function installSkillEntry(entry: RegistryEntry) {
   installingSkillId.value = entry.id;
   try {
-    const skill = await loadSkillRegistryEntry(await resolvePluginRegistryEntry(entry, locale.value));
-    const summary = [skill.name, skill.description].filter(Boolean).join("\n");
-    if (!(await confirmPluginRegistryInstall(entry, summary, t))) return;
+    const skill = await loadSkillRegistryEntry(entry);
     const index = settings.aiSkills.findIndex(
       (item) => item.id === skill.id || item.sourcePath === skill.sourcePath
     );
@@ -2043,11 +1867,6 @@ function removeAgent(agent: AcpAgent) {
 function selectAcpAdapter(id: string) {
   settings.acpAdapterId = id;
 }
-const showPluginAcpAgents = computed(
-  () =>
-    pluginAcpAgents.value.length > 0 ||
-    (pluginAcpAgentsReady.value && parseAcpAdapterId(settings.acpAdapterId).kind === "plugin"),
-);
 async function checkUpdate() {
   if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
   updateError.value = "";
@@ -2206,37 +2025,23 @@ async function exportConfig() {
     const payload = await buildConfigExport({ includeSecrets });
     const filename = `mincode-config-${payload.exportedAt.slice(0, 10)}.json`;
     const filters = [{ DisplayName: "JSON", Pattern: "*.json" }];
-    let plugins: Awaited<ReturnType<typeof writeConfigExportWithPluginData>> = [];
-    if (exportPluginData.value && isDesktopRuntime()) {
-      const path = await chooseNativeSaveFile(t("settings.data.export"), filename, filters);
-      if (!path) return;
-      plugins = await writeConfigExportWithPluginData(path, payload);
-    } else {
-      const saved = await saveTextFileToDisk({
-        title: t("settings.data.export"),
-        filename,
-        content: JSON.stringify(payload, null, 2),
-        filters,
-        browserMimeType: "application/json",
-      });
-      if (saved === false) return;
-    }
+    const saved = await saveTextFileToDisk({
+      title: t("settings.data.export"),
+      filename,
+      content: JSON.stringify(payload, null, 2),
+      filters,
+      browserMimeType: "application/json",
+    });
+    if (saved === false) return;
     ElMessage.success(
       t(includeSecrets
         ? "security.secretExport.doneWithSecrets"
         : "security.secretExport.doneWithoutSecrets")
     );
-    if (plugins.length) {
-      ElMessage.success(t("settings.data.pluginDataExported", {
-        count: plugins.length,
-        files: plugins.reduce((total, plugin) => total + plugin.files, 0),
-      }));
-    }
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : String(cause));
   }
 }
-// 桌面端按路径由后端读取文件，插件文件（可能很大）不经过前端；浏览器预览只导入应用配置。
 async function startImportConfig() {
   if (!isDesktopRuntime()) {
     importInput.value?.click();
@@ -2247,29 +2052,10 @@ async function startImportConfig() {
       { DisplayName: "JSON", Pattern: "*.json" },
     ]);
     if (!path) return;
-    const { config, plugins } = await readConfigImportFile(path);
-    const parsed = parseConfigImport(config, t("settings.data.importInvalid"), {
-      allowEmpty: plugins.length > 0,
-    });
+    const parsed = parseConfigImport(JSON.parse(await readSelectedText(path)), t("settings.data.importInvalid"));
     if (parsed.includesSecrets && !(await confirmSecretImport())) return;
-    if (plugins.length) {
-      try {
-        await ElMessageBox.confirm(
-          t("settings.data.pluginDataImportConfirm", {
-            count: plugins.length,
-            files: plugins.reduce((total, plugin) => total + plugin.files, 0),
-          }),
-          t("settings.data.import"),
-          { type: "warning", confirmButtonText: t("common.import"), cancelButtonText: t("common.cancel") }
-        );
-      } catch {
-        return;
-      }
-    }
-    // 插件数据的校验更严格，先导入它，失败时应用配置还没有被改动。
-    const pluginResult = plugins.length ? await importConfigPluginData(path) : undefined;
     await applyConfigImport(parsed);
-    reportConfigImport(parsed, pluginResult);
+    reportConfigImport(parsed);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error));
   }
@@ -2292,18 +2078,8 @@ async function importConfig(event: Event) {
     input.value = "";
   }
 }
-function reportConfigImport(parsed: ParsedConfigImport, pluginResult?: PluginDataImportResult) {
+function reportConfigImport(parsed: ParsedConfigImport) {
   if (Object.keys(parsed.values).length) ElMessage.success(t("settings.data.imported"));
-  if (pluginResult?.imported.length) {
-    ElMessage.success(
-      pluginResult.notInstalled.length
-        ? t("settings.data.pluginDataImportedPartly", {
-            count: pluginResult.imported.length,
-            missing: pluginResult.notInstalled.length,
-          })
-        : t("settings.data.pluginDataImported", { count: pluginResult.imported.length })
-    );
-  }
   if (parsed.skippedKeys.length) {
     ElMessage.warning(t("settings.data.importSkipped", { count: parsed.skippedKeys.length }));
   }
@@ -2407,17 +2183,9 @@ onBeforeUnmount(() => {
 
         <ExternalMcpPanel v-else-if="active === 'external-mcp'" />
 
-        <PluginSettingsPanel
-          v-else-if="active === 'plugins'"
-          :initial-plugin-id="pluginSettingsTarget"
-          :active="modelValue"
-          @navigate="close()"
-        />
-
         <KeybindingSettingsPanel
           v-else-if="active === 'shortcuts'"
           :global-shortcut-enabled="settings.globalShortcutEnabled"
-          @navigate="close()"
         />
 
         <section v-else-if="active === 'ai'" class="settings-flat-page settings-ai-page">
@@ -2562,23 +2330,13 @@ onBeforeUnmount(() => {
                   /></div>
                   <div class="settings-ai-field-row"
                     ><span>{{ t("settings.ai.provider") }}</span
-                    ><el-select :model-value="providerSelection" filterable @update:model-value="selectProvider"
+                    ><el-select :model-value="activeProfile.provider" filterable @update:model-value="selectProvider"
                       ><el-option
-                        v-for="option in providerOptions"
+                        v-for="option in providerPresets"
                         :key="option.value"
                         :value="option.value"
-                        :label="providerOptionLabel(option)"
-                        :disabled="option.kind === 'orphan'"
-                        ><span v-if="option.provider" class="settings-ai-provider-option"
-                          ><span class="settings-ai-provider-option__name">{{ providerOptionLabel(option) }}</span
-                          ><el-tag
-                            size="small"
-                            :type="option.provider.tier === 'free' ? 'success' : 'warning'"
-                            disable-transitions
-                            >{{ t(`settings.ai.pluginProvider.tier.${option.provider.tier}`) }}</el-tag
-                          ><small>{{ option.provider.pluginName }} · {{ option.provider.host }}</small></span
-                        ><template v-else>{{ providerOptionLabel(option) }}</template></el-option
-                      ></el-select
+                        :label="option.value === 'custom' ? t('settings.ai.custom') : option.label"
+                      /></el-select
                   ></div>
                   <div class="settings-ai-field-row settings-ai-protocol-field">
                     <span class="settings-ai-field-label app-inline-label">
@@ -2619,23 +2377,6 @@ onBeforeUnmount(() => {
                     ><span>Base URL</span
                     ><el-input v-model="activeProfile.baseUrl" placeholder="https://api.openai.com/v1"
                   /></div>
-                  <div
-                    v-for="name in unresolvedPlaceholders"
-                    :key="name"
-                    class="settings-ai-field-row settings-ai-protocol-field"
-                  >
-                    <span class="settings-ai-field-label">
-                      <b>{{ placeholderLabel(name) }}</b>
-                      <small>{{ t("settings.ai.pluginProvider.placeholderHint", { name }) }}</small>
-                    </span>
-                    <el-input
-                      v-model="placeholderDrafts[name]"
-                      :aria-label="placeholderLabel(name)"
-                      @change="applyPlaceholder(name)"
-                    ><template #append
-                      ><el-button @click="applyPlaceholder(name)">{{ t("settings.ai.pluginProvider.placeholderApply") }}</el-button></template
-                    ></el-input>
-                  </div>
                   <div class="settings-ai-field-row"
                     ><span>API Key</span
                     ><el-input v-model="activeProfile.apiKey" show-password placeholder="sk-..."
@@ -2648,33 +2389,6 @@ onBeforeUnmount(() => {
                     show-icon
                     :title="t('settings.ai.browserKeyNote')"
                   />
-                  <div v-if="activePluginProvider && pluginProviderNotes" class="settings-ai-field-row settings-ai-protocol-field">
-                    <span>{{ t("settings.ai.pluginProvider.about") }}</span>
-                    <div class="settings-ai-plugin-provider">
-                      <p>{{ t("settings.ai.pluginProvider.source", { plugin: activePluginProvider.pluginName, host: activePluginProvider.host }) }}</p>
-                      <p v-if="pluginProviderNotes.quota">{{ pluginProviderNotes.quota }}</p>
-                      <el-alert
-                        v-if="pluginProviderNotes.caveat"
-                        type="warning"
-                        :closable="false"
-                        show-icon
-                        :title="pluginProviderNotes.caveat"
-                      />
-                      <p v-if="activePluginProvider.region !== 'cn'">
-                        {{ t(`settings.ai.pluginProvider.region.${activePluginProvider.region}`) }}
-                      </p>
-                      <div class="settings-ai-plugin-provider__footer">
-                        <el-button size="small" :icon="TopRight" @click="openDocumentation(activePluginProvider.signupUrl)">{{
-                          t("settings.ai.pluginProvider.signup")
-                        }}</el-button>
-                        <small>{{ t("settings.ai.pluginProvider.verifiedAt", { date: pluginProviderNotes.verifiedMonth }) }}</small>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-else-if="activeProfile.provider === 'plugin'" class="settings-ai-field-row settings-ai-protocol-field">
-                    <span>{{ t("settings.ai.pluginProvider.about") }}</span>
-                    <p class="settings-ai-plugin-provider">{{ t("settings.ai.pluginProvider.unavailable") }}</p>
-                  </div>
                   <div class="settings-ai-field-row settings-ai-model-field"
                     ><span class="settings-ai-field-heading"
                       ><b>{{ t("settings.ai.model") }}</b
@@ -3106,7 +2820,6 @@ onBeforeUnmount(() => {
                   </article>
                 </div>
               </section>
-              <PluginMcpServersSection :statuses="mcpStatuses" @changed="loadProtocolStatus" />
               <el-button class="settings-ai-advanced-button" @click="mcpAdvanced = !mcpAdvanced">{{
                 t("settings.mcp.advanced")
               }}</el-button>
@@ -3137,7 +2850,6 @@ onBeforeUnmount(() => {
               </section>
             </template>
             <template v-else>
-              <AiMarketDiscoverBanner @navigate="close()" />
               <section class="settings-ai-card settings-ai-intro-card">
                 <div>
                   <span class="app-inline-label">
@@ -3345,10 +3057,8 @@ onBeforeUnmount(() => {
                   </article>
                 </div>
               </section>
-              <PluginAiPromptsSection />
             </template>
             <template v-else>
-              <AiMarketDiscoverBanner @navigate="close()" />
               <section class="settings-ai-card settings-ai-skills-import">
                 <p>{{ t("settings.skills.importHint") }}</p>
                 <div>
@@ -3625,11 +3335,6 @@ onBeforeUnmount(() => {
                   </footer>
                 </article>
               </div>
-              <PluginAcpAgentsGroup
-                v-if="showPluginAcpAgents"
-                :selected-id="settings.acpAdapterId"
-                @select="selectAcpAdapter"
-              />
               <div class="settings-ai-agent-switch"
                 ><span class="app-inline-label"
                   ><strong>{{ t("settings.acp.injectRules") }}</strong
@@ -3853,10 +3558,7 @@ onBeforeUnmount(() => {
               ><strong>{{ t("settings.data.export") }}</strong
               ><AppHintIcon :text="t('settings.data.exportHint')" /></span
             ><div class="settings-data-row__actions">
-              <el-checkbox v-model="exportPluginData">{{
-                t("settings.data.includePluginData")
-              }}</el-checkbox
-              ><el-button @click="exportConfig">{{ t("common.export") }}</el-button>
+              <el-button @click="exportConfig">{{ t("common.export") }}</el-button>
             </div>
           </div>
           <div class="settings-data-row">

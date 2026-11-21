@@ -1,4 +1,3 @@
-import { taskMessagesZh } from "../../plugin-ui/task-messages";
 
 export const messagesZh = {
   "plugins.publish.error.busy": "文件暂存繁忙，请稍后重试",
@@ -86,7 +85,20 @@ export const messagesZh = {
   "plugins.publish.error.version_retired": "该版本号已作废，请提高版本号",
   "plugins.publish.error.product_unavailable": "插件在云端不可用",
   "plugins.publish.error.artifact_conflict": "云端已有不同哈希的安装包，请提高版本号",
-  ...taskMessagesZh,
+  "plugins.taskMode": "长任务模式（可选，最长 5 分钟）",
+  "plugins.taskUnknown": "任务状态未知",
+  "plugins.taskRecheck": "重新查询任务状态（不会重复执行）",
+  "plugins.taskCancelUncertain": "无法确认取消请求；任务可能仍在运行，请勿重复执行。",
+  "plugins.taskStart": "作为长任务运行",
+  "plugins.taskCancel": "请求取消",
+  "plugins.taskCancelRequested": "已请求取消，等待任务结束",
+  "plugins.taskHelp": "最长运行 5 分钟。取消或关闭页面不保证回滚已完成的操作。旧版插件运行时可能不支持任务。",
+  "plugins.taskPollingStopped": "已停止监测；任务可能仍在运行，请勿重复执行。",
+  "plugins.taskFailed": "任务失败",
+  "plugins.task.running": "运行中",
+  "plugins.task.succeeded": "已完成",
+  "plugins.task.failed": "失败",
+  "plugins.task.cancelled": "已取消（不代表已回滚）",
   "ssh.history.title": "SSH 历史命令",
   "ssh.history.button": "历史命令",
   "ssh.history.privacy": "本机历史 · 不上传、不发送给 AI",
@@ -3964,6 +3976,8 @@ export const messagesZh = {
   "database.typeCompatHint.postgres": "也可连接 PostgreSQL 协议兼容的数据库",
   "database.driverHint": "使用 {driver} 驱动连接",
   "database.driverUnavailable": "驱动未接入",
+  "database.confirmBuiltinDriver": "确认使用内置驱动",
+  "database.confirmBuiltinDriverHint": "请在连接前确认使用内置驱动。",
   "database.driverUnavailableHint": "当前桌面后端尚未接入该数据库驱动",
   "database.yashandbClientHint":
     "使用官方 YashanDB Go 驱动；桌面端仍需安装匹配版本的 YashanDB C Client。官方客户端目前支持 Windows 和 Linux。",

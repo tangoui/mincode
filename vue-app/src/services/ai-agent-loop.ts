@@ -3,7 +3,7 @@ import {
   type AiAttachment,
 } from "@/domain/ai/attachments";
 import type { AiApiFormat } from "@/domain/ai/api-format";
-import { plainChatHistory, toolsForModel } from "@/domain/ai/plugin-provider-profile";
+import { plainChatHistory, toolsForModel } from "@/domain/ai/model-tool-support";
 import type { AiAnthropicAuth } from "@/domain/ai/anthropic-auth";
 import { normalizeAiMaxLoops } from "@/domain/ai/agent-loop-limit";
 import { aiLoopTurnCompletion } from "@/domain/ai/agent-loop-completion";

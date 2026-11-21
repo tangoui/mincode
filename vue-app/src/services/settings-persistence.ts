@@ -19,6 +19,21 @@ function isRecord(value: unknown): value is SettingsRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export function normalizeLegacyAiProfiles(value: SettingsRecord): SettingsRecord {
+  const profiles = value.aiProfiles;
+  if (!Array.isArray(profiles) || !profiles.some((profile) => isRecord(profile) && profile.provider === "plugin")) {
+    return value;
+  }
+  return {
+    ...value,
+    aiProfiles: profiles.map((profile: unknown) => {
+      if (!isRecord(profile) || profile.provider !== "plugin") return profile;
+      const { source: _source, ...saved } = profile;
+      return { ...saved, provider: "custom" };
+    }),
+  };
+}
+
 /**
  * Browser-local mode keeps AI API keys in this tab's sessionStorage (services/browser-ai-keys), never
  * in the localStorage snapshot; they are merged back into the settings read here. Desktop unchanged.
@@ -35,7 +50,7 @@ function readBrowserSnapshot() {
   } catch {
     // Unreadable snapshot: start from defaults.
   }
-  return withSessionAiKeys(snapshot);
+  return normalizeLegacyAiProfiles(withSessionAiKeys(snapshot));
 }
 
 function blankRecordValues(value: unknown) {
@@ -145,7 +160,7 @@ export async function hydrateSettingsSnapshot<T extends SettingsRecord = Setting
   if (!hydrationPromise) {
     hydrationPromise = loadSecurePersistedValue<SettingsRecord>(SETTINGS_STORAGE_KEY)
       .then((stored) => {
-        runtimeSnapshot = withSessionAiKeys(stored ?? readBrowserSnapshot());
+        runtimeSnapshot = normalizeLegacyAiProfiles(withSessionAiKeys(stored ?? readBrowserSnapshot()));
         return runtimeSnapshot;
       })
       .finally(() => {
@@ -156,7 +171,7 @@ export async function hydrateSettingsSnapshot<T extends SettingsRecord = Setting
 }
 
 export function updateSettingsRuntimeSnapshot(value: SettingsRecord): void {
-  runtimeSnapshot = clonePersistable(value);
+  runtimeSnapshot = clonePersistable(normalizeLegacyAiProfiles(value));
   settingsSnapshotVersion.value++;
 }
 
@@ -168,7 +183,7 @@ export async function persistSettingsSnapshot(
   value: SettingsRecord,
   options: { strict?: boolean } = {}
 ) {
-  const nextSnapshot = clonePersistable(value);
+  const nextSnapshot = clonePersistable(normalizeLegacyAiProfiles(value));
   updateSettingsRuntimeSnapshot(nextSnapshot);
   if (!isDesktopRuntime()) storeBrowserAiKeys(nextSnapshot);
   await saveSecurePersistedValue(

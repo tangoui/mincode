@@ -1,7 +1,6 @@
 export type TerminalContextMenuAction =
   | "copy"
   | "paste"
-  | "insert-command-snippet"
   | "select-all"
   | "search-selection"
   | "clear"

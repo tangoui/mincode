@@ -21,7 +21,6 @@
     "test:http-resources": "node --experimental-strip-types --test scripts/http-resources.test.mjs",
     "test:database-table-search": "node --experimental-strip-types --test scripts/database-table-search.test.mjs scripts/database-charset-change.test.mjs",
     "test:workbench-session": "node --experimental-strip-types --test scripts/workbench-session.test.mjs",
-    "test:plugin-ui": "node --experimental-strip-types --test scripts/plugin-ui-session.test.mjs scripts/plugin-ui-tasks.test.mjs scripts/plugin-view-warm-pool.test.mjs scripts/plugin-ui-fast-open.test.mjs scripts/plugin-sandbox-forms.test.mjs",
     "test:sftp-panel": "node --test scripts/sftp-panel-layout.test.mjs",
     "test": "node scripts/run-tests.mjs"
   },

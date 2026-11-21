@@ -107,7 +107,7 @@ test("keeps commit drafts and AI generation isolated by repository", () => {
 
 test("keeps AI generation clickable and explains the staged-file requirement", () => {
   assert.match(panel, /async function generateCommitMessage\(\)[\s\S]*?ElMessage\.warning\(t\("git\.aiGenerateRequiresStaged"\)\)/);
-  assert.match(panel, /:title="aiGeneratingCommitMessage \? t\('common\.cancel'\) : t\('git\.aiGenerateCommitMessage'\)"[\s\S]*?@click="generateCommitMessage"/);
+  assert.match(panel, /:title="generatingCommitMessage \? t\('common\.cancel'\) : t\('git\.aiGenerateCommitMessage'\)"[\s\S]*?@click="generateCommitMessage"/);
   assert.doesNotMatch(panel, /:disabled="generatingCommitMessage/);
 });
 

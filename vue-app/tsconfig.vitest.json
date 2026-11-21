@@ -12,7 +12,6 @@
       "vue": ["./node_modules/vue"],
       "element-plus": ["./node_modules/element-plus"],
       "@element-plus/icons-vue": ["./node_modules/@element-plus/icons-vue"],
-      "@mincode/plugin-ui/*": ["./src/plugin-ui/*"],
       "element-plus/es/locale/lang/*": ["./node_modules/element-plus/es/locale/lang/*"]
     }
   },

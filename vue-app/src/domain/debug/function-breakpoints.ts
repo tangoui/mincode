@@ -9,7 +9,6 @@
  * one line without control or bidi characters, at most 1024 characters, at
  * most `functionBreakpointsMax` per start.
  */
-import contributionContract from "../plugins/contribution-points.json" with { type: "json" };
 import type { DebugBreakpointListItemResult } from "./types.ts";
 
 /** One saved method breakpoint. */
@@ -24,7 +23,7 @@ export interface DebugFunctionBreakpointResult extends DebugBreakpointListItemRe
 }
 
 export const FUNCTION_BREAKPOINT_LIMITS = {
-  max: contributionContract.points.debuggers.limits.functionBreakpointsMax,
+  max: 256,
   /** Go debuggerBreakpointNameRunes (not a contract limit). */
   maxRunes: 1024,
 };

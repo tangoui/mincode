@@ -21,13 +21,7 @@
  * file of that project is open, and when another of its files is activated
  * once the backoff passed (stores/test-discovery.ts retryIn; bounded).
  */
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
-import { testProviderKey, type PluginTestProvider } from "@/domain/plugins/test-providers";
-import { pickTestItems, type TestFileEntry } from "@/domain/testing/test-discovery";
-import { ensureTestRunRestart, launchTestRun } from "@/services/test-run-launcher";
-import { usePluginTestProvidersStore } from "@/stores/plugin-test-providers";
-import { useTestDiscovery } from "@/stores/test-discovery";
-import { useTestRuns } from "@/stores/test-runs";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { DEBUGGER_ADDRESS_LIMITS, breakpointAddress, type BreakpointAt } from "@/domain/debug/address-breakpoints";
 import { normalizeLogMessage } from "@/domain/debug/logpoints";
@@ -50,16 +44,9 @@ import type {
   DebugAnchor,
   DebugBreakpointHoverDetails,
   DebugEntryPointMarker,
-  DebugEntryPointState,
 } from "@/composables/use-editor-debug-decorations";
 
 const ENTRY_POINTS_DEBOUNCE_MS = 500;
-const TEST_DISCOVERY_DEBOUNCE_MS = 800;
-/** Gutter result states follow a live run at most this often (like the Tests tab). */
-const TEST_STATES_INTERVAL_MS = 100;
-/** Marks entry menu keys of tests (debugger entry keys never contain it). */
-const TEST_KEY_PREFIX = "test\u0000";
-
 export interface ProjectEditorDebugDocument {
   path: string;
   external?: boolean;
@@ -75,12 +62,6 @@ interface EntryCandidate {
   key: string;
   debugger: DebuggerInfo;
   entry: DebuggerEntryPoint;
-}
-
-interface TestCandidate {
-  key: string;
-  provider: PluginTestProvider;
-  test: TestFileEntry;
 }
 
 export interface ProjectEditorConditionDraft {
@@ -151,7 +132,6 @@ export interface ProjectEditorDebugProps {
   pausedLine: number | null;
   entryPoints: DebugEntryPointMarker[];
   /** Last results of the test entries, by stored line. */
-  entryPointStates: Record<number, DebugEntryPointState>;
   inlineVariables: { name: string; value: string }[] | null;
 }
 
@@ -166,12 +146,8 @@ function sameRecord<T>(a: Record<number, T>, b: Record<number, T>): boolean {
 }
 
 export function useProjectEditorDebug(options: ProjectEditorDebugOptions) {
-  const { t, localeChain } = useVueI18n();
-  const testProviders = usePluginTestProvidersStore();
-  const testDiscovery = useTestDiscovery();
-  const testRuns = useTestRuns();
+  const { t } = useVueI18n();
   // Restart of a test-run session works from the start, not only after this window launched one.
-  ensureTestRunRestart();
   const configs = useDebugConfigsStore();
   const sessions = useDebugSessionsStore();
   void configs.load().catch(() => undefined);
@@ -325,169 +301,10 @@ export function useProjectEditorDebug(options: ProjectEditorDebugOptions) {
   let entryTimer: ReturnType<typeof setTimeout> | undefined;
   let entryRequest = 0;
 
-  // ---- test entries ----
-
-  const streamingProviders = computed(() => testProviders.providers.filter((provider) => provider.debugRun));
-
-  /** The active project file's path relative to its project root, or null. */
-  const fileRelative = computed(() => {
-    const current = fileTarget.value;
-    if (!current || !options.activeDocument()?.loaded) return null;
-    const path = current.path.replace(/\\/g, "/");
-    const root = current.root.replace(/\\/g, "/").replace(/\/+$/, "");
-    if (!root || !comparablePath(path).startsWith(`${comparablePath(root)}/`)) return null;
-    return { root: current.root, path: current.path, relative: path.slice(root.length + 1) };
-  });
-
-  const testCandidates = computed<TestCandidate[]>(() => {
-    const file = fileRelative.value;
-    if (!file) return [];
-    return streamingProviders.value.flatMap((provider) =>
-      testDiscovery.testsInFile(provider, file.root, file.relative).map((test) => ({
-        key: `${TEST_KEY_PREFIX}${testProviderKey(provider)}\u0000${test.id}`,
-        provider,
-        test,
-      })),
-    );
-  });
-
-  const entryPoints = computed<DebugEntryPointMarker[]>((previous) => {
+  const entryPoints = computed(() => {
     const state = entryState.value;
-    const main = state && state.path === fileTarget.value?.path ? state.markers : noEntryPoints;
-    const tests = testCandidates.value;
-    if (!tests.length) return main;
-    const next = [...main, ...tests.map(({ test }) => ({ line: test.line, label: test.label }))];
-    // The same lines and labels keep the array: a new one would be a new lookup for the editor.
-    const same = previous && previous.length === next.length && previous.every((marker, index) => marker.line === next[index]!.line && marker.label === next[index]!.label);
-    return same ? previous : next;
+    return state && state.path === fileTarget.value?.path ? state.markers : noEntryPoints;
   });
-
-  // Last results follow a live run at most every TEST_STATES_INTERVAL_MS (a
-  // payload can arrive every few ms); a new file or discovery applies at once.
-  // Cost per update: ids in the file × kept runs (a leaf is O(1), a suite
-  // walks only its own subtree).
-  const noStates: Record<number, DebugEntryPointState> = {};
-  const entryPointStates = shallowRef<Record<number, DebugEntryPointState>>(noStates);
-  let statesTimer: ReturnType<typeof setTimeout> | undefined;
-
-  function computeStates() {
-    const file = fileRelative.value;
-    const tests = testCandidates.value;
-    if (!file || !tests.length) {
-      entryPointStates.value = noStates;
-      return;
-    }
-    const next: Record<number, DebugEntryPointState> = {};
-    const byProvider = new Map<PluginTestProvider, TestCandidate[]>();
-    for (const candidate of tests) byProvider.set(candidate.provider, [...(byProvider.get(candidate.provider) ?? []), candidate]);
-    for (const [provider, candidates] of byProvider) {
-      const statuses = testRuns.lastStatuses(provider.pluginId, provider.id, file.root, candidates.map(({ test }) => test.id));
-      for (const { test } of candidates) {
-        const status = statuses.get(test.id);
-        if (status && status !== "pending" && next[test.line] === undefined) next[test.line] = status;
-      }
-    }
-    if (!sameRecord(entryPointStates.value, next)) entryPointStates.value = next;
-  }
-
-  watch(testCandidates, () => {
-    if (statesTimer !== undefined) clearTimeout(statesTimer);
-    statesTimer = undefined;
-    computeStates();
-  }, { immediate: true });
-  watch(
-    () => testRuns.revision,
-    () => {
-      if (!testCandidates.value.length) return;
-      statesTimer ??= setTimeout(() => {
-        statesTimer = undefined;
-        computeStates();
-      }, TEST_STATES_INTERVAL_MS);
-    },
-  );
-
-  let discoveryTimer: ReturnType<typeof setTimeout> | undefined;
-  let discoveryRetryTimer: ReturnType<typeof setTimeout> | undefined;
-  let disposed = false;
-  const locale = () => localeChain.value[0] ?? "en";
-
-  /**
-   * Discovers the tests of root's streaming providers that have none yet or
-   * whose retry is due after a miss (or every one when `again`).
-   */
-  function discoverTests(root: string, again: boolean) {
-    if (!isDesktopRuntime()) return;
-    for (const provider of streamingProviders.value) {
-      if (!again) {
-        if (testDiscovery.isDiscovering(provider, root)) continue;
-        const wait = testDiscovery.retryIn(provider, root);
-        if (wait === undefined ? testDiscovery.entry(provider, root) : wait > 0) continue;
-      }
-      // Failures are silent here: the Tests panel shows them; the file still edits and runs.
-      void testDiscovery
-        .discover(provider, root, locale())
-        .catch(() => undefined)
-        .then(scheduleDiscoveryRetry);
-    }
-  }
-
-  /** Arms one timer for the open file's project's earliest due retry (see testDiscovery.retryIn). */
-  function scheduleDiscoveryRetry() {
-    if (discoveryRetryTimer !== undefined) clearTimeout(discoveryRetryTimer);
-    discoveryRetryTimer = undefined;
-    const file = fileRelative.value;
-    if (disposed || !file) return;
-    let wait = Number.POSITIVE_INFINITY;
-    for (const provider of streamingProviders.value) {
-      if (testDiscovery.isDiscovering(provider, file.root)) continue;
-      wait = Math.min(wait, testDiscovery.retryIn(provider, file.root) ?? Number.POSITIVE_INFINITY);
-    }
-    if (!Number.isFinite(wait)) return;
-    discoveryRetryTimer = setTimeout(() => {
-      discoveryRetryTimer = undefined;
-      const current = fileRelative.value;
-      if (current) discoverTests(current.root, false);
-    }, wait);
-  }
-
-  /** Whether a save of path (relative) may change root's tests: it has tests, or shares an extension with a test file. */
-  function mayHoldTests(root: string, relative: string) {
-    const extension = /\.[^./]+$/.exec(relative)?.[0];
-    return streamingProviders.value.some((provider) => {
-      const entry = testDiscovery.entry(provider, root);
-      if (!entry || entry.byFile.size === 0 || entry.byFile.has(relative)) return true;
-      return extension !== undefined && [...entry.byFile.keys()].some((path) => path.endsWith(extension));
-    });
-  }
-
-  /** After a save: discovers the saved file's project tests again (debounced). */
-  function scheduleTestDiscovery() {
-    const file = fileRelative.value;
-    if (!file || !streamingProviders.value.length || !mayHoldTests(file.root, file.relative)) return;
-    // The Tests tab must not reuse the discovery from before this save.
-    testDiscovery.markStale(file.root);
-    if (discoveryTimer !== undefined) clearTimeout(discoveryTimer);
-    discoveryTimer = setTimeout(() => {
-      discoveryTimer = undefined;
-      discoverTests(file.root, true);
-    }, TEST_DISCOVERY_DEBOUNCE_MS);
-  }
-
-  // A project file opened in a project without a discovery discovers its tests
-  // once; activating a file retries a missed discovery whose backoff passed.
-  watch(
-    () => {
-      const file = fileRelative.value;
-      return file
-        ? `${file.root}\u0000${file.relative}\u0000${streamingProviders.value.map((provider) => testProviderKey(provider)).join(",")}`
-        : null;
-    },
-    () => {
-      const file = fileRelative.value;
-      if (file && streamingProviders.value.length) discoverTests(file.root, false);
-    },
-    { immediate: true },
-  );
 
   /** Looks the active file's entry points up again after the debounce. */
   function scheduleEntryPoints() {
@@ -645,7 +462,6 @@ export function useProjectEditorDebug(options: ProjectEditorDebugOptions) {
       ...(state && state.path === current.path ? state.candidates : [])
         .filter(({ entry }) => entry.line === line)
         .map(({ key, entry }) => ({ key, label: entry.label })),
-      ...testCandidates.value.filter(({ test }) => test.line === line).map(({ key, test }) => ({ key, label: test.label })),
     ];
     if (!items.length) return;
     entryMenu.value = { ...current, anchor, items };
@@ -659,11 +475,6 @@ export function useProjectEditorDebug(options: ProjectEditorDebugOptions) {
   async function runEntry(key: string, noDebug: boolean) {
     const menu = entryMenu.value;
     entryMenu.value = null;
-    if (key.startsWith(TEST_KEY_PREFIX)) {
-      const test = testCandidates.value.find((item) => item.key === key);
-      if (menu && test) await runTestEntry(menu.root, test, !noDebug);
-      return;
-    }
     const candidate = entryState.value?.candidates.find((item) => item.key === key);
     if (!menu || !candidate || entryState.value?.path !== menu.path) return;
     await configs.load().catch(() => undefined);
@@ -671,23 +482,6 @@ export function useProjectEditorDebug(options: ProjectEditorDebugOptions) {
     configs.upsertConfig(menu.root, cfg);
     configs.selectConfig(menu.root, cfg.id);
     await sessions.start(menu.root, cfg, { noDebug, activeFile: menu.path });
-  }
-
-  /** Runs or debugs one test of the gutter through the streaming test run path. */
-  async function runTestEntry(root: string, candidate: TestCandidate, debug: boolean) {
-    const { provider, test } = candidate;
-    if (!provider.debugRun) return;
-    const tests = testDiscovery.entry(provider, root)?.tests ?? [];
-    await launchTestRun({
-      pluginId: provider.pluginId,
-      providerId: provider.id,
-      debuggerType: provider.debugRun.debuggerType,
-      projectRoot: root,
-      testIds: [test.id],
-      debug,
-      name: test.label,
-      discovered: pickTestItems(tests, [test.id]),
-    });
   }
 
   // ---- paused frame and debugger sources ----
@@ -750,10 +544,6 @@ export function useProjectEditorDebug(options: ProjectEditorDebugOptions) {
 
   onBeforeUnmount(() => {
     if (entryTimer !== undefined) clearTimeout(entryTimer);
-    if (discoveryTimer !== undefined) clearTimeout(discoveryTimer);
-    if (discoveryRetryTimer !== undefined) clearTimeout(discoveryRetryTimer);
-    disposed = true;
-    if (statesTimer !== undefined) clearTimeout(statesTimer);
     entryRequest += 1;
     inlineRequest += 1;
   });
@@ -766,7 +556,6 @@ export function useProjectEditorDebug(options: ProjectEditorDebugOptions) {
       breakpointDetails: breakpointDetails.value,
       pausedLine: pausedLine.value,
       entryPoints: entryPoints.value,
-      entryPointStates: entryPointStates.value,
       inlineVariables: pausedLine.value === null ? null : inlineVariables.value,
     };
     // Unchanged parts keep their identity, so an unchanged whole does too.
@@ -777,10 +566,9 @@ export function useProjectEditorDebug(options: ProjectEditorDebugOptions) {
     editorProps,
     conditionDraft,
     entryMenu,
-    /** Call when a project document was saved (entry points and tests are looked up again). */
+    /** Call when a project document was saved (entry points are looked up again). */
     refreshEntryPoints: () => {
       scheduleEntryPoints();
-      scheduleTestDiscovery();
     },
     toggleBreakpoint,
     editBreakpoint,

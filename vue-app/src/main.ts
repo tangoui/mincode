@@ -8,7 +8,6 @@ import { applyUiTheme, hydrateUiTheme, readStoredUiTheme } from "./services/ui-t
 import { hydrateSettingsSnapshot, readSettingsSnapshot } from "./services/settings-persistence";
 import { applySavedLocale } from "./i18n/messages";
 import { finishDevPerformance, installDevPerformanceInspector, startDevPerformance } from "./services/dev-performance";
-import { pluginFloatingWindowTarget } from "./services/plugin-service";
 import { applyElementPlusDefaults } from "./services/element-plus-defaults";
 import { installElementPlusLocale } from "./services/element-plus-locale";
 import { isDesktopRuntime } from "./services/desktop-bridge";
@@ -17,25 +16,12 @@ import "./styles.css";
 
 applyElementPlusDefaults();
 
-type LocaleSettings = {
-  locale?: unknown;
-  uiLocale?: unknown;
-  uiLocalePlugin?: unknown;
-};
-
-async function applyLocalePack(settings: LocaleSettings) {
-  try {
-    const { applySavedLocaleOverlay } = await import("./services/locale-pack-loader");
-    await applySavedLocaleOverlay(settings);
-  } catch {
-    // The base language stays; Settings reports the pack as unavailable.
-  }
-}
+type LocaleSettings = { locale?: unknown };
 
 async function bootstrap() {
   const startedAt = startDevPerformance();
   installDevPerformanceInspector();
-  // 文件拖入高亮、默认右键菜单策略（主窗口和插件浮窗都需要）。
+  // 文件拖入高亮、默认右键菜单策略。
   if (isDesktopRuntime()) installDesktopPageBehaviors(window, { devContextMenu: import.meta.env.DEV });
 
   // Apply local snapshots before Vue mounts, then reconcile with desktop storage in the background.
@@ -45,25 +31,7 @@ async function bootstrap() {
   initializeEditorTheme();
   const savedSettings = readSettingsSnapshot<LocaleSettings>();
   await applySavedLocale(savedSettings.locale);
-  // A selected language pack (contributes.localizations) waits at most 800 ms;
-  // the loader is only fetched when a pack is selected.
-  if (savedSettings.uiLocale) await applyLocalePack(savedSettings);
-  void hydrateSettingsSnapshot<LocaleSettings>().then(async (settings) => {
-    await applySavedLocale(settings.locale);
-    if (settings.uiLocale || savedSettings.uiLocale) {
-      const { localePackSelectionFromSettings, setLocalePackSelection } = await import("./services/locale-pack-loader");
-      setLocalePackSelection(localePackSelectionFromSettings(settings));
-    }
-  });
-
-  // views[].floating windows render only the plugin view, without the workbench shell.
-  const floating = pluginFloatingWindowTarget(window.location.search);
-  if (floating) {
-    document.documentElement.classList.add("app-floating-window");
-    const { default: PluginFloatingWindow } = await import("./components/plugins/PluginFloatingWindow.vue");
-    installElementPlusLocale(createApp(PluginFloatingWindow, floating)).use(createPinia()).mount("#app");
-    return;
-  }
+  void hydrateSettingsSnapshot<LocaleSettings>().then((settings) => applySavedLocale(settings.locale));
 
   // Browser local mode: register the browser handlers before any view calls invokeBackend/canInvoke.
   // Desktop never loads this chunk.

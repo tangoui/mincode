@@ -19,7 +19,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import router from "@/router";
 import { configurationPayload, newConfigurationFromSnippet } from "@/domain/debug/configurations";
 import type { DebuggerInfo, DebuggerMissingTool, RunConfiguration } from "@/domain/debug/types";
-import { visibleTerminalText } from "@/domain/terminal/profiles";
+import { visibleTerminalText } from "@/domain/terminal/launch-display";
 import { useVueI18n } from "@/i18n/messages";
 import { checkDebugger, listDebuggers } from "@/services/debug-service";
 import { useDebugConfigsStore } from "@/stores/debug-configs";

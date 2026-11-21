@@ -13,7 +13,6 @@
  * one adapter answers is measured in its machine smoke test
  * (docs/verification/debugger.md).
  */
-import contributionContract from "../plugins/contribution-points.json" with { type: "json" };
 import { isUnsafeRune, pairResults } from "./function-breakpoints.ts";
 import type { DataBreakpointAccessType, DebugBreakpointListItemResult } from "./types.ts";
 
@@ -36,7 +35,7 @@ export interface DataBreakpointInfo {
 }
 
 export const DATA_BREAKPOINT_LIMITS = {
-  max: contributionContract.points.debuggers.limits.dataBreakpointsMax,
+  max: 256,
   /** Go debuggerBreakpointNameRunes (not a contract limit). */
   maxRunes: 1024,
   /** Characters of a description kept (shown in the breakpoints dialog only). */

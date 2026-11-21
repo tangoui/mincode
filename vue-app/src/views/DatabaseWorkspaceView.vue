@@ -42,6 +42,7 @@ import {
   databaseDefaultPorts,
   databaseTypeLabels,
   type DatabaseConnection,
+  type DbType,
   type DatabaseDiagram,
   type DatabaseQueryHistoryItem,
   type DatabaseQueryResult,
@@ -94,12 +95,8 @@ import {
   buildColumnAlterSql,
   supportsCopyAsAlterSql,
 } from "@/domain/database/alter-sql";
-import { dialectProjection } from "@/domain/database/driver-descriptor";
 import { safetyRecordTouchesTable, type SqlSafetyRecord } from "@/domain/database/sql-safety";
-import {
-  useDatabaseDriverRuntime,
-  type DetectedFileDatabase,
-} from "@/composables/database/useDatabaseDriverRuntime";
+import { loadSupportedDatabaseTypes } from "@/services/database-capabilities";
 import DatabaseConnectionSidebar from "@/components/database/sidebar/DatabaseConnectionSidebar.vue";
 import DatabaseDatasourceHeader from "@/components/database/query/DatabaseDatasourceHeader.vue";
 import DatabaseAiQueryDialog from "@/components/database/query/DatabaseAiQueryDialog.vue";
@@ -138,8 +135,6 @@ import { consumeDatabaseFiles, pendingDatabaseFiles } from "@/services/external-
 // Rendered only for SQL query tabs; loading it lazily keeps Monaco out of this view's startup chunk.
 const loadDatabaseQueryWorkspace = () => import("@/components/database/query/DatabaseQueryWorkspace.vue");
 const DatabaseQueryWorkspace = defineAsyncComponent(loadDatabaseQueryWorkspace);
-// Explicit (bulk) driver rebinding; only loaded when the user switches drivers.
-const DatabaseDriverRebindDialog = defineAsyncComponent(() => import("@/components/database/DatabaseDriverRebindDialog.vue"));
 // Import from other tools (DBeaver, Navicat, …); only loaded when opened.
 const DatabaseConnectionImportDialog = defineAsyncComponent(() => import("@/components/database/DatabaseConnectionImportDialog.vue"));
 const connectionImportVisible = ref(false);
@@ -327,31 +322,26 @@ function loadStoredArray<T>(key: string): T[] {
 const DATABASE_CONNECTION_OVERVIEW_TAB = "__connection-overview__";
 const selectedDatabaseConnectionTab = ref(DATABASE_CONNECTION_OVERVIEW_TAB);
 const activeConnection = computed(() => databaseStore.activeConnection);
-// 插件驱动连接的描述符与能力；内置驱动沿用 dbType 白名单（行为不变）。
 const activeDriverDescriptor = computed(() =>
   databaseStore.connectionDescriptor(activeConnection.value)
 );
 const activeCapabilities = computed(() =>
   activeConnection.value ? databaseStore.connectionCapabilities(activeConnection.value) : undefined
 );
-/** 仅供方言相关逻辑（编辑器、补全、SQL 生成）使用的连接投影，dbType 为方言代表类型。 */
-const activeDialectConnection = computed(() => {
-  const connection = activeConnection.value;
-  const descriptor = activeDriverDescriptor.value;
-  return connection && descriptor ? dialectProjection(connection, descriptor) : connection;
-});
-const activeDialectType = computed(() => activeDialectConnection.value?.dbType);
-const {
-  driverRebind,
-  openDriverRebind,
-  applyDriverRebind,
-  prepareFileDatabaseConnection,
-  driverUnavailable,
-  builtinDriverMissing,
-  explainMissingBuiltinDriver,
-  explainUnavailableDriver,
-  connectErrorMessage,
-} = useDatabaseDriverRuntime();
+const activeDialectType = computed(() => activeConnection.value?.dbType);
+
+interface DetectedFileDatabase {
+  dbType: Extract<DbType, "sqlite" | "duckdb">;
+  filePath: string;
+  fileName: string;
+  builtinDriver?: boolean;
+}
+
+function connectErrorMessage(cause: unknown) {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return message.includes("driver_required") ? t("database.driverUnavailable") : message;
+}
+
 function capabilitiesOf(connection: DatabaseConnection) {
   return databaseStore.connectionCapabilities(connection);
 }
@@ -385,13 +375,6 @@ const selectedDatabase = computed(() =>
     ? activeTableTab.value?.database ?? databaseStore.selectedDatabase
     : databaseStore.selectedDatabase
 );
-/** Plugin SQL editor menu context (contributes.menus sql/editor/context): engine and database name only. */
-const queryEditorMenuContext = computed(() => {
-  const kind = activeDialectType.value;
-  if (!kind) return undefined;
-  const name = selectedDatabase.value || activeConnection.value?.database;
-  return { database: { kind, ...(name ? { name } : {}) } };
-});
 const overviewSchema = computed(() => {
   const connectionId = activeConnection.value?.id;
   return connectionId ? databaseStore.schemas[connectionId] : undefined;
@@ -460,7 +443,7 @@ const { runQuery, cancelQuery, showExecutionPlan } = useQueryExecution({
   activeQueryTab,
   queryText,
   activeObject,
-  activeConnection: activeDialectConnection,
+  activeConnection,
   selectedDatabase,
   selectedTable,
   queryHistory,
@@ -732,7 +715,7 @@ const {
   revertGridContextChange,
 } = useRowMutations({
   activeObject,
-  activeConnection: activeDialectConnection,
+  activeConnection,
   selectedTable,
   selectedDatabase,
   resultRows,
@@ -790,7 +773,7 @@ const {
   changePageSize,
 } = useTablePagination({
   activeObject,
-  activeConnection: activeDialectConnection,
+  activeConnection,
   activeTableTab,
   selectedTable,
   resultColumns,
@@ -1696,10 +1679,6 @@ async function handleConnectionMenuCommand(connection: DatabaseConnection, comma
         { createNew: command === "notes-new" },
       );
       return;
-    case "switch-driver":
-      if (!databaseStore.desktopRuntime) return desktopOnly();
-      await openDriverRebind(connection);
-      return;
     case "delete":
       await removeConnection(connection);
   }
@@ -1756,9 +1735,11 @@ async function openDatabaseFilesInOrder(files: string[]) {
         createdAt: now,
         updatedAt: now,
       };
-      // No built-in driver in this build (lean DuckDB): guide to the driver plugin or bind it with explicit consent.
-      const connection = existing ?? (await prepareFileDatabaseConnection(detected, draft));
-      if (!connection) continue;
+      if (!existing && detected.builtinDriver === false) {
+        ElMessage.warning(t("database.driverUnavailable"));
+        continue;
+      }
+      const connection = existing ?? draft;
       if (!existing) await databaseStore.saveConnection(connection);
       await activateConnection(connection);
     } catch (cause) {
@@ -1807,17 +1788,9 @@ function openCellDetail(column: string, value: unknown) {
 function closeGridContextMenu() {
   gridContextMenu.value = undefined;
 }
-// A cell menu (and its plugin-service target) never outlives its grid or the view.
+// A cell menu never outlives its grid or the view.
 watch(activeGridKey, closeGridContextMenu);
 onDeactivated(closeGridContextMenu);
-/**
- * The view's part of the open cell menu's plugin-service target (dbResult): where the rows came
- * from (a table tab's connection, or what the query ran on); `{}` when that is unknown.
- */
-function gridServiceSource() {
-  if (!gridContextMenu.value) return null;
-  return (activeObject.value === "table" ? activeTableTab.value : activeQueryTab.value?.resultSource) ?? {};
-}
 function selectedRowCountForContext(context: ResultGridContextMenu) {
   if (selectedRowIndexes.value.length > 1) return selectedRowIndexes.value.length;
   return selectedRowIndexSet.value.has(context.rowIndex) ? selectedRowIndexes.value.length : 1;
@@ -2158,12 +2131,14 @@ async function connect(connection: DatabaseConnection) {
     desktopOnly();
     return false;
   }
-  if (driverUnavailable(connection)) {
-    await explainUnavailableDriver(connection);
+  const supported = await loadSupportedDatabaseTypes();
+  if (connection.driver && supported?.has(connection.dbType)) {
+    ElMessage.warning(t("database.confirmBuiltinDriverHint"));
+    editConnection(connection);
     return false;
   }
-  if (await builtinDriverMissing(connection)) {
-    await explainMissingBuiltinDriver(connection);
+  if (!databaseStore.connectionDescriptor(connection)?.available || (supported && !supported.has(connection.dbType))) {
+    ElMessage.warning(t("database.driverUnavailable"));
     return false;
   }
   connectingConnectionIds.value = {
@@ -2175,7 +2150,7 @@ async function connect(connection: DatabaseConnection) {
     ElMessage.success(`${connection.name} ${t("database.connected")}`);
     return true;
   } catch (cause) {
-    ElMessage.error(connectErrorMessage(connection, cause));
+    ElMessage.error(connectErrorMessage(cause));
     return false;
   } finally {
     const next = { ...connectingConnectionIds.value };
@@ -2292,7 +2267,7 @@ async function testConnection(connection: DatabaseConnection) {
     const schema = await databaseStore.testConnection(connection);
     ElMessage.success(t("database.testSuccess", { count: schema.databases.length }));
   } catch (cause) {
-    ElMessage.error(t("database.testFailed", { error: connectErrorMessage(connection, cause) }));
+    ElMessage.error(t("database.testFailed", { error: connectErrorMessage(cause) }));
   } finally {
     testingConnection.value = false;
   }
@@ -2363,15 +2338,7 @@ async function importConnectionConfig() {
       includeSecrets,
     });
     for (const connection of connections) {
-      const existing = databaseStore.connections.find((item) => item.id === connection.id);
       await databaseStore.saveConnection(connection);
-      // 导入覆盖了已有的插件驱动连接：导入文件永不携带授权，旧授权也作废，连接时重新确认。
-      if (existing && (existing.driver || connection.driver)) {
-        await databaseStore.revokeDriverGrant(connection.id);
-      }
-    }
-    if (connections.some((connection) => connection.driver)) {
-      await databaseStore.refreshDriverStatuses();
     }
     ElMessage.success(t("database.configImported", { count: connections.length }));
   } catch (cause) {
@@ -3198,7 +3165,6 @@ onBeforeUnmount(() => {
             :editor-font-size="queryEditorFontSize"
             :editor-expanded="queryEditorExpanded"
             :query-history="activeConnectionHistory"
-            :menu-context="queryEditorMenuContext"
             :db-type="activeDialectType"
             @view-state="setQueryEditorViewState"
             @run="runEditorQuery"
@@ -3257,7 +3223,6 @@ onBeforeUnmount(() => {
             :header-can-copy-alter-sql="canCopyGridHeaderAlterSql()"
             :pending-rows="pendingChanges.rowStates.value"
             :context-can-revert="canRevertGridContextChange()"
-            :service-source="gridServiceSource"
             @sort="toggleColumnSort"
             @reorder-columns="reorderColumns"
             @toggle-row-selection="toggleGridRowSelection"
@@ -3504,14 +3469,6 @@ onBeforeUnmount(() => {
     @test="testConnection"
   />
   <DatabaseConnectionImportDialog v-if="connectionImportVisible" v-model="connectionImportVisible" />
-  <DatabaseDriverRebindDialog
-    v-if="driverRebind.visible"
-    v-model="driverRebind.visible"
-    :connections="databaseStore.connections"
-    :initial-target="driverRebind.initialTarget"
-    :initial-connection-ids="driverRebind.connectionIds"
-    @apply="applyDriverRebind"
-  />
   <VectorCollectionDialog
     v-model="vectorCollectionDialogVisible"
     :connection="vectorCollectionTarget?.connection"

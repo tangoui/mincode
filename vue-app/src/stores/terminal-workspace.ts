@@ -15,8 +15,6 @@ import type {
   TerminalSplitDirection,
 } from "@/domain/terminal/types";
 import { inheritSplitCwd, isTerminalLeafPane, cloneTerminalPaneTree } from "@/domain/terminal/types";
-import { replaceProfilePaneWithDefaultShell, restoreTerminalProfileRef } from "@/domain/terminal/profiles";
-import { restorePluginTaskRef } from "@/domain/tasks/plugin-tasks";
 import {
   MAX_TERMINAL_TABS,
   TERMINAL_TAB_TITLE_MAX,
@@ -86,8 +84,6 @@ function createLocalPane(options: LocalTerminalPaneOptions = {}): LocalTerminalP
     cwd: options.initialCwd,
     initialCommand: options.initialCommand,
     extraEnv: options.extraEnv,
-    profile: options.profile ? { ...options.profile } : undefined,
-    task: options.task ? { ...options.task } : undefined,
   };
 }
 
@@ -141,6 +137,7 @@ function restorePaneNode(
   seenIds.add(id);
 
   if (value.type === "local") {
+    if (value.profile || value.task) return null;
     if (typeof value.shellType !== "string" || !SHELL_TYPES.has(value.shellType as LocalShellType)) {
       return null;
     }
@@ -154,10 +151,6 @@ function restorePaneNode(
       initialCwd: optionalString(value.initialCwd),
       cwd: optionalString(value.cwd),
       // 不恢复命令和环境变量，避免重放副作用或把敏感值写入未加密快照。
-      // 插件终端配置只恢复引用；启动参数始终由后端按引用重新解析并校验确认指纹。
-      profile: restoreTerminalProfileRef(value.profile),
-      // 插件任务只恢复引用，不恢复启动令牌：恢复布局只会重新附加存活会话，绝不自动重跑任务。
-      task: restorePluginTaskRef(value.task),
     };
   }
 
@@ -316,10 +309,6 @@ function persistablePaneNode(node: TerminalPaneNode): TerminalPaneNode {
       customPath: node.customPath,
       initialCwd: node.initialCwd,
       cwd: node.cwd,
-      profile: node.profile ? { ...node.profile } : undefined,
-      task: node.task
-        ? { pluginId: node.task.pluginId, taskKey: node.task.taskKey, projectRoot: node.task.projectRoot, title: node.task.title }
-        : undefined,
     };
   }
   if (node.type === "ssh") {
@@ -751,16 +740,6 @@ export const useTerminalWorkspaceStore = defineStore("terminal-workspace", () =>
     updateTab(tab.id, (current) => ({ ...current, root: reloadPaneInTree(current.root, paneId) }));
   }
 
-  /** Turns a plugin-profile pane into a default shell pane (explicit user choice only). */
-  function replaceProfilePaneWithShell(paneId: string) {
-    const tab = tabForPane(paneId);
-    if (!tab) return;
-    updateTab(tab.id, (current) => ({
-      ...current,
-      root: replaceProfilePaneWithDefaultShell(current.root, paneId),
-    }));
-  }
-
   function updateSshPane(paneId: string, options: SshTerminalPaneOptions) {
     const tab = tabForPane(paneId);
     const pane = tab ? findPaneInTree(tab.root, paneId) : undefined;
@@ -930,7 +909,6 @@ export const useTerminalWorkspaceStore = defineStore("terminal-workspace", () =>
     splitSshPane,
     closePane,
     reloadPane,
-    replaceProfilePaneWithShell,
     updateSshPane,
     getPane,
     localPaneIds,

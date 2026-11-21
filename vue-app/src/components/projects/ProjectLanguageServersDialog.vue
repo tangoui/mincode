@@ -8,14 +8,10 @@
 import { computed, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import type { LspProjectSettings } from "@/domain/projects/lsp";
-import type { PluginLanguageServer } from "@/domain/plugins/language-servers";
-import { resolvePluginTitle } from "@/domain/plugins/title";
 import { useVueI18n } from "@/i18n/messages";
 import { getLspServerLogs, installLspServer, listLspServers, type LspServerInfo } from "@/services/lsp-service";
-import { ensurePluginLanguageServerConfirmed, resetPluginLanguageServer } from "@/services/plugin-language-server-service";
 import { copyText, isDesktopRuntime } from "@/services/desktop-bridge";
 import { isLspWatchLimited, lspRuntimeState } from "@/services/lsp-runtime-state";
-import { usePluginLanguageServersStore } from "@/stores/plugin-language-servers";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -28,7 +24,7 @@ const emit = defineEmits<{
   "update:lspSettings": [value: LspProjectSettings];
 }>();
 
-const { t, localeChain } = useVueI18n();
+const { t } = useVueI18n();
 const visible = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit("update:modelValue", value),
@@ -130,110 +126,6 @@ async function doInstallLspServer(serverId: string) {
 }
 
 // ---- Plugin language servers ----
-const pluginServers = usePluginLanguageServersStore();
-const pluginBusy = ref<Record<string, boolean>>({});
-const pluginError = ref<Record<string, string>>({});
-
-// Languages a primary built-in server covers: a plugin server only takes
-// them over through an explicit per-language override.
-const builtinLanguages = computed(() => {
-  const covered = new Set<string>();
-  for (const server of lspServers.value) {
-    if (server.auxiliary || server.id.startsWith("plugin:")) continue;
-    for (const language of server.languages) covered.add(language);
-  }
-  return covered;
-});
-
-function pluginServerTitle(server: PluginLanguageServer) {
-  return resolvePluginTitle(server, localeChain.value);
-}
-
-function pluginEnabled(server: PluginLanguageServer) {
-  return props.lspSettings.enabledServers.includes(server.sessionId);
-}
-
-function pluginState(server: PluginLanguageServer) {
-  return props.projectRoot ? pluginServers.state(props.projectRoot, server.sessionId) : undefined;
-}
-
-function pluginStateMessage(server: PluginLanguageServer) {
-  const state = pluginState(server);
-  if (!state) return "";
-  if (state.kind === "review") {
-    return state.changed ? t("pluginContrib.languageServers.changed") : t("pluginContrib.languageServers.notTrusted");
-  }
-  if (state.kind === "limit") return t("pluginContrib.languageServers.restartLimit");
-  return t("pluginContrib.languageServers.unavailable", { msg: state.message });
-}
-
-function overlappingLanguages(server: PluginLanguageServer) {
-  return server.languages.filter((language) => builtinLanguages.value.has(language));
-}
-
-function languageOverride(language: string) {
-  return props.lspSettings.pluginLanguageOverrides?.[language] ?? "";
-}
-
-function setLanguageOverride(language: string, serverId: string) {
-  const overrides = { ...(props.lspSettings.pluginLanguageOverrides ?? {}) };
-  if (serverId) overrides[language] = serverId;
-  else delete overrides[language];
-  emit("update:lspSettings", { ...props.lspSettings, pluginLanguageOverrides: overrides });
-}
-
-async function withPluginBusy(server: PluginLanguageServer, run: () => Promise<void>) {
-  if (pluginBusy.value[server.sessionId]) return;
-  pluginBusy.value = { ...pluginBusy.value, [server.sessionId]: true };
-  pluginError.value = { ...pluginError.value, [server.sessionId]: "" };
-  try {
-    await run();
-  } catch (error) {
-    pluginError.value = { ...pluginError.value, [server.sessionId]: error instanceof Error ? error.message : String(error) };
-  } finally {
-    pluginBusy.value = { ...pluginBusy.value, [server.sessionId]: false };
-  }
-}
-
-// Enabling (or "Review and start") shows the resolved launch for confirmation
-// first; nothing is enabled when the user cancels.
-function confirmPluginServer(server: PluginLanguageServer) {
-  return withPluginBusy(server, async () => {
-    const root = props.projectRoot;
-    const launch = await ensurePluginLanguageServerConfirmed(server.sessionId, root);
-    if (!launch) return;
-    pluginServers.setState(root, server.sessionId, undefined);
-    if (!pluginEnabled(server)) updateEnabledServers([...props.lspSettings.enabledServers, server.sessionId]);
-    pluginServers.requestSync();
-  });
-}
-
-function disablePluginServer(server: PluginLanguageServer) {
-  const overrides = Object.fromEntries(
-    Object.entries(props.lspSettings.pluginLanguageOverrides ?? {}).filter(([, id]) => id !== server.sessionId),
-  );
-  pluginServers.setState(props.projectRoot, server.sessionId, undefined);
-  emit("update:lspSettings", {
-    ...props.lspSettings,
-    enabledServers: props.lspSettings.enabledServers.filter((id) => id !== server.sessionId),
-    pluginLanguageOverrides: overrides,
-  });
-}
-
-// Restart stops the session and clears the host restart count; the project
-// runtime then starts it again for the open files.
-function restartPluginServer(server: PluginLanguageServer) {
-  return withPluginBusy(server, async () => {
-    await resetPluginLanguageServer(server.sessionId, props.projectRoot);
-    pluginServers.setState(props.projectRoot, server.sessionId, undefined);
-    pluginServers.requestSync();
-  });
-}
-
-function showPluginLspLogs(server: PluginLanguageServer) {
-  return showLspLogs({ id: server.sessionId, name: pluginServerTitle(server) });
-}
-
 interface LspLogsState {
   visible: boolean;
   loading: boolean;
@@ -393,85 +285,6 @@ async function showLspLogs(server: Pick<LspServerInfo, "id" | "name">) {
             </div>
           </li>
         </ul>
-        <section
-          v-if="pluginServers.servers.length"
-          class="project-lsp-plugin-section"
-          :aria-label="t('pluginContrib.languageServers.section')"
-        >
-          <h3 class="project-lsp-plugin-section__title">{{ t("pluginContrib.languageServers.section") }}</h3>
-          <p class="project-lsp-plugin-section__hint">{{ t("pluginContrib.languageServers.sectionHint") }}</p>
-          <ul class="project-lsp-list">
-            <li v-for="server in pluginServers.servers" :key="server.sessionId" class="project-lsp-item">
-              <div class="project-lsp-item__header">
-                <div class="project-lsp-item__info">
-                  <span class="project-lsp-item__name">{{ pluginServerTitle(server) }}</span>
-                  <span class="project-lsp-item__langs">{{ server.languages.join(", ") }}</span>
-                  <span class="project-lsp-item__langs">{{ t("pluginContrib.languageServers.plugin", { name: server.pluginName }) }}</span>
-                </div>
-                <div class="project-lsp-item__controls">
-                  <span v-if="!pluginEnabled(server)" class="project-lsp-item__badge">{{ t("project.lsp.disabled") }}</span>
-                  <span
-                    v-else-if="pluginState(server)"
-                    class="project-lsp-item__badge project-lsp-item__badge--warn"
-                  >{{ t("project.lsp.enabled") }}</span>
-                  <span v-else class="project-lsp-item__badge project-lsp-item__badge--ok">{{ t("project.lsp.enabled") }}</span>
-                  <template v-if="pluginEnabled(server)">
-                    <el-button
-                      v-if="pluginState(server)?.kind === 'review'"
-                      size="small"
-                      type="primary"
-                      plain
-                      :loading="pluginBusy[server.sessionId]"
-                      :disabled="pluginBusy[server.sessionId]"
-                      @click="confirmPluginServer(server)"
-                    >{{ t("pluginContrib.languageServers.review") }}</el-button>
-                    <el-button
-                      v-else
-                      size="small"
-                      plain
-                      :loading="pluginBusy[server.sessionId]"
-                      :disabled="pluginBusy[server.sessionId]"
-                      @click="restartPluginServer(server)"
-                    >{{ t("pluginContrib.languageServers.restart") }}</el-button>
-                    <el-button size="small" plain @click="showPluginLspLogs(server)">{{ t("project.lsp.logs") }}</el-button>
-                    <el-button size="small" type="danger" plain @click="disablePluginServer(server)">
-                      {{ t("pluginContrib.languageServers.disable") }}
-                    </el-button>
-                  </template>
-                  <el-button
-                    v-else
-                    size="small"
-                    type="primary"
-                    plain
-                    :loading="pluginBusy[server.sessionId]"
-                    :disabled="pluginBusy[server.sessionId]"
-                    @click="confirmPluginServer(server)"
-                  >{{ t("pluginContrib.languageServers.enable") }}</el-button>
-                </div>
-              </div>
-              <div v-if="pluginEnabled(server) && overlappingLanguages(server).length" class="project-lsp-item__overrides">
-                <label v-for="language in overlappingLanguages(server)" :key="language" class="project-lsp-item__override">
-                  <span>{{ t("pluginContrib.languageServers.useFor", { language }) }}</span>
-                  <el-select
-                    size="small"
-                    :model-value="languageOverride(language) === server.sessionId ? server.sessionId : ''"
-                    :aria-label="t('pluginContrib.languageServers.useFor', { language })"
-                    @update:model-value="(value: string) => setLanguageOverride(language, value)"
-                  >
-                    <el-option :label="t('pluginContrib.languageServers.builtinDefault')" value="" />
-                    <el-option :label="pluginServerTitle(server)" :value="server.sessionId" />
-                  </el-select>
-                </label>
-              </div>
-              <div v-if="pluginEnabled(server) && pluginState(server)" class="project-lsp-item__error" role="status">
-                {{ pluginStateMessage(server) }}
-              </div>
-              <div v-if="pluginError[server.sessionId]" class="project-lsp-item__error" role="alert">
-                {{ t("pluginContrib.languageServers.unavailable", { msg: pluginError[server.sessionId] }) }}
-              </div>
-            </li>
-          </ul>
-        </section>
       </template>
     </el-scrollbar>
     <template #footer>

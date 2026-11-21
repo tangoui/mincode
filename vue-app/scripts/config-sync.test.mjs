@@ -262,22 +262,9 @@ const persistenceState = {
   prepareFailure: null,
   batchFailure: null,
   desktopRuntime: false,
-  pluginSyncExport: undefined,
-  pluginSyncImports: [],
-  pluginSyncImportFailure: null,
 };
 globalThis.__configSyncPersistenceMocks = {
   domain: configSync,
-  // The real pure domain module: validation of the synthetic entry is under test.
-  pluginConfiguration: await import("../src/domain/plugins/configuration.ts"),
-  pluginConfigurationService: {
-    exportPluginConfigurationSync: async () => persistenceState.pluginSyncExport,
-    importPluginConfigurationSync: async (data) => {
-      if (persistenceState.pluginSyncImportFailure) throw persistenceState.pluginSyncImportFailure;
-      persistenceState.pluginSyncImports.push(data);
-      return { applied: Object.keys(data.plugins), skipped: [] };
-    },
-  },
   desktop: {
     isDesktopRuntime: () => persistenceState.desktopRuntime,
   },
@@ -351,12 +338,6 @@ const configSyncPersistence = await importTypeScriptSource(
         `const {
           isRetiredAiHistoryStorageKey
         } = globalThis.__configSyncPersistenceMocks.ai;`
-      )
-      .replace(
-        /import \{[\s\S]*?\} from "@\/domain\/plugins\/configuration";/,
-        `const {
-          parsePluginConfigurationSync, pluginConfigurationSyncEntry, PLUGIN_CONFIGURATION_SYNC_KEY
-        } = globalThis.__configSyncPersistenceMocks.pluginConfiguration;`
       )
       .replace(
         /import \{[\s\S]*?\} from "@\/services\/plugin-configuration-service";/,
@@ -573,67 +554,6 @@ test("updates settings runtime only after the prepared batch succeeds", async ()
   });
 });
 
-test("plugin settings travel as a synthetic global non-secret entry applied through the host", async () => {
-  const key = "app_plugin_configuration_v1";
-  persistenceState.stored = { [key]: { stale: true } };
-  persistenceState.secure = {};
-  persistenceState.pluginSyncExport = { version: 1, plugins: { "config.test": { global: { retries: 2 } } } };
-  try {
-    const snapshot = await configSyncPersistence.createConfigSyncSnapshot();
-    assert.deepEqual(snapshot.persistedValues[key], {
-      storage: "plain",
-      value: { version: 1, plugins: { "config.test": { global: { retries: 2 } } } },
-    }, "a stored value under the synthetic key is replaced by the host export");
-
-    persistenceState.pluginSyncExport = { version: 1, plugins: {} };
-    const empty = await configSyncPersistence.createConfigSyncSnapshot();
-    assert.equal(key in empty.persistedValues, false);
-
-    const incoming = {
-      format: snapshot.format,
-      version: snapshot.version,
-      exportedAt: snapshot.exportedAt,
-      persistedValues: {
-        [key]: {
-          storage: "plain",
-          value: { version: 1, plugins: { "config.test": { global: { retries: 3 }, workspaces: { w: { mode: "x" } } } } },
-        },
-      },
-    };
-    persistenceState.stored = {};
-    persistenceState.batches = [];
-    persistenceState.pluginSyncImports = [];
-
-    persistenceState.desktopRuntime = false;
-    let result = await configSyncPersistence.applyConfigSyncSnapshot(incoming);
-    assert.deepEqual(result.skippedKeys, [key], "browser preview never pretends to apply plugin settings");
-    assert.equal(persistenceState.pluginSyncImports.length, 0);
-
-    persistenceState.desktopRuntime = true;
-    result = await configSyncPersistence.applyConfigSyncSnapshot(incoming);
-    assert.deepEqual(result.skippedKeys, []);
-    assert.deepEqual(persistenceState.pluginSyncImports, [{ version: 1, plugins: { "config.test": { global: { retries: 3 } } } }],
-      "only validated global values reach the host");
-    assert.equal(persistenceState.batches.some((batch) => JSON.stringify(batch).includes(key)), false,
-      "the synthetic entry is never written to the frontend store");
-
-    persistenceState.pluginSyncImportFailure = new Error("host failed");
-    result = await configSyncPersistence.applyConfigSyncSnapshot(incoming);
-    assert.deepEqual(result.skippedKeys, [key]);
-
-    persistenceState.pluginSyncImportFailure = null;
-    result = await configSyncPersistence.applyConfigSyncSnapshot({
-      ...incoming,
-      persistedValues: { [key]: { storage: "secure", value: incoming.persistedValues[key].value } },
-    });
-    assert.deepEqual(result.skippedKeys, [key], "a secure-labelled entry is rejected");
-  } finally {
-    persistenceState.pluginSyncExport = undefined;
-    persistenceState.pluginSyncImportFailure = null;
-    persistenceState.desktopRuntime = false;
-  }
-});
-
 test("host-authored template bodies are never config-sync keys", () => {
  assert.equal(configSync.isConfigSyncStorageKey("app_file_templates_custom_v1"),false);
  assert.equal(configSync.isConfigSyncStorageKey("app_settings_v2"),true);
@@ -693,14 +613,14 @@ const configPortability = await importTypeScriptSource(
       )
       .replace(
         /import \{[\s\S]*?\} from "@\/services\/settings-persistence";/,
-        "const { SETTINGS_STORAGE_KEY, updateSettingsRuntimeSnapshot } = globalThis.__configSyncPersistenceMocks.settings;"
+        "const { SETTINGS_STORAGE_KEY, updateSettingsRuntimeSnapshot } = globalThis.__configSyncPersistenceMocks.settings; const normalizeLegacyAiProfiles = (value) => value;"
       )
       .replace(
         'import { decryptField, encryptField } from "@/services/field-crypto";',
         "const decryptField = async (value) => value; const encryptField = async (value) => value;"
       )
       .replace(
-        'import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";',
+        'import { isDesktopRuntime } from "@/services/desktop-bridge";',
         "const invokeBackend = async () => undefined; const isDesktopRuntime = () => false;"
       )
       .replace(

@@ -2,7 +2,6 @@
 import {
   computed,
   defineAsyncComponent,
-  h,
   nextTick,
   onActivated,
   onBeforeUnmount,
@@ -16,7 +15,6 @@ import { useRoute, useRouter } from "vue-router";
 import {
   ArrowDown,
   ArrowUp,
-  CircleCheck,
   CirclePlus,
   Collection,
   Connection,
@@ -31,7 +29,6 @@ import {
   ForkSpoon,
   FolderAdd,
   FolderOpened,
-  Grid,
   Guide,
   List,
   MoreFilled,
@@ -44,11 +41,10 @@ import {
   Setting,
   Share,
   Upload,
-  VideoPlay,
   View,
   Warning,
 } from "@element-plus/icons-vue";
-import { ElCheckbox, ElMessage, ElMessageBox, type DropdownInstance } from "element-plus";
+import { ElMessage, ElMessageBox, type DropdownInstance } from "element-plus";
 import ProjectVirtualTree from "@/components/projects/ProjectVirtualTree.vue";
 import type { LazyTreeApi, LoadFunction } from "@/domain/projects/lazy-tree";
 import { storeToRefs } from "pinia";
@@ -78,7 +74,6 @@ import { useProjectLanguageServers } from "@/composables/use-project-language-se
 import ProjectLanguageServersDialog from "@/components/projects/ProjectLanguageServersDialog.vue";
 import ProjectFileIcon from "@/components/projects/ProjectFileIcon.vue";
 import ProjectGitPanel from "@/components/projects/ProjectGitPanel.vue";
-import ProjectTasksPanel from "@/components/projects/ProjectTasksPanel.vue";
 import ProjectSidebarTabs, { type ProjectSidebarTabItem } from "@/components/projects/ProjectSidebarTabs.vue";
 import GitWorktreePanel from "@/components/git/GitWorktreePanel.vue";
 import GitTagPanel from "@/components/git/GitTagPanel.vue";
@@ -99,7 +94,6 @@ import {
   type GitFileEntry,
   type ProjectBlameHunk,
   type ProjectFileEntry,
-  type ProjectEditorDocument,
   type ProjectSearchResult,
   type ProjectTreeNode,
 } from "@/domain/projects/types";
@@ -139,11 +133,7 @@ import { notifyEditorSaved, runEditorSaveParticipants } from "@/services/editor-
 import type { FileTemplateCreatedEvent } from "@/services/file-template-service";
 import type { FileTemplateKind } from "@/domain/projects/file-templates";
 import { useFileTemplatesStore } from "@/stores/file-templates";
-import { usePluginTasksStore } from "@/stores/plugin-tasks";
-import { usePluginTreeViewsStore } from "@/stores/plugin-tree-views";
-import { usePluginTestProvidersStore } from "@/stores/plugin-test-providers";
 import { useProjectProblemsStore } from "@/stores/project-problems";
-import { PLUGIN_TASKS_REVEAL_EVENT } from "@/services/plugin-task-events";
 import { useLocalProjectStore } from "@/stores/local-project";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
@@ -152,22 +142,6 @@ import { useWorkbenchStore } from "@/stores/workbench";
 import AppChevron from "@/components/ui/AppChevron.vue";
 import AppWorkspaceTabs from "@/components/ui/AppWorkspaceTabs.vue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import PluginServiceMenuItems from "@/components/plugins/PluginServiceMenuItems.vue";
-import CustomEditorPanes, { type CustomEditorPane } from "@/components/projects/CustomEditorPanes.vue";
-import OpenWithMenu from "@/components/projects/OpenWithMenu.vue";
-import {
-  associationForPath,
-  associationPatternForPath,
-  customEditorKey,
-  customEditorTitle,
-  parseCustomEditorKey,
-  TEXT_EDITOR_ASSOCIATION,
-  type CustomEditorContribution,
-} from "@/domain/plugins/custom-editors";
-import { useCustomEditorsStore } from "@/stores/custom-editors";
-import { menuPassContext, projectTreeHostContext, type ProjectTreeMenuTarget } from "@/domain/plugins/menus";
-import type { FileMenuServiceTarget } from "@/domain/plugins/service-surfaces";
 import AppSplitPane from "@/components/ui/AppSplitPane.vue";
 import WorkspaceBottomPanel from "@/components/layout/WorkspaceBottomPanel.vue";
 import RunConfigSelector from "@/components/debug/RunConfigSelector.vue";
@@ -179,14 +153,6 @@ import { isDebuggerAddressPath, isVirtualSourceDocumentPath } from "@/domain/deb
 import { useDebugSessionsStore } from "@/stores/debug-sessions";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 import { useResizablePane } from "@/composables/use-resizable-pane";
-import { usePluginFileDecorations } from "@/composables/use-plugin-file-decorations";
-import {
-  decorationNamesOf,
-  loadedDirectoryOf,
-  type DecorationColor,
-  type DecorationDirectory,
-  type TreeDecoration,
-} from "@/domain/plugins/file-decorations";
 import { useActiveViewCommands, useToggleSidebarCommand } from "@/composables/use-active-view-commands";
 import { registerDocumentTabHost } from "@/services/document-tab-host";
 import { recordClosedEntry } from "@/services/closed-tab-history";
@@ -208,8 +174,6 @@ const MonacoDiffEditor = defineAsyncComponent(() => import("@/components/project
 const MonacoTextEditor = defineAsyncComponent(() => import("@/components/projects/MonacoTextEditor.vue"));
 const ProjectOutlinePanel = defineAsyncComponent(() => import("@/components/projects/ProjectOutlinePanel.vue"));
 const ProjectProblemsPanel = defineAsyncComponent(() => import("@/components/projects/ProjectProblemsPanel.vue"));
-const ProjectPluginViewsPanel = defineAsyncComponent(() => import("@/components/projects/ProjectPluginViewsPanel.vue"));
-const ProjectPluginTestsPanel = defineAsyncComponent(() => import("@/components/projects/ProjectPluginTestsPanel.vue"));
 const DebugToolWindow = defineAsyncComponent(() => import("@/components/debug/DebugToolWindow.vue"));
 const DebugLaunchProgress = defineAsyncComponent(() => import("@/components/debug/DebugLaunchProgress.vue"));
 const RunConfigDialog = defineAsyncComponent(() => import("@/components/debug/RunConfigDialog.vue"));
@@ -224,7 +188,7 @@ const NewFromTemplateDialog = defineAsyncComponent(() => import("@/components/pr
 
 defineOptions({ name: "ProjectWorkspaceView" });
 
-const { t, te, localeChain } = useVueI18n();
+const { t, te } = useVueI18n();
 const route = useRoute();
 const router = useRouter();
 const project = useLocalProjectStore();
@@ -237,8 +201,6 @@ const ssh = useSshConnectionsStore();
 const terminalWorkspace = useTerminalWorkspaceStore();
 const workbench = useWorkbenchStore();
 const assistant = useAiAssistantStore();
-const customEditors = useCustomEditorsStore();
-const customEditorPanes = ref<InstanceType<typeof CustomEditorPanes>>();
 const projectPathInput = ref(project.projectRoot);
 interface WorkspaceTreeNode extends ProjectTreeNode {
   projectRoot: string;
@@ -387,51 +349,12 @@ const { projectTerminalTabs, activeProjectTerminalId } = storeToRefs(project);
 const searchScope = ref<ProjectSearchScope | null>(null);
 const renamingPath = ref("");
 const renameValue = ref("");
-// Plugin fileDecorations: a badge or dot after the file name (never the name's own style).
-const fileDecorations = usePluginFileDecorations({ renamingPath });
-const decorationFor = fileDecorations.decorationFor;
-const DECORATION_COLOR_LABELS = {
-  accent: "pluginContrib.fileDecorations.color.accent",
-  success: "pluginContrib.fileDecorations.color.success",
-  warning: "pluginContrib.fileDecorations.color.warning",
-  danger: "pluginContrib.fileDecorations.color.danger",
-  info: "pluginContrib.fileDecorations.color.info",
-  muted: "pluginContrib.fileDecorations.color.muted",
-} as const satisfies Record<DecorationColor, string>;
-/**
- * Badge text (or a dot when there is none) coloured only through the
- * is-<color> token classes, labelled with the plugin; a dot without a
- * tooltip is read as the colour's meaning.
- */
-function decorationAttrs(decoration: TreeDecoration) {
-  const label = t("pluginContrib.fileDecorations.label", {
-    text:
-      decoration.tooltip ||
-      decoration.badge ||
-      (decoration.color ? t(DECORATION_COLOR_LABELS[decoration.color]) : ""),
-    plugin: decoration.pluginName,
-  });
-  return {
-    class: [
-      "project-tree-node__decoration",
-      decoration.badge ? "" : "project-tree-node__decoration--dot",
-      decoration.color ? `is-${decoration.color}` : "",
-    ],
-    role: "img",
-    title: label,
-    "aria-label": label,
-  };
-}
-type PanelSideMode = "git" | "tasks" | "outline" | "problems" | "views" | "tests";
-const PANEL_SIDE_MODES: ReadonlySet<string> = new Set<PanelSideMode>(["git", "tasks", "outline", "problems", "views", "tests"]);
+type PanelSideMode = "git" | "outline" | "problems";
+const PANEL_SIDE_MODES: ReadonlySet<string> = new Set<PanelSideMode>(["git", "outline", "problems"]);
 const sideMode = ref<"explorer" | "search" | PanelSideMode>("explorer");
 // Panel modes other than git replace the explorer without changing the route.
 const isLocalPanelMode = (mode: string) => PANEL_SIDE_MODES.has(mode) && mode !== "git";
 const showsExplorer = computed(() => !PANEL_SIDE_MODES.has(sideMode.value));
-// Plugin tasks (contributes.tasks): the Tasks tab only exists while a plugin contributes tasks.
-const pluginTasks = usePluginTasksStore();
-const pluginTreeViews = usePluginTreeViewsStore();
-const pluginTestProviders = usePluginTestProvidersStore();
 const errorKey = ref<MessageKey | null>(null);
 const loading = ref(false);
 const searchQuery = ref("");
@@ -743,7 +666,6 @@ const comparableOpenDocuments = computed(() => {
   return project.documents.filter(
     (document) =>
       document.path !== activePath &&
-      !document.editor &&
       document.externalKind !== "image" &&
       document.externalKind !== "pdf" &&
       document.externalKind !== "binary" &&
@@ -754,24 +676,7 @@ const isComparingOpenDocument = computed(() =>
   editorComparison.value?.kind === "file" || editorComparison.value?.kind === "clipboard",
 );
 const activeDirty = computed(() => Boolean(activeDocument.value && isProjectDocumentDirty(activeDocument.value)));
-// Plugin custom editor documents have no Monaco model.
-const openDocumentPaths = computed(() =>
-  project.documents.filter((document) => !document.editor).map((document) => document.path),
-);
-const customEditorPaneList = computed<CustomEditorPane[]>(() =>
-  project.documents.flatMap((document) => {
-    if (!document.editor) return [];
-    const projectRoot = document.external ? externalDocumentRoot(document.path) : projectRootForPath(document.path);
-    return [{
-      path: document.path,
-      pluginId: document.editor.pluginId,
-      editorId: document.editor.editorId,
-      projectRoot,
-      relativePath: document.external ? projectBasename(document.path) : relativeProjectPath(document.path, projectRoot),
-      dirty: isProjectDocumentDirty(document),
-    }];
-  }),
-);
+const openDocumentPaths = computed(() => project.documents.map((document) => document.path));
 const activeDocumentBreadcrumbs = computed(() => {
   const path = activeDocument.value?.path.replace(/\\/g, "/");
   if (!path) return [] as ProjectBreadcrumb[];
@@ -835,7 +740,6 @@ function canCompareResourceNodeWithCurrent(node: WorkspaceTreeNode) {
   return Boolean(
     !node.isDir &&
       target?.loaded &&
-      !target.editor &&
       nodeAbsolutePath(node) !== target.path &&
       !isImageDocument(node.path) &&
       !isImageDocument(target.path) &&
@@ -878,10 +782,6 @@ async function compareWithOpenDocument(path: string) {
   let source = project.documents.find((document) => document.path === path);
   const target = activeDocument.value;
   if (!source || !target?.loaded || source.path === target.path) return;
-  if (source.editor || target.editor) {
-    ElMessage.warning(t("pluginContrib.customEditors.compareUnavailable"));
-    return;
-  }
   if (!source.loaded) {
     await ensureDocumentLoaded(source.path, projectRootForPath(source.path));
     source = project.documents.find((document) => document.path === path);
@@ -905,7 +805,7 @@ async function compareWithOpenDocument(path: string) {
 
 function canComparePathWithClipboard(path: string) {
   const document = project.documents.find((item) => item.path === path);
-  return Boolean(path && !isImageDocument(path) && !/\.pdf$/i.test(path) && !document?.editor &&
+  return Boolean(path && !isImageDocument(path) && !/\.pdf$/i.test(path) &&
     document?.externalKind !== "image" && document?.externalKind !== "pdf" &&
     document?.externalKind !== "binary");
 }
@@ -1401,44 +1301,7 @@ const loadTree: LoadFunction<WorkspaceTreeNode> = async (node, resolve) => {
     return resolve([]);
   }
   resolve(children);
-  fileDecorations.directoryLoaded(root, treeDirectoryPath(current), decorationNamesOf(children));
 };
-
-/** The directory a tree node stands for, as plugin decorations name it ("" is the project root). */
-function treeDirectoryPath(data: WorkspaceTreeNode) {
-  return data.isProjectRoot ? "" : data.path;
-}
-
-type DecorationTreeNode = Parameters<typeof loadedDirectoryOf>[0] & {
-  expanded?: boolean;
-  childNodes?: DecorationTreeNode[];
-};
-
-/** Expanded, loaded directories of the tree, for re-requesting their decorations after a refresh. */
-function expandedTreeDirectories() {
-  const result: DecorationDirectory[] = [];
-  const visit = (node: DecorationTreeNode) => {
-    for (const child of node.childNodes ?? []) {
-      const entry = child.expanded ? loadedDirectoryOf(child) : undefined;
-      if (!entry) continue;
-      result.push(entry);
-      visit(child);
-    }
-  };
-  const root = (fileTreeRef.value as unknown as { root?: DecorationTreeNode } | undefined)?.root;
-  if (root) visit(root);
-  return result;
-}
-
-function onTreeNodeCollapse(data: WorkspaceTreeNode) {
-  fileDecorations.directoryCollapsed(data.projectRoot, treeDirectoryPath(data));
-}
-
-/** Element Plus calls load only on the first expansion; a re-expanded folder is reported here. */
-function onTreeNodeExpand(_data: WorkspaceTreeNode, node: DecorationTreeNode) {
-  const entry = loadedDirectoryOf(node);
-  if (entry) fileDecorations.directoryLoaded(entry.projectRoot, entry.directory, entry.names);
-}
 
 async function confirmDiscardWorkspace() {
   flushEditorContent();
@@ -1595,7 +1458,6 @@ async function refreshProject() {
     await loadProjectTree(project.projectRoot);
     // The rebuilt tree reloads its open folders, which queues them again.
     await nextTick();
-    fileDecorations.refreshExpanded(expandedTreeDirectories());
   } catch {
     errorKey.value = "project.openFailed";
   } finally {
@@ -1665,28 +1527,7 @@ async function activateProject(root: string) {
   return true;
 }
 
-/** Directory that hosts an external file for a custom editor binding (the file is its basename). */
-function externalDocumentRoot(path: string) {
-  const root = projectDirname(path);
-  return /^[a-zA-Z]:$/.test(root) ? `${root}/` : root;
-}
-
-/**
- * The custom editor for a file opened from outside any project (OS double-click,
- * drop). A confirmed default always wins; otherwise only files the built-in
- * viewers cannot show (binary, e.g. Office documents) fall back to the first
- * matching plugin editor, unless the user pinned the text editor.
- */
-async function externalCustomEditorFor(info: ExternalFileInfo) {
-  if (!isDesktopRuntime()) return undefined;
-  await customEditors.hydrate();
-  const resolved = customEditors.resolveForPath(projectBasename(info.path));
-  if (resolved.default && !resolved.needsConfirmation) return resolved.default;
-  if (info.kind !== "binary" || resolved.source === "user" || info.textPreviewAvailable) return undefined;
-  return resolved.default ?? resolved.options[0];
-}
-
-async function openExternalFile(path: string, options: { builtin?: boolean; preferProject?: boolean } = {}) {
+async function openExternalFile(path: string, options: { preferProject?: boolean } = {}) {
   try {
     const info = await invokeBackend<ExternalFileInfo>("local_fs_inspect_external_file", { path });
     if (info.kind === "directory") {
@@ -1695,8 +1536,7 @@ async function openExternalFile(path: string, options: { builtin?: boolean; pref
       return;
     }
     // A file handed over from outside (OS "open with", drop) that lies inside an
-    // open project opens as a project document, so project features (plugin
-    // language features, LSP, run configurations) apply. A tab already open as
+    // open project opens as a project document, so project features (LSP, run configurations) apply. A tab already open as
     // an external file keeps that mode.
     const infoPath = info.path.replace(/\\/g, "/");
     const root = options.preferProject ? projectRootContaining(infoPath) : undefined;
@@ -1705,19 +1545,6 @@ async function openExternalFile(path: string, options: { builtin?: boolean; pref
       return;
     }
     const metadata = { external: true, externalKind: info.kind, mimeType: info.mimeType, size: info.size, textPreviewAvailable: info.textPreviewAvailable };
-    const existing = project.documents.find((item) => item.path === info.path);
-    if (existing?.editor && !options.builtin) {
-      project.openDocument(info.path);
-      return;
-    }
-    // Restored tabs already exist but have not selected an editor for this session.
-    // Only preserve a loaded builtin tab or an explicit "reopen with text" choice.
-    const editor = options.builtin || existing?.loaded ? undefined : await externalCustomEditorFor(info);
-    if (editor) {
-      project.setDocumentLoaded(info.path, "", metadata);
-      openDocumentWithCustomEditor(info.path, editor);
-      return;
-    }
     project.openDocument(info.path);
     let content = "";
     if (info.kind === "text") {
@@ -1769,7 +1596,7 @@ function openPathAt(path: string, line?: number, column?: number) {
     void openFile(path, line, root, column);
     return;
   }
-  void openExternalFile(path, { builtin: true }).then(() => {
+  void openExternalFile(path).then(() => {
     const opened = project.activePath;
     if (opened && line) project.revealDocumentPosition(opened, line, column);
   });
@@ -1814,15 +1641,6 @@ function openDebugAddress(sessionId: string, address: string, type: string, line
   const through = addressSourceSession(same, sessionId);
   if (through) editorDebug.openAddress(root, through.id, address, line);
   else ElMessage.info({ message: t("debug.addressBreakpoints.openNeedsSession", { type }), showClose: true, grouping: true });
-}
-/**
- * A debugger address in a test failure's stack trace: opened through a live
- * session of the run's debugger type in the project when there is one, else
- * through the run's own (possibly ended) session.
- */
-function openTestTraceAddress(root: string, address: string, sessionId: string, type: string) {
-  const same = debugSessions.sessions.filter((session) => session.type === type && sameProjectRoot(session.projectRoot, root));
-  editorDebug.openAddress(root, addressSourceSession(same, sessionId)?.id ?? sessionId, address, 1);
 }
 const debugViewActive = () => !projectViewDisposed && projectViewActive.value && route.name === "projects";
 useDebugHover({
@@ -1873,7 +1691,7 @@ function debugSessionState(id: string) {
 /** The text editor's cursor in a project file, for Run to Cursor. */
 function debugCursorLocation() {
   const document = activeDocument.value;
-  if (!document || document.external || !document.loaded || document.editor) return null;
+  if (!document || document.external || !document.loaded) return null;
   const line = monacoEditor.value?.cursorLine() ?? null;
   return line ? { path: document.path, line } : null;
 }
@@ -1898,7 +1716,7 @@ useActiveViewCommands(() => [
   // Debug popups at a line of code (Smart Step Into) open below it when the text editor shows it.
   setDebugLineAnchorProvider((path, line, column) => {
     const document = activeDocument.value;
-    if (!document || !document.loaded || document.editor || !sameDebugDocumentPath(document.path, path)) return null;
+    if (!document || !document.loaded || !sameDebugDocumentPath(document.path, path)) return null;
     return monacoEditor.value?.screenPositionOf(line, column) ?? null;
   }),
 ]);
@@ -1953,267 +1771,9 @@ async function openFile(
   const documentPath = toDocumentPath(projectRoot, path);
   errorKey.value = null;
   activeProjectTerminalId.value = null;
-  // A plain open (no position) of a file that is not open yet may go to a plugin custom editor.
-  if (line === undefined && column === undefined && !project.documents.some((item) => item.path === documentPath)) {
-    if (pendingCustomEditorOpens.has(documentPath)) return;
-    pendingCustomEditorOpens.add(documentPath);
-    try {
-      const editor = await chooseCustomEditorForOpen(documentPath, projectRoot);
-      if (editor === null) return;
-      if (editor) {
-        activeProjectTerminalId.value = null;
-        openDocumentWithCustomEditor(documentPath, editor);
-        return;
-      }
-    } finally {
-      pendingCustomEditorOpens.delete(documentPath);
-    }
-    activeProjectTerminalId.value = null;
-  }
   project.openDocument(documentPath);
   project.revealDocumentPosition(documentPath, line, column);
   await ensureDocumentLoaded(documentPath, projectRoot);
-}
-
-// ---- Plugin custom editors (contributes.customEditors) ----
-
-const pendingCustomEditorOpens = new Set<string>();
-
-/**
- * Path a custom editor binds for a document: project-relative inside an open
- * project, or the basename (under its directory) for an external file.
- */
-function customEditorRelativePath(documentPath: string, projectRoot = projectRootForPath(documentPath)) {
-  // A debugger source is the adapter's text, not a file a plugin editor could open.
-  if (isVirtualSourceDocumentPath(documentPath)) return undefined;
-  if (project.documents.some((item) => item.path === documentPath && item.external)) return projectBasename(documentPath);
-  if (!project.projects.some((entry) => entry.root === projectRoot) && projectRoot !== project.projectRoot) return undefined;
-  const relative = relativeProjectPath(documentPath, projectRoot);
-  return relative && relative !== documentPath.replace(/\\/g, "/") ? relative : undefined;
-}
-
-/**
- * The custom editor a plain open should use: `undefined` → text editor,
- * `null` → the user cancelled. A plugin `default` asks once; sensitive files
- * never open in a plugin by default (resolveEditorsForPath).
- */
-async function chooseCustomEditorForOpen(
-  documentPath: string,
-  projectRoot: string,
-): Promise<CustomEditorContribution | undefined | null> {
-  if (!isDesktopRuntime()) return undefined;
-  const relativePath = customEditorRelativePath(documentPath, projectRoot);
-  if (!relativePath) return undefined;
-  await customEditors.hydrate();
-  const resolved = customEditors.resolveForPath(relativePath);
-  if (!resolved.default) return undefined;
-  if (!resolved.needsConfirmation) return resolved.default;
-  return confirmCustomEditorDefault(resolved.default, relativePath);
-}
-
-async function confirmCustomEditorDefault(editor: CustomEditorContribution, relativePath: string) {
-  const pattern = associationPatternForPath(relativePath);
-  const title = customEditorTitle(editor, localeChain.value);
-  const remember = ref(false);
-  let choice: "plugin" | "text" | "cancel";
-  try {
-    await ElMessageBox.confirm(
-      () => h("div", { class: "project-custom-editor-confirm" }, [
-        h("p", t("pluginContrib.customEditors.defaultConfirmDescription", {
-          plugin: editor.pluginName,
-          name: projectBasename(relativePath),
-          editor: title,
-          writes: editor.access === "readWrite" ? t("pluginContrib.customEditors.defaultConfirmWrites") : "",
-        })),
-        h(ElCheckbox, {
-          modelValue: remember.value,
-          "onUpdate:modelValue": (value: string | number | boolean) => {
-            remember.value = Boolean(value);
-          },
-        }, () => t("pluginContrib.customEditors.remember", { pattern })),
-      ]),
-      t("pluginContrib.customEditors.defaultConfirmTitle"),
-      {
-        type: "info",
-        distinguishCancelAndClose: true,
-        confirmButtonText: t("pluginContrib.customEditors.defaultConfirmOpen", { editor: title }),
-        cancelButtonText: t("pluginContrib.customEditors.defaultConfirmText"),
-      },
-    );
-    choice = "plugin";
-  } catch (action) {
-    choice = action === "cancel" ? "text" : "cancel";
-  }
-  if (choice === "cancel") return null;
-  if (remember.value) {
-    try {
-      if (choice === "plugin") await customEditors.confirmDefault(editor.key);
-      else await customEditors.declineDefault(pattern);
-    } catch {
-      errorKey.value = "project.operationFailed";
-    }
-  }
-  return choice === "plugin" ? editor : undefined;
-}
-
-function openDocumentWithCustomEditor(documentPath: string, editor: Pick<CustomEditorContribution, "pluginId" | "id">) {
-  project.openDocument(documentPath);
-  project.setDocumentCustomEditor(documentPath, { pluginId: editor.pluginId, editorId: editor.id });
-}
-
-function documentEditorKey(document: ProjectEditorDocument | undefined) {
-  return document?.editor ? customEditorKey(document.editor.pluginId, document.editor.editorId) : TEXT_EDITOR_ASSOCIATION;
-}
-
-/** Switches an open document between the text editor and a custom editor (Open/Reopen With…). */
-async function reopenDocumentWith(path: string, key: string) {
-  flushEditorContent();
-  const document = project.documents.find((item) => item.path === path);
-  if (!document || documentEditorKey(document) === key) {
-    if (document) selectProjectDocument(path);
-    return;
-  }
-  const editor = key === TEXT_EDITOR_ASSOCIATION ? undefined : customEditors.editorByKey(key);
-  if (key !== TEXT_EDITOR_ASSOCIATION && (!editor || !parseCustomEditorKey(key))) return;
-  if (isProjectDocumentDirty(document)) {
-    try {
-      await ElMessageBox.confirm(t("project.confirm.closeDirty"), t("project.unsavedTitle"), {
-        type: "warning",
-        confirmButtonText: t("project.discard"),
-        cancelButtonText: t("common.cancel"),
-      });
-    } catch {
-      return;
-    }
-  }
-  activeProjectTerminalId.value = null;
-  if (editor) {
-    openDocumentWithCustomEditor(path, editor);
-    return;
-  }
-  await reopenDocumentWithBuiltinEditor(path, Boolean(document.external));
-}
-
-async function reopenDocumentWithBuiltinEditor(path: string, external: boolean) {
-  project.setDocumentCustomEditor(path, null);
-  project.openDocument(path);
-  if (external) await openExternalFile(path, { builtin: true });
-  else await ensureDocumentLoaded(path);
-}
-
-function openDocumentEditorKey(path: string) {
-  const document = project.documents.find((item) => item.path === path);
-  return document ? documentEditorKey(document) : undefined;
-}
-
-function openContextNodeWith(key: string) {
-  const node = contextMenu.value?.node;
-  if (node) void openNodeWith(node, key);
-}
-
-/** Tree "Open With…": opens (or switches) the file in the chosen editor, bypassing the default. */
-async function openNodeWith(node: WorkspaceTreeNode, key: string) {
-  closeProjectContextMenu();
-  const documentPath = nodeAbsolutePath(node);
-  errorKey.value = null;
-  if (project.documents.some((item) => item.path === documentPath)) {
-    await reopenDocumentWith(documentPath, key);
-    return;
-  }
-  activeProjectTerminalId.value = null;
-  if (key === TEXT_EDITOR_ASSOCIATION) {
-    project.openDocument(documentPath);
-    await ensureDocumentLoaded(documentPath, node.projectRoot);
-    return;
-  }
-  const editor = customEditors.editorByKey(key);
-  if (editor) openDocumentWithCustomEditor(documentPath, editor);
-}
-
-function documentCustomEditorPattern(path: string) {
-  const relativePath = customEditorRelativePath(path);
-  return relativePath ? associationPatternForPath(relativePath) : undefined;
-}
-
-/** Whether the tab menu offers editor choices for this document. */
-function documentHasCustomEditors(path: string) {
-  const relativePath = customEditorRelativePath(path);
-  return Boolean(relativePath && customEditors.resolveForPath(relativePath).options.length);
-}
-
-function documentHasEditorAssociation(path: string) {
-  const relativePath = customEditorRelativePath(path);
-  const pattern = documentCustomEditorPattern(path);
-  return Boolean(relativePath && pattern && associationForPath(customEditors.associations, relativePath)?.pattern === pattern);
-}
-
-async function setDocumentDefaultEditor(path: string, reset: boolean) {
-  const document = project.documents.find((item) => item.path === path);
-  const pattern = documentCustomEditorPattern(path);
-  if (!document || !pattern) return;
-  try {
-    if (reset) {
-      await customEditors.setAssociation(pattern, null);
-      ElMessage.success(t("pluginContrib.customEditors.resetDefaultDone", { pattern }));
-      return;
-    }
-    const key = documentEditorKey(document);
-    await customEditors.setAssociation(pattern, key);
-    const editor = customEditors.editorByKey(key);
-    ElMessage.success(t("pluginContrib.customEditors.setDefaultDone", {
-      editor: editor ? customEditorTitle(editor, localeChain.value) : t("pluginContrib.customEditors.textEditor"),
-      pattern,
-    }));
-  } catch {
-    errorKey.value = "project.operationFailed";
-  }
-}
-
-function documentEditorSource(document: ProjectEditorDocument) {
-  if (!document.editor) return document.path;
-  const editor = customEditors.editorByKey(documentEditorKey(document));
-  return editor
-    ? `${document.path}\n${t("pluginContrib.customEditors.source", { editor: customEditorTitle(editor, localeChain.value), plugin: editor.pluginName })}`
-    : document.path;
-}
-
-/** Asks a custom editor pane to save; the plugin page answers with a save-result. */
-async function saveCustomEditorDocument(document: ProjectEditorDocument) {
-  try {
-    if (!customEditorPanes.value) throw new Error(t("pluginContrib.customEditors.unavailable"));
-    await customEditorPanes.value.requestSave(document.path);
-    if (customEditors.editorByKey(documentEditorKey(document))?.access === "readWrite") {
-      ElMessage.success(t("project.saved"));
-    }
-    return true;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message !== t("pluginContrib.customEditors.saveConflict")) {
-      ElMessage.error(message || t("pluginContrib.customEditors.saveFailed"));
-    }
-    return false;
-  }
-}
-
-function onCustomEditorDirty(path: string, dirty: boolean) {
-  project.setDocumentDirty(path, dirty);
-}
-
-function onCustomEditorFailed(path: string, _description: string) {
-  const document = project.documents.find((item) => item.path === path);
-  if (!document || !isProjectDocumentDirty(document)) return;
-  project.setDocumentDirty(path, false);
-  ElMessage.warning(t("pluginContrib.customEditors.unsavedLost", { name: document.name }));
-}
-
-async function onCustomEditorReopenText(path: string) {
-  const external = Boolean(project.documents.find((item) => item.path === path)?.external);
-  await reopenDocumentWithBuiltinEditor(path, external);
-}
-
-function onCustomEditorClose(path: string) {
-  project.closeDocument(path);
-  recordClosedDocument(path);
 }
 
 async function onTreeNodeClick(data: WorkspaceTreeNode) {
@@ -2243,42 +1803,9 @@ function openProjectNotes(node: WorkspaceTreeNode, createNew = false) {
   void linkedNotes.open({ objectType: "project", objectId: node.projectRoot, nameSnapshot: name }, { createNew });
 }
 
-/** Plugin menu target (contributes.menus project/tree/context) of a tree node. */
-function projectTreeMenuTarget(node: WorkspaceTreeNode): ProjectTreeMenuTarget {
-  return {
-    projectName: node.projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? node.projectRoot,
-    relativePath: nodeRelativePath(node),
-    kind: node.isDir ? "directory" : "file",
-    isProjectRoot: Boolean(node.isProjectRoot),
-    path: nodeAbsolutePath(node),
-  };
-}
-
-const projectTreePluginMenuHost = computed(() =>
-  contextMenu.value ? projectTreeHostContext(projectTreeMenuTarget(contextMenu.value.node)) : null,
-);
-
-function projectTreePluginMenuContext() {
-  const node = contextMenu.value?.node;
-  return node ? menuPassContext("project/tree/context", projectTreeMenuTarget(node)) : {};
-}
-
-/** What the tree context menu hands to plugin services (fileMenu surface); directories and a closed menu take none. */
-function projectTreeServiceTarget(): FileMenuServiceTarget | null {
-  const node = contextMenu.value?.node;
-  if (!node || node.isDir || node.isProjectRoot) return null;
-  return { surface: "fileMenu", files: [{ name: node.name, absolutePath: nodeAbsolutePath(node) }] };
-}
-
 async function removeProjectFromContextMenu(node: WorkspaceTreeNode) {
   closeProjectContextMenu();
   await removeSavedProject(node.projectRoot);
-}
-
-/** The collapsed "Open With…" entry adds one row to a file's context menu. */
-function customEditorMenuExtraHeight(node: WorkspaceTreeNode) {
-  const relativePath = customEditorRelativePath(nodeAbsolutePath(node), node.projectRoot);
-  return relativePath && customEditors.resolveForPath(relativePath).options.length ? 42 : 0;
 }
 
 function onTreeNodeContextMenu(event: MouseEvent, data: WorkspaceTreeNode) {
@@ -2287,7 +1814,7 @@ function onTreeNodeContextMenu(event: MouseEvent, data: WorkspaceTreeNode) {
   const menuWidth = 226;
   // 高度按各分支实际渲染的菜单项数估算，仅用于贴边时的翻转夹紧；
   // 增删菜单项后必须同步，否则底部右键会被夹到错误位置。
-  const menuHeight = data.isDir ? (data.isProjectRoot ? 632 : 644) : 518 + customEditorMenuExtraHeight(data);
+  const menuHeight = data.isDir ? (data.isProjectRoot ? 632 : 644) : 518;
   // 项目根菜单显示关联笔记数。
   if (data.isProjectRoot) linkedNotes.ensureCounts("project", [data.projectRoot]);
   contextMenu.value = {
@@ -2539,14 +2066,6 @@ async function closeProjectTerminalPane(paneId: string) {
 async function reloadProjectTerminalPane(paneId: string) {
   await closeProjectTerminalSession(paneId);
   terminalWorkspace.reloadPane(paneId);
-}
-
-// Explicit user choice from a blocked plugin-profile pane ("Open default shell"),
-// as in the terminal workspace: close whatever the session left behind and start
-// the default shell in the same pane.
-async function useDefaultShellInProjectTerminalPane(paneId: string) {
-  await closeProjectTerminalSession(paneId);
-  terminalWorkspace.replaceProfilePaneWithShell(paneId);
 }
 
 function splitProjectTerminalPane(paneId: string, direction: TerminalSplitDirection) {
@@ -2984,10 +2503,6 @@ async function saveDocument(path = project.activePath, automatic?: () => boolean
     if (!valid() || !canInvoke("local_fs_write_text_file")) return "cancelled";
     const document = project.documentForSession(owner, path, session)!;
     flushEditorContent();
-    if (document.editor) {
-      if (automatic) return "skipped";
-      return await saveCustomEditorDocument(document) ? "saved" : "failed";
-    }
     if (!isEditableProjectText(document) || (automatic && !isProjectDocumentDirty(document))) return "skipped";
     const controller = new AbortController();
     const stop = watch(() => [editorScope.scopeId.value, project.activeWorkspaceId, projectViewDisposed, automatic ? projectViewActive.value : null,
@@ -3078,9 +2593,7 @@ async function requestCloseDocument(path: string) {
   if (!editorScope.isCurrent(scope) || owner !== project.activeWorkspaceId || !project.documentForSession(owner, path, session)) return false;
   flushEditorContent();
   const document = project.documents.find((item) => item.path === path);
-  if (document?.editor && isProjectDocumentDirty(document)) {
-    if (!(await confirmCloseDirtyCustomEditor(document))) return false;
-  } else if (document && isProjectDocumentDirty(document)) {
+  if (document && isProjectDocumentDirty(document)) {
     try {
       await ElMessageBox.confirm(t("project.confirm.closeDirty"), t("project.unsavedTitle"), {
         type: "warning",
@@ -3095,26 +2608,6 @@ async function requestCloseDocument(path: string) {
   project.closeDocument(path);
   recordClosedDocument(path);
   return true;
-}
-
-/** Dirty custom editor close: Save (save-request to the plugin page), Discard, or keep the tab. */
-async function confirmCloseDirtyCustomEditor(document: ProjectEditorDocument) {
-  selectProjectDocument(document.path);
-  try {
-    await ElMessageBox.confirm(
-      t("pluginContrib.customEditors.dirtyClose", { name: document.name }),
-      t("project.unsavedTitle"),
-      {
-        type: "warning",
-        distinguishCancelAndClose: true,
-        confirmButtonText: t("common.save"),
-        cancelButtonText: t("project.discard"),
-      },
-    );
-  } catch (action) {
-    return action === "cancel";
-  }
-  return saveCustomEditorDocument(document);
 }
 
 function recordClosedDocument(path: string) {
@@ -3258,12 +2751,6 @@ async function handleTabCommand(command: string, path: string) {
   switch (command) {
     case "compare-with-clipboard":
       await compareFileWithClipboard(path);
-      return;
-    case "set-default-editor":
-      await setDocumentDefaultEditor(path, false);
-      return;
-    case "reset-default-editor":
-      await setDocumentDefaultEditor(path, true);
       return;
     case "compare-with-active":
       await compareWithOpenDocument(path);
@@ -3461,7 +2948,6 @@ async function refreshProjectTreeInPlace(): Promise<boolean> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (rootNode.childNodes as any[]).forEach((node, index) => assignNodeData(node, nextRoots[index]));
   await Promise.all(rootNode.childNodes.map(syncChildren));
-  fileDecorations.refreshExpanded(expandedTreeDirectories());
   return true;
 }
 
@@ -4450,11 +3936,7 @@ const projectSidebarTabItems = computed<ProjectSidebarTabItem[]>(() => [
   { name: "git", label: t("project.sourceControl"), icon: Share, badge: gitChangeCount.value },
   { name: "outline", label: t("project.outline.tab"), icon: List },
   { name: "problems", label: t("project.problems.tab"), icon: Warning, badge: problemCount.value },
-  ...(pluginTasks.available ? [{ name: "tasks", label: t("pluginContrib.tasks.tab"), icon: VideoPlay }] : []),
-  ...(pluginTreeViews.views.length ? [{ name: "views", label: t("pluginContrib.treeViews.tab"), icon: Grid }] : []),
-  ...(pluginTestProviders.providers.length
-    ? [{ name: "tests", label: t("pluginContrib.testProviders.tab"), icon: CircleCheck }]
-    : []),
+
 ]);
 
 async function setProjectPanelRoute(panel: "resources" | "git") {
@@ -4468,7 +3950,7 @@ async function setProjectPanelRoute(panel: "resources" | "git") {
 // The outline follows the text editor's model (same URI MonacoTextEditor uses).
 const outlineDocument = computed(() => {
   const document = activeDocument.value;
-  if (!document?.loaded || document.editor) return undefined;
+  if (!document?.loaded) return undefined;
   return {
     path: document.path,
     projectRoot: document.external ? undefined : projectRootForPath(document.path),
@@ -4609,40 +4091,7 @@ onMounted(async () => {
   }
 });
 
-watch(
-  () => pluginTasks.available,
-  (available) => {
-    if (!available && sideMode.value === "tasks") sideMode.value = "explorer";
-  },
-);
-watch(
-  () => pluginTreeViews.views.length,
-  (count) => {
-    if (!count && sideMode.value === "views") sideMode.value = "explorer";
-  },
-);
-watch(
-  () => pluginTestProviders.providers.length,
-  (count) => {
-    if (!count && sideMode.value === "tests") sideMode.value = "explorer";
-  },
-);
-
-async function revealPluginTasksTab(event: Event) {
-  if (!pluginTasks.available || !project.projectRoot) return;
-  sideMode.value = "tasks";
-  if ((event as CustomEvent<{ detect?: boolean }>).detail?.detect) await pluginTasks.detectAll();
-}
-window.addEventListener(PLUGIN_TASKS_REVEAL_EVENT, revealPluginTasksTab);
-watch(
-  () => project.projectRoot,
-  (root) => pluginTasks.setActiveProjectRoot(root || ""),
-  { immediate: true },
-);
-
 onBeforeUnmount(() => {
-  window.removeEventListener(PLUGIN_TASKS_REVEAL_EVENT, revealPluginTasksTab);
-  pluginTasks.setActiveProjectRoot("");
   clipboardCompareRequest++;
   if (projectIndexRefreshTimer) clearTimeout(projectIndexRefreshTimer);
   projectIndexRefreshGeneration += 1;
@@ -5130,8 +4579,6 @@ onBeforeUnmount(() => {
               :load="loadTree"
               :expand-on-click-node="true"
               @node-click="onTreeNodeClick"
-              @node-collapse="onTreeNodeCollapse"
-              @node-expand="onTreeNodeExpand"
               @node-contextmenu="onTreeNodeContextMenu"
             >
               <template #default="{ node, data }">
@@ -5167,11 +4614,6 @@ onBeforeUnmount(() => {
                     @blur="saveProjectRename"
                   />
                   <span v-else>{{ data.name }}</span>
-                  <!-- A future host Git status mark goes right after the name; the single plugin decoration follows it. -->
-                  <em
-                    v-if="decorationFor(data)"
-                    v-bind="decorationAttrs(decorationFor(data)!)"
-                  >{{ decorationFor(data)!.badge }}</em>
                   <em
                     v-if="treeNodeBranch(data)"
                     class="project-tree-node__branch"
@@ -5214,27 +4656,6 @@ onBeforeUnmount(() => {
         />
         <p v-else class="project-sidebar-empty project-sidebar-empty--compact">{{ t("project.noProject") }}</p>
       </template>
-      <template v-if="sideMode === 'tasks'">
-        <ProjectTasksPanel v-if="project.projectRoot" :project-root="project.projectRoot" />
-        <p v-else class="project-sidebar-empty project-sidebar-empty--compact">{{ t("project.noProject") }}</p>
-      </template>
-
-      <ProjectPluginViewsPanel
-        v-if="sideMode === 'views'"
-        :project-root="project.projectRoot || undefined"
-        @open-file="(path: string, line?: number) => openFile(path, line, project.projectRoot)"
-      />
-
-      <template v-if="sideMode === 'tests'">
-        <ProjectPluginTestsPanel
-          v-if="project.projectRoot"
-          :project-root="project.projectRoot"
-          @open-file="(path: string, line?: number) => openFile(path, line, project.projectRoot)"
-          @open-address="(address: string, sessionId: string, type: string) => openTestTraceAddress(project.projectRoot, address, sessionId, type)"
-        />
-        <p v-else class="project-sidebar-empty project-sidebar-empty--compact">{{ t("project.noProject") }}</p>
-      </template>
-
       <ProjectGitPanel
         v-show="sideMode === 'git'"
         ref="gitPanel"
@@ -5291,14 +4712,9 @@ onBeforeUnmount(() => {
                     placement="bottom-start"
                     @command="handleTabCommand(String($event), document.path)"
                   >
-                    <span class="project-document-tab__label" :title="documentEditorSource(document)">
+                    <span class="project-document-tab__label" :title="document.path">
                       <ProjectFileIcon :name="document.name" />
                       <span class="project-document-tab__name">{{ document.name }}</span>
-                      <el-icon
-                        v-if="document.editor"
-                        class="project-document-tab__plugin"
-                        :aria-label="documentEditorSource(document)"
-                      ><Connection /></el-icon>
                       <i
                         v-if="isProjectDocumentDirty(document)"
                         class="project-document-tab__dirty"
@@ -5308,29 +4724,10 @@ onBeforeUnmount(() => {
                     </span>
                     <template #dropdown>
                       <el-dropdown-menu>
-                        <template v-if="documentHasCustomEditors(document.path)">
-                          <OpenWithMenu
-                            reopen
-                            :relative-path="customEditorRelativePath(document.path) ?? null"
-                            :current="documentEditorKey(document)"
-                            @select="(key) => reopenDocumentWith(document.path, key)"
-                          />
-                          <el-dropdown-item command="set-default-editor">{{
-                            t("pluginContrib.customEditors.setDefault", { pattern: documentCustomEditorPattern(document.path) ?? "" })
-                          }}</el-dropdown-item>
-                          <el-dropdown-item
-                            v-if="documentHasEditorAssociation(document.path)"
-                            command="reset-default-editor"
-                          >{{
-                            t("pluginContrib.customEditors.resetDefault", { pattern: documentCustomEditorPattern(document.path) ?? "" })
-                          }}</el-dropdown-item>
-                        </template>
                         <el-dropdown-item
                           v-if="activeDocument?.path !== document.path"
-                          :divided="documentHasCustomEditors(document.path)"
                           command="compare-with-active"
                           :disabled="
-                            Boolean(document.editor) ||
                             document.externalKind === 'image' ||
                             document.externalKind === 'pdf' ||
                             document.externalKind === 'binary' ||
@@ -5339,7 +4736,6 @@ onBeforeUnmount(() => {
                         >{{ t("project.editor.compareWithCurrent") }}</el-dropdown-item>
                         <el-dropdown-item
                           command="compare-with-clipboard"
-                          :divided="activeDocument?.path === document.path && documentHasCustomEditors(document.path)"
                           :disabled="clipboardCompareLoading || !canComparePathWithClipboard(document.path)"
                         >{{ t("project.editor.compareWithClipboard") }}</el-dropdown-item>
                         <el-dropdown-item divided command="copy-path">{{ t("project.tab.copyPath") }}</el-dropdown-item>
@@ -5739,25 +5135,9 @@ onBeforeUnmount(() => {
             @select="terminalWorkspace.selectPane"
             @close="closeProjectTerminalPane"
             @reload="reloadProjectTerminalPane"
-            @use-default-shell="useDefaultShellInProjectTerminalPane"
             @split="splitProjectTerminalPane"
             @resize="terminalWorkspace.resizeSplit"
             @resize-end="terminalWorkspace.persistLayout"
-          />
-        </div>
-        <div
-          v-if="customEditorPaneList.length"
-          v-show="activeDocument?.editor"
-          class="project-editor-surface project-custom-editor-surface"
-        >
-          <CustomEditorPanes
-            ref="customEditorPanes"
-            :panes="customEditorPaneList"
-            :active-path="activeDocument?.editor ? activeDocument.path : null"
-            @dirty="onCustomEditorDirty"
-            @failed="onCustomEditorFailed"
-            @reopen-text="onCustomEditorReopenText"
-            @close="onCustomEditorClose"
           />
         </div>
         <ProjectEditorDebugPopups
@@ -5768,7 +5148,7 @@ onBeforeUnmount(() => {
           @run="editorDebug.runEntry"
           @close-entry-menu="editorDebug.closeEntryMenu"
         />
-        <div v-if="activeDocument && !activeDocument.editor" class="project-editor-surface">
+        <div v-if="activeDocument" class="project-editor-surface">
           <ImagePreview
             v-if="activeDocumentIsImage && activeDocument.loaded"
             :src="activeDocument.content"
@@ -5817,7 +5197,6 @@ onBeforeUnmount(() => {
             :breakpoint-details="editorDebug.editorProps.value.breakpointDetails"
             :paused-line="editorDebug.editorProps.value.pausedLine"
             :entry-points="editorDebug.editorProps.value.entryPoints"
-            :entry-point-states="editorDebug.editorProps.value.entryPointStates"
             :inline-variables="editorDebug.editorProps.value.inlineVariables"
             @toggle-breakpoint="editorDebug.toggleBreakpoint"
             @edit-breakpoint="editorDebug.editBreakpoint"
@@ -5966,12 +5345,6 @@ onBeforeUnmount(() => {
       </template>
 
       <template v-else>
-        <OpenWithMenu
-          divided
-          :relative-path="customEditorRelativePath(nodeAbsolutePath(contextMenu.node), contextMenu.node.projectRoot) ?? null"
-          :current="openDocumentEditorKey(nodeAbsolutePath(contextMenu.node))"
-          @select="openContextNodeWith"
-        />
         <el-dropdown-item
           divided
           :disabled="!canCompareResourceNodeWithCurrent(contextMenu.node)"
@@ -6014,12 +5387,6 @@ onBeforeUnmount(() => {
         </el-dropdown-item>
       </template>
 
-      <PluginMenuItems
-        menu="project/tree/context"
-        :host="projectTreePluginMenuHost"
-        :context="projectTreePluginMenuContext"
-      />
-      <PluginServiceMenuItems :target="projectTreeServiceTarget" />
     </AppContextMenu>
 
     <CustomFileTemplatesDialog v-if="customTemplatesVisible" v-model="customTemplatesVisible"/>

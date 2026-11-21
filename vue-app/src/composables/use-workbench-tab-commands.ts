@@ -2,7 +2,7 @@
  * Workbench tab and view commands, registered at startup by AppTabBar (the
  * owner of tab navigation) in the main window:
  * `workbench:close-tab`, `close-all`, `reopen-closed`, `next-tab`, `prev-tab`,
- * `tab-1`…`tab-9`, `new-terminal` and `show-view.{source-control,terminal,plugins}`.
+ * `tab-1`…`tab-9`, `new-terminal` and `show-view.{source-control,terminal}`.
  *
  * Tab commands act on the nested document tabs of the active editor host
  * (services/document-tab-host.ts) while the focus is inside its editor area,
@@ -59,7 +59,6 @@ function documentTarget(): DocumentTabHost | undefined {
 const SHOW_VIEW_COMMANDS = [
   { id: "workbench:show-view.source-control", item: "source-control" },
   { id: "workbench:show-view.terminal", item: "terminal" },
-  { id: "workbench:show-view.plugins", item: "plugins" },
 ] as const;
 
 export function useWorkbenchTabCommands(options: WorkbenchTabCommandOptions): void {
@@ -144,11 +143,6 @@ export function useWorkbenchTabCommands(options: WorkbenchTabCommandOptions): vo
       case "terminal":
         options.newTerminal(entry.title);
         return;
-      case "plugin-view": {
-        const tab = workbench.openPluginView(entry.pluginId, entry.viewId, entry.title);
-        if (tab) options.navigateTo(tab);
-        return;
-      }
       case "document": {
         const tab = workbench.openView("projects");
         if (!tab) return;

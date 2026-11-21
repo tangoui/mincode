@@ -26,8 +26,6 @@ import {
 import { ElMessage, ElMessageBox, type TabPaneName, type TabsPaneContext } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
-import { flushPluginView } from "@/services/plugin-view-save";
-import { pluginTabTitle } from "@/services/plugin-titles";
 import { DEFAULT_WORKSPACE_ID, useWorkbenchStore } from "@/stores/workbench";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import { canPopOutTab, closePopupWindow, popOutTab } from "@/services/popup-tab";
@@ -45,24 +43,12 @@ import TerminalAttentionMarker from "@/components/terminal/TerminalAttentionMark
 import MinCodeMark from "@/assets/brand/mincode-mark.svg";
 import AppChevron from "@/components/ui/AppChevron.vue";
 import AppWorkspaceTabs from "@/components/ui/AppWorkspaceTabs.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import { menuPassContext, tabHostContext } from "@/domain/plugins/menus";
 import NotificationCenterButton from "@/components/layout/NotificationCenterButton.vue";
 import BrowserLocalModeBadge from "@/components/layout/BrowserLocalModeBadge.vue";
 import { useAiAssistantShellStore } from "@/stores/ai-assistant-shell";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { recordClosedTabs } from "@/services/closed-tab-history";
 import { useWorkbenchTabCommands } from "@/composables/use-workbench-tab-commands";
 import { useWorkspaceManagement } from "@/composables/use-workspace-management";
-import { useTerminalProfilesStore } from "@/stores/terminal-profiles";
-import { TERMINAL_PROFILE_MENU_PREFIX, terminalProfileTitle } from "@/domain/terminal/profiles";
-import {
-  ensureTerminalProfileConfirmed,
-  TERMINAL_PROFILE_OPEN_EVENT,
-  terminalProfileErrorMessage,
-} from "@/services/terminal-profile-service";
-import { PLUGIN_TASK_OPEN_EVENT } from "@/services/plugin-task-events";
-import type { PluginTaskRef } from "@/domain/terminal/types";
 import type { WorkspaceTab } from "@/types/workspace";
 import { focusInlineInput } from "@/domain/ui/focus-inline-input";
 
@@ -80,12 +66,10 @@ const router = useRouter();
 const workbench = useWorkbenchStore();
 const terminalWorkspace = useTerminalWorkspaceStore();
 const assistant = useAiAssistantShellStore();
-const localProject = useLocalProjectStore();
 const workspaceStateScope = useWorkspaceStateScope();
 const workspaceStatePreferences = workspaceStateScope.preferences;
 const workspaceStateScopeId = workspaceStateScope.scopeId;
-const { t, localeChain } = useVueI18n();
-const terminalProfiles = useTerminalProfilesStore();
+const { t } = useVueI18n();
 const { tabAttention, dismissTabAttention } = useTabAttention();
 const tabsHost = ref<HTMLElement>();
 const tabsHostWidth = ref(0);
@@ -177,7 +161,7 @@ const shellPresets = computed(() =>
 );
 
 function tabTitle(tab: (typeof workbench.tabs)[number]) {
-  return pluginTabTitle(tab) || t(tab.titleKey as MessageKey);
+  return tab.title || t(tab.titleKey as MessageKey);
 }
 function isWorkspaceTabClosable(tab: (typeof workbench.tabs)[number]) {
   return !tab.pinned;
@@ -186,13 +170,7 @@ function warmWorkspaceView(view: (typeof workbench.tabs)[number]["view"]) {
   void preloadWorkspaceView(view);
 }
 function currentRouteMatchesTab(tab: (typeof workbench.tabs)[number] | undefined) {
-  if (!tab) return route.name === "dashboard";
-  if (route.name !== tab.view) return false;
-  if (tab.view === "service-result") return route.params.resultId === tab.serviceResult?.resultId;
-  if (tab.view !== "plugin-view" || !tab.pluginView) return true;
-  return (
-    route.params.pluginId === tab.pluginView.pluginId && route.params.viewId === tab.pluginView.viewId
-  );
+  return route.name === (tab?.view ?? "dashboard");
 }
 function navigateToTab(tab: (typeof workbench.tabs)[number] | undefined) {
   if (tab) warmWorkspaceView(tab.view);
@@ -238,7 +216,6 @@ async function closeWorkspaceTab(id: string) {
   const tab = workbench.tabs.find((item) => item.id === id);
   if (!tab || !isWorkspaceTabClosable(tab)) return;
 
-  try { await flushPluginView(id); } catch { ElMessage.warning(t("plugins.viewConnectionLost")); return; }
   const popupLabel = workbench.poppedOutTabLabels[id];
   if (popupLabel) {
     try {
@@ -325,58 +302,9 @@ function openBrowser() {
   navigateToTab(tab);
 }
 
-// Plugin terminal profiles (contributes.terminalProfiles): the host resolves and
-// confirms the launch spec by reference before a pane is created; the pane stores
-// only the reference.
-const terminalProfileItems = computed(() =>
-  terminalProfiles.profiles.map((profile) => ({
-    key: profile.key,
-    title: terminalProfileTitle(profile, localeChain.value),
-    pluginName: profile.pluginName,
-  }))
-);
-
-async function openTerminalProfile(key: string) {
-  const profile = terminalProfiles.profileByKey(key);
-  if (!profile) {
-    ElMessage.warning(t("pluginContrib.terminalProfiles.unavailable"));
-    return;
-  }
-  if (!isDesktopRuntime()) {
-    ElMessage.warning(t("pluginContrib.terminalProfiles.desktopOnly"));
-    return;
-  }
-  const workspaceFolder = workbench.activeWorktreePath || localProject.projectRoot || "";
-  const target = { pluginId: profile.pluginId, profileId: profile.id, workspaceFolder };
-  try {
-    const launch = await ensureTerminalProfileConfirmed(target);
-    if (!launch) return;
-    const title = terminalProfileTitle(launch, localeChain.value);
-    createTerminalTab({ profile: { ...target, title } }, title);
-  } catch (error) {
-    ElMessage.error(t("pluginContrib.terminalProfiles.launchFailed", { message: terminalProfileErrorMessage(error) }));
-  }
-}
-
-function handleTerminalProfileOpen(event: Event) {
-  const key = (event as CustomEvent<{ key?: unknown }>).detail?.key;
-  if (typeof key === "string") void openTerminalProfile(key);
-}
-
-// Plugin tasks (contributes.tasks): the task was already confirmed by services/plugin-task-service.ts.
-function handlePluginTaskOpen(event: Event) {
-  const detail = (event as CustomEvent<{ task?: PluginTaskRef; title?: string }>).detail;
-  if (detail?.task) createTerminalTab({ task: detail.task }, detail.title || detail.task.title);
-}
-
 async function createTerminal(command: string) {
   if (command === "browser") {
     openBrowser();
-    return;
-  }
-
-  if (command.startsWith(TERMINAL_PROFILE_MENU_PREFIX)) {
-    await openTerminalProfile(command.slice(TERMINAL_PROFILE_MENU_PREFIX.length));
     return;
   }
 
@@ -445,15 +373,8 @@ function moveTab(id: string, workspaceId: string) {
   const tab = workbench.moveTabToWorkspace(id, workspaceId);
   if (tab) navigateToTab(tab);
 }
-async function closeTabGroup(action: "left" | "right" | "other", id: string) {
+function closeTabGroup(action: "left" | "right" | "other", id: string) {
   const before = [...workbench.workspaceTabs];
-  const targetIndex = before.findIndex(tab => tab.id === id);
-  try {
-    for (const [index, tab] of before.entries()) {
-      if (tab.pinned || !(action === "left" ? index < targetIndex : action === "right" ? index > targetIndex : index !== targetIndex)) continue;
-      await flushPluginView(tab.id);
-    }
-  } catch { ElMessage.warning(t("plugins.viewConnectionLost")); return; }
   recordClosedTabsAfter(before, () => {
     if (action === "left") workbench.closeTabsToLeft(id);
     else if (action === "right") workbench.closeTabsToRight(id);
@@ -488,7 +409,6 @@ async function popOutWorkspaceTab(id: string) {
     return;
   }
   try {
-    await flushPluginView(id);
     const label = await popOutTab(tab, tabTitle(tab));
     workbench.markTabPoppedOut(id, label);
   } catch {
@@ -529,9 +449,6 @@ function startPopoutDrag(event: PointerEvent, id: string) {
   window.addEventListener("pointercancel", cleanup);
 }
 
-// Plugin items (contributes.menus workbench/tab/context) are evaluated only for the open tab menu.
-const pluginMenuTabId = ref<string | null>(null);
-
 type TabMenuHandle = { handleClose: () => void };
 const tabMenuRefs = new Map<string, TabMenuHandle>();
 
@@ -543,17 +460,8 @@ function setTabMenuRef(tabId: string, menu: unknown) {
 // Context-menu triggers don't emit the click that closes other dropdowns, so keep only one open.
 function handleTabMenuVisible(tabId: string, visible: boolean) {
   if (visible) {
-    pluginMenuTabId.value = tabId;
     for (const [id, menu] of tabMenuRefs) if (id !== tabId) menu.handleClose();
-  } else if (pluginMenuTabId.value === tabId) pluginMenuTabId.value = null;
-}
-
-function tabPluginMenuHost(tab: WorkspaceTab) {
-  return pluginMenuTabId.value === tab.id ? tabHostContext({ view: tab.view, pinned: Boolean(tab.pinned) }) : null;
-}
-
-function tabPluginMenuContext(tab: WorkspaceTab) {
-  return () => menuPassContext("workbench/tab/context", { view: tab.view, pinned: Boolean(tab.pinned) });
+  }
 }
 
 function handleTabCommand(tabId: string, command: string | number | object) {
@@ -653,13 +561,7 @@ onMounted(async () => {
     observer.observe(tabsHost.value);
   }
 });
-onMounted(() => {
-  window.addEventListener(TERMINAL_PROFILE_OPEN_EVENT, handleTerminalProfileOpen);
-  window.addEventListener(PLUGIN_TASK_OPEN_EVENT, handlePluginTaskOpen);
-});
 onBeforeUnmount(() => {
-  window.removeEventListener(TERMINAL_PROFILE_OPEN_EVENT, handleTerminalProfileOpen);
-  window.removeEventListener(PLUGIN_TASK_OPEN_EVENT, handlePluginTaskOpen);
   observer?.disconnect();
   stopTabPopoutDrag?.();
 });
@@ -732,7 +634,7 @@ onBeforeUnmount(() => {
                   <el-dropdown-item command="copy"
                     ><el-icon><CopyDocument /></el-icon>{{ t("tab.copyName") }}</el-dropdown-item
                   >
-                  <el-dropdown-item v-if="tab.view !== 'plugin-view' && tab.view !== 'service-result'" command="duplicate"
+                  <el-dropdown-item command="duplicate"
                     ><el-icon><CopyDocument /></el-icon>{{ t("tab.duplicate") }}</el-dropdown-item
                   >
                   <el-dropdown-item command="pin"
@@ -771,11 +673,6 @@ onBeforeUnmount(() => {
                   <el-dropdown-item command="close" :disabled="Boolean(tab.pinned)" divided
                     ><el-icon><Close /></el-icon>{{ t("common.closeTab") }}</el-dropdown-item
                   >
-                  <PluginMenuItems
-                    menu="workbench/tab/context"
-                    :host="tabPluginMenuHost(tab)"
-                    :context="tabPluginMenuContext(tab)"
-                  />
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -1021,22 +918,6 @@ onBeforeUnmount(() => {
                 <el-icon class="app-new-tab-menu__command-icon"><ArrowRight /></el-icon>
                 <span>{{ t(`tab.newMenu.shell.${shell}` as MessageKey) }}</span>
               </el-dropdown-item>
-
-              <template v-if="terminalProfileItems.length">
-                <li class="app-new-tab-menu__separator" role="separator" />
-                <li class="app-new-tab-menu__label">{{ t("pluginContrib.terminalProfiles.menuGroup") }}</li>
-                <el-dropdown-item
-                  v-for="profile in terminalProfileItems"
-                  :key="profile.key"
-                  class="app-new-tab-menu__item"
-                  :command="`${TERMINAL_PROFILE_MENU_PREFIX}${profile.key}`"
-                  :title="t('pluginContrib.terminalProfiles.pluginBadge', { name: profile.pluginName })"
-                  @pointerenter="warmWorkspaceView('terminal')"
-                >
-                  <el-icon class="app-new-tab-menu__command-icon"><ArrowRight /></el-icon>
-                  <span>{{ profile.title }}</span>
-                </el-dropdown-item>
-              </template>
 
               <li class="app-new-tab-menu__separator" role="separator" />
               <li class="app-new-tab-menu__label">{{ t("tab.newMenu.browserGroup") }}</li>

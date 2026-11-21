@@ -19,11 +19,12 @@ import {
   prepareSecurePersistedValue,
 } from "@/services/secure-persistent-store";
 import {
+  normalizeLegacyAiProfiles,
   SETTINGS_STORAGE_KEY,
   updateSettingsRuntimeSnapshot,
 } from "@/services/settings-persistence";
 import { decryptField, encryptField } from "@/services/field-crypto";
-import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
+import { isDesktopRuntime } from "@/services/desktop-bridge";
 import { isRetiredAiHistoryStorageKey } from "@/services/ai-conversation-persistence";
 
 export const CONFIG_EXPORT_FORMAT = "mincode-config";
@@ -58,19 +59,6 @@ export interface ParsedConfigImport {
   values: Record<string, ConfigExportEntry>;
   /** 无法在本机还原的键（多为旧版导出里的本机密文），调用方需要如实告知用户。 */
   skippedKeys: string[];
-}
-
-/** 一个插件随配置导出的数据量：键值条数、文件数与文件字节数。 */
-export interface PluginDataSummary {
-  id: string;
-  keys: number;
-  files: number;
-  bytes: number;
-}
-
-export interface PluginDataImportResult {
-  imported: string[];
-  notInstalled: string[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -164,33 +152,6 @@ export async function buildConfigExport(options: {
   };
 }
 
-/**
- * 插件数据（键值数据与插件文件，如知识库正文）可能很大，由后端直接流式写入所选文件：
- * 配置部分原样写出，再追加 `plugins: { 插件 ID: { kv, files: { 路径: base64 } } }`。
- * 插件密钥只在本机加密保存，不会导出；旧版 MinCode 读取时会忽略该字段，格式版本保持不变。
- */
-export async function writeConfigExportWithPluginData(
-  path: string,
-  payload: ConfigExportPayload
-): Promise<PluginDataSummary[]> {
-  const result = await invokeBackend<{ plugins?: PluginDataSummary[] }>(
-    "plugin_host_config_export_write",
-    { path, config: payload }
-  );
-  return Array.isArray(result?.plugins) ? result.plugins : [];
-}
-
-/** 读取导出文件：插件数据只在后端完整校验并统计，配置部分返回给前端解析。 */
-export async function readConfigImportFile(
-  path: string
-): Promise<{ config: unknown; plugins: PluginDataSummary[] }> {
-  const result = await invokeBackend<{ config?: unknown; plugins?: PluginDataSummary[] }>(
-    "plugin_host_config_import_read",
-    { path }
-  );
-  return { config: result?.config, plugins: Array.isArray(result?.plugins) ? result.plugins : [] };
-}
-
 function parseLegacyEntry(value: unknown): ConfigExportEntry | null {
   if (typeof value !== "string") return { storage: "plain", value };
   // 旧版导出直接落盘了本机密文，换台机器解不开，只能跳过而不是写入坏数据。
@@ -244,21 +205,6 @@ export function parseConfigImport(
   };
 }
 
-/**
- * 按插件整体替换数据（键值数据与插件文件）：文件里出现的插件先清空再写入，未出现的插件保持不变。
- * 后端先完整校验并暂存全部数据，再逐个停止受影响的插件、替换、按原状态重新启动。
- */
-export async function importConfigPluginData(path: string): Promise<PluginDataImportResult> {
-  const result = await invokeBackend<Partial<PluginDataImportResult>>(
-    "plugin_host_config_import_plugins",
-    { path }
-  );
-  return {
-    imported: Array.isArray(result?.imported) ? result.imported : [],
-    notInstalled: Array.isArray(result?.notInstalled) ? result.notInstalled : [],
-  };
-}
-
 export interface PreparedConfigWrite {
   sets: PersistedBatchSet[];
   /** Keys in sets, in order. */
@@ -280,10 +226,13 @@ export async function prepareConfigValuesForWrite(
   for (const [key, entry] of Object.entries(values)) {
     if (isRetiredAiHistoryStorageKey(key)) continue;
     const secure = entry.storage === "secure" || isKnownSecureStorageKey(key);
-    const value =
+    const imported =
       isDesktopRuntime() && FIELD_ENCRYPTED_KEYS.has(key)
         ? await encryptSecretFields(entry.value)
         : entry.value;
+    const value = key === SETTINGS_STORAGE_KEY && isRecord(imported)
+      ? normalizeLegacyAiProfiles(imported)
+      : imported;
     sets.push({
       key,
       value: secure ? await prepareSecurePersistedValue(value) : value,

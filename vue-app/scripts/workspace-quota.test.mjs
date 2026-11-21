@@ -47,14 +47,14 @@ function body(name) {
 }
 
 test("every workbench path that adds a tab or workspace checks the quota before mutating", () => {
-  for (const name of ["createTab", "openView", "openPluginView", "duplicateTab"]) {
+  for (const name of ["createTab", "openView", "duplicateTab"]) {
     const source = body(name);
     const guard = source.indexOf("admitTab(");
     assert.ok(guard > 0, `${name} checks the tab quota`);
     assert.ok(guard < source.search(/tabs\.value\.(push|splice)/), `${name} checks before adding`);
   }
   const move = body("moveTabToWorkspace");
-  assert.equal(move.match(/admitTab\(workspaceId\)/g)?.length, 2, "both move branches check the target workspace");
+  assert.match(move, /if \(!admitTab\(workspaceId\)\) return undefined;\s*tab\.workspaceId = workspaceId;/);
   for (const name of ["createWorkspace", "restoreDeletedWorkspace"]) {
     const source = body(name);
     const guard = source.indexOf("admitWorkspace()");
@@ -79,5 +79,4 @@ test("a view whose tab the quota refused is never routed to", async () => {
     /!workbench\.openView\(routeName as WorkspaceView\) && routeName !== "dashboard"\) \{\s*void router\.replace\(workspaceTabRoute\(workbench\.activeTab\)\);/,
     "the route watcher falls back to the active tab when the quota refuses the routed view",
   );
-  assert.match(app, /if \(!workbench\.openPluginView\(pluginId, viewId, [^)]*\)\)\) \{\s*void router\.replace\(workspaceTabRoute\(workbench\.activeTab\)\);/);
 });

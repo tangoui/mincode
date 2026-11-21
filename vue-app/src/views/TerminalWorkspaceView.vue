@@ -39,10 +39,6 @@ import { isPopupWindow, popupWindowLabel, POPUP_TAB_STATE_EVENT } from "@/servic
 import { recordClosedTabs } from "@/services/closed-tab-history";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import { useTerminalAttentionStore } from "@/stores/terminal-attention";
-import { useTerminalProfilesStore } from "@/stores/terminal-profiles";
-import { useLocalProjectStore } from "@/stores/local-project";
-import { terminalProfileTitle } from "@/domain/terminal/profiles";
-import { ensureTerminalProfileConfirmed, terminalProfileErrorMessage } from "@/services/terminal-profile-service";
 
 defineOptions({ name: "TerminalWorkspaceView" });
 
@@ -52,12 +48,10 @@ const workbench = workspaceStateScope.workbench;
 const workspaceStatePreferences = workspaceStateScope.preferences;
 const workspaceStateScopeId = workspaceStateScope.scopeId;
 const { tabs, activeTabId, activeTab, activePaneId, canClose, canSplit, canAddTab } = storeToRefs(terminalWorkspace);
-const { t, localeChain } = useVueI18n();
+const { t } = useVueI18n();
 const router = useRouter();
 const route = useRoute();
 const terminalAttention = useTerminalAttentionStore();
-const terminalProfiles = useTerminalProfilesStore();
-const localProject = useLocalProjectStore();
 const shellConfigurationVisible = ref(false);
 const sshConnectionVisible = ref(false);
 const sshConnections = useSshConnectionsStore();
@@ -94,13 +88,6 @@ async function endTerminalProcess(sessionId: string, pid: number, name: string) 
   window.setTimeout(() => void refreshTerminalUsage(), 2500);
 }
 
-const profileMenuItems = computed(() =>
-  terminalProfiles.profiles.map((profile) => ({
-    key: profile.key,
-    title: terminalProfileTitle(profile, localeChain.value),
-  }))
-);
-
 const editingSshDraft = computed<SshConnectionDraft | undefined>(() => {
   if (!editingSshPaneId.value) return undefined;
   const pane = terminalWorkspace.getPane(editingSshPaneId.value);
@@ -126,8 +113,6 @@ async function closeNativeSession(paneId: string) {
 function paneLabel(pane: TerminalLeafPane) {
   if (pane.type === "ssh") return `SSH: ${pane.profile.name || `${pane.profile.username}@${pane.profile.host}`}`;
   return (
-    pane.profile?.title?.trim() ||
-    pane.task?.title?.trim() ||
     (pane.shellType === "system" ? t("terminal.localShell") : pane.shellType)
   );
 }
@@ -206,13 +191,6 @@ async function reloadPane(paneId: string) {
   terminalWorkspace.reloadPane(paneId);
 }
 
-// Explicit user choice from an unavailable plugin-profile pane: close whatever the
-// session left behind and start the default shell in the same pane.
-async function useDefaultShell(paneId: string) {
-  await closeNativeSession(paneId);
-  terminalWorkspace.replaceProfilePaneWithShell(paneId);
-}
-
 function warnMaxTabs() {
   ElMessage.warning(t("terminal.maxTabs"));
 }
@@ -238,30 +216,6 @@ async function addShellTab(options: LocalTerminalPaneOptions) {
 
 function addConfiguredShell(options: LocalTerminalPaneOptions) {
   addLocalTab(options);
-}
-
-// Plugin terminal profile as a new terminal tab: the host resolves and the user
-// confirms the launch spec first; the pane keeps only the reference.
-async function addProfilePane(key: string) {
-  if (!ensureCanAddTab()) return;
-  const profile = terminalProfiles.profileByKey(key);
-  if (!profile) {
-    ElMessage.warning(t("pluginContrib.terminalProfiles.unavailable"));
-    return;
-  }
-  if (!isDesktopRuntime()) {
-    ElMessage.warning(t("pluginContrib.terminalProfiles.desktopOnly"));
-    return;
-  }
-  const workspaceFolder = workbench.activeWorktreePath || localProject.projectRoot || "";
-  const target = { pluginId: profile.pluginId, profileId: profile.id, workspaceFolder };
-  try {
-    const launch = await ensureTerminalProfileConfirmed(target);
-    if (!launch) return;
-    addConfiguredShell({ profile: { ...target, title: terminalProfileTitle(launch, localeChain.value) } });
-  } catch (error) {
-    ElMessage.error(t("pluginContrib.terminalProfiles.launchFailed", { message: terminalProfileErrorMessage(error) }));
-  }
 }
 
 function openNewSsh() {
@@ -321,14 +275,8 @@ function handleTerminalCreate(event: Event) {
       kind?: string;
       shellType?: LocalShellType;
       initialCommand?: string;
-      /** `<pluginId>.<profileId>` for `kind: "profile"`. */
-      key?: string;
     }>
   ).detail;
-  if (detail?.kind === "profile") {
-    if (typeof detail.key === "string") void addProfilePane(detail.key);
-    return;
-  }
   if (detail?.tabId) {
     const initialPane =
       detail.kind === "ai"
@@ -365,7 +313,6 @@ function openShellConfiguration() {
 function handleAddMenu(kind: TerminalTabAddMenuCommand) {
   if (kind === "configured") openShellConfiguration();
   else if (kind === "ssh") openNewSsh();
-  else void addProfilePane(kind.slice("profile:".length));
 }
 
 // Terminal tab shortcuts (⌘T / Ctrl+Alt+T, ⇧⌘[ / Ctrl+PageUp, ⇧⌘] / Ctrl+PageDown).
@@ -453,7 +400,6 @@ onBeforeUnmount(() => {
       :label-for="tabLabel"
       :attention-for="tabNeedsAttention"
       :usage-for="tabUsage"
-      :profiles="profileMenuItems"
       :close-disabled-reason="closeLockedReason"
       @select="terminalWorkspace.selectTab"
       @close="closeTerminalTab"
@@ -482,7 +428,6 @@ onBeforeUnmount(() => {
           @select="terminalWorkspace.selectPane"
           @close="closePane"
           @reload="reloadPane"
-          @use-default-shell="useDefaultShell"
           @configure-ssh="editSsh"
           @split="splitPane"
           @resize="terminalWorkspace.resizeSplit"

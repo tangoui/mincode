@@ -1,27 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
 import AppHintIcon from "@/components/ui/AppHintIcon.vue";
 import LanguageSettingRow from "@/components/settings/LanguageSettingRow.vue";
-import FileIconThemeSettingRow from "@/components/settings/FileIconThemeSettingRow.vue";
 import EditorThemeSettingRow from "@/components/settings/EditorThemeSettingRow.vue";
 import type { CustomEditorTheme } from "@/domain/themes/editor-theme-data";
-import FormatterSettingsSection from "@/components/settings/FormatterSettingsSection.vue";
-import LinterSettingsSection from "@/components/settings/LinterSettingsSection.vue";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
 import { MAX_WORKSPACE_CACHE_LIMIT, MIN_WORKSPACE_CACHE_LIMIT } from "@/domain/workspace/state-scope";
-import { MAX_PLUGIN_VIEW_WARM_LIMIT, MIN_PLUGIN_VIEW_WARM_LIMIT } from "@/domain/plugin-ui/warm-pool";
 import { sidebarItems } from "@/services/sidebar-items";
 import type { SidebarItemId, SidebarVisibility } from "@/services/sidebar-preferences";
 import type { UiFontFamily } from "@/services/ui-appearance";
-import { pluginThemeTitle, type PluginThemeRecord } from "@/domain/themes/plugin-theme";
-import {
-  PLUGIN_THEMES_CHANGED_EVENT,
-  isPluginUiTheme,
-  listPluginThemes,
-  unavailablePluginThemeId,
-  type UiTheme,
-  type UiThemeKind,
-} from "@/services/ui-theme";
+import type { UiTheme } from "@/services/ui-theme";
 import {
   RUNTIME_PERFORMANCE_LIMITS,
   RUNTIME_PERFORMANCE_PRESETS,
@@ -34,17 +21,14 @@ interface GeneralSettingsModel extends RuntimePerformanceSettings {
   autostart: boolean;
   globalShortcutEnabled: boolean;
   uiTheme: UiTheme;
-  uiThemeKind?: UiThemeKind;
   uiScale: number;
   uiFontFamily: UiFontFamily;
   workspaceCacheLimit: number;
-  pluginViewWarmFrames: number;
-  fileIconTheme: string;
   editorColorTheme: string;
   editorCustomTheme: CustomEditorTheme;
 }
 
-const props = defineProps<{
+defineProps<{
   settings: GeneralSettingsModel;
   locale: "zh" | "en";
   sidebarVisibility: SidebarVisibility;
@@ -56,7 +40,7 @@ const emit = defineEmits<{
   "change-sidebar-visibility": [id: SidebarItemId, visible: boolean];
   "change-workspace-state-isolation": [enabled: boolean];
 }>();
-const { t, localeChain } = useVueI18n();
+const { t } = useVueI18n();
 
 function performanceProfilePatch(profile: RuntimePerformanceProfile): Partial<GeneralSettingsModel> {
   if (profile === "custom") return { performanceProfile: profile };
@@ -91,34 +75,6 @@ const themeOptions: Array<{ value: UiTheme; labelKey: MessageKey }> = [
   { value: "arco-dark", labelKey: "settings.theme.arcoDark" },
 ];
 
-// Contributed themes (contributes.themes) refresh live; see services/contributions/themes.ts.
-const pluginThemes = ref<PluginThemeRecord[]>(listPluginThemes());
-const unavailableTheme = ref(unavailablePluginThemeId());
-function refreshPluginThemes() {
-  pluginThemes.value = listPluginThemes();
-  unavailableTheme.value = unavailablePluginThemeId();
-}
-window.addEventListener(PLUGIN_THEMES_CHANGED_EVENT, refreshPluginThemes);
-onBeforeUnmount(() => window.removeEventListener(PLUGIN_THEMES_CHANGED_EVENT, refreshPluginThemes));
-
-const pluginThemeOptions = computed(() =>
-  pluginThemes.value.map((theme) => ({
-    value: theme.id,
-    label: pluginThemeTitle(theme, localeChain.value),
-    plugin: theme.pluginName,
-    kind: theme.kind,
-    // Validated hex values only (domain/themes/plugin-theme.ts).
-    swatch: [theme.colors.surface, theme.colors.accent, theme.colors.text],
-  }))
-);
-const showUnavailableTheme = computed(
-  () => isPluginUiTheme(props.settings.uiTheme) && unavailableTheme.value === props.settings.uiTheme
-);
-
-function selectTheme(value: UiTheme) {
-  const plugin = pluginThemes.value.find((theme) => theme.id === value);
-  emit("change", plugin ? { uiTheme: value, uiThemeKind: plugin.kind } : { uiTheme: value });
-}
 </script>
 
 <template>
@@ -160,59 +116,21 @@ function selectTheme(value: UiTheme) {
     <div class="settings-section-label">{{ t("settings.interface") }}</div>
     <div class="settings-flat-row">
       <strong>{{ t("settings.theme") }}</strong>
-      <el-select :model-value="settings.uiTheme" @update:model-value="selectTheme($event as UiTheme)">
+      <el-select :model-value="settings.uiTheme" @update:model-value="emit('change', { uiTheme: $event as UiTheme })">
         <el-option
           v-for="option in themeOptions"
           :key="option.value"
           :value="option.value"
           :label="t(option.labelKey)"
         />
-        <el-option
-          v-if="showUnavailableTheme"
-          :value="settings.uiTheme"
-          :label="t('pluginContrib.themes.unavailableOption', { id: settings.uiTheme })"
-          disabled
-        />
-        <el-option-group v-if="pluginThemeOptions.length" :label="t('pluginContrib.themes.group')">
-          <el-option
-            v-for="option in pluginThemeOptions"
-            :key="option.value"
-            :value="option.value"
-            :label="option.label"
-          >
-            <span class="app-theme-option">
-              <span class="app-theme-option__swatch" aria-hidden="true">
-                <span v-for="(color, index) in option.swatch" :key="index" :style="{ backgroundColor: color }" />
-              </span>
-              <span class="app-theme-option__label">{{ option.label }}</span>
-              <span class="app-theme-option__meta">
-                {{ option.kind === "dark" ? t("pluginContrib.themes.kindDark") : t("pluginContrib.themes.kindLight") }} · {{ option.plugin }}
-              </span>
-            </span>
-          </el-option>
-        </el-option-group>
       </el-select>
     </div>
-    <el-alert
-      v-if="showUnavailableTheme"
-      class="settings-theme-alert"
-      type="warning"
-      :closable="false"
-      show-icon
-      :title="t('pluginContrib.themes.unavailable', { id: settings.uiTheme })"
-    />
     <LanguageSettingRow :locale="locale" @change-locale="emit('change-locale', $event)" />
-    <FileIconThemeSettingRow
-      :theme="settings.fileIconTheme"
-      @change="emit('change', { fileIconTheme: $event })"
-    />
     <EditorThemeSettingRow
       :theme="settings.editorColorTheme"
       :custom="settings.editorCustomTheme"
       @change="emit('change', $event)"
     />
-    <FormatterSettingsSection />
-    <LinterSettingsSection />
     <div class="settings-slider-row">
       <span class="app-inline-label">
         <strong>{{ t("settings.uiScale") }}</strong>
@@ -249,22 +167,6 @@ function selectTheme(value: UiTheme) {
       />
       <b>{{ settings.workspaceCacheLimit }}</b>
     </div>
-    <div class="settings-slider-row">
-      <span class="app-inline-label">
-        <strong>{{ t("settings.pluginViewWarmLimit") }}</strong>
-        <AppHintIcon :text="t('settings.pluginViewWarmLimitHint')" />
-      </span>
-      <el-slider
-        :model-value="settings.pluginViewWarmFrames"
-        :min="MIN_PLUGIN_VIEW_WARM_LIMIT"
-        :max="MAX_PLUGIN_VIEW_WARM_LIMIT"
-        :step="1"
-        :aria-label="t('settings.pluginViewWarmLimit')"
-        @update:model-value="emit('change', { pluginViewWarmFrames: $event as number })"
-      />
-      <b>{{ settings.pluginViewWarmFrames > 0 ? settings.pluginViewWarmFrames : t("settings.pluginViewWarmOff") }}</b>
-    </div>
-
     <div class="settings-divider" />
     <div class="settings-section-label">
       <span class="app-inline-label">

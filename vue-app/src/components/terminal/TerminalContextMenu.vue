@@ -15,18 +15,13 @@ import {
   Select,
   Star,
   Switch,
-  Tickets,
   TopRight,
   Upload,
 } from "@element-plus/icons-vue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import PluginServiceMenuItems from "@/components/plugins/PluginServiceMenuItems.vue";
-import { menuPassContext, terminalHostContext } from "@/domain/plugins/menus";
 import { useVueI18n } from "@/i18n/messages";
 import { useKeybindingsStore } from "@/stores/keybindings";
 
-import type { TerminalSelectionServiceTarget } from "@/domain/plugins/service-surfaces";
 import type { TerminalContextMenuAction } from "@/domain/terminal/context-menu";
 
 const props = withDefaults(
@@ -72,22 +67,6 @@ const menuY = computed(() => {
   return Math.max(8, Math.min(props.y, window.innerHeight - estimatedHeight - 8));
 });
 
-// Plugin items (contributes.menus terminal/context); evaluated only while the menu is open.
-const pluginMenuHost = computed(() =>
-  props.open ? terminalHostContext({ kind: props.terminalKind, selection: props.selection }) : null,
-);
-
-function pluginMenuContext() {
-  return menuPassContext("terminal/context", { kind: props.terminalKind, selection: props.selection });
-}
-
-// Plugin services (surface terminalSelection): only an explicit selection counts, never
-// the line, token, URL or path under the pointer; normalized and size-checked by the menu.
-function serviceTarget(): TerminalSelectionServiceTarget | null {
-  return props.open && props.selection ? { surface: "terminalSelection", kind: props.terminalKind, selection: props.selection } : null;
-}
-
-// A KeepAlive'd view leaving must not keep the menu (and its targets) open.
 onDeactivated(() => {
   if (props.open) emit("close");
 });
@@ -114,9 +93,6 @@ function choose(action: TerminalContextMenuAction) {
     <el-dropdown-item :disabled="!ready" @click="choose('paste')">
       <el-icon><Upload /></el-icon>{{ t('terminal.context.paste') }}
       <kbd v-if="shortcuts.paste" class="terminal-context-menu__shortcut">{{ shortcuts.paste }}</kbd>
-    </el-dropdown-item>
-    <el-dropdown-item :disabled="!ready" @click="choose('insert-command-snippet')">
-      <el-icon><Tickets /></el-icon>{{ t('pluginContrib.commandSnippets.menu') }}
     </el-dropdown-item>
     <el-dropdown-item @click="choose('select-all')">
       <el-icon><Select /></el-icon>{{ t('terminal.context.selectAll') }}
@@ -179,12 +155,5 @@ function choose(action: TerminalContextMenuAction) {
     <el-dropdown-item class="is-danger" :disabled="!canClose" @click="choose('close')">
       <el-icon><Close /></el-icon>{{ t('terminal.closePane') }}
     </el-dropdown-item>
-    <PluginMenuItems
-      menu="terminal/context"
-      :host="pluginMenuHost"
-      :context="pluginMenuContext"
-      @run="emit('close')"
-    />
-    <PluginServiceMenuItems :target="serviceTarget" @run="emit('close')" />
   </AppContextMenu>
 </template>

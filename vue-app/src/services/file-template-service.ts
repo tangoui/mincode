@@ -1,26 +1,12 @@
-/**
- * Applies plugin file/project templates (`fileTemplates`).
- *
- * Sources are fetched on demand from the plugin host by content hash and
- * re-verified here (sha256 of the bytes must equal the key, strict UTF-8).
- * Files are then written one by one through `local_fs_write_text_file` with
- * `createOnly: true`: the Go backend refuses any existing path (O_EXCL, 0644,
- * never executable). The first failure stops the run; files created before it
- * are kept and reported (no rollback, no deletes). Templates never run hooks
- * or scripts.
- */
 import {
-  FILE_TEMPLATES_CONTRIBUTION_POINT,
   planTemplateWrites,
   type FileTemplateKind,
   type FileTemplateVariables,
   type FileTemplateWrite,
-  type PluginFileTemplate,
 } from "@/domain/projects/file-templates";
 import { getCustomTemplate } from "@/services/custom-file-template-service";
 import type { CustomTemplateSummary } from "@/domain/projects/custom-file-templates";
-export type FileTemplate = PluginFileTemplate | CustomTemplateSummary;
-import { fetchContributionAssets } from "@/services/contribution-assets";
+export type FileTemplate = CustomTemplateSummary;
 import { invokeBackend, isDesktopRuntime, nativeErrorMessage } from "@/services/desktop-bridge";
 
 export class FileTemplateSourceError extends Error {}
@@ -36,37 +22,15 @@ function hex(buffer: ArrayBuffer) {
  */
 export async function loadTemplateSources(template: FileTemplate): Promise<Map<string, string>> {
   if (!isDesktopRuntime()) throw new FileTemplateSourceError("template sources need the desktop app");
-  if (template.origin === "custom") {
-    const current = await getCustomTemplate(template.id);
-    if(current.template.revision !== template.revision || current.template.files.length !== template.files.length) throw new FileTemplateSourceError("template changed; reload before creating");
-    const sources = new Map<string,string>();
-    for(let i=0;i<template.files.length;i++) {
-      const summary=template.files[i]!, file=current.template.files[i]!;
-      const bytes=new TextEncoder().encode(file.content);
-      const digest=hex(await crypto.subtle.digest("SHA-256",bytes));
-      if(file.path!==summary.path||digest!==summary.source||bytes.length!==summary.size)throw new FileTemplateSourceError("template integrity changed");
-      sources.set(digest,file.content);
-    }
-    return sources;
-  }
-  const keys = [...new Set(template.files.map((file) => file.source))];
-  const result = await fetchContributionAssets(template.pluginId, FILE_TEMPLATES_CONTRIBUTION_POINT, keys, { fresh: true });
-  if (result.missing.length || result.stale.length) {
-    throw new FileTemplateSourceError("template sources changed or are unavailable; reload the plugin");
-  }
-  const decoder = new TextDecoder("utf-8", { fatal: true });
-  const sources = new Map<string, string>();
-  for (const key of keys) {
-    const asset = result.assets.get(key);
-    if (!asset) throw new FileTemplateSourceError("template source is unavailable");
-    const bytes = asset.bytes;
-    const digest = hex(await crypto.subtle.digest("SHA-256", bytes.slice().buffer as ArrayBuffer));
-    if (digest !== key) throw new FileTemplateSourceError("template source failed its integrity check");
-    try {
-      sources.set(key, decoder.decode(bytes));
-    } catch {
-      throw new FileTemplateSourceError("template source is not valid UTF-8");
-    }
+  const current = await getCustomTemplate(template.id);
+  if(current.template.revision !== template.revision || current.template.files.length !== template.files.length) throw new FileTemplateSourceError("template changed; reload before creating");
+  const sources = new Map<string,string>();
+  for(let i=0;i<template.files.length;i++) {
+    const summary=template.files[i]!, file=current.template.files[i]!;
+    const bytes=new TextEncoder().encode(file.content);
+    const digest=hex(await crypto.subtle.digest("SHA-256",bytes));
+    if(file.path!==summary.path||digest!==summary.source||bytes.length!==summary.size)throw new FileTemplateSourceError("template integrity changed");
+    sources.set(digest,file.content);
   }
   return sources;
 }
@@ -110,10 +74,10 @@ export async function applyTemplateWrites(projectRoot: string, writes: readonly 
         createOnly: true,
       });
       created.push(write.filePath);
-    } catch (error) {
+  } catch (error) {
       const message = nativeErrorMessage(error);
       return { created, failed: { filePath: write.filePath, message, alreadyExists: message.includes("already_exists") } };
-    }
+  }
   }
   return { created };
 }

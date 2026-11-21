@@ -19,8 +19,6 @@ import { newSessionView } from "@/domain/debug/session-model";
 const debug = vi.hoisted(() => ({
   request: vi.fn(),
   handler: undefined as ((event: DebugEvent) => void) | undefined,
-  mode: "auto" as unknown,
-  configuration: vi.fn(),
 }));
 
 vi.mock("@/services/desktop-bridge", () => ({
@@ -41,9 +39,6 @@ vi.mock("@/services/debug-service", () => ({
     debug.handler = handler;
     return () => undefined;
   },
-}));
-vi.mock("@/services/plugin-configuration-service", () => ({
-  getPluginConfiguration: debug.configuration,
 }));
 vi.mock("@/services/persistent-store", () => ({
   loadPersistedValue: vi.fn().mockResolvedValue(null),
@@ -93,9 +88,6 @@ let stack: DapStackFrame[];
 beforeEach(() => {
   redefine = async () => REPLACED;
   stack = FRAMES;
-  debug.mode = "auto";
-  debug.configuration.mockReset();
-  debug.configuration.mockImplementation(async (id: string) => ({ pluginId: id, effective: { "hotCodeReplace.mode": debug.mode } }));
   debug.request.mockReset();
   debug.request.mockImplementation(async (_id: string, command: string) => {
     if (command === "redefineClasses") return redefine();
@@ -180,7 +172,6 @@ describe("hot code replace", () => {
     emit(BUILD_COMPLETE);
     await settle();
 
-    expect(debug.configuration).toHaveBeenCalledWith("java-debug");
     expect(requests("redefineClasses")).toEqual([["s1", "redefineClasses"]]);
     expect(notices()).toHaveLength(1);
     expect(notices()[0]).toMatch(/^(已热替换 1 个类|Hot-swapped 1 class)$/);
@@ -291,43 +282,7 @@ describe("hot code replace", () => {
     expect(requests("stackTrace")).toEqual([]);
   });
 
-  it("waits for Apply Code Changes in manual mode", async () => {
-    debug.mode = "manual";
-    const store = addSession();
-    await mountWindow();
-    expect(button().exists()).toBe(true);
-    expect(button().attributes("disabled")).toBeDefined();
-    expect(button().attributes("aria-label")).toMatch(/应用代码更改|Apply Code Changes/);
-
-    emit(BUILD_COMPLETE);
-    await settle();
-    expect(requests("redefineClasses")).toEqual([]);
-    expect(store.sessions[0]!.pendingCodeChanges).toBe(true);
-    expect(button().attributes("disabled")).toBeUndefined();
-    expect(notices()[0]).toMatch(/点击「应用代码更改」|Click Apply Code Changes/);
-
-    await button().trigger("click");
-    await settle();
-    expect(requests("redefineClasses")).toEqual([["s1", "redefineClasses"]]);
-    expect(store.sessions[0]!.pendingCodeChanges).toBe(false);
-    expect(notices()).toHaveLength(1);
-    expect(notices()[0]).toMatch(/^(已热替换 1 个类|Hot-swapped 1 class)$/);
-    expect(button().attributes("disabled")).toBeDefined();
-  });
-
-  it("ignores builds in never mode", async () => {
-    debug.mode = "never";
-    const store = addSession();
-    await mountWindow();
-    emit(BUILD_COMPLETE);
-    await settle();
-    expect(requests("redefineClasses")).toEqual([]);
-    expect(store.sessions[0]!.pendingCodeChanges).toBe(false);
-    expect(notices()).toEqual([]);
-  });
-
   it("applies in auto mode when the setting cannot be read", async () => {
-    debug.configuration.mockRejectedValue(new Error("settings unavailable"));
     addSession();
     await mountWindow();
     emit(BUILD_COMPLETE);
@@ -427,24 +382,12 @@ describe("hot code replace", () => {
     expect(requests("redefineClasses")).toHaveLength(2);
   });
 
-  it("uses auto without reading settings when the debugger declares no modeSetting", async () => {
-    debug.mode = "manual";
+  it("uses auto without a configured mode setting", async () => {
     addSession({ hotCodeReplace: { event: "hotcodereplace", request: "redefineClasses" } });
     await mountWindow();
     emit(BUILD_COMPLETE);
     await settle();
-    expect(debug.configuration).not.toHaveBeenCalled();
     expect(requests("redefineClasses")).toHaveLength(1);
-  });
-
-  it("reads the declared setting, whatever its key", async () => {
-    debug.configuration.mockImplementation(async (id: string) => ({ pluginId: id, effective: { "hotCodeReplace.mode": "auto", "debug.hcr": "manual" } }));
-    const store = addSession({ hotCodeReplace: { ...HOT, modeSetting: "debug.hcr" } });
-    await mountWindow();
-    emit(BUILD_COMPLETE);
-    await settle();
-    expect(requests("redefineClasses")).toEqual([]);
-    expect(store.sessions[0]!.pendingCodeChanges).toBe(true);
   });
 
   it("says the singular and the plural", async () => {
@@ -534,7 +477,6 @@ describe("hot code replace", () => {
     emit(BUILD_COMPLETE);
     await settle();
     expect(requests("redefineClasses")).toEqual([]);
-    expect(debug.configuration).not.toHaveBeenCalled();
     expect(store.sessions[0]!.pendingCodeChanges).toBe(false);
     await expect(store.applyCodeChanges("s1")).resolves.toEqual({ changed: [] });
     expect(requests("redefineClasses")).toEqual([]);
@@ -553,21 +495,6 @@ describe("hot code replace", () => {
     expect(button().exists()).toBe(false);
     emit(BUILD_COMPLETE);
     await settle();
-    expect(requests("redefineClasses")).toEqual([]);
-  });
-
-  it("drops the pending changes when the session ends", async () => {
-    debug.mode = "manual";
-    const store = addSession();
-    await mountWindow();
-    emit(BUILD_COMPLETE);
-    await settle();
-    expect(store.sessions[0]!.pendingCodeChanges).toBe(true);
-    debug.handler?.({ sessionId: "s1", event: "mincode.sessionEnded", body: { reason: "exited" } });
-    await settle();
-    expect(store.sessions[0]!.pendingCodeChanges).toBe(false);
-    expect(button().attributes("disabled")).toBeDefined();
-    await expect(store.applyCodeChanges("s1")).resolves.toEqual({ changed: [] });
     expect(requests("redefineClasses")).toEqual([]);
   });
 });

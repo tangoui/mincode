@@ -11,7 +11,6 @@ const NON_SCOPED_ROUTE_INSTANCES = new Set<WorkspaceView>([
   "terminal",
   "ssh",
   "sessions",
-  "plugins",
   "settings",
   "ai",
   "notes",

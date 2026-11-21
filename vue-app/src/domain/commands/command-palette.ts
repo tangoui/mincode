@@ -1,14 +1,5 @@
 import type { LocationQueryRaw } from "vue-router";
 import type { WorkspaceView } from "@/types/workspace";
-import type { ServiceGroup } from "@/domain/plugins/services";
-import {
-  searchFileScopeIsCurrent,
-  type SearchFileCurrentScope,
-  type SearchFileScope,
-  type SearchFileTarget,
-  type SearchProviderRuntime,
-} from "@/domain/plugins/search-providers";
-
 export type CommandPaletteKind =
   | "command"
   | "workspace"
@@ -17,11 +8,7 @@ export type CommandPaletteKind =
   | "file"
   | "ssh"
   | "database"
-  | "http"
-  /** A result of a plugin search provider (contributes.searchProviders). */
-  | "plugin-result"
-  /** A plugin service offered on the palette (contributes.services). */
-  | "plugin-service";
+  | "http";
 
 export type CommandPaletteAction =
   | { type: "open-view"; view: WorkspaceView; query?: LocationQueryRaw }
@@ -40,34 +27,7 @@ export type CommandPaletteAction =
   | { type: "open-ssh"; profileId: string }
   | { type: "open-database"; connectionId: string }
   | { type: "open-http-request"; collectionId: string; requestId: string }
-  | { type: "registered-command"; commandId: string }
-  // Plugin search provider results (host-validated targets only).
-  | {
-      type: "plugin-open-view";
-      pluginId: string;
-      view: string;
-      providerId: string;
-      args?: Record<string, string | number | boolean>;
-    }
-  | {
-      type: "plugin-run-command";
-      pluginId: string;
-      command: string;
-      args?: Record<string, string | number | boolean>;
-    }
-  | { type: "open-url"; url: string }
-  // A plugin search file result: keeps the host-filled scope and runtime of
-  // its response; opened only after Go re-validates it (never from the store).
-  | {
-      type: "plugin-open-file";
-      pluginId: string;
-      providerId: string;
-      fileScope: SearchFileScope;
-      providerRuntime: SearchProviderRuntime;
-      target: SearchFileTarget;
-    }
-  // Plugin service: the palette asks for its input, then runs it through plugin-services.ts.
-  | { type: "plugin-service"; service: string };
+  | { type: "registered-command"; commandId: string };
 
 export interface CommandPaletteSearchScope {
   /** Project-relative path rendered above the matching content. */
@@ -148,7 +108,7 @@ const MODE_KINDS: Record<
   Exclude<CommandPaletteMode, "all">,
   ReadonlySet<CommandPaletteKind>
 > = {
-  commands: new Set(["command", "workspace", "plugin-service"]),
+  commands: new Set(["command", "workspace"]),
   navigation: new Set(["tab", "file"]),
   resources: new Set(["project", "ssh", "database", "http"]),
 };
@@ -162,49 +122,7 @@ const KIND_ORDER: Record<CommandPaletteKind, number> = {
   ssh: 5,
   database: 6,
   http: 7,
-  "plugin-result": 8,
-  "plugin-service": 9,
 };
-
-/**
- * Palette items for services whose surfaces include the palette (groups from
- * servicesForPalette): one item per service, titled "<prefix><title>" with the
- * localized prefix, findable by service name, the providers' untranslated
- * titles and their plugin names.
- */
-export function pluginServicePaletteItems(
-  groups: readonly ServiceGroup[],
-  prefix: string,
-): CommandPaletteItem[] {
-  return groups.map((group, index) => {
-    const pluginNames = [...new Set(group.providers.map((entry) => entry.pluginName))];
-    return {
-      id: `plugin-service:${group.service}`,
-      kind: "plugin-service",
-      title: `${prefix}${group.title}`,
-      subtitle: group.providers[0]?.description || pluginNames.join(" · "),
-      // The untranslated title stays searchable next to the localized one.
-      keywords: [...new Set([group.service, group.title, ...group.providers.map((entry) => entry.title), ...pluginNames])],
-      priority: 90 + index,
-      action: { type: "plugin-service", service: group.service },
-    };
-  });
-}
-
-/**
- * Drops plugin file results whose scope is no longer the published one; view,
- * command and URL results never depend on the file scope and are kept.
- */
-export function withoutStalePluginFileResults(
-  items: readonly CommandPaletteItem[],
-  current: SearchFileCurrentScope | undefined,
-): CommandPaletteItem[] {
-  return items.filter(
-    (item) =>
-      item.action.type !== "plugin-open-file" ||
-      searchFileScopeIsCurrent(item.action.fileScope, current),
-  );
-}
 
 function normalize(value: string) {
   return value.trim().toLocaleLowerCase();

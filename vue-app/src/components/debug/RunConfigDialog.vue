@@ -22,7 +22,7 @@ import {
 } from "@/domain/debug/config-form";
 import { duplicateConfiguration, newConfigurationFromSnippet } from "@/domain/debug/configurations";
 import type { DebugConfigurationSnippet, DebugRequestKind, DebuggerInfo, JsonSchemaObject, RunConfiguration } from "@/domain/debug/types";
-import { resolvePluginTitle } from "@/domain/plugins/title";
+import { resolveLocalizedTitle } from "@/domain/i18n/localized-title";
 import { useVueI18n } from "@/i18n/messages";
 import { listDebuggers } from "@/services/debug-service";
 import { copyText } from "@/services/desktop-bridge";
@@ -69,11 +69,11 @@ function debuggerKey(item: Pick<DebuggerInfo, "pluginId" | "type">): string {
 }
 
 function debuggerTitle(item: DebuggerInfo): string {
-  return resolvePluginTitle(item, localeChain.value);
+  return resolveLocalizedTitle(item, localeChain.value);
 }
 
 function snippetLabel(snippet: DebugConfigurationSnippet): string {
-  return resolvePluginTitle({ title: snippet.label, titleLocalized: snippet.labelLocalized }, localeChain.value);
+  return resolveLocalizedTitle({ title: snippet.label, titleLocalized: snippet.labelLocalized }, localeChain.value);
 }
 
 function debuggerFor(cfg: Pick<RunConfiguration, "pluginId" | "type">): DebuggerInfo | undefined {

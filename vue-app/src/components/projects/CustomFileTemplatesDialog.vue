@@ -4,10 +4,10 @@ import { ElMessageBox } from "element-plus";
 import { useVueI18n } from "@/i18n/messages";
 import { useFileTemplatesStore } from "@/stores/file-templates";
 import { getCustomTemplate } from "@/services/custom-file-template-service";
-import { loadTemplateSources, type FileTemplate } from "@/services/file-template-service";
+import { type FileTemplate } from "@/services/file-template-service";
 import { isDesktopRuntime, nativeErrorMessage } from "@/services/desktop-bridge";
 import type { CustomTemplateDraft } from "@/domain/projects/custom-file-templates";
-import { resolvePluginTitle } from "@/domain/plugins/title";
+import { resolveLocalizedTitle } from "@/domain/i18n/localized-title";
 import AppSearchField from "@/components/ui/AppSearchField.vue";
 import CustomFileTemplateEditor from "./CustomFileTemplateEditor.vue";
 const visible = defineModel<boolean>({ default: false });
@@ -16,13 +16,13 @@ const props = defineProps<{
     initialKind?: "file" | "project";
 }>();
 const { t, localeChain } = useVueI18n(), store = useFileTemplatesStore();
-const query = ref(''), origin = ref('custom'), category = ref(''), draft = ref<CustomTemplateDraft>(), baseline = ref(''), revision = ref(0), busy = ref(false), error = ref('');
+const query = ref(''), category = ref(''), draft = ref<CustomTemplateDraft>(), baseline = ref(''), revision = ref(0), busy = ref(false), error = ref('');
 let generation = 0, disposed = false;
 onBeforeUnmount(() => { disposed = true; generation++; });
 const dirty = computed(() => draft.value && JSON.stringify(draft.value) !== baseline.value);
 const categories = computed(() => [...new Set(store.templates.map(x => x.category).filter(Boolean))]);
-const items = computed(() => store.templates.filter(x => (origin.value === 'custom' ? x.origin === 'custom' : x.origin !== 'custom') && (!category.value || x.category === category.value) && `${x.title} ${x.description} ${x.category}`.toLowerCase().includes(query.value.toLowerCase())));
-const label = (x: FileTemplate) => resolvePluginTitle(x, localeChain.value);
+const items = computed(() => store.templates.filter(x => (!category.value || x.category === category.value) && `${x.title} ${x.description} ${x.category}`.toLowerCase().includes(query.value.toLowerCase())));
+const label = (x: FileTemplate) => resolveLocalizedTitle(x, localeChain.value);
 async function discard() { if (!dirty.value)
     return true; try {
     await ElMessageBox.confirm(t('pluginContrib.fileTemplates.discardBody'), t('pluginContrib.fileTemplates.manage'), { type: 'warning' });
@@ -41,18 +41,10 @@ async function select(item: FileTemplate, copy = false) {
     busy.value = true;
     error.value = '';
     try {
-        if (item.origin === 'custom') {
-            const got = await getCustomTemplate(item.id);
-            if (disposed || version !== generation)
-                return;
-            setDraft({ ...got.template, id: copy ? '' : got.template.id, revision: copy ? 0 : got.template.revision }, got.revision, copy);
-        }
-        else {
-            const sources = await loadTemplateSources(item);
-            if (disposed || version !== generation)
-                return;
-            setDraft({ id: '', revision: 0, kind: item.kind, title: label(item), description: item.description, category: item.category, defaultName: item.defaultName || 'Example', files: item.files.map(f => ({ path: f.path, content: sources.get(f.source)! })) }, store.custom.revision, true);
-        }
+        const got = await getCustomTemplate(item.id);
+        if (disposed || version !== generation)
+            return;
+        setDraft({ ...got.template, id: copy ? '' : got.template.id, revision: copy ? 0 : got.template.revision }, got.revision, copy);
     }
     catch (cause) {
         error.value = nativeErrorMessage(cause);
@@ -73,7 +65,7 @@ catch (cause) {
 finally {
     busy.value = false;
 } }
-async function remove(item: FileTemplate) { if (item.origin !== 'custom' || busy.value || !await discard())
+async function remove(item: FileTemplate) { if (busy.value || !await discard())
     return; try {
     await ElMessageBox.confirm(t('pluginContrib.fileTemplates.deleteBody'), t('pluginContrib.fileTemplates.deleteTemplate'), { type: 'warning' });
 }
@@ -132,14 +124,13 @@ catch (cause) {
   <div class="custom-file-templates__layout">
    <aside>
     <AppSearchField v-model="query" :placeholder="t('pluginContrib.fileTemplates.search')"/>
-    <el-select v-model="origin"><el-option value="custom" :label="t('pluginContrib.fileTemplates.custom')"/><el-option value="plugin" :label="t('pluginContrib.fileTemplates.plugin')"/></el-select>
     <el-select v-model="category" clearable :placeholder="t('pluginContrib.fileTemplates.categoryLabel')"><el-option v-for="c in categories" :key="c" :value="c" :label="c"/></el-select>
     <el-scrollbar max-height="460px">
      <el-empty v-if="!items.length" :image-size="40" :description="t('pluginContrib.fileTemplates.empty')"/>
      <div v-for="item in items" :key="item.key" class="custom-file-templates__item">
       <el-button text :disabled="busy" @click="select(item)">{{label(item)}}</el-button>
       <el-button text :disabled="busy" @click="select(item,true)">{{t('pluginContrib.fileTemplates.copyTemplate')}}</el-button>
-      <el-button v-if="item.origin==='custom'" text type="danger" :disabled="busy" @click="remove(item)">{{t('pluginContrib.fileTemplates.deleteTemplate')}}</el-button>
+      <el-button text type="danger" :disabled="busy" @click="remove(item)">{{t('pluginContrib.fileTemplates.deleteTemplate')}}</el-button>
      </div>
     </el-scrollbar>
    </aside>

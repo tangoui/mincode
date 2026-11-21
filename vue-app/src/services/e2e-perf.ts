@@ -34,7 +34,7 @@ export async function perfScenario(config: SmokeConfig, log: { done(step: string
     // Main-page switching the way the sidebar does it (AppSidebar.openItem): open or activate the
     // view's tab, then navigate. A view with an open tab stays cached by KeepAlive, so the first
     // visit mounts it and later visits only re-activate it.
-    const pages = [["dashboard", "概览"], ["projects", "本地项目"], ["database", "数据库"], ["plugins", "插件管理"]] as const;
+    const pages = [["dashboard", "概览"], ["projects", "本地项目"], ["database", "数据库"]] as const;
     const viewTabIds: string[] = [];
     const visit = async (name: (typeof pages)[number][0]) => {
       const tab = workbench.openView(name);

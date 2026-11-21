@@ -1,6 +1,5 @@
 import type { MessageKey } from "@/i18n/locales/zh";
 
-import { taskMessagesEn } from "../../plugin-ui/task-messages";
 
 export const messagesEn = {
   "plugins.publish.error.busy": "File staging is busy. Please retry shortly.",
@@ -88,7 +87,20 @@ export const messagesEn = {
   "plugins.publish.error.version_retired": "This version was retired. Increase the version.",
   "plugins.publish.error.product_unavailable": "This plugin is unavailable in the cloud.",
   "plugins.publish.error.artifact_conflict": "A different package already exists for this version. Increase the version.",
-  ...taskMessagesEn,
+  "plugins.taskMode": "Long-task mode (optional, up to 5 minutes)",
+  "plugins.taskUnknown": "Task status unknown",
+  "plugins.taskRecheck": "Recheck task status (does not repeat the operation)",
+  "plugins.taskCancelUncertain": "Cancellation could not be confirmed; the task may still be running. Do not repeat the operation.",
+  "plugins.taskStart": "Run as a long task",
+  "plugins.taskCancel": "Request cancellation",
+  "plugins.taskCancelRequested": "Cancellation requested; waiting for completion",
+  "plugins.taskHelp": "Runs for up to 5 minutes. Cancellation or closing the page does not guarantee rollback. Older plugin runtimes may not support tasks.",
+  "plugins.taskPollingStopped": "Monitoring stopped; the task may still be running. Do not repeat the operation.",
+  "plugins.taskFailed": "Task failed",
+  "plugins.task.running": "Running",
+  "plugins.task.succeeded": "Succeeded",
+  "plugins.task.failed": "Failed",
+  "plugins.task.cancelled": "Cancelled (not rolled back)",
   "ssh.history.title": "SSH command history",
   "ssh.history.button": "Command history",
   "ssh.history.privacy": "Local history · Not uploaded or sent to AI",
@@ -4122,6 +4134,8 @@ export const messagesEn = {
   "database.typeCompatHint.postgres": "Also for PostgreSQL-compatible databases",
   "database.driverHint": "Connects through the {driver} driver",
   "database.driverUnavailable": "Driver unavailable",
+  "database.confirmBuiltinDriver": "Confirm built-in driver",
+  "database.confirmBuiltinDriverHint": "Confirm the built-in driver before connecting.",
   "database.driverUnavailableHint":
     "The desktop backend does not currently provide this database driver",
   "database.yashandbClientHint":

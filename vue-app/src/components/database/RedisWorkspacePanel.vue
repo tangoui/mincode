@@ -5,8 +5,6 @@ import { CopyDocument, Delete, MagicStick, Plus, Refresh } from "@element-plus/i
 import AppSearchField from "@/components/ui/AppSearchField.vue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
 import { claimContextMenuKey, contextMenuAnchor } from "@/components/ui/app-context-menu";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import { usePluginMenuTarget } from "@/composables/use-plugin-menu-target";
 import { copyText } from "@/services/desktop-bridge";
 import { useVueI18n } from "@/i18n/messages";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
@@ -39,19 +37,11 @@ const createTtl = ref(-1);
 
 const hasMore = computed(() => store.redisKeys.nextCursor !== "0");
 
-// Key row context menu: "Copy key name" plus plugin items (contributes.menus redis/key/context).
-// The target is the listed row (never the value) of the connection and database the list belongs to.
+// The key context menu belongs to the current database listing.
 const keyMenu = ref<{ key: string; x: number; y: number } | null>(null);
 const keyMenuItem = computed(() => {
   const key = keyMenu.value?.key;
   return key === undefined ? undefined : store.redisKeys.keys.find((item) => item.key === key);
-});
-const { host: keyPluginMenuHost, context: keyPluginMenuContext } = usePluginMenuTarget("redis/key/context", () => {
-  const item = keyMenuItem.value;
-  const connection = store.activeConnection;
-  return item && connection
-    ? { connection: { id: connection.id, name: connection.name }, dbIndex: store.redisDbIndex, key: item.key, type: item.type, ttl: item.ttl }
-    : null;
 });
 // The menu belongs to one listed key of one connection and database: close it when the key leaves the
 // list (refresh, delete) or the connection, session or database changes.
@@ -450,12 +440,6 @@ async function remove() {
         @close="keyMenu = null"
       >
         <el-dropdown-item :icon="CopyDocument" @click="copyKeyName">{{ t("database.redis.copyKeyName") }}</el-dropdown-item>
-        <PluginMenuItems
-          menu="redis/key/context"
-          :host="keyPluginMenuHost"
-          :context="keyPluginMenuContext"
-          @run="keyMenu = null"
-        />
       </AppContextMenu>
     </aside>
 

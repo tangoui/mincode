@@ -512,7 +512,7 @@ import {
 } from "../src/domain/debug/config-form.ts";
 import { duplicateConfiguration } from "../src/domain/debug/configurations.ts";
 
-const pythonDebugger = JSON.parse(readFileSync(new URL("../../official-plugins/python-debug/plugin.json", import.meta.url), "utf8")).contributes.debuggers[0];
+const pythonDebugger = JSON.parse(readFileSync(new URL("../tests/fixtures/python-debug-form.json", import.meta.url), "utf8"));
 
 test("parseConfigForm maps python-debug schema", () => {
   const launch = parseConfigForm(pythonDebugger.configurationSchema.launch);
@@ -845,7 +845,6 @@ test("variable node paths are stable across refreshes and unique among siblings"
 // ---- exception types (pause only on these exception types) ----
 
 import { EXCEPTION_TYPE_LIMITS, normalizeExceptionTypes, parseExceptionTypesText } from "../src/domain/debug/exception-types.ts";
-import contributionContract from "../src/domain/plugins/contribution-points.json" with { type: "json" };
 
 test("normalizeProjectDebugStates keeps valid exception type lists and drops the rest", () => {
   const states = normalizeProjectDebugStates({
@@ -872,8 +871,8 @@ test("normalizeProjectDebugStates keeps at most the host's number of stored exce
 });
 
 test("exception type limits come from the debuggers contract", () => {
-  assert.equal(EXCEPTION_TYPE_LIMITS.max, contributionContract.points.debuggers.limits.exceptionTypesMax);
-  assert.equal(EXCEPTION_TYPE_LIMITS.maxRunes, contributionContract.points.debuggers.limits.exceptionTypeMaxRunes);
+  assert.equal(EXCEPTION_TYPE_LIMITS.max, 64);
+  assert.equal(EXCEPTION_TYPE_LIMITS.maxRunes, 256);
 });
 
 test("normalizeExceptionTypes trims and de-duplicates in first-seen order", () => {
@@ -964,7 +963,7 @@ test("normalizeProjectDebugStates keeps at most the host's number of method brea
   const states = normalizeProjectDebugStates({ "/p": { functionBreakpoints: { java: many } } });
   assert.equal(states["/p"].functionBreakpoints.java.length, 256);
   assert.deepEqual(states["/p"].functionBreakpoints.java.at(-1), { name: "app.C#m255", enabled: true });
-  assert.equal(FUNCTION_BREAKPOINT_LIMITS.max, contributionContract.points.debuggers.limits.functionBreakpointsMax);
+  assert.equal(FUNCTION_BREAKPOINT_LIMITS.max, 256);
   assert.equal(FUNCTION_BREAKPOINT_LIMITS.maxRunes, 1024);
 });
 
@@ -1110,7 +1109,7 @@ test("normalizeProjectDebugStates keeps at most the host's number of field break
   const states = normalizeProjectDebugStates({ "/p": { dataBreakpoints: { java: many } } });
   assert.equal(states["/p"].dataBreakpoints.java.length, 256);
   assert.equal(states["/p"].dataBreakpoints.java.at(-1).dataId, "C#f255");
-  assert.equal(DATA_BREAKPOINT_LIMITS.max, contributionContract.points.debuggers.limits.dataBreakpointsMax);
+  assert.equal(DATA_BREAKPOINT_LIMITS.max, 256);
   assert.equal(DATA_BREAKPOINT_LIMITS.maxRunes, 1024);
 });
 

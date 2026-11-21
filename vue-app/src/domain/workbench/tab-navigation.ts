@@ -10,7 +10,6 @@ import type { WorkspaceTab, WorkspaceView } from "@/types/workspace";
 export type ClosedTabEntry =
   | { kind: "view"; view: WorkspaceView }
   | { kind: "terminal"; title?: string }
-  | { kind: "plugin-view"; pluginId: string; viewId: string; title: string }
   | { kind: "document"; path: string; projectRoot?: string };
 
 /** Upper bound of the per-workspace closed-tab stack. */
@@ -23,8 +22,6 @@ function closedEntryKey(entry: ClosedTabEntry): string {
     case "terminal":
       // Every closed terminal is a separate entry (a reopen starts a fresh shell).
       return "";
-    case "plugin-view":
-      return `plugin:${entry.pluginId}\u0000${entry.viewId}`;
     case "document":
       return `document:${entry.path}`;
   }
@@ -62,14 +59,9 @@ export function popClosedEntry(stack: readonly ClosedTabEntry[]): {
  * Singleton views use the id `${workspaceId}:${view}` (workbench.openView).
  */
 export function closedEntryForTab(
-  tab: Pick<WorkspaceTab, "id" | "workspaceId" | "view" | "title" | "pluginView">,
+  tab: Pick<WorkspaceTab, "id" | "workspaceId" | "view" | "title">,
 ): ClosedTabEntry | null {
   if (tab.view === "dashboard") return null;
-  if (tab.view === "plugin-view") {
-    return tab.pluginView
-      ? { kind: "plugin-view", pluginId: tab.pluginView.pluginId, viewId: tab.pluginView.viewId, title: tab.title ?? "" }
-      : null;
-  }
   if (tab.id === `${tab.workspaceId}:${tab.view}`) return { kind: "view", view: tab.view };
   if (tab.view === "terminal") return { kind: "terminal", title: tab.title };
   return null;

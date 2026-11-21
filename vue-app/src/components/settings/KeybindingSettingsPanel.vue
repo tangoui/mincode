@@ -8,7 +8,6 @@
  */
 import "@/styles/workspaces/settings/keybindings.css";
 import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Delete, EditPen, Plus, RefreshLeft } from "@element-plus/icons-vue";
 import AppFilterButton from "@/components/ui/AppFilterButton.vue";
@@ -32,7 +31,6 @@ import {
   overridesAfterChange,
   overridesAfterRemove,
   overridesAfterReset,
-  pluginRowCommand,
   recordChord,
   recorderSequence,
   type KeybindingImportPreview,
@@ -42,19 +40,14 @@ import {
   type RecorderState,
 } from "@/domain/keybindings/settings-model";
 import type { KeybindingOverride } from "@/domain/keybindings/persistence";
-import { useRegisteredCommands } from "@/services/command-registry";
 import { saveTextFileToDisk } from "@/services/file-download";
 import { chooseSettingsJsonFile, readSettingsTextFile } from "@/services/settings-service";
 import { isDesktopRuntime } from "@/services/desktop-bridge";
 import { useKeybindingsStore } from "@/stores/keybindings";
-import { useWorkbenchStore } from "@/stores/workbench";
 
 const KeybindingRecorderDialog = defineAsyncComponent(() => import("@/components/settings/KeybindingRecorderDialog.vue"));
-const PluginGlobalShortcutsSection = defineAsyncComponent(() => import("@/components/settings/PluginGlobalShortcutsSection.vue"));
 
 const props = defineProps<{ globalShortcutEnabled: boolean }>();
-/** Emitted before navigating away (the settings dialog closes itself). */
-const emit = defineEmits<{ navigate: [] }>();
 
 const { t, locale } = useVueI18n();
 const store = useKeybindingsStore();
@@ -66,50 +59,20 @@ const presetRevision = ref(0);
 const unsubscribePresets = subscribeKeymapPresets(() => {
   presetRevision.value += 1;
 });
-const MARKET_PLACEHOLDER = "__market__";
-/** Marketplace search that lists keymap plugins (the official `keymaps` plugin and third-party ones carry the `keymap` tag). */
-const KEYMAP_MARKET_SEARCH = "keymap";
 const presetOptions = computed(() => {
   void presetRevision.value;
   return listKeymapPresets().map((preset) => ({
     value: preset.id,
     label: locale.value === "en" ? preset.title.en : preset.title.zh,
-    source:
-      preset.source === "plugin"
-        ? t("settings.keybindings.presetSourcePlugin", { plugin: preset.pluginName ?? preset.pluginId ?? "" })
-        : t("settings.keybindings.presetSourceBuiltin"),
+    source: t("settings.keybindings.presetSourceBuiltin"),
   }));
 });
-const presetUnavailableTitle = computed(() =>
-  store.presetPluginSuggestion
-    ? t("settings.keybindings.presetUnavailablePlugin", { id: store.presetId, plugin: store.presetPluginSuggestion })
-    : t("settings.keybindings.presetUnavailable", { id: store.presetId }),
-);
-const router = useRouter();
-const workbench = useWorkbenchStore();
-async function openKeymapMarketplace() {
-  if (!workbench.openView("plugins")) return;
-  emit("navigate");
-  await router.push({ name: "plugins", query: { search: KEYMAP_MARKET_SEARCH } });
-}
-function selectPreset(id: string) {
-  if (id === MARKET_PLACEHOLDER) {
-    void openKeymapMarketplace();
-    return;
-  }
-  store.setPreset(id);
-}
+const presetUnavailableTitle = computed(() => t("settings.keybindings.presetUnavailable", { id: store.presetId }));
 
 // ---------------------------------------------------------------- rows
-const pluginCommands = useRegisteredCommands();
 const rows = computed(() =>
   buildKeybindingRows({
-    commands: [
-      ...KEYBINDING_COMMANDS.map(catalogRowCommand),
-      ...pluginCommands.value
-        .filter((command) => command.source === "plugin" && command.id.startsWith("plugin:"))
-        .map((command) => pluginRowCommand(command.id, command.title)),
-    ],
+    commands: KEYBINDING_COMMANDS.map(catalogRowCommand),
     resolution: store.resolution,
     overrides: store.overrides,
     presetId: store.activePreset?.id ?? store.presetId,
@@ -120,7 +83,7 @@ const rows = computed(() =>
 function commandTitle(id: string): string {
   const entry = getKeybindingCommand(id);
   if (entry) return t(entry.titleKey);
-  return pluginCommands.value.find((command) => command.id === id)?.title ?? id;
+  return id;
 }
 function rowTitle(row: KeybindingRow): string {
   return row.titleKey ? t(row.titleKey) : row.title ?? row.id;
@@ -142,7 +105,7 @@ function sourceTagType(row: KeybindingRow) {
 const searchText = ref("");
 const filter = ref<KeybindingRowFilter>("all");
 const filterOpen = ref(false);
-const SCOPES: readonly (KeybindingScope | "plugin")[] = ["global", "editor", "diff", "terminal", "ai", "project", "database", "plugin"];
+const SCOPES: readonly KeybindingScope[] = ["global", "editor", "diff", "terminal", "ai", "project", "database"];
 const filterOptions = computed(() => [
   { value: "all", label: t("settings.keybindings.filter.all") },
   { value: "modified", label: t("settings.keybindings.filter.modified") },
@@ -358,17 +321,7 @@ onBeforeUnmount(() => {
       show-icon
       :closable="false"
       :title="presetUnavailableTitle"
-    >
-      <el-button
-        v-if="store.presetPluginSuggestion"
-        link
-        type="primary"
-        data-testid="keybinding-preset-market"
-        @click="openKeymapMarketplace"
-      >
-        {{ t("settings.keybindings.presetOpenMarket") }}
-      </el-button>
-    </el-alert>
+    />
 
     <el-form label-position="left" label-width="auto" class="app-keybindings__options">
       <el-form-item>
@@ -383,7 +336,7 @@ onBeforeUnmount(() => {
           :model-value="store.presetId"
           :aria-label="t('settings.keybindings.preset')"
           data-testid="keybinding-preset-select"
-          @update:model-value="selectPreset"
+          @update:model-value="store.setPreset"
         >
           <el-option v-for="option in presetOptions" :key="option.value" :label="option.label" :value="option.value">
             <span class="app-keybindings__preset-option">
@@ -391,12 +344,6 @@ onBeforeUnmount(() => {
               <span class="app-keybindings__preset-source">{{ option.source }}</span>
             </span>
           </el-option>
-          <el-option
-            :value="MARKET_PLACEHOLDER"
-            :label="t('settings.keybindings.presetMarket')"
-            class="app-keybindings__preset-market"
-            data-testid="keybinding-preset-market-option"
-          />
         </el-select>
         <span class="app-keybindings__note">{{ t("settings.keybindings.presetNote") }}</span>
       </el-form-item>
@@ -592,7 +539,6 @@ onBeforeUnmount(() => {
       </table>
     </div>
 
-    <PluginGlobalShortcutsSection :global-shortcut-enabled="props.globalShortcutEnabled" />
 
     <KeybindingRecorderDialog
       v-if="recorder.row"

@@ -7,7 +7,7 @@ import {
   planModeDenies,
   requiresAiToolApproval,
 } from "../src/domain/ai/approval-policy.ts";
-import { approvalModeForConversation } from "../src/domain/ai/plugin-turns.ts";
+import { approvalModeForConversation } from "../src/domain/ai/conversation-approval.ts";
 
 test("plan mode is a valid stored mode", () => {
   assert.equal(normalizeAiApprovalMode("plan"), "plan");
@@ -60,17 +60,17 @@ const mcpBranch = executeAgentTool.slice(
 );
 const nativeBranch = executeAgentTool.slice(executeAgentTool.indexOf("const capability = aiCapabilityRegistry.get(call.name);"));
 
-test("the drawer blocks non-read MCP calls in plan mode before the risk cap and approval", () => {
+test("the drawer blocks non-read MCP calls in plan mode before approval", () => {
   assert.match(
     mcpBranch,
-    /const mcpMode = approvalModeForConversation\(aiApprovalMode\.value, conversation\?\.external\);\s*if \(planModeDenies\(mcpMode, authorizationRequest\.risk\)\) \{\s*return \{ content: t\("ai\.agentic\.planModeBlocked"\), status: "cancelled" as const \};\s*\}[\s\S]*?riskCapDenial\(authorizationRequest\.risk[\s\S]*?requiresAiToolApproval\(mcpMode, authorizationRequest\.risk\)[\s\S]*?authorizeTool\([\s\S]*?callMcpToolCancellable/,
+    /const mcpMode = approvalModeForConversation\(aiApprovalMode\.value, conversation\?\.external\);\s*if \(planModeDenies\(mcpMode, authorizationRequest\.risk\)\) \{\s*return \{ content: t\("ai\.agentic\.planModeBlocked"\), status: "cancelled" as const \};\s*\}[\s\S]*?requiresAiToolApproval\(mcpMode, authorizationRequest\.risk\)[\s\S]*?authorizeTool\([\s\S]*?callMcpToolCancellable/,
   );
 });
 
-test("the drawer blocks non-read native calls in plan mode before the risk cap and approval", () => {
+test("the drawer blocks non-read native calls in plan mode before approval", () => {
   assert.match(
     nativeBranch,
-    /const callMode = approvalModeForConversation\(aiApprovalMode\.value, conversation\?\.external\);\s*if \(planModeDenies\(callMode, callRisk\)\) \{\s*return \{ content: t\("ai\.agentic\.planModeBlocked"\), status: "cancelled" as const \};\s*\}[\s\S]*?riskCapDenial\(callRisk[\s\S]*?requiresAiToolApproval\(callMode, callRisk\)[\s\S]*?authorizeTool\([\s\S]*?aiCapabilityRegistry\.execute\(/,
+    /const callMode = approvalModeForConversation\(aiApprovalMode\.value, conversation\?\.external\);\s*if \(planModeDenies\(callMode, callRisk\)\) \{\s*return \{ content: t\("ai\.agentic\.planModeBlocked"\), status: "cancelled" as const \};\s*\}[\s\S]*?requiresAiToolApproval\(callMode, callRisk\)[\s\S]*?authorizeTool\([\s\S]*?aiCapabilityRegistry\.execute\(/,
   );
 });
 

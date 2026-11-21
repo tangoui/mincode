@@ -1,7 +1,7 @@
 import type { DatabaseConnection, DatabaseTunnelConfig, DbType } from "../database/types.ts";
 import { databaseDefaultPorts, databaseTypeLabels } from "../database/types.ts";
 import { portableDriverOptions } from "../database/connection-portability.ts";
-import { normalizeDatabaseDriverRef } from "../plugins/database-drivers.ts";
+import { normalizeDatabaseDriverRef } from "../database/connection-portability.ts";
 import type {
   HttpAuthType,
   HttpBodyField,

@@ -27,8 +27,6 @@ const {
   projectSearchTruncated,
   projectSearchEngine,
   projectSearchDurationMs,
-  pluginSearch,
-  searchPrefixes,
   openPalette,
   execute,
 } = useCommandPalette({
@@ -62,8 +60,6 @@ watch(
     :truncated="projectSearchTruncated"
     :search-engine="projectSearchEngine"
     :search-duration-ms="projectSearchDurationMs"
-    :plugin-search="pluginSearch"
-    :search-prefixes="searchPrefixes"
     @execute="execute"
   />
 </template>

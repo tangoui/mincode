@@ -35,7 +35,6 @@ const emit = defineEmits<{
   resize: [splitId: string, sizes: number[]];
   resizeEnd: [];
   activity: [paneId: string, snapshot: LocalTerminalActivity];
-  useDefaultShell: [paneId: string];
 }>();
 
 const slots = shallowReactive(new Map<string, HTMLElement>());
@@ -72,8 +71,6 @@ const paneCanClose = () => props.canClose || props.closeLastPane;
         :initial-cwd="pane.cwd ?? pane.initialCwd"
         :initial-command="pane.initialCommand"
         :extra-env="pane.extraEnv"
-        :profile="pane.profile"
-        :task="pane.task"
         :active="paneActive(pane.id)"
         :can-close="paneCanClose()"
         :close-disabled-reason="props.closeDisabledReason"
@@ -85,7 +82,6 @@ const paneCanClose = () => props.canClose || props.closeLastPane;
         @reload="emit('reload', pane.id)"
         @split="emit('split', pane.id, $event)"
         @activity="emit('activity', pane.id, $event)"
-        @use-default-shell="emit('useDefaultShell', pane.id)"
       />
       <SshTerminal
         v-else

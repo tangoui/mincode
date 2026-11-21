@@ -37,6 +37,7 @@ let wrapper: VueWrapper | undefined;
 beforeEach(() => {
   bridge.desktop = true;
   for (const fn of [...Object.values(service), bridge.invokeBackend]) fn.mockReset();
+  bridge.invokeBackend.mockResolvedValue(undefined);
   service.getNoteTree.mockResolvedValue({ folders: [], notes: [summary("n1")] });
   service.deleteNote.mockResolvedValue(undefined);
 });

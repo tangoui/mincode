@@ -2,7 +2,6 @@
 import "@/styles/workspaces/project/git-panel.css";
 import {
   computed,
-  defineAsyncComponent,
   onActivated,
   onDeactivated,
   nextTick,
@@ -37,8 +36,6 @@ import GitHistoryList from "@/components/git/GitHistoryList.vue";
 import GitShelfPanel from "@/components/git/GitShelfPanel.vue";
 import GitStashPanel from "@/components/git/GitStashPanel.vue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
-import { usePluginMenuTarget } from "@/composables/use-plugin-menu-target";
 import AppChevron from "@/components/ui/AppChevron.vue";
 import { createLatestRequestGate } from "@/domain/async/latest-request-gate";
 import { runWithAbort } from "@/domain/async/abort";
@@ -72,8 +69,6 @@ import {
 import { copyText, invokeBackend, isDesktopRuntime, nativeErrorMessage, type BackendCommand } from "@/services/desktop-bridge";
 import { notifyApp } from "@/services/notifications";
 import { generateAiCommitMessage } from "@/services/ai-commit-message";
-import { shouldApplyGeneratedMessage } from "@/domain/plugins/scm-commit-message";
-import { usePluginDataProvidersStore } from "@/stores/plugin-data-providers";
 import type { LocalProjectEntry } from "@/stores/local-project";
 import { useAiAssistantStore } from "@/stores/ai-assistant";
 
@@ -349,30 +344,12 @@ const amendLastCommit = computed({
 const generatingCommitMessage = computed(
   () => repositoryCommitDrafts[repoPath.value]?.generating ?? false
 );
-// Plugin commit message providers (contributes.scmCommitMessage); the button chunk loads only when one is active.
-const GitPluginCommitMessageButton = defineAsyncComponent(
-  () => import("@/components/projects/GitPluginCommitMessageButton.vue")
-);
-const pluginDataProviders = usePluginDataProvidersStore();
-const scmProviders = computed(() =>
-  pluginDataProviders.scmProviders.filter((provider) => provider.activeInWorkspace)
-);
-// The plugin generation in flight; it shares the draft's generating/generation with the AI.
-const pluginCommitRun = ref<{ targetPath: string; generation: number } | null>(null);
-const pluginGeneratingCommitMessage = computed(() => {
-  const run = pluginCommitRun.value;
-  const draft = repositoryCommitDrafts[repoPath.value];
-  return Boolean(run && run.targetPath === repoPath.value && draft?.generating && draft.generation === run.generation);
-});
-const aiGeneratingCommitMessage = computed(
-  () => generatingCommitMessage.value && !pluginGeneratingCommitMessage.value
-);
 // While a thinking model reasons, the empty message box says so and counts the seconds.
 const commitThinkingNow = ref(Date.now());
 let commitThinkingTicker: ReturnType<typeof setInterval> | undefined;
 const commitThinkingSince = computed(() => {
   const draft = repositoryCommitDrafts[repoPath.value];
-  return aiGeneratingCommitMessage.value && draft?.thinkingSince ? draft.thinkingSince : 0;
+  return generatingCommitMessage.value && draft?.thinkingSince ? draft.thinkingSince : 0;
 });
 watch(commitThinkingSince, (since) => {
   if (commitThinkingTicker) clearInterval(commitThinkingTicker);
@@ -996,37 +973,9 @@ function cancelAllCommitMessageGenerations() {
   }
 }
 
-function onPluginCommitMessageStart() {
-  const targetPath = repoPath.value;
-  if (!targetPath) return;
-  const draft = repositoryCommitDraft(targetPath);
-  const generation = ++commitMessageGeneration;
-  draft.generating = true;
-  draft.generation = generation;
-  pluginCommitRun.value = { targetPath, generation };
-}
-
-/** Fills the draft only when it is unchanged since the click; never commits. */
-function onPluginCommitMessageFinish(result: { message?: string; draftAtStart: string }) {
-  const run = pluginCommitRun.value;
-  pluginCommitRun.value = null;
-  const draft = run && repositoryCommitDrafts[run.targetPath];
-  if (!run || !draft || draft.generation !== run.generation) return;
-  draft.generating = false;
-  if (result.message === undefined) return;
-  if (shouldApplyGeneratedMessage(result.draftAtStart, draft.message)) draft.message = result.message;
-  else ElMessage.warning(t("git.pluginGenerateDraftChanged"));
-}
-
-function onPluginCommitMessageCancel() {
-  const run = pluginCommitRun.value;
-  pluginCommitRun.value = null;
-  if (run) cancelCommitMessageGeneration(run.targetPath);
-}
-
 async function generateCommitMessage() {
   const targetPath = repoPath.value;
-  if (!targetPath || pluginGeneratingCommitMessage.value) return;
+  if (!targetPath) return;
   const draft = repositoryCommitDraft(targetPath);
   if (draft.generating) {
     cancelCommitMessageGeneration(targetPath);
@@ -1279,42 +1228,6 @@ async function copyContextRelativePath() {
   }
 }
 
-// Plugin menu items (contributes.menus): git/changes/context for the file
-// context menu, git/commit/context for the history row "⋯" menu that is open.
-function pluginProjectName() {
-  return props.projectRoot.split(/[\\/]/).filter(Boolean).pop() ?? props.projectRoot;
-}
-
-const changePluginMenu = usePluginMenuTarget("git/changes/context", () => {
-  const entry = fileContextMenu.entry;
-  if (!fileContextMenu.open || !entry || !repoPath.value) return null;
-  return {
-    projectName: pluginProjectName(),
-    repositoryPath: repoPath.value,
-    relativePath: entry.path.replace(/\\/g, "/"),
-    ...(entry.old_path ? { oldRelativePath: entry.old_path.replace(/\\/g, "/") } : {}),
-    status: entry.status,
-    group: fileContextMenu.group,
-    path: entryAbsolutePath(entry),
-  };
-});
-
-const openHistoryMenuEntry = ref<GitLogEntry | null>(null);
-const commitPluginMenu = usePluginMenuTarget("git/commit/context", () => {
-  const entry = openHistoryMenuEntry.value;
-  if (!entry || !repoPath.value) return null;
-  return {
-    projectName: pluginProjectName(),
-    repositoryPath: repoPath.value,
-    hash: entry.hash,
-    shortHash: entry.short_hash,
-    subject: entry.message,
-    author: entry.author,
-    time: entry.time,
-    parents: entry.parents ?? [],
-    refs: entry.refs ?? [],
-  };
-});
 
 watch(
   () => props.projectRoot,
@@ -1385,7 +1298,6 @@ onActivated(startGitAutoRefresh);
 onDeactivated(() => {
   stopGitAutoRefresh();
   cancelAllCommitMessageGenerations();
-  pluginCommitRun.value = null;
 });
 onUnmounted(() => {
   if (commitThinkingTicker) clearInterval(commitThinkingTicker);
@@ -1395,16 +1307,7 @@ onUnmounted(() => {
 });
 watch(repoPath, (_current, previous) => {
   cancelCommitMessageGeneration(previous);
-  if (pluginCommitRun.value?.targetPath === previous) pluginCommitRun.value = null;
 });
-// The button unmounts when its last provider goes away mid-run; never leave the draft generating.
-watch(
-  () => scmProviders.value.length,
-  (count) => {
-    if (!count) onPluginCommitMessageCancel();
-  },
-);
-
 defineExpose({ refresh, selectRepository, runQuickAction, quickActionState });
 </script>
 
@@ -1880,16 +1783,7 @@ defineExpose({ refresh, selectRepository, runQuickAction, quickActionState });
           :actions="['copy-hash', 'cherry-pick', 'revert']"
           @select="openCommitDetail"
           @action="handleHistoryAction"
-          @menu-open-change="openHistoryMenuEntry = $event"
-        >
-          <template #menu-extra="{ open }">
-            <PluginMenuItems
-              menu="git/commit/context"
-              :host="open ? commitPluginMenu.host.value : null"
-              :context="commitPluginMenu.context"
-            />
-          </template>
-        </GitHistoryList>
+        />
         <section v-if="selectedCommit" class="project-git-commit-detail">
           <header>
             <div>
@@ -1959,26 +1853,12 @@ defineExpose({ refresh, selectRepository, runQuickAction, quickActionState });
               <el-button
                 text
                 native-type="button"
-                :disabled="pluginGeneratingCommitMessage"
-                :title="aiGeneratingCommitMessage ? t('common.cancel') : t('git.aiGenerateCommitMessage')"
+                :title="generatingCommitMessage ? t('common.cancel') : t('git.aiGenerateCommitMessage')"
                 @click="generateCommitMessage"
               >
-                <el-icon :class="{ 'is-generating': aiGeneratingCommitMessage }"><MagicStick /></el-icon>
-                {{ aiGeneratingCommitMessage ? t("common.cancel") : t("git.aiGenerate") }}
+                <el-icon :class="{ 'is-generating': generatingCommitMessage }"><MagicStick /></el-icon>
+                {{ generatingCommitMessage ? t("common.cancel") : t("git.aiGenerate") }}
               </el-button>
-              <GitPluginCommitMessageButton
-                v-if="scmProviders.length"
-                :providers="scmProviders"
-                :project-root="projectRoot"
-                :repo-path="repoPath"
-                :has-staged="Boolean(status?.staged.length)"
-                :draft="commitMessage"
-                :busy="aiGeneratingCommitMessage"
-                :generating="pluginGeneratingCommitMessage"
-                @start="onPluginCommitMessageStart"
-                @finish="onPluginCommitMessageFinish"
-                @cancel="onPluginCommitMessageCancel"
-              />
             </div>
           </template>
           <section class="git-commit-box git-commit-box--original git-commit-box--ide">
@@ -2072,12 +1952,6 @@ defineExpose({ refresh, selectRepository, runQuickAction, quickActionState });
       <el-dropdown-item @click="copyContextRelativePath">
         <el-icon><CopyDocument /></el-icon>{{ t("git.fileContext.copyRelativePath") }}
       </el-dropdown-item>
-      <PluginMenuItems
-        menu="git/changes/context"
-        :host="changePluginMenu.host.value"
-        :context="changePluginMenu.context"
-        @run="closeFileContextMenu"
-      />
     </AppContextMenu>
   </section>
 </template>

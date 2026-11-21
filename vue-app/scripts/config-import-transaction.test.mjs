@@ -92,25 +92,6 @@ test("Settings import rejects retired AI history keys from portable configuratio
   assert.doesNotMatch(configPortabilitySource, /deleteAiScopeIds/);
 });
 
-test("Settings import restores plugin data before app configuration", () => {
-  const importStart = settingsViewSource.indexOf("async function startImportConfig");
-  const importEnd = settingsViewSource.indexOf("async function importConfig", importStart);
-  const importSource = settingsViewSource.slice(importStart, importEnd);
-
-  assert.ok(importSource.indexOf("await readConfigImportFile(path)") > 0);
-  assert.ok(
-    importSource.indexOf("await importConfigPluginData(path)")
-      < importSource.indexOf("await applyConfigImport(parsed)")
-  );
-  // Plugin files can be large, so the desktop export writes them from the backend.
-  assert.match(settingsViewSource, /writeConfigExportWithPluginData\(path, payload\)/);
-  assert.match(configPortabilitySource, /"plugin_host_config_export_write"/);
-  assert.match(configPortabilitySource, /"plugin_host_config_import_read"/);
-  assert.match(configPortabilitySource, /"plugin_host_config_import_plugins"/);
-  // Plugin-only files stay importable when the caller confirmed plugin data exists.
-  assert.match(configPortabilitySource, /!Object\.keys\(values\)\.length && !options\.allowEmpty/);
-});
-
 test("Settings config sync flushes older auto-save before applying its batch", () => {
   const applyStart = settingsViewSource.indexOf("async function applyConfigSyncSnapshot");
   const applyEnd = settingsViewSource.indexOf(

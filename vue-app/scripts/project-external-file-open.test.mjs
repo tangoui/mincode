@@ -26,14 +26,6 @@ test("project editor opens external text, image, PDF, and binary files without c
   assert.match(styles, /\.project-editor-pane\.file-drop-target-active::before/);
 });
 
-test("external binary files such as Office documents open in a matching plugin custom editor", () => {
-  assert.match(project, /async function externalCustomEditorFor\(info: ExternalFileInfo\)/);
-  assert.match(project, /info\.kind !== "binary" \|\| resolved\.source === "user"/);
-  assert.match(project, /openDocumentWithCustomEditor\(info\.path, editor\)/);
-  assert.match(project, /document\.external \? externalDocumentRoot\(document\.path\)/);
-  assert.match(project, /openExternalFile\(path, \{ builtin: true \}\)/);
-});
-
 test("native folder drops from any workspace open the local-project explorer", () => {
   assert.match(app, /id="app-project-drop-target"[\s\S]*?data-file-drop-target/);
   assert.match(app, /targetId === "app-project-drop-target"[\s\S]*?workbench\.openView\("projects"\)[\s\S]*?enqueueProjectFiles\(normalized\)/);
@@ -70,11 +62,11 @@ test("startup restores the active file after project initialization, without a s
 
 test("files handed over from outside that lie inside an open project open as project documents", () => {
   const opener = project.slice(project.indexOf("async function openExternalFile("), project.indexOf("const projectViewActive = ref(true);"));
-  assert.match(opener, /options: \{ builtin\?: boolean; preferProject\?: boolean \}/);
+  assert.match(opener, /options: \{ preferProject\?: boolean \}/);
   assert.match(opener, /const root = options\.preferProject \? projectRootContaining\(infoPath\) : undefined;/);
   assert.match(opener, /if \(root && !project\.documents\.some\(\(item\) => item\.path === infoPath && item\.external\)\) \{\s*await openFile\(infoPath, undefined, root\);/);
   assert.ok(opener.indexOf('info.kind === "directory"') < opener.indexOf("options.preferProject"), "directories still open as projects");
   assert.match(project, /for \(const path of consumeProjectFiles\(\)\) await openExternalFile\(path, \{ preferProject: true \}\);/);
   // Go to definition into files outside every project keeps the external path.
-  assert.match(project, /openExternalFile\(path, \{ builtin: true \}\)/);
+  assert.match(project, /openExternalFile\(path\)/);
 });

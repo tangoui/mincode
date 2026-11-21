@@ -32,9 +32,9 @@ import { savePersistedValue } from "@/services/persistent-store";
 import { useDebugConfigsStore } from "@/stores/debug-configs";
 
 const ROOT = "/Users/A/Proj";
-const manifest = JSON.parse(readFileSync(resolve(process.cwd(), "../official-plugins/python-debug/plugin.json"), "utf8"));
+const fixture = JSON.parse(readFileSync(resolve(process.cwd(), "tests/fixtures/python-debug-form.json"), "utf8"));
 const python: DebuggerInfo = {
-  ...manifest.contributes.debuggers[0],
+  ...fixture,
   pluginId: "mincode.python-debug",
   pluginName: "Python Debug",
   hasEntryPoints: true,

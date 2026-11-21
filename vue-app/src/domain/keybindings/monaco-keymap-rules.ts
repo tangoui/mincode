@@ -24,7 +24,7 @@
  * rule shadowed on the same key, so the key keeps its editor meaning.
  */
 import type { WhenClause } from "@/domain/commands/when";
-import { getKeybindingCommand, isPluginCommandId } from "@/domain/keybindings/catalog";
+import { getKeybindingCommand } from "@/domain/keybindings/catalog";
 import { parseKeySequence } from "@/domain/keybindings/keys";
 import { admitsBinding } from "@/domain/keybindings/matcher";
 import { monacoDefaultBindings } from "@/domain/keybindings/monaco-defaults";
@@ -104,7 +104,6 @@ function staticallyTrue(clause: WhenClause): boolean {
 function mirrorable(binding: ResolvedKeybinding): boolean {
   const host = MONACO_EDITOR_HOST_COMMANDS[binding.command];
   if (host) return true;
-  if (isPluginCommandId(binding.command)) return true;
   const entry = getKeybindingCommand(binding.command);
   return Boolean(entry && entry.handler === "app" && entry.available);
 }

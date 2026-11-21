@@ -1,4 +1,4 @@
-import { templateTargetPathError, isValidTemplateName, type FileTemplateKind, type PluginFileTemplateFile } from "./file-templates";
+import { templateTargetPathError, isValidTemplateName, type FileTemplateKind, type FileTemplateFile } from "./file-templates";
 export interface CustomTemplateDraft {
     id: string;
     revision: number;
@@ -17,7 +17,7 @@ export interface CustomTemplateSummary extends Omit<CustomTemplateDraft, "files"
     key: string;
     descriptionLocalized?: Record<string, string>;
     titleLocalized?: Record<string, string>;
-    files: PluginFileTemplateFile[];
+    files: FileTemplateFile[];
 }
 export interface CustomTemplateSnapshot {
     version: 1;

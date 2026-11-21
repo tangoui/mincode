@@ -16,7 +16,7 @@ import {
 } from "../src/domain/keybindings/preset.ts";
 import { BUILTIN_KEYMAP_PRESETS, HOST_KEYBINDING_RULES, registerBuiltinKeymapPresets } from "../src/domain/keybindings/presets/index.ts";
 import { findKeybindingConflicts, resolveKeybindings } from "../src/domain/keybindings/resolver.ts";
-import { ALL_KEYMAP_PRESETS, keymapPresetChainOf, loadOfficialKeymapPlugins, registerAllKeymapPresets } from "./keymap-plugin-presets.mjs";
+import { ALL_KEYMAP_PRESETS, keymapPresetChainOf } from "./keymap-presets-fixture.mjs";
 import { messagesEn } from "../src/i18n/locales/en.ts";
 import { messagesZh } from "../src/i18n/locales/zh.ts";
 
@@ -34,39 +34,6 @@ test("built-in presets pass the external validator and register once", () => {
   assert.equal(getKeymapPreset("mincode").source, "builtin");
 });
 
-test("official keymap plugin: one declarative manifest whose presets register with their plugin", () => {
-  const plugins = loadOfficialKeymapPlugins();
-  assert.deepEqual(plugins.map((plugin) => plugin.pluginId), ["keymaps"]);
-  // The host accepts at most 8 presets per plugin (backend/plugin/keymaps.go keymapMaxPresets).
-  assert.ok(plugins[0].presets.length <= 8);
-  for (const plugin of plugins) {
-    const { manifest } = plugin;
-    assert.equal(manifest.apiVersion, 2, plugin.pluginId);
-    assert.deepEqual(manifest.runtime, { type: "declarative" }, plugin.pluginId);
-    assert.equal(manifest.capabilities, undefined, plugin.pluginId);
-    assert.deepEqual(Object.keys(manifest.contributes), ["keymaps"], plugin.pluginId);
-    assert.ok(manifest.tags.includes("keymap"), plugin.pluginId);
-    for (const preset of plugin.presets) {
-      const result = validateKeymapPreset(preset);
-      assert.equal(result.ok, true, `${preset.id}: ${JSON.stringify(result.errors)}`);
-      assert.ok(preset.id.startsWith(`${plugin.pluginId}.`), preset.id);
-      assert.ok(JSON.stringify(preset).length <= KEYMAP_PRESET_LIMITS.maxSerializedBytes, preset.id);
-    }
-  }
-  registerAllKeymapPresets();
-  assert.deepEqual(
-    listKeymapPresets().map((preset) => preset.id),
-    ["mincode", "keymaps.vscode", "keymaps.intellij", "keymaps.eclipse", "keymaps.vim"],
-  );
-  assert.equal(getKeymapPreset("keymaps.intellij").doubleModifier, true);
-  assert.equal(getKeymapPreset("keymaps.vim").editorMode, "vim");
-  assert.deepEqual(keymapPresetChain("keymaps.vim").map((preset) => preset.id), ["mincode", "keymaps.vim"]);
-  const vscode = getKeymapPreset("keymaps.vscode");
-  assert.equal(vscode.source, "plugin");
-  assert.equal(vscode.pluginId, "keymaps");
-  assert.equal(vscode.pluginName, "键位方案 / Keymaps");
-});
-
 test("validator rejects unknown commands, reserved keys, bad whens, bad shape and oversize", () => {
   const base = { id: "ext", title: { zh: "扩展", en: "Ext" } };
   const errors = (data) => {
@@ -82,7 +49,7 @@ test("validator rejects unknown commands, reserved keys, bad whens, bad shape an
   assert.deepEqual(errors({ ...base, rules: [{ key: "mod+k", command: "builtin:settings", extra: 1 }] }), ["rules[0].extra"]);
   assert.deepEqual(errors({ ...base, rules: [{ command: "builtin:settings" }] }), ["rules[0].key"]);
   assert.deepEqual(errors({ ...base, rules: [{ command: "-builtin:settings" }] }), []);
-  assert.deepEqual(errors({ ...base, rules: [{ key: "mod+k", command: "plugin:acme:run" }] }), []);
+  assert.deepEqual(errors({ ...base, rules: [{ key: "mod+k", command: "plugin:acme:run" }] }), ["rules[0].command"]);
   assert.deepEqual(errors({ ...base, rules: [{ key: "mod+k", command: "builtin:settings", platform: "bsd" }] }), ["rules[0].platform"]);
   assert.deepEqual(errors({ ...base, editorMode: "emacs", rules: [] }), ["editorMode"]);
   assert.deepEqual(errors({ ...base, extends: "ext", rules: [] }), ["extends"]);
@@ -93,69 +60,13 @@ test("validator rejects unknown commands, reserved keys, bad whens, bad shape an
   assert.equal(validateKeymapPreset({ ...base, editorMode: "vim", rules: [] }).ok, true);
 });
 
-test("keymap command ids follow the plugin host's pattern", () => {
-  // The host validates plugin keymap files with keymapCommandPattern (keymaps.go); keep the frontend copy equal.
-  const goSource = readFileSync(resolve(root, "../backend/plugin/keymaps.go"), "utf8");
-  const goPattern = goSource.match(/keymapCommandPattern\s*=\s*regexp\.MustCompile\(`([^`]+)`\)/)?.[1];
-  assert.equal(KEYMAP_COMMAND_PATTERN.source, goPattern);
-  assert.match(goSource, /keymapMaxCommandLength\s*=\s*int\(keymapSpec\.Limit\("commandMaxLength"\)\)/);
-  const contract = JSON.parse(readFileSync(resolve(root, "../plugins/api/contribution-points.json"), "utf8"));
-  assert.equal(KEYMAP_COMMAND_MAX_LENGTH, contract.points.keymaps.limits.commandMaxLength);
-  // Every catalog command must be bindable from a plugin keymap.
-  for (const command of KEYBINDING_COMMANDS) {
-    assert.match(command.id, KEYMAP_COMMAND_PATTERN, command.id);
-    assert.ok(command.id.length <= KEYMAP_COMMAND_MAX_LENGTH, command.id);
-  }
-  // A bare id is refused by the frontend validator as it is by the host.
-  const base = { id: "ext", title: { zh: "扩展", en: "Ext" } };
-  const result = validateKeymapPreset({ ...base, rules: [{ key: "f8", command: "debug.stepOver" }] });
-  assert.deepEqual(result.ok ? [] : result.errors.map((issue) => issue.path), ["rules[0].command"]);
-  assert.equal(validateKeymapPreset({ ...base, rules: [{ key: "f8", command: "project:debug.stepOver" }] }).ok, true);
-  assert.equal(validateKeymapPreset({ ...base, rules: [{ command: "-project:debug.stepOver" }] }).ok, true);
-});
-
-test("registry: plugin presets, disposal, built-in protection, chains", () => {
-  registerBuiltinKeymapPresets();
-  let notified = 0;
-  const unsubscribe = subscribeKeymapPresets(() => notified++);
-  assert.throws(() => registerKeymapPreset({ id: "mincode", title: { zh: "x", en: "x" }, rules: [] }, { source: "plugin", pluginId: "evil" }));
-  assert.throws(() => registerKeymapPreset({ id: "bad", title: { zh: "x", en: "x" }, rules: [{ key: "cmd+q", command: "builtin:ai", platform: "mac" }] }, { source: "plugin" }));
-  // Plugins own the `<pluginId>.` namespace and may extend only MinCode or their own presets.
-  assert.throws(() => registerKeymapPreset({ id: "other.x", title: { zh: "x", en: "x" }, rules: [] }, { source: "plugin", pluginId: "acme" }));
-  assert.throws(() => registerKeymapPreset({ id: "acme.x", title: { zh: "x", en: "x" }, rules: [] }, { source: "plugin" }));
-  assert.throws(() =>
-    registerKeymapPreset({ id: "acme.x", title: { zh: "x", en: "x" }, extends: "keymaps.vscode", rules: [] }, { source: "plugin", pluginId: "acme" }),
-  );
-  const disposeBase = registerKeymapPreset(
-    { id: "acme.base", title: { zh: "基础", en: "Base" }, extends: "mincode", rules: [{ key: "f3", command: "builtin:quick-open" }] },
-    { source: "plugin", pluginId: "acme" },
-  );
-  const dispose = registerKeymapPreset(
-    { id: "acme.child", title: { zh: "子方案", en: "Child" }, extends: "acme.base", rules: [{ key: "mod+shift+r", command: "builtin:quick-open" }] },
-    { source: "plugin", pluginId: "acme", pluginName: "Acme" },
-  );
-  assert.equal(getKeymapPreset("acme.child").pluginId, "acme");
-  assert.equal(getKeymapPreset("acme.child").pluginName, "Acme");
-  assert.deepEqual(keymapPresetChain("acme.child").map((preset) => preset.id), ["mincode", "acme.base", "acme.child"]);
-  assert.equal(keymapPresetChain("missing"), null);
-  const cyclic = { a: { id: "a", extends: "b", rules: [] }, b: { id: "b", extends: "a", rules: [] } };
-  assert.equal(keymapPresetChain("a", (id) => cyclic[id]), null);
-  disposeBase();
-  // A missing ancestor makes the chain unavailable (the store falls back to MinCode).
-  assert.equal(keymapPresetChain("acme.child"), null);
-  dispose();
-  assert.equal(getKeymapPreset("acme.child"), undefined);
-  assert.equal(notified, 4);
-  unsubscribe();
-});
-
 // Known, intentional collisions inside a preset (resolved by rule order or context).
 const CONFLICT_ALLOWLIST = new Set([
   // VS Code: ⌘K clears the terminal; the ⌘K ⌘S chord applies elsewhere.
   "keymaps.vscode:mac:prefix:builtin:keybindings:terminal:clear",
 ]);
 
-test("presets: every built-in and plugin preset resolves on every platform without unexpected internal conflicts", () => {
+test("presets: the built-in preset resolves on every platform without unexpected internal conflicts", () => {
   for (const preset of ALL_KEYMAP_PRESETS) {
     for (const platform of PLATFORMS) {
       const resolution = resolveKeybindings({ platform, presets: keymapPresetChainOf(preset.id) });

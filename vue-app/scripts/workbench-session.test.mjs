@@ -56,39 +56,6 @@ test("migrates version 1 sessions to version 2 without changing workspace ids", 
   assert.deepEqual(restored.deletedWorkspaces, []);
 });
 
-test("migrates legacy workflow tabs into plugin management", () => {
-  const legacyTabId = `${DEFAULT_WORKSPACE_ID}:workflows`;
-  const restored = normalizeWorkbenchSession({
-    version: 3,
-    workspaces: [workspace(DEFAULT_WORKSPACE_ID)],
-    activeWorkspaceId: DEFAULT_WORKSPACE_ID,
-    tabs: [
-      {
-        id: legacyTabId,
-        workspaceId: DEFAULT_WORKSPACE_ID,
-        view: "workflows",
-        titleKey: "nav.workflows",
-        closable: true,
-      },
-    ],
-    activeTabId: legacyTabId,
-    lastActiveTabByWorkspace: { [DEFAULT_WORKSPACE_ID]: legacyTabId },
-    deletedWorkspaces: [],
-  });
-
-  assert.ok(restored);
-  assert.equal(restored.tabs.length, 1);
-  assert.equal(restored.tabs[0].view, "plugins");
-  assert.equal(restored.tabs[0].id, `${DEFAULT_WORKSPACE_ID}:plugins`);
-  assert.equal(restored.tabs[0].titleKey, "nav.plugins");
-  assert.equal(restored.tabs[0].title, undefined);
-  assert.equal(restored.activeTabId, `${DEFAULT_WORKSPACE_ID}:plugins`);
-  assert.equal(
-    restored.lastActiveTabByWorkspace[DEFAULT_WORKSPACE_ID],
-    `${DEFAULT_WORKSPACE_ID}:plugins`,
-  );
-});
-
 test("retains every recoverable workspace record instead of silently capping the recycle list", () => {
   const deletedWorkspaces = Array.from({ length: 25 }, (_, index) =>
     deletedRecord(index),
@@ -141,43 +108,6 @@ test("re-deleting a restored workspace moves one stable-id record to the front",
   assert.equal(next[0].deletedAt, 99);
   assert.equal(
     next.filter((item) => item.workspace.id === "workspace:deleted-2").length,
-    1,
-  );
-});
-
-test("restores at most one instance of the same plugin view per workspace", () => {
-  const pluginTab = (id, workspaceId) => ({
-    id,
-    workspaceId,
-    view: "plugin-view",
-    titleKey: "ignored-legacy-title",
-    closable: true,
-    pluginView: { pluginId: "example.visual", viewId: "dashboard" },
-  });
-  const restored = normalizeWorkbenchSession({
-    version: WORKBENCH_SESSION_VERSION,
-    workspaces: [workspace(DEFAULT_WORKSPACE_ID), workspace("workspace:other")],
-    activeWorkspaceId: DEFAULT_WORKSPACE_ID,
-    tabs: [
-      pluginTab("legacy-random-id-one", DEFAULT_WORKSPACE_ID),
-      pluginTab("legacy-random-id-two", DEFAULT_WORKSPACE_ID),
-      pluginTab("other-workspace-id", "workspace:other"),
-    ],
-    activeTabId: "legacy-random-id-one",
-    lastActiveTabByWorkspace: {},
-    deletedWorkspaces: [],
-  });
-
-  assert.ok(restored);
-  assert.equal(restored.tabs.length, 2);
-  assert.equal(
-    restored.tabs.filter((item) => item.workspaceId === DEFAULT_WORKSPACE_ID)
-      .length,
-    1,
-  );
-  assert.equal(
-    restored.tabs.filter((item) => item.workspaceId === "workspace:other")
-      .length,
     1,
   );
 });

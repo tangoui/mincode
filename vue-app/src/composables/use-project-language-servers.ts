@@ -1,4 +1,4 @@
-import { computed, onActivated, onBeforeUnmount, onDeactivated, watch, type Ref } from "vue";
+import { onActivated, onBeforeUnmount, onDeactivated, watch, type Ref } from "vue";
 import { settingsSnapshotVersion } from "@/services/settings-persistence";
 import { listLspServers, registerProjectLspHost, type LspServerInfo } from "@/services/lsp-service";
 import type { ProjectLanguageServerController } from "@/composables/project-language-server-runtime";
@@ -16,7 +16,6 @@ export function useProjectLanguageServers(options: {
   enableServer?: (serverId: string) => void;
 }) {
   const { projectRoot, enabledServers } = options;
-  const pluginLanguageOverrides = computed(() => options.lspSettings?.value.pluginLanguageOverrides ?? {});
   let controller: ProjectLanguageServerController | null = null;
   let loading: Promise<ProjectLanguageServerController | null> | null = null;
   let active = true;
@@ -26,7 +25,7 @@ export function useProjectLanguageServers(options: {
     loading ??= import("@/composables/project-language-server-runtime").then(
       (runtime) => {
         if (disposed) return null;
-        controller = runtime.createProjectLanguageServerController({ projectRoot, enabledServers, pluginLanguageOverrides, active });
+        controller = runtime.createProjectLanguageServerController({ projectRoot, enabledServers, active });
         return controller;
       },
       () => {
@@ -57,9 +56,9 @@ export function useProjectLanguageServers(options: {
   });
 
   watch(
-    [projectRoot, enabledServers, pluginLanguageOverrides],
-    ([root, enabled, overrides]) =>
-      controller?.sync(root as string, enabled as string[], overrides as Record<string, string>),
+    [projectRoot, enabledServers],
+    ([root, enabled]) =>
+      controller?.sync(root as string, enabled as string[]),
     { deep: true }
   );
 

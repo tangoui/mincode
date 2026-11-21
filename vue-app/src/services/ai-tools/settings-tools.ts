@@ -1,7 +1,6 @@
 import type { AiCapability } from "@/domain/ai/capability-registry";
 import type { SidebarItemId, SidebarVisibility } from "@/services/sidebar-preferences";
 import type { UiTheme } from "@/services/ui-theme";
-import { clearLocalePackSelection } from "@/services/locale-pack-loader";
 import { callMcpToolCancellable } from "@/services/mcp-tool-call";
 import { requiredString, sanitizeAiResult, tool, type AiToolDependencies } from "./shared";
 
@@ -106,7 +105,6 @@ export function settingsCapabilities(
         const update = safeSettingsUpdate(input);
         if (!Object.keys(update).length) throw new Error("settings.update_ui requires at least one setting");
         // AI may switch the base language (zh | en) but never selects or keeps a language pack.
-        if (update.locale !== undefined) clearLocalePackSelection({ persist: true });
         return dependencies.updateSafeSettings?.(update);
       },
     }] : []),

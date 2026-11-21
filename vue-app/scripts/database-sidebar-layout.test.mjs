@@ -55,7 +55,6 @@ test("共享箭头使用中线对齐，不向下偏移", () => {
 function assertConnectionTypeIcon(template) {
   const icon = template.match(/<DatabaseTypeIcon\b[^>]*\/>/)?.[0] ?? "";
   assert.match(icon, /\s:db-type="connection\.dbType"/);
-  assert.match(icon, /\s:driver="connection\.driver"/);
   assert.match(icon, /\ssize="small"/);
 }
 

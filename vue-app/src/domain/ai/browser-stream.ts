@@ -10,7 +10,7 @@
 import type { AiAttachment } from "@/domain/ai/attachments";
 import type { AiApiFormat } from "@/domain/ai/api-format";
 import { normalizeAiReasoningEffort } from "@/domain/ai/model-selection";
-import { plainChatHistory } from "@/domain/ai/plugin-provider-profile";
+import { plainChatHistory } from "@/domain/ai/model-tool-support";
 import type { AiLoopConfig, AiLoopMessage, AiLoopStreamEvent } from "@/services/ai-agent-loop";
 
 export interface BrowserAiRequest {

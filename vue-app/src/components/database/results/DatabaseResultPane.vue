@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from "vue";
 import TableV2ResultGrid from "@/components/database/TableV2ResultGrid.vue";
 import VirtualResultGrid, {
   type ResultGridColumn,
@@ -18,11 +17,8 @@ import type { QueryTab } from "@/domain/database/query-tab-snapshot";
 import type { ResultGridState } from "@/composables/database/useGridState";
 import type { InlineCellEdit } from "@/composables/database/useRowMutations";
 import type { PendingRowState } from "@/domain/database/grid-pending-changes";
-import type { DbResultMenuSource } from "@/domain/database/result-service-target";
 import { useVueI18n } from "@/i18n/messages";
 
-// Plugin services (surface dbResult) load with the first cell menu: this chunk stays near its budget.
-const DatabaseResultServiceItems = defineAsyncComponent(() => import("@/components/database/results/DatabaseResultServiceItems.vue"));
 
 defineProps<{
   object: "query" | "table";
@@ -62,8 +58,6 @@ defineProps<{
   /** 暂存修改的行状态（表模式）。 */
   pendingRows?: ReadonlyMap<number, PendingRowState>;
   contextCanRevert?: boolean;
-  /** The view's part of the plugin-service target (dbResult); null while no cell menu is open. */
-  serviceSource?: () => DbResultMenuSource | null;
 }>();
 const emit = defineEmits<{
   sort: [column: string];
@@ -489,7 +483,6 @@ function handleClearContextFilters() {
     <el-dropdown-item divided @click="emit('refresh-grid')">
       {{ t("database.refresh") }}
     </el-dropdown-item>
-    <DatabaseResultServiceItems v-if="serviceSource" :grid="$props" :source="serviceSource" @run="emit('close-context-menu')" />
   </AppContextMenu>
 
   <AppContextMenu

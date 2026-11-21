@@ -1,4 +1,4 @@
-import { watch, type Ref } from "vue";
+import { type Ref } from "vue";
 import { runtimePerformanceSettingsFromSnapshot } from "@/domain/performance/runtime-limits";
 import { readSettingsSnapshot } from "@/services/settings-persistence";
 import * as monaco from "@/services/monaco-runtime.js";
@@ -33,9 +33,6 @@ import {
   LSP_FILE_WATCH_LIMITED_METHOD,
   LSP_FILE_WATCH_SCAN_METHOD,
   lspDocumentLanguageId,
-  pluginApplyEditAllowed,
-  routedServerLanguages,
-  type LanguageRoutingContext,
 } from "@/domain/projects/lsp";
 import {
   documentContentChanges,
@@ -58,7 +55,6 @@ import {
   remapSemanticTokens,
   semanticScopeMap,
 } from "@/domain/projects/lsp-semantic-tokens";
-import { languageServerErrorCode } from "@/domain/plugins/language-servers";
 import { lspCommandFailureText, lspShowMessageToast } from "@/domain/projects/lsp-messages";
 import { parseWorkDoneProgress } from "@/domain/projects/lsp-progress";
 import { showLspCommandFailure, showLspMessage } from "@/services/lsp-feedback";
@@ -69,9 +65,7 @@ import {
   tsserverResponseBody,
   tsserverResponseParams,
 } from "@/domain/projects/lsp-tsserver-bridge";
-import { usePluginLanguageServersStore } from "@/stores/plugin-language-servers";
 import { useProjectProblemsStore } from "@/stores/project-problems";
-import { startPluginLanguageServer } from "@/services/plugin-language-server-service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -175,11 +169,6 @@ let serverMapLoaded = false;
 
 let currentRoot = "";
 let currentEnabledServers = new Set<string>();
-// Project override: language id → plugin server id (built-ins win otherwise).
-let currentOverrides: Record<string, string> = {};
-// sessionKey → time of the last user-initiated rename or command on that
-// session; a plugin server's workspace/applyEdit is honoured only shortly after.
-const userActionAt = new Map<string, number>();
 let currentWorkspaceActive = false;
 const idleStopTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -204,65 +193,20 @@ function langSessionKey(langId: string, root: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Plugin language servers: routing and state
-// ---------------------------------------------------------------------------
-
-function pluginLanguageServers() {
-  return usePluginLanguageServersStore();
-}
-
-function routingContext(): LanguageRoutingContext {
-  const builtinLanguages = new Map<string, readonly string[]>();
-  for (const [serverId, languages] of serverLanguageMap) {
-    if (!isPluginLspServerId(serverId) && !serverAuxiliaryMap.get(serverId)) builtinLanguages.set(serverId, languages);
-  }
-  const pluginLanguages = new Map<string, readonly string[]>();
-  for (const server of pluginLanguageServers().servers) pluginLanguages.set(server.sessionId, server.languages);
-  return { enabled: currentEnabledServers, overrides: currentOverrides, builtinLanguages, pluginLanguages };
-}
-
-/** Declared languages of a built-in (list/start response) or active plugin server. */
-function declaredLanguages(serverId: string): string[] | undefined {
-  if (isPluginLspServerId(serverId)) return pluginLanguageServers().server(serverId)?.languages;
+function declaredLanguages(serverId: string) {
   return serverLanguageMap.get(serverId);
-}
-
-/** The languages serverId serves in the current project after routing. */
-function servedLanguages(serverId: string, declared: readonly string[] | undefined): string[] {
-  if (!declared) return [];
-  return routedServerLanguages(serverId, declared, routingContext(), serverAuxiliaryMap.get(serverId) ?? false);
 }
 
 function sameLanguages(a: readonly string[], b: readonly string[]) {
   return a.length === b.length && a.every((language) => b.includes(language));
 }
 
-function markUserAction(root: string, serverId: string) {
-  if (isPluginLspServerId(serverId)) userActionAt.set(sessionKey(root, serverId), Date.now());
-}
-
 // When the user last ran a server command (CodeLens, code action) per session:
 // info-level window/showMessage only shows as feedback shortly afterwards.
 const userCommandAt = new Map<string, number>();
 
-function recordPluginStartError(root: string, serverId: string, error: unknown) {
-  const store = pluginLanguageServers();
-  const code = languageServerErrorCode(error);
-  if (code === "untrusted" || code === "changed") store.setState(root, serverId, { kind: "review", changed: code === "changed" });
-  else if (code === "limit") store.setState(root, serverId, { kind: "limit" });
-  else store.setState(root, serverId, { kind: "unavailable", message: error instanceof Error ? error.message : String(error) });
-}
 
-/** Keeps only the edits of a plugin server that target files under its root. */
-function confineWorkspaceEditToRoot(edit: monaco.languages.WorkspaceEdit, root: string): monaco.languages.WorkspaceEdit | null {
-  const prefix = root.endsWith("/") ? root : `${root}/`;
-  const edits = edit.edits.filter((item) => {
-    if (!("resource" in item) || item.resource.scheme !== "file") return false;
-    const path = item.resource.fsPath ?? item.resource.path;
-    return path.startsWith(prefix) && !path.split("/").includes("..");
-  });
-  return edits.length === edit.edits.length && edits.length ? { edits } : null;
-}
+
 
 async function ensureServerLanguageMap(): Promise<void> {
   if (serverMapLoaded) return;
@@ -812,7 +756,6 @@ function ensureLspRunCommand() {
   registerMonacoCommand(LSP_RUN_COMMAND_ID, async (payload: unknown) => {
     const command = payload as LspCommandPayload | undefined;
     if (!command?.command) return;
-    markUserAction(command.root, command.serverId);
     userCommandAt.set(sessionKey(command.root, command.serverId), Date.now());
     try {
       const result = await sendLspRequest(
@@ -821,7 +764,7 @@ function ensureLspRunCommand() {
         { command: command.command, arguments: command.arguments },
         15000
       );
-      applyWorkspaceEditResult(result, isPluginLspServerId(command.serverId) ? command.root : undefined);
+      applyWorkspaceEditResult(result);
     } catch (error) {
       // 不影响编辑器，但用户点了命令，必须看到失败及原因（详情见语言服务器日志）。
       showLspCommandFailure(command.serverId, command.title, lspCommandFailureText(error));
@@ -829,9 +772,8 @@ function ensureLspRunCommand() {
   });
 }
 
-function applyWorkspaceEditResult(result: unknown, confineToRoot?: string): boolean {
-  const converted = convertWorkspaceEdit(result);
-  const workspaceEdit = converted && confineToRoot ? confineWorkspaceEditToRoot(converted, confineToRoot) : converted;
+function applyWorkspaceEditResult(result: unknown): boolean {
+  const workspaceEdit = convertWorkspaceEdit(result);
   if (!workspaceEdit) return false;
   const byModel = new Map<monaco.editor.ITextModel, Array<{ range: monaco.Range; text: string }>>();
   for (const edit of workspaceEdit.edits) {
@@ -1282,7 +1224,6 @@ function ensureLanguageProviders(languageId: string) {
         // 单 owner：重命名只由优先级最高的有能力会话执行，避免多会话重复改写。
         const session = firstCapableSession(getSessionsForModel(model), "rename");
         if (!session) return null;
-        markUserAction(session.root, session.serverId);
         const ctrl = abortable(token);
         try {
           const result = await sendLspRequest(
@@ -1536,13 +1477,6 @@ async function handleServerRequest(event: LspEvent & { requestId: number }) {
     case "workspace/applyEdit": {
       // Server requests the client to apply a WorkspaceEdit (e.g. rename-file).
       const we = (params as { edit?: unknown } | null)?.edit;
-      if (isPluginLspServerId(serverId)) {
-        // A plugin server may only edit shortly after a user action on its
-        // session (rename, code action command), and only files under its root.
-        const allowed = pluginApplyEditAllowed(userActionAt.get(sessionKey(root, serverId)), Date.now());
-        result = allowed && we ? { applied: applyWorkspaceEditResult(we, root) } : { applied: false, failureReason: "not allowed" };
-        break;
-      }
       const edit = we ? convertWorkspaceEdit(we) : null;
       if (edit) applyWorkspaceEditResult(we);
       result = { applied: edit != null };
@@ -1812,39 +1746,20 @@ async function startSession(root: string, serverId: string) {
   const key = sessionKey(root, serverId);
   if (activeSessions.has(key) || startingSessions.has(key)) return;
   startingSessions.add(key);
-  const plugin = isPluginLspServerId(serverId);
   let started = false;
   setLspRuntimeState(root, serverId, { phase: "starting" });
   try {
-    let result: Awaited<ReturnType<typeof startLspServer>>;
-    if (plugin) {
-      // Plugin servers start only through the plugin host, never prompting here.
-      if (!servedLanguages(serverId, declaredLanguages(serverId)).length) {
-        setLspRuntimeState(root, serverId, { phase: "stopped" });
-        return;
-      }
-      try {
-        result = await startPluginLanguageServer(serverId, root);
-      } catch (error) {
-        recordPluginStartError(root, serverId, error);
-        setLspRuntimeState(root, serverId, { phase: "failed", failure: "start" });
-        return;
-      }
-    } else {
-      result = await startLspServer(root, serverId);
-    }
+    const result = await startLspServer(root, serverId);
     if (!result.running || result.generation == null) {
       setLspRuntimeState(root, serverId, { phase: "failed", failure: "start" });
       return;
     }
     started = true;
     setLspRuntimeState(root, serverId, { phase: "initializing" });
-    if (!plugin && typeof result.name === "string") setLspServerName(root, serverId, result.name);
+    if (typeof result.name === "string") setLspServerName(root, serverId, result.name);
 
-    if (!plugin) {
-      serverLanguageMap.set(serverId, result.languages);
-      serverAuxiliaryMap.set(serverId, Boolean(result.auxiliary ?? serverAuxiliaryMap.get(serverId)));
-    }
+    serverLanguageMap.set(serverId, result.languages);
+    serverAuxiliaryMap.set(serverId, Boolean(result.auxiliary ?? serverAuxiliaryMap.get(serverId)));
 
     const rootUri = projectFileUri(root, "").toString();
     const basename = root.replace(/\\/g, "/").replace(/\/+$/, "").split("/").pop() ?? root;
@@ -1910,7 +1825,7 @@ async function startSession(root: string, serverId: string) {
       await sendLspNotify(root, serverId, result.generation, schemaAssociations.method, schemaAssociations.params);
     }
 
-    const languages = servedLanguages(serverId, result.languages);
+    const languages = result.languages;
     if (!currentWorkspaceActive || currentRoot !== root || !currentEnabledServers.has(serverId) || !languages.length) {
       setLspRuntimeState(root, serverId, { phase: "stopped" });
       await stopLspServer(root, serverId).catch(() => {});
@@ -1934,7 +1849,6 @@ async function startSession(root: string, serverId: string) {
     activeSessions.set(key, session);
     setLspRuntimeState(root, serverId, { phase: "ready" });
     registerInLangMap(session);
-    if (plugin) pluginLanguageServers().setState(root, serverId, undefined);
 
     for (const lang of session.languages) ensureLanguageProviders(lang);
 
@@ -1953,9 +1867,8 @@ async function startSession(root: string, serverId: string) {
     // 文件可能在异步握手期间关闭；启动完成后仍需安排空闲回收，
     // 避免竞态导致无文档的语言服务器永久驻留。
     scheduleIdleSessionStop(session);
-  } catch (error) {
+  } catch {
     setLspRuntimeState(root, serverId, { phase: "failed", failure: started ? "initialize" : "start" });
-    if (plugin) recordPluginStartError(root, serverId, error);
     if (started) {
       await stopLspServer(root, serverId).catch(() => {
         // eslint-disable-next-line no-console -- Cleanup failure must stay diagnosable without raw server data.
@@ -2022,7 +1935,6 @@ function handleUnexpectedStop(root: string, serverId: string, generation: number
     unregisterFromLangMap(session);
     activeSessions.delete(key);
     openDocuments.delete(key);
-    userActionAt.delete(key);
     for (const document of session.documents.values()) disposeDocumentDiagnostics(document);
     session.documents.clear();
     disposeWorkspaceDiagnostics(session);
@@ -2067,11 +1979,11 @@ async function tryLazyStart(model: monaco.editor.ITextModel) {
   const langId = model.getLanguageId();
   const root = currentRoot;
 
-  const candidates = [...serverLanguageMap.keys(), ...pluginLanguageServers().servers.map((server) => server.sessionId)];
+  const candidates = [...serverLanguageMap.keys()];
   for (const serverId of candidates) {
     if (!currentWorkspaceActive || currentRoot !== root || model.isDisposed() || model.getLanguageId() !== langId) return;
     if (
-      servedLanguages(serverId, declaredLanguages(serverId)).includes(langId) &&
+      declaredLanguages(serverId)?.includes(langId) &&
       currentEnabledServers.has(serverId) &&
       !activeSessions.has(sessionKey(root, serverId)) &&
       !startingSessions.has(sessionKey(root, serverId))
@@ -2189,7 +2101,7 @@ export interface ProjectLanguageServerController {
   activate(): void;
   deactivate(): void;
   settingsChanged(): void;
-  sync(root: string, enabled: string[], overrides?: Record<string, string>): void;
+  sync(root: string, enabled: string[]): void;
   dispose(): Promise<void>;
   notifyFileSaved(path: string): Promise<void>;
   formatDocument(path: string): Promise<void>;
@@ -2202,11 +2114,9 @@ export interface ProjectLanguageServerController {
 export function createProjectLanguageServerController(options: {
   projectRoot: Ref<string>;
   enabledServers: Ref<string[]>;
-  pluginLanguageOverrides?: Ref<Record<string, string>>;
   active: boolean;
 }): ProjectLanguageServerController {
   const { projectRoot, enabledServers } = options;
-  const overridesNow = () => ({ ...(options.pluginLanguageOverrides?.value ?? {}) });
 
   installGlobalHooks();
 
@@ -2292,7 +2202,7 @@ export function createProjectLanguageServerController(options: {
     for (const session of [...activeSessions.values()]) {
       // A routing change (override, newly enabled built-in, plugin change)
       // restarts the session with its new language set.
-      const routed = session.root === root ? servedLanguages(session.serverId, declaredLanguages(session.serverId) ?? session.languages) : [];
+      const routed = session.root === root ? (declaredLanguages(session.serverId) ?? session.languages) : [];
       // A held session of another project (jdtls hosting a debug session) keeps
       // running until released (see onLspServerReleased).
       if (session.root !== root && isLspServerHeld(session.root, session.serverId)) continue;
@@ -2313,7 +2223,7 @@ export function createProjectLanguageServerController(options: {
       [...nextEnabled].map(async (serverId) => {
         const key = sessionKey(root, serverId);
         if (activeSessions.has(key) || startingSessions.has(key)) return;
-        const languages = servedLanguages(serverId, declaredLanguages(serverId));
+        const languages = declaredLanguages(serverId) ?? [];
         if (!languages.some((language) => openLanguages.has(language))) return;
         await startSession(root, serverId);
       })
@@ -2378,9 +2288,9 @@ export function createProjectLanguageServerController(options: {
     }
   });
 
-  async function activateSessions(root: string, enabled: string[], overrides: Record<string, string> = overridesNow()) {
+  async function activateSessions(root: string, enabled: string[]) {
     if (!active) return;
-    currentOverrides = overrides;
+    enabled = enabled.filter((id) => !isPluginLspServerId(id));
     currentWorkspaceActive = true;
     if (root !== currentRoot) {
       for (const session of [...activeSessions.values()]) {
@@ -2469,16 +2379,6 @@ export function createProjectLanguageServerController(options: {
     }
   }
 
-  // A plugin snapshot change or a user confirmation/Restart re-routes and
-  // re-syncs the open project.
-  const pluginStore = pluginLanguageServers();
-  const stopPluginWatch = watch(
-    () => [pluginStore.revision, pluginStore.syncRequests],
-    () => {
-      if (active) void activateSessions(projectRoot.value, enabledServers.value);
-    },
-  );
-
   async function dispose() {
     active = false;
     currentWorkspaceActive = false;
@@ -2487,7 +2387,6 @@ export function createProjectLanguageServerController(options: {
     unsubscribeInstalled();
     unsubscribeReleased();
     controllerRestarters.delete(restarter);
-    stopPluginWatch();
     const ownedRoot = projectRoot.value;
     for (const session of [...activeSessions.values()]) {
       if (session.root === ownedRoot) await stopSession(session.root, session.serverId);
@@ -2501,7 +2400,7 @@ export function createProjectLanguageServerController(options: {
     if (!currentEnabledServers.has(serverId)) return "disabled";
     const declared = declaredLanguages(serverId);
     if (!declared?.includes(language)) return "unavailable";
-    return servedLanguages(serverId, declared).includes(language) ? "available" : "plugin";
+    return declared.includes(language) ? "available" : "unavailable";
   }
 
   // The reinstall flow above for one server, plus a direct start: the caller
@@ -2529,7 +2428,7 @@ export function createProjectLanguageServerController(options: {
     activate,
     deactivate,
     settingsChanged,
-    sync: (root, enabled, overrides) => void activateSessions(root, enabled, overrides ?? overridesNow()),
+    sync: (root, enabled) => void activateSessions(root, enabled),
     dispose,
     notifyFileSaved,
     formatDocument,

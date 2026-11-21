@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import type { ScrollbarInstance } from "element-plus";
-import { ArrowUp, ChatLineSquare, Close, Collection, Document, EditPen, FullScreen, MagicStick, Paperclip, Promotion, Tools, VideoPause } from "@element-plus/icons-vue";
+import { ArrowUp, Close, Document, EditPen, FullScreen, MagicStick, Paperclip, Promotion, Tools, VideoPause } from "@element-plus/icons-vue";
 import { getAttachmentImageSrc, type AiAttachment } from "@/domain/ai/attachments";
 import type { AiPromptSuggestion } from "@/domain/ai/tool-command";
 import {
@@ -17,16 +17,12 @@ interface Labels {
   modelGroup: string; profileGroup: string; chooseModel: string; noModels: string; reasoning: string; removeAttachment: string;
   previewAttachment: string; suggestionList: string; suggestionHint: string;
   suggestionSkill: string; suggestionTool: string; suggestionFile: string; optimizePrompt: string; cancelOptimization: string;
-  suggestionPrompt: string; suggestionPluginSkill: string;
-  /** Kind label of a plugin context provider (@mention) suggestion. */
-  suggestionContext?: string;
+
 }
 
 const props = defineProps<{
   modelValue: string;
   attachments: AiAttachment[];
-  /** Display labels by attachment id (e.g. "Plugin context · <plugin>"); the file name stays in the tooltip. */
-  attachmentLabels?: Record<string, string>;
   suggestions: AiPromptSuggestion[];
   activeSuggestionIndex: number;
   suggestionsVisible: boolean;
@@ -78,15 +74,11 @@ watch(() => props.history, () => {
 
 function suggestionIcon(suggestion: AiPromptSuggestion) {
   if (suggestion.kind === "skill") return MagicStick;
-  if (suggestion.kind === "prompt") return ChatLineSquare;
-  if (suggestion.kind === "context") return Collection;
   return suggestion.kind === "file" ? Document : Tools;
 }
 
 function suggestionKindLabel(suggestion: AiPromptSuggestion) {
-  if (suggestion.kind === "skill") return suggestion.source ? props.labels.suggestionPluginSkill : props.labels.suggestionSkill;
-  if (suggestion.kind === "prompt") return props.labels.suggestionPrompt;
-  if (suggestion.kind === "context") return props.labels.suggestionContext ?? props.labels.suggestionFile;
+  if (suggestion.kind === "skill") return props.labels.suggestionSkill;
   return suggestion.kind === "file" ? props.labels.suggestionFile : props.labels.suggestionTool;
 }
 
@@ -221,7 +213,7 @@ const onFiles = (event: Event) => {
         <el-button v-if="attachment.kind === 'image' && getAttachmentImageSrc(attachment)" class="ai-attachment-chip__preview" text native-type="button" :aria-label="labelFor(labels.previewAttachment, attachment.name)" @click="emit('preview-attachment', attachment)">
           <el-image :src="getAttachmentImageSrc(attachment)" :alt="attachment.name" fit="cover" /><FullScreen aria-hidden="true" />
         </el-button>
-        <template v-else><component :is="attachment.origin?.kind === 'plugin-context' ? Collection : Document" aria-hidden="true" /><span><strong>{{ attachmentLabels?.[attachment.id] ?? attachment.name }}</strong><small>{{ formatSize(attachment.size) }}</small></span></template>
+        <template v-else><Document aria-hidden="true" /><span><strong>{{ attachment.name }}</strong><small>{{ formatSize(attachment.size) }}</small></span></template>
         <el-button class="ai-attachment-chip__remove" text native-type="button" :icon="Close" :data-attachment-remove="attachment.id" :aria-label="labelFor(labels.removeAttachment, attachment.name)" @click="emit('remove-attachment', attachment.id)" />
       </div>
     </el-scrollbar>
@@ -233,7 +225,6 @@ const onFiles = (event: Event) => {
             <span class="ai-tool-suggest__title">
               <strong>{{ suggestion.name }}</strong>
               <el-tag size="small" effect="plain">{{ suggestionKindLabel(suggestion) }}</el-tag>
-              <el-tag v-if="suggestion.source" size="small" type="info" effect="plain" class="ai-tool-suggest__source" :title="suggestion.source">{{ suggestion.source }}</el-tag>
             </span>
             <small>{{ suggestion.description }}</small>
           </span>

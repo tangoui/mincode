@@ -109,28 +109,3 @@ test("hydrate without pending notifications restores storage without rewriting i
   store.push({ title: "after" });
   assert.equal(state.saves.length, 1);
 });
-
-test("notifications: actions are never persisted", async () => {
-  const { state, store, resolveLoad } = setup();
-  const hydrating = store.hydrate();
-  resolveLoad([stored("old-actions", 1_000, { pluginName: "Sync", actions: [{ id: "retry", title: "Retry", pluginId: "p", command: "sync.retry" }] })]);
-  await hydrating;
-  assert.equal(store.items[0].id, "old-actions");
-  assert.equal("actions" in store.items[0], false, "a stored notification is restored without actions");
-  assert.equal("pluginName" in store.items[0], false);
-
-  const actions = [{ id: "retry", title: "Retry", pluginId: "p", command: "sync.retry" }];
-  const pushed = store.push({ source: "plugin", title: "Sync failed", actions, pluginName: "Sync" });
-  assert.deepEqual(store.items[0].actions, actions, "actions stay in memory");
-  assert.equal(store.items[0].pluginName, "Sync");
-  const saved = state.saves.at(-1).value;
-  assert.equal(saved[0].id, pushed.id);
-  for (const item of saved) {
-    assert.equal("actions" in item, false, "persisted notifications carry no actions");
-    assert.equal("pluginName" in item, false, "nor the in-memory plugin name");
-  }
-
-  store.markRead(pushed.id);
-  assert.deepEqual(store.items[0].actions, actions, "marking read keeps the buttons in memory");
-  assert.equal("actions" in state.saves.at(-1).value[0], false);
-});

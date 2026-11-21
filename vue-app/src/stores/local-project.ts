@@ -15,7 +15,6 @@ import {
   projectBasename,
   sanitizeEditorPreferences,
   upgradeStoredEditorPreferences,
-  type ProjectDocumentEditor,
   type ProjectEditorDocument,
   type ProjectDocumentErrorKey,
   type ProjectEditorPreferences,
@@ -30,7 +29,6 @@ import {
 } from "@/domain/projects/lsp";
 import { isProjectDocumentDirty, setProjectDocumentDirty } from "@/domain/projects/document-dirty";
 import { isBrowserProjectPath, type BrowserProjectAccess } from "@/domain/projects/browser-root";
-import { customEditorKey, parseCustomEditorKey } from "@/domain/plugins/custom-editors";
 
 const STORAGE_KEY = "app_local_project_workspaces_v1";
 const LEGACY_STORAGE_KEY = "app_local_project_v1";
@@ -55,8 +53,6 @@ interface PersistedProjectWorkspace {
   projectTerminalTabs: ProjectTerminalTab[];
   activeProjectTerminalId: string | null;
   lspSettings: LspProjectSettings;
-  /** contributes.customEditors: open path → `<pluginId>.<editorId>` (optional, version 6 compatible). */
-  documentEditors?: Record<string, string>;
 }
 
 function normalizeRoot(root: string) {
@@ -174,20 +170,6 @@ function sanitizeProjectTerminalTabs(value: unknown): ProjectTerminalTab[] {
   return restored;
 }
 
-function sanitizeDocumentEditors(value: unknown, openPaths: readonly string[]): Record<string, string> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const allowed = new Set(openPaths);
-  const result: Record<string, string> = {};
-  for (const [path, key] of Object.entries(value as Record<string, unknown>)) {
-    if (allowed.has(path) && typeof key === "string" && parseCustomEditorKey(key)) result[path] = key;
-  }
-  return result;
-}
-
-function documentEditorKey(document: ProjectEditorDocument) {
-  return document.editor ? customEditorKey(document.editor.pluginId, document.editor.editorId) : undefined;
-}
-
 function restorePersistedWorkspace(value: unknown): PersistedProjectWorkspace | null {
   try {
     if (!value || typeof value !== "object") return null;
@@ -233,15 +215,6 @@ function restorePersistedWorkspace(value: unknown): PersistedProjectWorkspace | 
       projectTerminalTabs,
       activeProjectTerminalId,
       lspSettings: sanitizeLspSettings(stored.lspSettings),
-      documentEditors: sanitizeDocumentEditors(
-        stored.documentEditors && typeof stored.documentEditors === "object" && !Array.isArray(stored.documentEditors)
-          ? Object.fromEntries(
-              Object.entries(stored.documentEditors as Record<string, unknown>)
-                .map(([path, key]) => [toDocumentPath(projectRoot, path), key]),
-            )
-          : undefined,
-        openPaths,
-      ),
     };
   } catch {
     return null;
@@ -269,18 +242,15 @@ function cloneDocuments(documents: readonly ProjectEditorDocument[]): ProjectEdi
 
 let nextDocumentSession = 0;
 
-function placeholderDocument(path: string, editorKey?: string): ProjectEditorDocument {
-  const editor = editorKey ? parseCustomEditorKey(editorKey) : undefined;
+function placeholderDocument(path: string): ProjectEditorDocument {
   return {
     path,
     name: projectBasename(path),
     sessionId: ++nextDocumentSession,
     content: "",
     savedContent: "",
-    // A plugin editor reads the file itself through the host; no text load.
-    loaded: Boolean(editor),
+    loaded: false,
     loading: false,
-    ...(editor ? { editor } : {}),
   };
 }
 
@@ -320,7 +290,6 @@ export const useLocalProjectStore = defineStore("local-project", () => {
     () => documents.value.find((document) => document.path === activePath.value) ?? null
   );
   const openPaths = computed(() => documents.value.map((document) => document.path));
-  const documentEditorKeys = computed(() => documents.value.map((document) => documentEditorKey(document) ?? ""));
   const dirtyCount = computed(() => documents.value.filter(isProjectDocumentDirty).length);
   const currentProject = computed(
     () => projects.value.find((entry) => entry.root === projectRoot.value) ?? null
@@ -348,10 +317,6 @@ export const useLocalProjectStore = defineStore("local-project", () => {
         ? activeProjectTerminalId.value
         : null,
       lspSettings: sanitizeLspSettings(lspSettings.value),
-      documentEditors: Object.fromEntries(persistedDocuments.flatMap((document) => {
-        const key = documentEditorKey(document);
-        return key ? [[document.path, key]] : [];
-      })),
     };
   }
 
@@ -363,7 +328,7 @@ export const useLocalProjectStore = defineStore("local-project", () => {
     projects.value = saved.projects.map((entry) => ({ ...entry }));
     documents.value = restoredDocuments
       ? cloneDocuments(restoredDocuments)
-      : saved.openPaths.map((path) => placeholderDocument(path, saved.documentEditors?.[path]));
+      : saved.openPaths.map((path) => placeholderDocument(path));
     activePath.value = saved.activePath;
     editorPreferences.value = { ...saved.editorPreferences };
     editorViewStates.value = Object.fromEntries(
@@ -652,29 +617,6 @@ export const useLocalProjectStore = defineStore("local-project", () => {
     document.errorDetail = detail;
   }
 
-  /**
-   * Switches a project document tab between a plugin custom editor and the
-   * built-in text editor. Either way the tab starts clean; the text editor
-   * reloads the file from disk.
-   */
-  function setDocumentCustomEditor(path: string, editor: ProjectDocumentEditor | null) {
-    const document = openDocument(path);
-    document.sessionId = ++nextDocumentSession;
-    document.content = "";
-    document.savedContent = "";
-    setProjectDocumentDirty(document, false);
-    document.errorKey = undefined;
-    document.loading = false;
-    if (editor) {
-      document.editor = { pluginId: editor.pluginId, editorId: editor.editorId };
-      document.loaded = true;
-    } else {
-      delete document.editor;
-      document.loaded = false;
-    }
-    delete editorViewStates.value[path];
-  }
-
   function updateDocumentContent(path: string, content: string) {
     const document = documents.value.find((item) => item.path === path);
     if (!document) return;
@@ -799,7 +741,6 @@ export const useLocalProjectStore = defineStore("local-project", () => {
       projects,
       openPaths,
       activePath,
-      documentEditorKeys,
       editorPreferences,
       projectTerminalTabs,
       activeProjectTerminalId,
@@ -881,7 +822,6 @@ export const useLocalProjectStore = defineStore("local-project", () => {
     setDocumentLoaded,
     setDocumentError,
     updateDocumentContent,
-    setDocumentCustomEditor,
     setDocumentDirty,
     markDocumentSaved,
     documentForSession,

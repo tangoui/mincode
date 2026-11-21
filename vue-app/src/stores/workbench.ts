@@ -12,14 +12,10 @@ import {
   DEFAULT_WORKSPACE_ID,
   WORKBENCH_SESSION_VERSION,
   defaultWorkspace,
-  isPluginViewTab,
-  isTransientTab,
   normalizeWorkbenchSession,
   normalizeWorkspaces,
   normalizeWorktreeBinding,
-  pluginViewTabId,
   prependDeletedWorkspace,
-  serviceResultTabId,
   viewTitleKeys,
   type DeletedWorkspaceRecord,
   type PersistedWorkbenchSession,
@@ -120,7 +116,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   }
 
   function openView(view: WorkspaceView) {
-    if (view === "plugin-view" || view === "service-result") return undefined;
     if (view === "dashboard") {
       activeTabId.value = "";
       return undefined;
@@ -148,67 +143,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     return tab;
   }
 
-  function openPluginView(pluginId: string, viewId: string, title: string) {
-    const normalizedPluginId = pluginId.trim();
-    const normalizedViewId = viewId.trim();
-    if (!normalizedPluginId || !normalizedViewId) return undefined;
-    const id = pluginViewTabId(activeWorkspaceId.value, normalizedPluginId, normalizedViewId);
-    const existing = tabs.value.find((tab) =>
-      isPluginViewTab(tab, activeWorkspaceId.value, normalizedPluginId, normalizedViewId)
-    );
-    if (existing) {
-      existing.title = title.trim() || existing.title;
-      activeTabId.value = existing.id;
-      rememberActiveTab();
-      return existing;
-    }
-    if (!admitTab(activeWorkspaceId.value)) return undefined;
-    const tab: WorkspaceTab = {
-      id,
-      workspaceId: activeWorkspaceId.value,
-      view: "plugin-view",
-      titleKey: viewTitleKeys["plugin-view"],
-      title: title.trim() || undefined,
-      closable: true,
-      pluginView: { pluginId: normalizedPluginId, viewId: normalizedViewId },
-    };
-    tabs.value.push(tab);
-    activeTabId.value = tab.id;
-    rememberActiveTab();
-    return tab;
-  }
-
-  /** Opens (or selects) the read-only tab of a plugin service result held in memory under resultId. */
-  function openServiceResult(resultId: string, title: string) {
-    const normalizedResultId = resultId.trim();
-    if (!normalizedResultId) return undefined;
-    const existing = tabs.value.find(
-      (tab) =>
-        tab.workspaceId === activeWorkspaceId.value &&
-        tab.view === "service-result" &&
-        tab.serviceResult?.resultId === normalizedResultId
-    );
-    if (existing) {
-      activeTabId.value = existing.id;
-      rememberActiveTab();
-      return existing;
-    }
-    if (!admitTab(activeWorkspaceId.value)) return undefined;
-    const tab: WorkspaceTab = {
-      id: serviceResultTabId(activeWorkspaceId.value, normalizedResultId),
-      workspaceId: activeWorkspaceId.value,
-      view: "service-result",
-      titleKey: viewTitleKeys["service-result"],
-      title: title.trim() || undefined,
-      closable: true,
-      serviceResult: { resultId: normalizedResultId },
-    };
-    tabs.value.push(tab);
-    activeTabId.value = tab.id;
-    rememberActiveTab();
-    return tab;
-  }
-
   function selectTab(id: string) {
     const tab = tabs.value.find((item) => item.id === id);
     if (!tab) return undefined;
@@ -228,13 +162,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   function duplicateTab(id: string, copySuffix = "copy") {
     const source = tabs.value.find((item) => item.id === id);
     if (!source) return undefined;
-    // One plugin view per workspace; a service result tab shows content held once in memory.
-    if (source.view === "plugin-view" || source.view === "service-result") {
-      activeWorkspaceId.value = source.workspaceId;
-      activeTabId.value = source.id;
-      rememberActiveTab();
-      return source;
-    }
     if (!admitTab(source.workspaceId)) return undefined;
     const index = tabs.value.indexOf(source);
     const copy: WorkspaceTab = {
@@ -322,31 +249,9 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     const sourceWorkspaceId = tab.workspaceId;
     if (sourceWorkspaceId === workspaceId) return tab;
 
-    if (tab.view === "plugin-view" && tab.pluginView) {
-      const { pluginId, viewId } = tab.pluginView;
-      const existing = tabs.value.find(
-        (item) => item !== tab && isPluginViewTab(item, workspaceId, pluginId, viewId)
-      );
-      if (existing) {
-        tabs.value = tabs.value.filter((item) => item !== tab);
-        if (lastActiveTabByWorkspace.value[sourceWorkspaceId] === tabIdValue) {
-          const replacement = tabs.value.find((item) => item.workspaceId === sourceWorkspaceId);
-          if (replacement) lastActiveTabByWorkspace.value[sourceWorkspaceId] = replacement.id;
-          else delete lastActiveTabByWorkspace.value[sourceWorkspaceId];
-        }
-        activeWorkspaceId.value = workspaceId;
-        activeTabId.value = existing.id;
-        rememberActiveTab();
-        return existing;
-      }
-      if (!admitTab(workspaceId)) return undefined;
-      tab.workspaceId = workspaceId;
-      tab.id = pluginViewTabId(workspaceId, pluginId, viewId);
-    } else {
-      if (!admitTab(workspaceId)) return undefined;
-      tab.workspaceId = workspaceId;
-      tab.id = createId(`${workspaceId}:${tab.view}`);
-    }
+    if (!admitTab(workspaceId)) return undefined;
+    tab.workspaceId = workspaceId;
+    tab.id = createId(`${workspaceId}:${tab.view}`);
     if (lastActiveTabByWorkspace.value[sourceWorkspaceId] === tabIdValue) {
       const replacement = tabs.value.find((item) => item.workspaceId === sourceWorkspaceId);
       if (replacement) lastActiveTabByWorkspace.value[sourceWorkspaceId] = replacement.id;
@@ -450,7 +355,7 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     if (index < 0) return false;
     const workspace = workspaces.value[index]!;
     const archivedTabs = tabs.value
-      .filter((tab) => tab.workspaceId === id && !isTransientTab(tab))
+      .filter((tab) => tab.workspaceId === id)
       .map((tab) => ({ ...tab }));
     const lastActiveTabId = lastActiveTabByWorkspace.value[id];
     deletedWorkspaces.value = prependDeletedWorkspace(deletedWorkspaces.value, {
@@ -502,14 +407,12 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   }
 
   function sessionSnapshot(): PersistedWorkbenchSession {
-    // Service result tabs hold in-memory content only: they never reach the session store.
-    const persistedTabs = tabs.value.filter((tab) => !isTransientTab(tab));
-    const persistedTabIds = new Set(persistedTabs.map((tab) => tab.id));
+    const persistedTabIds = new Set(tabs.value.map((tab) => tab.id));
     return {
       version: WORKBENCH_SESSION_VERSION,
       workspaces: workspaces.value.map((workspace) => ({ ...workspace })),
       activeWorkspaceId: activeWorkspaceId.value,
-      tabs: persistedTabs.map((tab) => ({ ...tab })),
+      tabs: tabs.value.map((tab) => ({ ...tab })),
       activeTabId: persistedTabIds.has(activeTabId.value) ? activeTabId.value : "",
       lastActiveTabByWorkspace: Object.fromEntries(
         Object.entries(lastActiveTabByWorkspace.value).filter(([, tabId]) => persistedTabIds.has(tabId))
@@ -608,8 +511,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     clearWorkspaceWorktree,
     workspaceWorktree,
     openView,
-    openPluginView,
-    openServiceResult,
     createTab,
     selectTab,
     renameTab,

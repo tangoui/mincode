@@ -24,7 +24,7 @@ test("composer and drawer wire @ file suggestions", async () => {
   const composer = await readFile(new URL("../src/components/ai/AiPromptComposer.vue", import.meta.url), "utf8");
   assert.match(drawer, /:suggestions="composerSuggestions"/);
   assert.match(drawer, /:suggestions-visible="toolSuggestionsVisible \|\| mentionSuggestionsActive"/);
-  assert.match(drawer, /const mentionSuggestionsActive = computed\(\(\) => Boolean\(fileMention\.value\) \|\|/);
+  assert.match(drawer, /const mentionSuggestionsActive = computed\(\(\) => Boolean\(fileMention\.value\)\)/);
   assert.match(drawer, /@dismiss-suggestions="dismissComposerSuggestions"/);
   assert.match(drawer, /searchProjectFileIndex\(\[root\], query, 12\)/);
   assert.match(drawer, /"local_fs_read_ai_context_text_file"/);

@@ -35,7 +35,6 @@ import {
   previewDatabaseImport,
 } from "@/services/database-import-service";
 import { chooseNativeDirectory, chooseNativeFile, chooseNativeFileOrDirectory, isDesktopRuntime } from "@/services/desktop-bridge";
-import { useDatabaseDriversStore } from "@/stores/database-drivers";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
 
 const props = defineProps<{ modelValue: boolean }>();
@@ -46,7 +45,6 @@ const emit = defineEmits<{
 
 const { t } = useVueI18n();
 const databaseStore = useDatabaseWorkspaceStore();
-const driversStore = useDatabaseDriversStore();
 const desktop = isDesktopRuntime();
 
 const sourceOptions: DatabaseImportSource[] = [...DATABASE_IMPORT_FILE_SOURCES, "url"];
@@ -82,7 +80,6 @@ const rows = computed<ResolvedDatabaseImportRow[]>(() => {
         : [];
   return resolveDatabaseImportRows(candidates, {
     connections: databaseStore.connections,
-    drivers: driversStore.drivers,
     supportedTypes: supportedTypes.value,
   });
 });
@@ -139,7 +136,7 @@ function errorText(error: unknown) {
 function typeLabel(row: ResolvedDatabaseImportRow) {
   const { candidate } = row;
   if (candidate.dbType) return databaseTypeLabels[candidate.dbType];
-  return candidate.pluginDriverId ?? candidate.sourceType;
+  return candidate.sourceType;
 }
 
 function endpoint(row: ResolvedDatabaseImportRow) {
@@ -158,8 +155,7 @@ function credentialText(row: ResolvedDatabaseImportRow) {
 
 function tunnelText(row: ResolvedDatabaseImportRow) {
   const tunnel = row.candidate.tunnel;
-  // Plugin drivers do not use MinCode tunnels; the commit drops them.
-  if (!tunnel || row.driver || row.status === "needsPlugin") return "";
+  if (!tunnel) return "";
   const user = tunnel.username ? `${tunnel.username}@` : "";
   return `${tunnel.type === "ssh" ? "SSH" : "SOCKS5"} ${user}${tunnel.host}:${tunnel.port}`;
 }
@@ -168,16 +164,7 @@ function statusTag(row: ResolvedDatabaseImportRow): { type: "success" | "warning
   if (row.status === "unsupported") {
     return { type: "info", text: t("database.import.status.unsupported") };
   }
-  if (row.status === "needsPlugin") {
-    return {
-      type: "warning",
-      text: row.requiredDriverId
-        ? t("database.import.status.needsPlugin", { driver: row.requiredDriverId })
-        : t("database.import.status.needsPluginUnknown"),
-    };
-  }
   if (row.duplicateOf) return { type: "danger", text: t("database.import.status.duplicate", { name: row.duplicateOf }) };
-  if (row.driver) return { type: "success", text: t("database.import.status.plugin", { plugin: row.driver.pluginId }) };
   return { type: "success", text: t("database.import.status.ready") };
 }
 
@@ -325,11 +312,10 @@ async function importSelected() {
       for (const row of rows.value) {
         const urlRow = byId.get(row.candidate.id);
         if (!urlRow || row.status !== "ready" || !selectedIds.value.has(row.candidate.id)) continue;
-        const connection = databaseConnectionFromImportUrl(urlRow, row, { id: crypto.randomUUID(), group: group.value, now });
+        const connection = databaseConnectionFromImportUrl(urlRow, { id: crypto.randomUUID(), group: group.value, now });
         await databaseStore.saveConnection(connection);
         ids.push(connection.id);
       }
-      await databaseStore.refreshDriverStatuses(ids);
       urlText.value = "";
     } else if (preview.value) {
       const current = preview.value;

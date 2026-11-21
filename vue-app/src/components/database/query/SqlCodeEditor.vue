@@ -35,7 +35,6 @@ import type { ProjectEditorViewState } from "@/domain/projects/types";
 import type { DbType } from "@/domain/database/types";
 import { codeMirrorSnippet, selectionOf, sqlEditorDialect, viewStateOf, type SqlEditorDialect, type TextLines } from "@/domain/database/sql-code-editor";
 import { registerKeybindingContext } from "@/domain/keybindings/context";
-import type { EditorMenuTarget } from "@/domain/plugins/menus";
 import { useVueI18n } from "@/i18n/messages";
 import { copyText, readText } from "@/services/desktop-bridge";
 import SqlEditorContextMenu, { type SqlEditorMenuAction } from "@/components/database/query/SqlEditorContextMenu.vue";
@@ -50,8 +49,6 @@ const props = defineProps<{
   /** Connection type: the SQL dialect for highlighting and keywords. */
   dbType?: DbType;
   fontSize: number;
-  /** Schema the query runs in, for the plugin menu context (`database.name`). */
-  databaseName?: string;
 }>();
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
@@ -229,21 +226,8 @@ function restoreViewState(state: ProjectEditorViewState | undefined) {
   });
 }
 
-// ---- Context menu (run, format, clipboard, plugin items of sql/editor/context) ----
-const menu = ref<{ x: number; y: number; target: EditorMenuTarget } | null>(null);
-
-function menuTarget(): EditorMenuTarget {
-  const state = view!.state;
-  const { from, to } = state.selection.main;
-  const kind = props.dbType;
-  return {
-    kind: "sql",
-    languageId: "sql",
-    readonly: false,
-    ...(from !== to ? { selection: state.sliceDoc(from, to) } : {}),
-    ...(kind ? { database: { kind, ...(props.databaseName ? { name: props.databaseName } : {}) } } : {}),
-  };
-}
+// ---- Context menu (run, format, clipboard) ----
+const menu = ref<{ x: number; y: number; hasSelection: boolean } | null>(null);
 
 function openMenu(event: MouseEvent) {
   if (!view) return;
@@ -253,7 +237,7 @@ function openMenu(event: MouseEvent) {
   const { from, to } = view.state.selection.main;
   if (at !== null && (at < from || at > to)) view.dispatch({ selection: { anchor: at } });
   view.focus();
-  menu.value = { x: event.clientX, y: event.clientY, target: menuTarget() };
+  menu.value = { x: event.clientX, y: event.clientY, hasSelection: !view.state.selection.main.empty };
 }
 
 function closeMenu() {
@@ -346,7 +330,7 @@ defineExpose({
     :open="true"
     :x="menu.x"
     :y="menu.y"
-    :target="menu.target"
+    :has-selection="menu.hasSelection"
     @action="runMenuAction"
     @close="closeMenu"
   />

@@ -15,7 +15,7 @@ test("project editor releases models after their tabs close", async () => {
   assert.match(editor, /watch\([\s\S]*props\.openPaths[\s\S]*releaseClosedModels\(openPaths \?\? \[path\]\)/);
   assert.match(editor, /for \(const model of ownedModels\.values\(\)\) releaseMonacoModel\(model\)/);
   // Every open text document keeps its model; plugin custom editor tabs (document.editor) have none.
-  assert.match(workspace, /const openDocumentPaths = computed\(\(\) =>\s*project\.documents\.filter\(\(document\) => !document\.editor\)\.map\(\(document\) => document\.path\),?\s*\)/);
+  assert.match(workspace, /const openDocumentPaths = computed\(\(\) =>\s*project\.documents\.map\(\(document\) => document\.path\),?\s*\)/);
   assert.match(workspace, /:open-paths="openDocumentPaths"/);
 });
 

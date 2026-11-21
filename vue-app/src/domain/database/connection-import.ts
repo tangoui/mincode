@@ -2,12 +2,12 @@
  * Import of database connections saved by other tools. The Go side
  * (backend/dbimport) reads and decrypts the tool files and returns
  * a password-free preview; this module validates that preview, resolves each
- * row against the local catalog (built-in types of this build, installed
- * plugin drivers, existing connections) and parses pasted connection URLs.
+ * row against the built-in types (built-in types of this build, installed
+ * existing connections) and parses pasted connection URLs.
  * It never sees imported passwords except those typed into pasted URLs.
  */
 import { parseDatabaseConnectionUrl, type ParsedDatabaseConnectionUrl } from "./connection-url.ts";
-import { databaseDefaultPorts, type DatabaseConnection, type DatabaseDriverRef, type DbType } from "./types.ts";
+import { databaseDefaultPorts, type DatabaseConnection, type DbType } from "./types.ts";
 
 export const DATABASE_IMPORT_FILE_SOURCES = ["dbeaver", "navicat", "datagrip", "workbench", "heidisql"] as const;
 export type DatabaseImportFileSource = (typeof DATABASE_IMPORT_FILE_SOURCES)[number];
@@ -36,7 +36,7 @@ export const DATABASE_IMPORT_MAX_URL_LINES = 200;
 const MAX_ROWS = 2000;
 const MAX_TEXT = 4096;
 
-export type DatabaseImportStatus = "ready" | "needsPlugin" | "unsupported";
+export type DatabaseImportStatus = "ready" | "unsupported";
 
 export interface DatabaseImportTunnel {
   type: "ssh" | "socks5";
@@ -55,7 +55,6 @@ export interface DatabaseImportCandidate {
   folder?: string;
   sourceType: string;
   dbType?: DbType;
-  pluginDriverId?: string;
   status: DatabaseImportStatus;
   host: string;
   port: number;
@@ -135,19 +134,14 @@ function parseCandidate(value: unknown): DatabaseImportCandidate | undefined {
   if (!isRecord(value)) return undefined;
   const id = text(value.id);
   if (!/^r\d{1,6}$/.test(id)) return undefined;
-  let status: DatabaseImportStatus =
-    value.status === "ready" || value.status === "needsPlugin" ? value.status : "unsupported";
   const dbType = isKnownDbType(value.dbType) ? value.dbType : undefined;
-  const pluginDriverId = /^[a-z][a-z0-9-]{0,31}$/.test(text(value.pluginDriverId)) ? text(value.pluginDriverId) : undefined;
-  if (status === "ready" && !dbType) status = "unsupported";
-  if (status === "needsPlugin" && !pluginDriverId) status = "unsupported";
+  const status = value.status === "ready" && dbType ? "ready" : "unsupported";
   return {
     id,
     name: text(value.name) || id,
     folder: optionalText(value.folder),
     sourceType: text(value.sourceType),
     dbType,
-    pluginDriverId,
     status,
     host: text(value.host),
     port: port(value.port),
@@ -196,12 +190,6 @@ export function databaseImportErrorCode(error: unknown): string | undefined {
 
 // ── resolution against the local catalog ──
 
-export interface DatabaseImportDriver {
-  pluginId: string;
-  driverId: string;
-  replaces?: DbType;
-}
-
 export type DatabaseImportExisting = Pick<
   DatabaseConnection,
   "name" | "dbType" | "host" | "port" | "database" | "username" | "filePath" | "driver"
@@ -209,7 +197,6 @@ export type DatabaseImportExisting = Pick<
 
 export interface DatabaseImportContext {
   connections: readonly DatabaseImportExisting[];
-  drivers: readonly DatabaseImportDriver[];
   /** Built-in types of this build; null when unknown (every type assumed). */
   supportedTypes: ReadonlySet<DbType> | null;
 }
@@ -217,10 +204,6 @@ export interface DatabaseImportContext {
 export interface ResolvedDatabaseImportRow {
   candidate: DatabaseImportCandidate;
   status: DatabaseImportStatus;
-  /** Plugin driver the row will be bound to. */
-  driver?: DatabaseDriverRef;
-  /** Driver id a plugin must contribute when status is needsPlugin. */
-  requiredDriverId?: string;
   /** Name of the existing connection (or earlier row) this one duplicates. */
   duplicateOf?: string;
   /** Rows imported by default: ready and not a duplicate. */
@@ -231,7 +214,7 @@ const fileTypes = new Set<DbType>(["sqlite", "duckdb"]);
 
 /**
  * Duplicate identity: type + host + port + database + user (file path for
- * file databases). Plugin-only types use their driver id as type.
+ * file databases).
  */
 export function databaseImportIdentity(parts: {
   type: string;
@@ -260,15 +243,8 @@ function existingIdentity(connection: DatabaseImportExisting): string {
 }
 
 function candidateIdentity(candidate: DatabaseImportCandidate): string {
-  const type = candidate.dbType ?? `plugin:${candidate.pluginDriverId ?? candidate.sourceType}`;
+  const type = candidate.dbType ?? candidate.sourceType;
   return databaseImportIdentity({ ...candidate, type });
-}
-
-function pickDriver(
-  drivers: readonly DatabaseImportDriver[],
-  match: (driver: DatabaseImportDriver) => boolean,
-): DatabaseImportDriver | undefined {
-  return drivers.find(match);
 }
 
 /** Resolves the preview rows against the local catalog. */
@@ -283,25 +259,8 @@ export function resolveDatabaseImportRows(
   }
   return candidates.map((candidate) => {
     const row: ResolvedDatabaseImportRow = { candidate, status: candidate.status, defaultSelected: false };
-    if (candidate.status === "needsPlugin") {
-      const driver = pickDriver(context.drivers, (item) => item.driverId === candidate.pluginDriverId && !item.replaces);
-      if (driver) {
-        row.status = "ready";
-        row.driver = { pluginId: driver.pluginId, driverId: driver.driverId };
-      } else {
-        row.requiredDriverId = candidate.pluginDriverId;
-      }
-    } else if (candidate.status === "ready" && candidate.dbType) {
-      const dbType = candidate.dbType;
-      if (context.supportedTypes && !context.supportedTypes.has(dbType)) {
-        const driver = pickDriver(context.drivers, (item) => item.replaces === dbType);
-        if (driver) {
-          row.driver = { pluginId: driver.pluginId, driverId: driver.driverId };
-        } else {
-          row.status = "needsPlugin";
-          row.requiredDriverId = dbType;
-        }
-      }
+    if (candidate.dbType && context.supportedTypes && !context.supportedTypes.has(candidate.dbType)) {
+      row.status = "unsupported";
     }
     if (row.status !== "unsupported") {
       const identity = candidateIdentity(candidate);
@@ -315,7 +274,6 @@ export function resolveDatabaseImportRows(
 
 export interface DatabaseImportCommitRow {
   id: string;
-  driver?: DatabaseDriverRef;
 }
 
 /** Commit payload rows for the selected, importable rows (preview order). */
@@ -325,7 +283,7 @@ export function databaseImportCommitRows(
 ): DatabaseImportCommitRow[] {
   return rows
     .filter((row) => row.status === "ready" && selectedIds.has(row.candidate.id))
-    .map((row) => (row.driver ? { id: row.candidate.id, driver: { ...row.driver } } : { id: row.candidate.id }));
+    .map((row) => ({ id: row.candidate.id }));
 }
 
 /** Target group for a row: `group/folder` when folders are kept. */
@@ -404,7 +362,6 @@ export function parseDatabaseImportUrls(textValue: string): DatabaseImportUrlRes
 /** Builds the connection saved for one pasted URL row. */
 export function databaseConnectionFromImportUrl(
   row: DatabaseImportUrlRow,
-  resolved: Pick<ResolvedDatabaseImportRow, "driver">,
   options: { id: string; group: string; now: number },
 ): DatabaseConnection {
   const { parsed } = row;
@@ -425,7 +382,6 @@ export function databaseConnectionFromImportUrl(
     savePassword: secret,
     group: options.group.trim() || undefined,
     tags: [],
-    driver: resolved.driver ? { ...resolved.driver } : undefined,
     createdAt: options.now,
     updatedAt: options.now,
   };

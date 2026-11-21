@@ -240,7 +240,7 @@ describe("local agent directory in the assistant", () => {
   it("uses the existing project check for a relayed conversation", async () => {
     const { assistant, conversation, start } = await mountAssistant(project);
     const active = assistant.conversationById(conversation.id)!;
-    active.external = { kind: "plugin", pluginId: "mock-relay", pluginName: "Mock Relay", key: "remote-thread" };
+    active.external = {};
     await start();
     expect(calls("acp_check_local_directory")).toEqual([]);
     expect(calls("acp_default_local_directory")).toEqual([]);

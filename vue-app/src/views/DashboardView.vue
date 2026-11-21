@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, shallowRef } from "vue";
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, shallowRef } from "vue";
 import { useRouter } from "vue-router";
 import {
   ArrowRight,
@@ -28,9 +28,6 @@ import type { WorkspaceTab, WorkspaceView } from "@/types/workspace";
 import { workspaceTabRoute } from "@/domain/workspace/tab-route";
 import { formatDashboardClock, greetingKeyForHour, msUntilNextSecond } from "@/domain/dashboard/clock";
 
-// Plugin contributions (walkthroughs, dashboardWidgets) load lazily: they render nothing without plugins.
-const PluginGetStartedCard = defineAsyncComponent(() => import("@/components/dashboard/PluginGetStartedCard.vue"));
-const PluginDashboardWidgets = defineAsyncComponent(() => import("@/components/dashboard/PluginDashboardWidgets.vue"));
 
 interface RecentSession {
   id?: string;
@@ -255,8 +252,6 @@ function tabTitle(tab: WorkspaceTab) {
 }
 
 function tabKindLabel(tab: WorkspaceTab) {
-  if (tab.view === "plugin-view") return t("nav.plugins");
-  if (tab.view === "service-result") return t("plugins.services.result.title");
   return t(`nav.${tab.view}`);
 }
 
@@ -379,17 +374,13 @@ function handleRefresh() {
   void refresh(true);
 }
 
-// keep-alive: plugin widgets load and refresh only while the dashboard is the active route.
-const routeActive = ref(true);
 
 onActivated(() => {
-  routeActive.value = true;
   startClock();
   void refresh();
 });
 
 onDeactivated(() => {
-  routeActive.value = false;
   stopClock();
 });
 
@@ -564,7 +555,6 @@ onBeforeUnmount(stopClock);
           </article>
         </div>
         <div class="dashboard-grid__column dashboard-grid__column--secondary">
-          <PluginGetStartedCard />
           <article class="dashboard-card dashboard-card--connections">
             <header class="dashboard-card__header">
               <div>
@@ -622,7 +612,6 @@ onBeforeUnmount(stopClock);
         </div>
       </div>
 
-      <PluginDashboardWidgets :active="routeActive" />
 
       <footer class="dashboard-footer">
         <span>{{

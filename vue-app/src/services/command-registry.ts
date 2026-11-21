@@ -5,9 +5,8 @@ import {
   type PluginContextValues,
   type WhenClause,
 } from "@/domain/commands/when";
-import { pluginCommandTitle } from "@/services/plugin-titles";
 
-export type CommandSource = "builtin" | "workspace" | "plugin";
+export type CommandSource = "builtin" | "workspace";
 
 export interface RegisteredCommand {
   id: string;
@@ -92,8 +91,7 @@ export function useRegisteredCommands(
       .map(({ command }) => ({
       ...command,
       get title() {
-        return (command.source === "plugin" ? pluginCommandTitle(command.id) : undefined)
-                  ?? resolveText(command.title) ?? command.id;
+        return resolveText(command.title) ?? command.id;
       },
       get subtitle() {
         return resolveText(command.subtitle);

@@ -7,12 +7,11 @@
  * characters, a dotted identifier; duplicates are dropped (first one kept);
  * at most `max` distinct items; [] is valid.
  */
-import contributionContract from "../plugins/contribution-points.json" with { type: "json" };
 
 /** Mirrors contribution-points.json debuggers limits. */
 export const EXCEPTION_TYPE_LIMITS = {
-  max: contributionContract.points.debuggers.limits.exceptionTypesMax,
-  maxRunes: contributionContract.points.debuggers.limits.exceptionTypeMaxRunes,
+  max: 64,
+  maxRunes: 256,
 };
 
 /** The host's pattern; without the `u` flag `\w` is ASCII, like Go's. */

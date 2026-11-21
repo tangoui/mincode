@@ -99,7 +99,7 @@ describe("NotificationCenterButton", () => {
 
   it("marks a notification without a target read but does not navigate", async () => {
     const notifications = useNotificationsStore();
-    notifications.push({ title: "Plugin ready", source: "plugin" });
+    notifications.push({ title: "Plugin ready", source: "system" });
     const targets: unknown[] = [];
     const listener = (event: Event) => targets.push((event as CustomEvent).detail);
     window.addEventListener(NOTIFICATION_NAVIGATE_EVENT, listener);

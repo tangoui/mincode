@@ -29,21 +29,6 @@ function select(overrides = {}) {
   return { ...result, calls };
 }
 
-test("history none sends only the current prompt and never overwrites saved history", () => {
-  for (const persistedHistory of [persisted, []]) {
-    const result = select({ historyNone: true, persistedHistory });
-    assert.deepEqual(result.messages, [current]);
-    assert.equal(result.persist, false);
-    assert.deepEqual(result.calls, { continue: 0, messages: 0 }, "no earlier message may be read");
-  }
-});
-
-test("history none wins over a direct conversational turn", () => {
-  const result = select({ historyNone: true, directConversation: true, persistedHistory: [] });
-  assert.deepEqual(result.messages, [current]);
-  assert.equal(result.persist, false);
-});
-
 test("default turns keep replaying the persisted loop history", () => {
   const result = select();
   assert.deepEqual(result.messages, [...persisted, current]);

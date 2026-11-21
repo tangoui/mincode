@@ -1,17 +1,12 @@
-/** Custom templates are global host resources; plugin cleanup clears only contributions. */
 import { acceptHMRUpdate, defineStore } from "pinia";
 import { computed, ref, shallowRef } from "vue";
-import type { PluginFileTemplate, PluginFileTemplateIssue } from "@/domain/projects/file-templates";
 import { parseCustomSummary, type CustomTemplateDraft, type CustomTemplateSnapshot } from "@/domain/projects/custom-file-templates";
 import { listCustomTemplates, saveCustomTemplate, deleteCustomTemplate } from "@/services/custom-file-template-service";
 export const useFileTemplatesStore = defineStore("file-templates", () => {
-    const contributed = shallowRef<readonly PluginFileTemplate[]>([]);
     const custom = shallowRef<CustomTemplateSnapshot>({ version: 1, revision: 0, templates: [] });
-    const issues = shallowRef<readonly PluginFileTemplateIssue[]>([]);
-    const templates = computed(() => [...contributed.value, ...custom.value.templates]);
+    const templates = computed(() => custom.value.templates);
     const loading = ref(false), error = ref("");
     let hydration: Promise<void> | undefined;
-    function setContributed(next: readonly PluginFileTemplate[], nextIssues: readonly PluginFileTemplateIssue[] = []) { contributed.value = next; issues.value = nextIssues; }
     async function refreshCustom() { loading.value = true; try {
         const next = await listCustomTemplates();
         if (next.revision >= custom.value.revision)
@@ -56,7 +51,7 @@ export const useFileTemplatesStore = defineStore("file-templates", () => {
             custom.value = { version: 1, revision: next, templates: custom.value.templates.filter(t => t.id !== id) };
         error.value = "";
     }
-    return { templates, contributed, custom, issues, loading, error, setContributed, hydrateCustom, refreshCustom, saveCustom, deleteCustom };
+    return { templates, custom, loading, error, hydrateCustom, refreshCustom, saveCustom, deleteCustom };
 });
 if (import.meta.hot)
     import.meta.hot.accept(acceptHMRUpdate(useFileTemplatesStore, import.meta.hot));

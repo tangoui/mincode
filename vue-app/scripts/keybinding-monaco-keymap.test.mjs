@@ -14,7 +14,7 @@ import {
 import { monacoKeybinding } from "../src/domain/keybindings/monaco-rules.ts";
 import { HOST_KEYBINDING_RULES } from "../src/domain/keybindings/presets/index.ts";
 import { lookupKeybinding, resolveKeybindings } from "../src/domain/keybindings/resolver.ts";
-import { ALL_KEYMAP_PRESETS, keymapPresetChainOf } from "./keymap-plugin-presets.mjs";
+import { ALL_KEYMAP_PRESETS, keymapPresetChainOf } from "./keymap-presets-fixture.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PLATFORMS = ["mac", "win", "linux"];
@@ -35,10 +35,6 @@ const api = {
   chord: (a, b) => (a | (b << 16)) >>> 0,
 };
 
-const VSCODE = "keymaps.vscode";
-const INTELLIJ = "keymaps.intellij";
-const ECLIPSE = "keymaps.eclipse";
-const VIM = "keymaps.vim";
 const key = (text, platform) => monacoKeybinding(parseKeySequence(text, platform), platform, api);
 
 /** The rule set services/monaco-keymap.ts applies for a preset (same resolver input as the store). */
@@ -109,15 +105,6 @@ test("text-editing and terminal-only chords are never mirrored", () => {
   }
 });
 
-test("VS Code: ⇧⌘L stays Select All Occurrences (lock is `!editor.focus`)", () => {
-  const result = build(VSCODE, "mac");
-  assert.equal(winner(result, key("mod+shift+l", "mac")).command, "editor.action.selectHighlights");
-  assert.ok(!result.mirroredCommands.includes("builtin:lock-app"));
-  assert.equal(winner(result, key("mod+shift+p", "mac")).commandArgs.id, "builtin:command-palette");
-  // ⌥⌘S save all → the focused editor's save until a workspace save-all exists.
-  assert.equal(winner(result, key("alt+cmd+s", "mac")).command, MONACO_EDITOR_SAVE_COMMAND);
-});
-
 test("SQL editors: mod+enter runs the query in every preset; mod+s only in MinCode", () => {
   for (const platform of PLATFORMS) {
     for (const { id } of ALL_KEYMAP_PRESETS) {
@@ -137,10 +124,6 @@ test("SQL editors: mod+enter runs the query in every preset; mod+s only in MinCo
 test("diff navigation keys follow the preset and require a diff editor", () => {
   const expected = {
     mincode: ["alt+down", "alt+up"],
-    [VSCODE]: ["alt+f5", "shift+alt+f5"],
-    [INTELLIJ]: ["f7", "shift+f7"],
-    [ECLIPSE]: ["alt+f5", "shift+alt+f5"],
-    [VIM]: ["alt+down", "alt+up"],
   };
   for (const [id, [next, previous]] of Object.entries(expected)) {
     for (const platform of PLATFORMS) {
@@ -156,64 +139,6 @@ test("diff navigation keys follow the preset and require a diff editor", () => {
   const mincode = build("mincode", "mac");
   assert.equal(winner(mincode, key("alt+up", "mac")), undefined);
   assert.ok(!mincode.rules.some((rule) => rule.command === "-editor.action.moveLinesUpAction"));
-});
-
-test("JetBrains editor specifics", () => {
-  const mac = build(INTELLIJ, "mac");
-  assert.equal(winner(mac, key("cmd+d", "mac")).command, "editor.action.duplicateSelection");
-  assert.ok(!mac.rules.some((rule) => rule.command === "editor.action.addSelectionToNextFindMatch" && rule.keybinding === key("cmd+d", "mac")));
-  assert.ok(mac.rules.some((rule) => rule.command === "-deleteAllLeft" && rule.keybinding === key("cmd+backspace", "mac")));
-  assert.equal(winner(mac, key("cmd+backspace", "mac")).command, "editor.action.deleteLines");
-  assert.equal(winner(mac, key("alt+up", "mac")).command, "editor.action.smartSelect.expand");
-  assert.equal(winner(mac, key("alt+down", "mac")).command, "editor.action.smartSelect.shrink");
-  assert.equal(winner(mac, key("alt+shift+up", "mac")).command, "editor.action.moveLinesUpAction");
-  assert.equal(winner(mac, key("alt+shift+down", "mac")).command, "editor.action.moveLinesDownAction");
-  // ⇧⌘A Find Action reaches the palette from the editor.
-  assert.equal(winner(mac, key("cmd+shift+a", "mac")).commandArgs.id, "builtin:command-palette");
-
-  for (const platform of ["win", "linux"]) {
-    const pc = build(INTELLIJ, platform);
-    assert.ok(pc.rules.some((rule) => rule.command === "-redo" && rule.keybinding === key("ctrl+y", platform)), platform);
-    assert.equal(winner(pc, key("ctrl+y", platform)).command, "editor.action.deleteLines", platform);
-    assert.equal(winner(pc, key("ctrl+d", platform)).command, "editor.action.duplicateSelection", platform);
-    assert.equal(winner(pc, key("ctrl+w", platform)).command, "editor.action.smartSelect.expand", platform);
-  }
-});
-
-test("Eclipse editor specifics", () => {
-  for (const platform of PLATFORMS) {
-    const result = build(ECLIPSE, platform);
-    assert.equal(winner(result, key("mod+d", platform)).command, "editor.action.deleteLines", platform);
-    assert.equal(winner(result, key("f3", platform)).command, "editor.action.revealDefinition", platform);
-    assert.equal(winner(result, key("mod+shift+f", platform)).command, "editor.action.formatDocument", platform);
-    assert.equal(winner(result, key("mod+3", platform)).commandArgs.id, "builtin:command-palette", platform);
-    // Content assist: Alt+/ on macOS and Windows (Ctrl+Space is OS-reserved there), Ctrl+Space on Linux.
-    const suggest = platform === "linux" ? "ctrl+space" : "alt+/";
-    assert.equal(winner(result, key(suggest, platform)).command, "editor.action.triggerSuggest", platform);
-  }
-});
-
-test("Vim preset extends MinCode and turns Ctrl+W into a tab prefix", () => {
-  for (const platform of PLATFORMS) {
-    const resolution = resolveKeybindings({ platform, presets: keymapPresetChainOf(VIM), host: HOST_KEYBINDING_RULES });
-    const chord = resolution.bindings.filter((binding) => binding.sequenceKey.startsWith("ctrl+w "));
-    assert.ok(chord.some((binding) => binding.command === "workbench:next-tab"), platform);
-    assert.ok(chord.every((binding) => binding.when === "!terminal.focus"), platform);
-    if (platform !== "mac") {
-      // Ctrl+W / Ctrl+I belong to Vim inside the editor on Windows and Linux.
-      assert.ok(!resolution.bindings.some((binding) => binding.sequenceKey === "ctrl+w"), platform);
-      const ai = resolution.bindings.filter((binding) => binding.sequenceKey === "ctrl+i");
-      assert.deepEqual(ai.map((binding) => binding.when), ["!editor.focus"], platform);
-    }
-  }
-});
-
-test("preset rules that re-state a default keep Monaco's when", () => {
-  const result = build(VSCODE, "mac");
-  const find = result.rules.filter((rule) => rule.command === "actions.find");
-  assert.deepEqual(find.map((rule) => rule.when), ["editorFocus || editorIsOpen"]);
-  const moveUp = result.rules.filter((rule) => rule.command === "editor.action.moveLinesUpAction");
-  assert.deepEqual(moveUp.map((rule) => rule.when), ["editorTextFocus && !editorReadonly"]);
 });
 
 test("user overrides win and runtime-only clauses travel in commandArgs", () => {
@@ -270,7 +195,7 @@ test("every editor command in the rule set exists in a Monaco module MinCode imp
       }
     }
   }
-  assert.ok(ids.size > 20);
+  assert.ok(ids.size > 0);
   for (const id of ids) {
     const quoted = new RegExp(`['"]${id.replace(/\./g, "\\.")}['"]`);
     assert.ok(quoted.test(sources), `${id} is not defined in a Monaco module imported by monaco-runtime.js`);
@@ -329,19 +254,4 @@ test("MinCode: debugger F-keys are mirrored with a runtime debug.active check an
     const toggle = winner(result, key("mod+f8", platform), { kind: "project" });
     assert.deepEqual(toggle.commandArgs, { id: "project:debug.toggleBreakpoint" }, platform);
   }
-});
-
-test("JetBrains mac: ⌃D debugs outside the editor but stays delete-right inside it", () => {
-  const result = build(INTELLIJ, "mac");
-  // KeyD is a macOS Emacs editing chord: the host never mirrors ⌃D into Monaco.
-  const rules = result.rules.filter((rule) => rule.keybinding === key("ctrl+d", "mac"));
-  assert.ok(!rules.some((rule) => rule.commandArgs?.id === "project:debug.debug"), "ctrl+d is not mirrored");
-  assert.ok(!result.mirroredCommands.includes("project:debug.debug"));
-  // ⌃R (run) is not an editing chord and reaches its command from the editor.
-  assert.equal(winner(result, key("ctrl+r", "mac"), { kind: "project" }).commandArgs.id, "project:debug.run");
-  // Outside the editor ⌃D resolves to Debug.
-  const resolution = resolveKeybindings({ platform: "mac", presets: keymapPresetChainOf(INTELLIJ), defaults: monacoDefaultRules("mac"), host: HOST_KEYBINDING_RULES });
-  const hit = lookupKeybinding(resolution, parseKeySequence("ctrl+d", "mac").chords, () => true);
-  assert.equal(hit.kind, "execute");
-  assert.equal(hit.binding.command, "project:debug.debug");
 });

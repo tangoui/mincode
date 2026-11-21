@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { contrastRatio, parseHexColor } from "@/domain/themes/plugin-theme";
+import { contrastRatio, parseHexColor } from "@/domain/themes/editor-theme-data";
 
 const source = async (path) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
 const foundation = await source("styles/foundation/foundation.css");
@@ -69,12 +69,6 @@ test("the native text-field rule leaves Element Plus inner inputs to their wrapp
       assert.match(rule, new RegExp(`:not\\(\\s*\\.${cls}\\s*\\)`), cls);
     }
   }
-});
-
-test("plugin fields load the module that defines their control radius", async () => {
-  const mount = await source("plugin-ui/mount.js");
-  assert.ok(mount.includes("import '../styles/shared/element-plus-controls.css';"));
-  assert.ok(mount.includes("import '../styles/shared/theme-inputs.css';"));
 });
 
 test("main workspaces stay on surface while navigation uses sidebar", () => {

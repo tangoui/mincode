@@ -7,7 +7,31 @@
  * backend/terminal/debuggee_shell.go. DAP types are the subset the
  * debugger UI reads (https://microsoft.github.io/debug-adapter-protocol/specification).
  */
-import type { ResolvedProcessLaunch } from "@/services/plugin-launch-confirm";
+export interface ProcessLaunchFile {
+  relative: string;
+  sha256: string;
+}
+
+/** JSON shape of the Go DebuggerProcessLaunch. */
+export interface DebuggerProcessLaunch {
+  pluginId: string;
+  pluginName: string;
+  pluginVersion: string;
+  point: string;
+  entryKey: string;
+  title: string;
+  /** Per-language titles (Go map[string]string), resolved for display by processLaunchTitle. */
+  titleLocalized?: Record<string, string>;
+  argv: string[];
+  env: Record<string, string>;
+  cwd: string;
+  pluginExecutable: boolean;
+  executableSha256?: string;
+  pluginFiles?: ProcessLaunchFile[];
+  fingerprint: string;
+  trusted: boolean;
+  previouslyTrusted: boolean;
+}
 
 export type DebugRequestKind = "launch" | "attach";
 
@@ -183,7 +207,7 @@ export interface DebugSourceBreakpointsSet {
 /** A resolved debugger launch awaiting confirmation or start. */
 export interface PreparedDebugLaunch {
   prepareId: string;
-  launch: ResolvedProcessLaunch;
+  launch: DebuggerProcessLaunch;
   type: string;
   kind: string;
   projectRoot: string;

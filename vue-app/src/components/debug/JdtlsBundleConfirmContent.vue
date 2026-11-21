@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { formatDataBytes } from "@/domain/settings/data-usage";
-import { visibleTerminalText } from "@/domain/terminal/profiles";
+import { visibleTerminalText } from "@/domain/terminal/launch-display";
 import { useVueI18n } from "@/i18n/messages";
 import type { JdtlsBundleStatus } from "@/services/jdtls-bundles";
 

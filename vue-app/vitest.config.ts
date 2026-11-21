@@ -16,7 +16,6 @@ export default defineConfig({
     alias: {
       "dompurify": fileURLToPath(new URL("./node_modules/dompurify/dist/purify.es.mjs", import.meta.url)),
       "marked": fileURLToPath(new URL("./node_modules/marked/lib/marked.esm.js", import.meta.url)),
-      "@mincode/plugin-ui": fileURLToPath(new URL("./src/plugin-ui", import.meta.url)),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
     dedupe: ["vue", "element-plus", "@element-plus/icons-vue"],

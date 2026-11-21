@@ -22,7 +22,6 @@ import type { QueryTab } from "@/domain/database/query-tab-snapshot";
 import type { DatabaseQueryHistoryItem } from "@/domain/database/types";
 import type { SqlCompletionItem } from "@/domain/database/sql-completion";
 import type { ProjectEditorViewState } from "@/domain/projects/types";
-import type { MonacoMenuContext } from "@/services/monaco-menus";
 import { useVueI18n } from "@/i18n/messages";
 
 // Only the non-SQL query languages (JSON, plain text) use Monaco here: load it when one is shown.
@@ -43,7 +42,6 @@ const props = defineProps<{
   editorExpanded: boolean;
   queryHistory: DatabaseQueryHistoryItem[];
   /** SQL editor plugin menu context: database engine and schema name (never connection details). */
-  menuContext?: MonacoMenuContext;
   /** Connection type: the SQL editor's dialect. */
   dbType?: DbType;
 }>();
@@ -198,7 +196,6 @@ async function confirmClearHistory() {
         :view-state="props.activeQueryTab.viewState"
         :sql-completions="props.sqlCompletions"
         :db-type="props.dbType"
-        :database-name="props.menuContext?.database?.name"
         :font-size="props.editorFontSize"
         @update:model-value="emit('update:queryText', $event)"
         @view-state="(path: string, state: ProjectEditorViewState) => emit('view-state', path, state)"
@@ -221,7 +218,6 @@ async function confirmClearHistory() {
         }"
         @update:model-value="emit('update:queryText', $event)"
         kind="sql"
-        :menu-context="props.menuContext"
         @view-state="(path: string, state: ProjectEditorViewState) => emit('view-state', path, state)"
         @run="emit('run', 'smart')"
       />

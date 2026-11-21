@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from "vue";
+import { resolveConnectionDriver } from "@/domain/database/driver-descriptor";
+import { computed, ref } from "vue";
 import {
   Clock,
   Coin,
@@ -18,7 +19,6 @@ import {
   Plus,
   Refresh,
   Star,
-  Switch,
   Tickets,
   Upload,
 } from "@element-plus/icons-vue";
@@ -27,10 +27,8 @@ import AppFilterButton from "@/components/ui/AppFilterButton.vue";
 import AppSearchField from "@/components/ui/AppSearchField.vue";
 import DatabaseTypeIcon from "@/components/database/DatabaseTypeIcon.vue";
 import ConnectionAvatar, { type ConnectionAvatarStatus } from "@/components/connections/ConnectionAvatar.vue";
-import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
 import LinkedNotesBadge from "@/components/notes/LinkedNotesBadge.vue";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
-import { usePluginMenuTarget } from "@/composables/use-plugin-menu-target";
 import {
   type DatabaseConnection,
   type DatabaseQueryHistoryItem,
@@ -47,7 +45,6 @@ import {
 } from "@/composables/database/useConnectionSidebar";
 import { useVueI18n } from "@/i18n/messages";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
-import { useDatabaseDriverLabels } from "@/composables/database/useDatabaseDriverRuntime";
 
 defineOptions({ name: "DatabaseConnectionSidebar" });
 
@@ -109,7 +106,8 @@ const emit = defineEmits<{
 const { t } = useVueI18n();
 const linkedNotes = useLinkedNotesDrawer();
 const databaseStore = useDatabaseWorkspaceStore();
-const { driverUnavailable, connectionTypeLabel, canSwitchDriver } = useDatabaseDriverLabels();
+const driverUnavailable = (connection: DatabaseConnection) => !resolveConnectionDriver(connection).available;
+const connectionTypeLabel = (connection: DatabaseConnection) => resolveConnectionDriver(connection).title;
 
 /** 菜单项按连接能力门控：内置驱动走内置白名单，插件驱动按描述符声明的能力。 */
 function capabilitiesOf(connection: DatabaseConnection) {
@@ -169,43 +167,6 @@ function connectionAvatarStatus(connection: DatabaseConnection): ConnectionAvata
 function connectionBrandStyle(connection: DatabaseConnection) {
   return { "--db-connection-brand": databaseConnectionBrand(connection).color };
 }
-// Plugin menu items (contributes.menus database/tree/context) of the open "⋯" menu.
-interface OpenTreeMenu {
-  key: string;
-  connection: DatabaseConnection;
-  database?: string;
-  table?: SchemaTable;
-}
-const openTreeMenu = shallowRef<OpenTreeMenu | null>(null);
-
-function treeMenuKey(connection: DatabaseConnection, database?: string, table?: SchemaTable) {
-  return JSON.stringify([connection.id, database ?? null, table?.name ?? null]);
-}
-
-function handleTreeMenuVisible(visible: boolean, connection: DatabaseConnection, database?: string, table?: SchemaTable) {
-  const key = treeMenuKey(connection, database, table);
-  if (visible) openTreeMenu.value = { key, connection, database, table };
-  else if (openTreeMenu.value?.key === key) openTreeMenu.value = null;
-}
-
-const treePluginMenu = usePluginMenuTarget("database/tree/context", () => {
-  const open = openTreeMenu.value;
-  if (!open) return null;
-  const { connection, database, table } = open;
-  return {
-    // Same database.kind as the SQL editor: the dialect type for plugin-driver connections.
-    connection: { id: connection.id, name: connection.name, kind: databaseStore.connectionDialectType(connection) },
-    connected: connectionIsConnected(connection),
-    objectType: table ? "table" : database !== undefined ? "database" : "connection",
-    ...(database !== undefined ? { database } : {}),
-    ...(table ? { table: { name: table.name, kind: table.kind } } : {}),
-  };
-});
-
-function treePluginMenuHost(connection: DatabaseConnection, database?: string, table?: SchemaTable) {
-  return openTreeMenu.value?.key === treeMenuKey(connection, database, table) ? treePluginMenu.host.value : null;
-}
-
 const activeDatabaseObjectLabel = computed(() =>
   databaseObjectLabel(props.activeConnection)
 );
@@ -575,7 +536,7 @@ defineExpose({
                         :size="26"
                         :status="connectionAvatarStatus(connection)"
                       >
-                        <DatabaseTypeIcon :db-type="connection.dbType" :driver="connection.driver" size="small" />
+                        <DatabaseTypeIcon :db-type="connection.dbType" size="small" />
                       </ConnectionAvatar>
                       <span class="db-connection-node__meta"
                         ><strong><i v-if="connection.favorite">★</i>{{ connection.name }}</strong
@@ -606,7 +567,6 @@ defineExpose({
                       trigger="click"
                       placement="bottom-end"
                       @command="emit('connection-menu', connection, $event)"
-                      @visible-change="handleTreeMenuVisible($event, connection)"
                     >
                       <button
                         type="button"
@@ -658,10 +618,7 @@ defineExpose({
                           <el-dropdown-item command="edit">
                             <el-icon><EditPen /></el-icon>{{ t("common.edit") }}
                           </el-dropdown-item>
-                          <el-dropdown-item v-if="canSwitchDriver(connection)" command="switch-driver">
-                            <el-icon><Switch /></el-icon
-                            >{{ t("pluginContrib.databaseDrivers.runtime.switchDriver") }}
-                          </el-dropdown-item>
+
                           <el-dropdown-item divided command="notes-new">
                             <el-icon><Plus /></el-icon>{{ t("notes.link.newLinked") }}
                           </el-dropdown-item>
@@ -672,11 +629,6 @@ defineExpose({
                           <el-dropdown-item divided command="delete" class="is-danger">
                             <el-icon><Delete /></el-icon>{{ t("common.delete") }}
                           </el-dropdown-item>
-                          <PluginMenuItems
-                            menu="database/tree/context"
-                            :host="treePluginMenuHost(connection)"
-                            :context="treePluginMenu.context"
-                          />
                         </el-dropdown-menu>
                       </template>
                     </el-dropdown>
@@ -750,7 +702,6 @@ defineExpose({
                               $event
                             )
                           "
-                          @visible-change="handleTreeMenuVisible($event, connection, database.name)"
                         >
                           <el-button
                             text
@@ -826,11 +777,6 @@ defineExpose({
                               >
                                 <el-icon><Delete /></el-icon>{{ t("database.dropdatabase") }}
                               </el-dropdown-item>
-                              <PluginMenuItems
-                                menu="database/tree/context"
-                                :host="treePluginMenuHost(connection, database.name)"
-                                :context="treePluginMenu.context"
-                              />
                             </el-dropdown-menu>
                           </template>
                         </el-dropdown>
@@ -880,7 +826,6 @@ defineExpose({
                             @visible-change="
                               (visible: boolean) => {
                                 if (!visible) openTableMenuKey = '';
-                                handleTreeMenuVisible(visible, connection, database.name, table);
                               }
                             "
                             @command="
@@ -995,11 +940,6 @@ defineExpose({
                                     }}
                                   </el-dropdown-item>
                                 </template>
-                                <PluginMenuItems
-                                  menu="database/tree/context"
-                                  :host="treePluginMenuHost(connection, database.name, table)"
-                                  :context="treePluginMenu.context"
-                                />
                               </el-dropdown-menu>
                             </template>
                           </el-dropdown>

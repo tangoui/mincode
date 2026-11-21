@@ -607,9 +607,8 @@ test("ai_test_connection streams a one-line prompt and reports failures with Go'
 test("the assistant offers no native tools, MCP servers or approval controls in browser-local mode", async () => {
   const drawer = await readFile(new URL("../src/components/ai/AiAssistantDrawer.vue", import.meta.url), "utf8");
   assert.match(drawer, /const browserLocalAi = isBrowserLocalMode\(\);/);
-  assert.match(drawer, /const nativeTools = browserLocalAi\s*\?\s*\[\]/);
+  assert.match(drawer, /const nativeTools = browserLocalAi \|\| isolatedExternal\s*\?\s*\[\]/);
   assert.match(drawer, /const mcpServerIds = isolatedExternal \|\| browserLocalAi\s*\?\s*\[\]/);
-  assert.match(drawer, /if \(!isolatedExternal && !browserLocalAi\) await pluginMcpServers\.hydrate\(\);/);
   assert.match(drawer, /const agentTools = computed\(\(\) => \(browserLocalAi \? \[\] : capabilityTools\.value\)\);/);
   assert.match(drawer, /v-if="assistant\.mode === 'agentic' && !browserLocalAi"/);
   // Both model entry points use the AI availability check instead of the desktop-only gate.

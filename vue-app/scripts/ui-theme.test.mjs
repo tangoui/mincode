@@ -8,7 +8,7 @@ test("system theme preference resolves to concrete light or dark theme", () => {
   assert.match(source, /export type BuiltinUiTheme = "system"/);
   assert.match(source, /prefers-color-scheme: dark/);
   assert.match(source, /dataset\.themePreference = preference/);
-  assert.match(source, /dataset\.theme = normalized/);
+  assert.match(source, /dataset\.theme = detail/);
 });
 
 test("system listener is replaced instead of accumulated", () => {

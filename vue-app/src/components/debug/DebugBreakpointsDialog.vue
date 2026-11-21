@@ -36,7 +36,7 @@ import { toSourcePath } from "@/domain/debug/paths";
 import { EXCEPTION_TYPE_LIMITS, normalizeExceptionTypes, parseExceptionTypesText } from "@/domain/debug/exception-types";
 import { FUNCTION_BREAKPOINT_LIMITS, normalizeFunctionBreakpointName, type StoredFunctionBreakpoint } from "@/domain/debug/function-breakpoints";
 import type { DapExceptionBreakpointsFilter, DataBreakpointAccessType, DebuggerInfo, SourceBreakpoint } from "@/domain/debug/types";
-import { resolvePluginTitle } from "@/domain/plugins/title";
+import { resolveLocalizedTitle } from "@/domain/i18n/localized-title";
 import { useVueI18n } from "@/i18n/messages";
 import { listDebuggers } from "@/services/debug-service";
 import { sameProjectRoot, useDebugConfigsStore } from "@/stores/debug-configs";
@@ -260,7 +260,7 @@ function removeData(entry: DebugDataBreakpointEntry) {
 
 function functionText(debugger_: DebuggerInfo, field: "placeholder" | "description"): string {
   const texts = debugger_.functionBreakpoints;
-  return resolvePluginTitle({ title: texts?.[field] ?? "", titleLocalized: texts?.[`${field}Localized`] }, localeChain.value);
+  return resolveLocalizedTitle({ title: texts?.[field] ?? "", titleLocalized: texts?.[`${field}Localized`] }, localeChain.value);
 }
 
 function editFunction(type: string, text: string) {
@@ -363,12 +363,12 @@ function typesChanged(type: string): boolean {
 
 function typesPlaceholder(debugger_: DebuggerInfo): string {
   const texts = debugger_.exceptionTypes;
-  return resolvePluginTitle({ title: texts?.placeholder ?? "", titleLocalized: texts?.placeholderLocalized }, localeChain.value);
+  return resolveLocalizedTitle({ title: texts?.placeholder ?? "", titleLocalized: texts?.placeholderLocalized }, localeChain.value);
 }
 
 function typesDescription(debugger_: DebuggerInfo): string {
   const texts = debugger_.exceptionTypes;
-  return resolvePluginTitle({ title: texts?.description ?? "", titleLocalized: texts?.descriptionLocalized }, localeChain.value);
+  return resolveLocalizedTitle({ title: texts?.description ?? "", titleLocalized: texts?.descriptionLocalized }, localeChain.value);
 }
 
 /**

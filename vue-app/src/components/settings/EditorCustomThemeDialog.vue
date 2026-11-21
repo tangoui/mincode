@@ -7,18 +7,17 @@ import { RefreshLeft } from "@element-plus/icons-vue";
 import {
   CUSTOM_EDITOR_THEME_ALPHA_FIELDS,
   DEFAULT_CUSTOM_EDITOR_THEMES,
-  customEditorThemeFrom,
+  customEditorThemeLowContrast,
   normalizeCustomEditorTheme,
   type CustomEditorTheme,
   type CustomEditorThemeField,
   type EditorThemeKind,
 } from "@/domain/themes/editor-theme-data";
-import { customEditorThemeLowContrast, editorThemeTitle, type EditorThemeRecord } from "@/domain/themes/editor-themes";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
 
-const props = defineProps<{ modelValue: boolean; theme: CustomEditorTheme; pluginThemes: readonly EditorThemeRecord[] }>();
+const props = defineProps<{ modelValue: boolean; theme: CustomEditorTheme }>();
 const emit = defineEmits<{ "update:modelValue": [open: boolean]; save: [theme: CustomEditorTheme] }>();
-const { t, localeChain } = useVueI18n();
+const { t } = useVueI18n();
 
 const draft = ref<CustomEditorTheme>(normalizeCustomEditorTheme(props.theme));
 const startFrom = ref("");
@@ -35,7 +34,6 @@ function fieldLabel(field: CustomEditorThemeField) {
 const startOptions = computed(() => [
   { value: "default:dark", label: t("settings.editorTheme.defaultDark") },
   { value: "default:light", label: t("settings.editorTheme.defaultLight") },
-  ...props.pluginThemes.map((theme) => ({ value: theme.id, label: editorThemeTitle(theme, localeChain.value) })),
 ]);
 
 function applyStart(value: string) {
@@ -44,8 +42,6 @@ function applyStart(value: string) {
     draft.value = normalizeCustomEditorTheme(DEFAULT_CUSTOM_EDITOR_THEMES[value === "default:dark" ? "dark" : "light"]);
     return;
   }
-  const theme = props.pluginThemes.find((item) => item.id === value);
-  if (theme) draft.value = customEditorThemeFrom(theme);
 }
 
 function setKind(kind: EditorThemeKind) {

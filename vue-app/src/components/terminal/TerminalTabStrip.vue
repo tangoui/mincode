@@ -15,7 +15,7 @@ import {
 } from "@/domain/terminal/resource-usage";
 import { useVueI18n } from "@/i18n/messages";
 
-export type TerminalTabAddMenuCommand = "configured" | "ssh" | `profile:${string}`;
+export type TerminalTabAddMenuCommand = "configured" | "ssh";
 
 const props = defineProps<{
   tabs: TerminalTab[];
@@ -23,7 +23,6 @@ const props = defineProps<{
   canAdd: boolean;
   labelFor: (tab: TerminalTab) => string;
   attentionFor: (tab: TerminalTab) => boolean;
-  profiles: { key: string; title: string }[];
   /** Memory of a tab's local terminals; shown from 1 GB on. */
   usageFor?: (tab: TerminalTab) => TerminalTabUsage | undefined;
   /** Set while the tabs must not close (last tab of a pinned workbench tab): shows a disabled × with this reason. */
@@ -153,7 +152,6 @@ function shownUsage(tab: TerminalTab) {
 
 function handleAddMenu(command: string | number | object) {
   if (command === "configured" || command === "ssh") emit("add-menu", command);
-  else if (typeof command === "string" && command.startsWith("profile:")) emit("add-menu", command as `profile:${string}`);
 }
 </script>
 
@@ -320,14 +318,6 @@ function handleAddMenu(command: string | number | object) {
           <el-dropdown-menu>
             <el-dropdown-item command="configured">{{ t("terminal.tabs.configuredShell") }}</el-dropdown-item>
             <el-dropdown-item command="ssh">{{ t("terminal.tabs.ssh") }}</el-dropdown-item>
-            <el-dropdown-item
-              v-for="(profile, index) in profiles"
-              :key="profile.key"
-              :command="`profile:${profile.key}`"
-              :divided="index === 0"
-            >
-              <span dir="auto">{{ profile.title }}</span>
-            </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>

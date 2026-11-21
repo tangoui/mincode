@@ -37,13 +37,16 @@ vi.mock("@/services/debug-service", () => ({
     return () => undefined;
   },
 }));
-vi.mock("@/services/plugin-launch-confirm", () => ({ confirmPluginLaunch: debug.confirm }));
+vi.mock("element-plus", async (original) => ({
+  ...(await original<typeof import("element-plus")>()),
+  ElMessage: debug.message,
+  ElMessageBox: { confirm: async (content: { props?: unknown }) => { if (!(await debug.confirm(content.props))) throw new Error("cancelled"); } },
+}));
 // The guidance guard (debugger installed, tools ready) has its own spec (debug-guidance.spec.ts).
 vi.mock("@/services/debug-guidance", () => ({ guardDebugLaunch: debug.guard }));
 vi.mock("@/services/jdtls-bundles", () => ({ ensureJdtlsBundlesReady: debug.ensureJdtls }));
 vi.mock("@/services/persistent-store", () => ({ loadPersistedValue: vi.fn().mockResolvedValue(null), savePersistedValue: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/services/keyboard-platform", () => ({ currentKeyboardPlatform: () => "mac" }));
-vi.mock("element-plus", async (importOriginal) => ({ ...(await importOriginal<object>()), ElMessage: debug.message }));
 
 import { launchDebugSession } from "@/services/debug-launch";
 import { isLspServerHeld } from "@/services/lsp-server-holds";
@@ -129,7 +132,7 @@ describe("debug launch", () => {
       noDebug: false,
     });
     expect(debug.confirm).toHaveBeenCalledTimes(1);
-    const options = debug.confirm.mock.calls[0]![1] as { changed: boolean; notices: string[] };
+    const options = debug.confirm.mock.calls[0]![0] as { changed: boolean; notices: string[] };
     expect(options.changed).toBe(false);
     expect(options.notices).toContain(`program: ${FILE}`);
     expect(debug.trust).not.toHaveBeenCalled();
@@ -636,32 +639,6 @@ describe("debug sessions store", () => {
     expect(debug.prepare).toHaveBeenLastCalledWith(expect.objectContaining({ configuration: { program: FILE, request: "launch" }, noDebug: false }));
     expect(store.sessions.map((s) => s.id)).toEqual(["s2"]);
     expect(store.selectedSessionId).toBe("s2");
-  });
-
-  it("restart of a test-run session (never saved) runs the same tests again in the same tab", async () => {
-    const bridge = await import("@/services/desktop-bridge");
-    const invoke = vi.mocked(bridge.invokeBackend);
-    let runs = 0;
-    invoke.mockImplementation(async (command: string) => {
-      if (command === "plugin_host_test_run_prepare") return { ...prepared(true), runId: `run-0a${(runs += 1)}` };
-      return undefined;
-    });
-    const { launchTestRun } = await import("@/services/test-run-launcher");
-    const store = useDebugSessionsStore();
-    debug.start.mockResolvedValueOnce({ sessionId: "s1", capabilities: {}, skippedBreakpoints: [] });
-    const launch = { pluginId: cfg.pluginId, providerId: "unit", debuggerType: "python", projectRoot: ROOT, testIds: ["calc#adds"], debug: true, name: "adds" };
-    expect(await launchTestRun(launch)).toEqual({ status: "started", runId: "run-0a1", sessionId: "s1" });
-    expect(store.sessions.map((s) => s.configId)).toEqual(["test-run:mincode.python-debug/unit"]);
-
-    debug.start.mockResolvedValueOnce({ sessionId: "s2", capabilities: {}, skippedBreakpoints: [] });
-    expect(await store.restart("s1")).toBe("s2");
-    expect(debug.stop).toHaveBeenCalledWith("s1");
-    expect(invoke).toHaveBeenLastCalledWith("plugin_host_test_run_prepare", {
-      payload: { pluginId: cfg.pluginId, providerId: "unit", projectRoot: ROOT, testIds: ["calc#adds"], debug: true },
-    });
-    expect(store.sessions.map((s) => s.id)).toEqual(["s2"]);
-    expect(debug.message.warning).not.toHaveBeenCalled();
-    invoke.mockReset();
   });
 
   it("restart of a deleted configuration only stops", async () => {

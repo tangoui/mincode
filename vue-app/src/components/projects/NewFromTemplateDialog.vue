@@ -11,7 +11,7 @@
 import { computed, defineAsyncComponent, ref, shallowRef, watch } from "vue";
 import { FolderOpened } from "@element-plus/icons-vue";
 import { useVueI18n } from "@/i18n/messages";
-import { resolvePluginTitle } from "@/domain/plugins/title";
+import { resolveLocalizedTitle } from "@/domain/i18n/localized-title";
 import {
   isValidTemplateName,
   renderTargetPaths,
@@ -65,7 +65,7 @@ const groups = computed(() => {
     label,
     options: templates.map((template) => ({
       key: template.key,
-      label: `${resolvePluginTitle(template, localeChain.value)} · ${template.origin === "custom" ? t("pluginContrib.fileTemplates.custom") : template.pluginName}`,
+      label: resolveLocalizedTitle(template, localeChain.value),
     })),
   }));
 });
@@ -74,7 +74,7 @@ const description = computed(() => {
   const template = selected.value;
   if (!template?.description) return "";
   return template.descriptionLocalized
-    ? resolvePluginTitle({ title: template.description, titleLocalized: template.descriptionLocalized }, localeChain.value)
+    ? resolveLocalizedTitle({ title: template.description, titleLocalized: template.descriptionLocalized }, localeChain.value)
     : template.description;
 });
 

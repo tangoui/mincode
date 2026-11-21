@@ -5,17 +5,6 @@ import { settingsIntegrations } from "./settings-integrations-module.mjs";
 
 const { loadMcpRegistryEntry, loadSkillRegistryEntry, searchMcpRegistry, searchSkillRegistry } = settingsIntegrations;
 
-// Settings → AI → Discover lists only the built-in catalog and plugin catalogs
-// (contributes.aiCatalogs). The connector & skill market plugin replaced the
-// community registries (404), Tencent SkillHub and GitHub repository search.
-const pluginEntry = {
-  id: "plugin:acme.catalog/team/acme",
-  name: "Acme",
-  description: "",
-  source: "plugin",
-  installRef: "plugin:acme.catalog/team/acme",
-};
-
 function recordFetch(t) {
   const urls = [];
   t.mock.method(globalThis, "fetch", async (url) => {
@@ -27,24 +16,22 @@ function recordFetch(t) {
 
 test("Discover: connector search never contacts the removed community registry", async (t) => {
   const urls = recordFetch(t);
-  const all = await searchMcpRegistry("", async () => [pluginEntry]);
+  const all = await searchMcpRegistry("");
   assert.ok(all.some((entry) => entry.source === "builtin"), "built-in connectors are listed");
-  assert.ok(all.some((entry) => entry.id === pluginEntry.id), "plugin catalog entries are listed");
-  assert.ok(all.every((entry) => entry.source === "builtin" || entry.source === "plugin"));
-  const filtered = await searchMcpRegistry("git", async () => []);
+  assert.ok(all.every((entry) => entry.source === "builtin"));
+  const filtered = await searchMcpRegistry("git");
   assert.ok(filtered.some((entry) => entry.source === "builtin"));
   assert.deepEqual(urls, []);
 });
 
 test("Discover: skill search never contacts the community registry, SkillHub or GitHub", async (t) => {
   const urls = recordFetch(t);
-  const all = await searchSkillRegistry("", async () => [pluginEntry]);
+  const all = await searchSkillRegistry("");
   assert.ok(all.some((entry) => entry.source === "builtin"), "built-in skills are listed");
-  assert.ok(all.some((entry) => entry.id === pluginEntry.id), "plugin catalog entries are listed");
-  assert.ok(all.every((entry) => entry.source === "builtin" || entry.source === "plugin"));
-  await searchSkillRegistry("review", async () => []);
-  const repository = await searchSkillRegistry("https://github.com/mattpocock/skills", async () => [pluginEntry]);
-  assert.deepEqual(repository.map((entry) => entry.id), [pluginEntry.id], "a repository URL is an ordinary keyword now");
+  assert.ok(all.every((entry) => entry.source === "builtin"));
+  await searchSkillRegistry("review");
+  const repository = await searchSkillRegistry("https://github.com/mattpocock/skills");
+  assert.deepEqual(repository.map((entry) => entry.id), [], "a repository URL is an ordinary keyword");
   assert.deepEqual(urls, []);
 });
 
@@ -63,10 +50,4 @@ test("Discover: the settings integrations module no longer imports SkillHub or G
   for (const removed of ["skill-repository", "parseTencentSkillHubResponse", "tencentSkillHubListUrl", "mcp-registry/main", "skill-registry/main"]) {
     assert.ok(!source.includes(removed), `settings-integrations.ts still references ${removed}`);
   }
-});
-
-test("Discover: both panes start with the market banner, which closes Settings when it navigates", async () => {
-  const view = await readFile(new URL("../src/views/SettingsWorkspaceView.vue", import.meta.url), "utf8");
-  const banners = view.match(/<AiMarketDiscoverBanner @navigate="close\(\)" \/>\s*<section class="settings-ai-card settings-ai-(intro-card|skills-import)">/g) ?? [];
-  assert.equal(banners.length, 2);
 });

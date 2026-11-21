@@ -1,4 +1,3 @@
-import { buildPluginSkillContext, explicitPluginSkill, type PluginAiPrompt } from "@/domain/ai/plugin-prompts";
 import type { StoredAiSkill } from "@/domain/ai/settings-integrations";
 
 export type StoredAiSkillValue = StoredAiSkill | string;
@@ -104,22 +103,13 @@ export function selectAiSkillsForPrompt(skills: StoredAiSkillValue[], prompt: st
     .map(({ skill }) => skill);
 }
 
-/**
- * Context for the skills selected this turn. Plugin skills (enabled plugin
- * `aiPrompts` entries of kind skill) are considered only for an explicit
- * `/skill` that no user skill matched, and are wrapped as untrusted
- * third-party guidance.
- */
+/** Context for the user skills selected this turn. */
 export function buildSelectedAiSkillsContext(
   skills: StoredAiSkillValue[],
   prompt: string,
-  pluginSkills: readonly PluginAiPrompt[] = [],
 ) {
   const selected = selectAiSkillsForPrompt(skills, prompt);
-  if (!selected.length) {
-    const pluginSkill = explicitPluginSkill(pluginSkills, prompt);
-    return pluginSkill ? buildPluginSkillContext(pluginSkill) : "";
-  }
+  if (!selected.length) return "";
   return `## Enabled skills\nApply the following skill for this request.\n\n${selected
     .map((skill) => `### ${skill.name}\n${skill.content.trim()}`)
     .join("\n\n")}`;
