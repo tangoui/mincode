@@ -2005,7 +2005,6 @@ async function connectSavedMcpServerForAi(requestedServerId: string) {
         env: stringRecord(server.env),
         url: server.url,
         headers: stringRecord(server.headers),
-        auth: server.auth,
       })).tools;
   const [resources, prompts] = await Promise.all([
     invokeBackend<unknown[]>("mcp_list_resources", { serverId }).catch(() => []),
@@ -2091,7 +2090,6 @@ async function loadMcpServerTools(
             env: stringRecord(server.env),
             url: server.url,
             headers: stringRecord(server.headers),
-            auth: server.auth,
           });
       return result.tools.flatMap((tool) => {
         if (!tool?.name?.trim()) return [];

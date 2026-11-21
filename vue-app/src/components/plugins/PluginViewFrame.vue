@@ -1040,6 +1040,10 @@ async function handleHostRequest(request: NonNullable<ReturnType<typeof parsePlu
       if (currentSession === session && connected) safePost({ type: "mincode.host.response", id: request.id, ok: true, result: { visible } });
       return;
     }
+    if (request.type !== "mincode.plugin.confirm") {
+      rejectRequest(request.id, "not-allowed", t("plugins.actionNotAllowed"));
+      return;
+    }
     if (request.intent !== "dangerous") {
       if (currentSession === session && connected) safePost({ type: "mincode.host.response", id: request.id, ok: true, result: true });
       return;

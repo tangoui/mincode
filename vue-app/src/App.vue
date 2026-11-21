@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onScopeDispose, computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
@@ -19,7 +19,6 @@ import { currentKeyboardPlatform } from "@/services/keyboard-platform";
 import { useSessionProgressStore } from "@/stores/session-progress";
 import { useAgentRunNavigation } from "@/composables/use-agent-run-navigation";
 import { listPluginViews } from "@/services/plugin-service";
-import { installPluginPublishListener, pluginPublishPending } from "@/services/plugin-publish-listener";
 import { installPluginHostUiBridge } from "@/services/plugin-host-ui";
 import { usePluginHostUiStore } from "@/stores/plugin-host-ui";
 import { usePluginTakeoverStore } from "@/stores/plugin-takeover";
@@ -105,9 +104,6 @@ const AppCommandPaletteHost = defineAsyncComponent(
   () => import("@/components/layout/AppCommandPaletteHost.vue")
 );
 // Install before startup IPC and lazy rendering so the very first publish is retained.
-const stopPluginPublishListener = installPluginPublishListener();
-onScopeDispose(stopPluginPublishListener);
-const PluginPublishHost = defineAsyncComponent(() => import("@/components/plugins/development/PluginPublishHost.vue"));
 const PluginHostUiLayer = defineAsyncComponent(() => import("@/components/plugins/PluginHostUiLayer.vue"));
 const pluginHostUi = usePluginHostUiStore();
 const PluginImmersiveExit = defineAsyncComponent(() => import("@/components/plugins/PluginImmersiveExit.vue"));
@@ -923,7 +919,6 @@ onBeforeUnmount(() => {
     <PluginCommandParamsHost v-if="pluginCommandParamsHostLoaded" />
     <PluginServicesRoot v-if="pluginServicesReady" />
     <PluginImmersiveExit v-if="pluginTakeover.immersive" />
-    <PluginPublishHost v-if="pluginPublishPending" />
     <PluginHostUiLayer v-if="pluginHostUi.prompts.length || pluginHostUi.diffs.length" />
     <AiAssistantDrawer v-if="assistantLoaded" @open-settings="openSettings('ai')" />
     <LinkedNotesDrawer v-if="linkedNotesDrawer.rendered" />

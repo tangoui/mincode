@@ -134,6 +134,7 @@ function searchFromQuery(value: unknown) {
 
 const filters = ref<CatalogFilter>({ category: "all", source: "all", status: "all", search: searchFromQuery(route.query.search) });
 const categories = ref<PluginCategory[]>([]);
+const failedCovers = ref<Record<string, string>>({});
 const allEntries = computed(() => mergePluginCatalog(plugins.value, officialPlugins.value));
 const catalogEntries = computed(() => filterPluginCatalog(allEntries.value, filters.value));
 const page = ref(1);
@@ -157,6 +158,10 @@ const previewLoading = ref(false);
 const previewHasNonReadActions = computed(() => preview.value?.manifest.contributes?.actions
   ?.some(action => action.risk !== "read") === true);
 const previewError = ref<PluginInstallErrorInfo>();
+const previewErrorTitle = computed(() => {
+  const kind = previewError.value?.kind;
+  return !kind || kind === "unknown" ? t("plugins.previewFailed") : t(`plugins.installError.${kind}.title`);
+});
 /** Supported MinCode range of a catalog entry's latest release, for display. */
 let previewGeneration = 0;
 let refreshGeneration = 0;
