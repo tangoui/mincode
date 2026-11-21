@@ -27,11 +27,6 @@ body,
   .sftp-content--editing .sftp-file-pane--remote {
     width: clamp(360px, 22vw, 440px);
   }
-
-  .git-changes-pane {
-    width: clamp(240px, 16vw, 320px);
-    min-width: clamp(240px, 16vw, 320px);
-  }
 }
 
 @container workbench (max-width: 1120px) {
@@ -40,7 +35,6 @@ body,
     min-width: 220px;
   }
 
-  .project-sidebar,
   .ssh-manager-sidebar {
     min-width: 180px;
     max-width: 48%;
@@ -56,21 +50,12 @@ body,
     min-width: 220px;
   }
 
-  .git-changes-pane {
-    width: 220px;
-    min-width: 220px;
-  }
-
   .http-main-workspace {
     min-width: 0;
   }
 
   .settings-workspace {
     grid-template-columns: 180px minmax(0, 1fr);
-  }
-
-  .devtools-workspace {
-    grid-template-columns: 168px minmax(0, 1fr);
   }
 }
 
@@ -80,7 +65,6 @@ body,
     min-width: 180px;
   }
 
-  .project-sidebar,
   .ssh-manager-sidebar {
     min-width: 160px;
     max-width: 44%;
@@ -128,17 +112,7 @@ body,
     display: none;
   }
 
-  .git-toolbar__row {
-  }
 
-  .git-branch-select {
-    width: 154px;
-  }
-
-  .git-changes-pane {
-    width: 190px;
-    min-width: 190px;
-  }
 
   .http-sidebar {
     min-width: 130px;
@@ -153,18 +127,6 @@ body,
     padding-left: 20px;
   }
 
-  .devtools-workspace {
-    grid-template-columns: 144px minmax(0, 1fr);
-  }
-
-  .devtools-tool,
-  .plugin-manager-workspace > main {
-    padding: 14px;
-  }
-
-  .plugin-manager-card__body > section > div {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
 }
 
 @container workbench (max-width: 640px) {
@@ -173,7 +135,6 @@ body,
     min-width: 150px;
   }
 
-  .project-sidebar,
   .ssh-manager-sidebar {
     min-width: 140px;
   }
@@ -188,22 +149,11 @@ body,
     min-width: 150px;
   }
 
-  .git-changes-pane {
-    width: 168px;
-    min-width: 168px;
-  }
-
   .settings-workspace {
     grid-template-columns: 136px minmax(0, 1fr);
   }
 
-  .devtools-workspace {
-    grid-template-columns: 128px minmax(0, 1fr);
-  }
-
-  .settings-content,
-  .devtools-tool,
-  .plugin-manager-workspace > main {
+  .settings-content {
     padding: 12px;
   }
 }

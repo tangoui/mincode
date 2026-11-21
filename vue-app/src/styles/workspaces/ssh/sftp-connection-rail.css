@@ -179,14 +179,6 @@
 }
 
 @media (max-width: 860px) {
-  .git-workspace {
-    grid-template-columns: minmax(250px, 40vw) minmax(0, 1fr);
-  }
-
-  .git-action-row {
-    padding: 0 6px;
-  }
-
   .sftp-header {
     height: auto;
     min-height: 48px;

@@ -1,19 +1,13 @@
 /* Main content and supporting panes follow their semantic surface roles. */
 .db-workspace,
-.project-workspace,
 .ssh-workspace,
 .sessions-workspace,
-.git-workspace,
-.browser-workspace,
 .settings-workspace {
   background: var(--app-surface);
 }
 
 .db-explorer,
-.sessions-navigator,
-.project-sidebar,
-.git-changes-pane,
-.browser-toolbar {
+.sessions-navigator {
   border-color: var(--app-border);
   background: var(--app-sidebar);
 }
@@ -43,7 +37,7 @@
   box-shadow: none;
 }
 
-/* The shell is the fallback target; nested AI/database/plugin targets still win. */
+/* The shell is the fallback target; nested AI and database targets still win. */
 .app-frame {
   position: relative;
 }

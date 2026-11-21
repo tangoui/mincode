@@ -3528,8 +3528,6 @@ export const messagesZh = {
   // pluginContrib.mcpServers
   // pluginContrib.treeViews
   // pluginContrib.testProviders
-  "pluginContrib.testProviders.durationMs": "{ms} 毫秒",
-  "pluginContrib.testProviders.durationS": "{s} 秒",
   // pluginContrib.languageFeatures
   // pluginContrib.shell（通知动作按钮与托盘菜单共用的执行与确认）
   // pluginContrib.databaseDrivers (Phase E; T4a writes this block, T4b appends below)

@@ -3691,8 +3691,6 @@ export const messagesEn = {
   // pluginContrib.mcpServers
   // pluginContrib.treeViews
   // pluginContrib.testProviders
-  "pluginContrib.testProviders.durationMs": "{ms} ms",
-  "pluginContrib.testProviders.durationS": "{s} s",
   // pluginContrib.languageFeatures
   // pluginContrib.shell (run and confirm for notification action buttons and the tray menu)
   // pluginContrib.databaseDrivers (Phase E; T4a writes this block, T4b appends below)

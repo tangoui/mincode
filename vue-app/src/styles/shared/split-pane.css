@@ -132,8 +132,6 @@
 
 /* Splitter panels own sizing. Feature roots should fill their assigned panel. */
 .app-split-pane .db-explorer,
-.app-split-pane .project-sidebar,
-.app-split-pane .project-editor-pane,
 .app-split-pane .ssh-manager-sidebar,
 .app-split-pane .sessions-navigator,
 .app-split-pane .sessions-conversation,

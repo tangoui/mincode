@@ -51,7 +51,6 @@
 @import "./styles/shared/new-tab-menu.css";
 @import "./styles/shared/markdown-preview.css";
 @import "./styles/workspaces/ssh/batch-dialog.css";
-@import "./styles/workspaces/project/editor-controls.css";
 @import "./styles/shared/git-sftp-workspace-refinement.css";
 @import "./styles/workspaces/ssh/sftp-connection-rail.css";
 @import "./styles/shared/bottom-panel.css";

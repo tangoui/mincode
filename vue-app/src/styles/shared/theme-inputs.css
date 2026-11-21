@@ -55,8 +55,7 @@
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused,
 .el-textarea__inner:focus,
-.el-input-number:focus-within .el-input__wrapper,
-.devtools-editors textarea:focus {
+.el-input-number:focus-within .el-input__wrapper {
   border-color: var(--app-input-border-focus) !important;
   background: var(--app-input-bg-focus) !important;
   box-shadow: none !important;
@@ -117,22 +116,6 @@
   border-color: var(--app-input-border);
   background: color-mix(in srgb, var(--app-accent) 7%, var(--app-muted));
   color: var(--app-text-regular);
-}
-
-/* DevTools editors intentionally retain a native textarea for raw request payloads. */
-.devtools-editors textarea {
-  border-color: var(--app-input-border) !important;
-  background: var(--app-input-bg) !important;
-  color: var(--app-text) !important;
-}
-
-.devtools-editors textarea:hover {
-  border-color: var(--app-input-border-hover) !important;
-  background: var(--app-input-bg-hover) !important;
-}
-
-.devtools-editors textarea::placeholder {
-  color: var(--app-input-placeholder);
 }
 
 /* Keep every visible native text field on the same light, theme-tinted surface.
@@ -231,15 +214,13 @@
  * toolbars. Terminal find uses its own 20px treatment and is left untouched. */
 .sessions-search .el-input,
 .settings-ai-search-card .el-input,
-.settings-ai-search-line .el-input,
-.project-search-controls .el-input {
+.settings-ai-search-line .el-input {
   --el-component-size: 28px;
 }
 
 .sessions-search .el-input__wrapper,
 .settings-ai-search-card .el-input__wrapper,
-.settings-ai-search-line .el-input__wrapper,
-.project-search-controls .el-input__wrapper {
+.settings-ai-search-line .el-input__wrapper {
   min-height: 28px !important;
 }
 
