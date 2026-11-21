@@ -13,12 +13,12 @@ func TestCoreProfileExcludesUnavailableDrivers(t *testing.T) {
 	for _, dbType := range supportedDatabaseTypes {
 		available[dbType] = struct{}{}
 	}
-	for _, dbType := range []string{"duckdb", "oracle", "yashandb", "clickhouse"} {
+	for _, dbType := range []string{"duckdb", "oracle", "yashandb", "clickhouse", "dameng"} {
 		if _, ok := available[dbType]; ok {
 			t.Fatalf("core profile still lists %q in supportedDatabaseTypes", dbType)
 		}
 	}
-	for _, dbType := range []string{"sqlite", "mysql", "postgres", "dameng", "sqlserver", "tdengine", "firebird"} {
+	for _, dbType := range []string{"sqlite", "mysql", "postgres", "sqlserver", "tdengine", "firebird"} {
 		if _, ok := available[dbType]; !ok {
 			t.Fatalf("core profile is missing %q", dbType)
 		}
@@ -33,6 +33,8 @@ func TestCoreProfileSavedConnectionsReportUnavailableDriver(t *testing.T) {
 		{DbType: "yashandb", Host: "db.example.test", Port: 1688, Username: &user},
 		{DbType: "yasdb", Host: "db.example.test", Port: 1688, Username: &user},
 		{DbType: "ClickHouse", Host: "db.example.test", Port: 9000, Database: &service},
+		{DbType: "dameng", Host: "db.example.test", Port: 5236, Username: &user},
+		{DbType: "dm", Host: "db.example.test", Port: 5236, Username: &user},
 	} {
 		_, err := buildProfileSession(cfg)
 		if err == nil || !strings.HasPrefix(err.Error(), "driver_required: 此版本未内置 ") {

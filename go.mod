@@ -3,7 +3,6 @@ module mincode/app
 go 1.27.3
 
 require (
-	gitee.com/chunanyong/dm v1.8.23
 	github.com/UserExistsError/conpty v0.1.4
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/creack/pty v1.1.24

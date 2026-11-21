@@ -11,6 +11,7 @@ var excludedCoreDrivers = map[string]string{
 	"oracle":     "Oracle",
 	"yashandb":   "YashanDB",
 	"clickhouse": "ClickHouse",
+	"dameng":     "达梦 DM",
 }
 
 // coreDriverUnavailable is prefixed with the driver_required code the
@@ -33,4 +34,10 @@ func buildYashanDBSession(*DbConnectionConfig) (*dbSession, error) {
 
 func buildClickHouseSession(*DbConnectionConfig) (*dbSession, error) {
 	return nil, coreDriverUnavailable("ClickHouse")
+}
+
+// The Dameng driver ships without an open source license, so this edition
+// does not build it in.
+func buildDMSession(*DbConnectionConfig) (*dbSession, error) {
+	return nil, coreDriverUnavailable("达梦 DM")
 }
