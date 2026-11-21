@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -28,7 +29,6 @@ const (
 	kindCQL                       // Cassandra / ScyllaDB（gocql）
 	kindNeo4j                     // Neo4j（bolt / Cypher）
 	kindVector                    // HTTP 向量数据库（Qdrant / Milvus / Weaviate / Pinecone / Chroma）
-	kindPlugin                    // 插件提供的数据库驱动（ExternalConnection 代理，见 external_session.go）
 )
 
 // httpDbKind HTTP 数据源子类型。
@@ -86,16 +86,12 @@ type dbSession struct {
 	// 通过 REST/HTTP 接入的云数仓与分析数据库。
 	warehouse *warehouseHTTPConfig
 
-	// 插件驱动会话（kindPlugin）。插件句柄只保存在 ExternalConnection 内部，
-	// 前端与 db_* 命令只使用宿主 sessionId。
-	ext *externalSession
-
 	// 连接时配置的默认库（MySQL USE / 结果展示用 / MongoDB 作用域库）
 	defaultDatabase string
 
 	// sessionID 是注册表中的会话 ID（put 时写入），SQL 安全网令牌按它绑定会话。
 	sessionID string
-	// connectionID 是前端保存的连接 ID（db_connect 时写入，内置与插件驱动都保存），
+	// connectionID 是前端保存的连接 ID（db_connect 时写入），
 	// SQL 安全网的操作记录按它归属连接。
 	connectionID string
 }
@@ -165,23 +161,6 @@ func (r *sessionRegistry) remove(id string) {
 	}
 }
 
-// removeWhere 移除满足 match 的会话并返回 id → 会话；不关闭会话，由调用方负责。
-func (r *sessionRegistry) removeWhere(match func(*dbSession) bool) map[string]*dbSession {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := map[string]*dbSession{}
-	for id, s := range r.sessions {
-		if s == nil || !match(s) {
-			continue
-		}
-		out[id] = s
-		delete(r.sessions, id)
-		delete(r.timestamps, id)
-		delete(r.activeOperations, id)
-	}
-	return out
-}
-
 func (r *sessionRegistry) drain() []*dbSession {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -241,18 +220,14 @@ func (s *dbSession) close() {
 	if s.closeExtra != nil {
 		s.closeExtra()
 	}
-	if s.ext != nil {
-		s.ext.close()
-	}
 }
+
+var errLegacyDatabaseDriver = errors.New("unavailable: 此连接绑定了旧插件驱动，请编辑连接并确认改用内置驱动")
 
 // buildSession 根据配置建立会话。
 func buildSession(cfg *DbConnectionConfig) (*dbSession, error) {
-	if cfg.Driver != nil {
-		// Plugin-bound connections are routed only by connectExternalSession
-		// (db_connect, backups, schema access, cloud read-only); never build a
-		// built-in session for them (no silent fallback).
-		return nil, errExternalDriverUnavailable
+	if cfg.LegacyDriver != nil {
+		return nil, errLegacyDatabaseDriver
 	}
 	session, err := buildSessionForType(cfg)
 	if err != nil {

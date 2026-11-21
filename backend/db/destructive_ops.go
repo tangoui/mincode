@@ -37,14 +37,6 @@ func runDestructiveOperation(
 	table *string,
 	confirmation string,
 ) error {
-	if s.kind == kindPlugin {
-		// Structured driver actions: confirmed and recorded, never backed up.
-		if err := externalDestructive(ctx, s, action, strings.TrimSpace(database), table, confirmation); err != nil {
-			return err
-		}
-		guard.recordDone(s)
-		return nil
-	}
 	if s.kind == kindVector {
 		if action != "drop_table" {
 			return fmt.Errorf("向量数据库当前仅支持删除 Collection/Index")

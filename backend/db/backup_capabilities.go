@@ -104,12 +104,6 @@ func backupSessionCapability(s *dbSession, engine string) BackupCapability {
 		c.Supported = backupFullExportSupported(s)
 		c.Scope = "graph"
 		c.Limitations = append(c.Limitations, "graphIDs")
-	case kindPlugin:
-		if s.ext != nil && s.ext.info.BackupVersion == 1 {
-			_, c.Supported = s.ext.conn.(ExternalBackupConnection)
-		}
-		c.Fidelity = "plugin-native"
-		c.Reason = "pluginNoStream"
 	default:
 		c.Reason = "noAdapter"
 	}
@@ -142,7 +136,6 @@ var backupCapabilityText = map[string]string{
 	"cqlTTL":              "不保留 TTL 和写入时间戳",
 	"graphIDs":            "恢复时节点和关系会获得新 ID",
 	"vectorNoIterator":    "该向量库没有完整遍历接口，分页浏览不能作为备份",
-	"pluginNoStream":      "该驱动插件未提供原生备份流，不能用预览数据冒充完整备份",
 	"noAdapter":           "该连接类型没有备份适配器",
 }
 
@@ -227,7 +220,7 @@ func backupDiscovery(ctx context.Context, s *dbSession, database string) (*DbSch
 		}
 		return &DbSchemaInfo{Databases: []SchemaDatabase{{Name: database, Tables: tables}}}, nil
 	}
-	if s.kind == kindPlugin || (s.kind == kindSQL && (s.dialect == "mysql" || s.dialect == "sqlite" || supportsTableStats(s.dialect))) {
+	if s.kind == kindSQL && (s.dialect == "mysql" || s.dialect == "sqlite" || supportsTableStats(s.dialect)) {
 		tables, err := getDatabaseTables(ctx, s, database)
 		if err != nil {
 			return nil, err

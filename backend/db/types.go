@@ -20,17 +20,10 @@ type DbConnectionConfig struct {
 	Org        *string `json:"org,omitempty"`
 	SSL        bool    `json:"ssl"`
 	AuthSource *string `json:"authSource,omitempty"`
-	// Driver binds the connection to a plugin-provided driver
-	// (contributes.databaseDrivers); nil means the built-in driver for DbType.
-	// Plugin-bound configs never fall back to a built-in driver.
-	Driver *ExternalDriverRef `json:"driver,omitempty"`
-	// ConnectionID is the saved connection's id (≤128), used to match the
-	// user's credential grant for Driver and to file SQL safety records under
-	// the connection (built-in drivers too).
+	// LegacyDriver marks an old plugin binding that must be cleared in the connection editor.
+	LegacyDriver *json.RawMessage `json:"driver,omitempty"`
+	// ConnectionID files SQL safety records under the saved connection.
 	ConnectionID string `json:"connectionId,omitempty"`
-	// Options are the driver-declared connection options; validated against
-	// the driver's option schema by the plugin host before connect.
-	Options map[string]any `json:"options,omitempty"`
 }
 
 // QueryResult 统一查询结果，兼容各 DB 类型。

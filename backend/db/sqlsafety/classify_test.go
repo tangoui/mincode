@@ -413,17 +413,3 @@ func TestClassifyInsertTarget(t *testing.T) {
 		}
 	}
 }
-
-func TestLooksLikeSQL(t *testing.T) {
-	for _, q := range []string{"VACUUM t", "(SELECT 1)", "SET x = 1", "ADD JAR /tmp/x.jar", "BACKUP DATABASE d TO DISK = 'x'",
-		"RESTORE DATABASE d", "DFS -ls /", "REPL DUMP db", "{call p()}", "  { ? = call f(1) }"} {
-		if !LooksLikeSQL(FamilyANSI, q) {
-			t.Errorf("LooksLikeSQL(%q) = false, want true", q)
-		}
-	}
-	for _, q := range []string{"rate(http_requests_total[5m])", "MATCH (v) RETURN v", "GO FROM \"p1\" OVER follow", "USE nba", "FETCH PROP ON player \"p1\"", "scan 't1'", "q=*:*"} {
-		if LooksLikeSQL(FamilyANSI, q) {
-			t.Errorf("LooksLikeSQL(%q) = true, want false", q)
-		}
-	}
-}

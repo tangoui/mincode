@@ -25,10 +25,6 @@ func getTableRowsPage(ctx context.Context, s *dbSession, database, table string,
 	if limit > 10000 {
 		limit = 10000
 	}
-	if s.kind == kindPlugin {
-		// Read-only preview: plugin.db.tableRows, never SQL built by the host.
-		return externalTableRowsPage(ctx, s, database, table, limit, offset, pageToken)
-	}
 	if s.vector != nil && s.kind == kindVector {
 		return vectorTableRowsPage(ctx, s, database, table, limit, offset, pageToken, namespace)
 	}
@@ -245,9 +241,6 @@ func updateCell(ctx context.Context, s *dbSession, database, table, pkColumn str
 }
 
 func updateCellByPrimaryKey(ctx context.Context, s *dbSession, database, table string, primaryKey map[string]any, column string, value any) (int64, error) {
-	if s.kind == kindPlugin {
-		return externalMutate(ctx, s, ExternalMutation{Op: ExternalMutationUpdateCell, Database: database, Table: table, PrimaryKey: primaryKey, Column: column, Value: value})
-	}
 	if s.kind == kindCQL {
 		return cassandraUpdateCell(ctx, s, database, table, primaryKey, column, value)
 	}
@@ -313,9 +306,6 @@ func updateCellOn(ctx context.Context, ex sqlExecer, s *dbSession, database, tab
 // ── db_insert_row ──
 
 func insertRow(ctx context.Context, s *dbSession, database, table string, fields map[string]any) (int64, error) {
-	if s.kind == kindPlugin {
-		return externalMutate(ctx, s, ExternalMutation{Op: ExternalMutationInsertRow, Database: database, Table: table, Fields: fields})
-	}
 	if s.kind == kindMongo {
 		return mongoInsertRow(ctx, s, database, table, fields)
 	}
@@ -425,9 +415,6 @@ func deleteRow(ctx context.Context, s *dbSession, database, table, pkColumn stri
 }
 
 func deleteRowByPrimaryKey(ctx context.Context, s *dbSession, database, table string, primaryKey map[string]any) (int64, error) {
-	if s.kind == kindPlugin {
-		return externalMutate(ctx, s, ExternalMutation{Op: ExternalMutationDeleteRow, Database: database, Table: table, PrimaryKey: primaryKey})
-	}
 	if s.kind == kindCQL {
 		return cassandraDeleteRow(ctx, s, database, table, primaryKey)
 	}
@@ -485,16 +472,10 @@ func deleteRowOn(ctx context.Context, ex sqlExecer, s *dbSession, database, tabl
 // ── db_export_table ──
 
 func exportTable(ctx context.Context, s *dbSession, database, table, format, mode string, limit uint32) (string, error) {
-	if s.kind != kindSQL && s.kind != kindPlugin {
+	if s.kind != kindSQL {
 		return "", fmt.Errorf("db_export_table 不支持该数据库类型")
 	}
 	dialect := s.dialect
-	if s.kind == kindPlugin && strings.EqualFold(strings.TrimSpace(format), "sql") {
-		var err error
-		if dialect, err = externalExportDialect(s); err != nil {
-			return "", err
-		}
-	}
 	if limit == 0 {
 		limit = 10000
 	}
@@ -564,13 +545,8 @@ func exportJSON(r *QueryResult) (string, error) {
 // ── db_import_data ──
 
 func importData(ctx context.Context, s *dbSession, database, table, format, data string) (int64, error) {
-	if s.kind != kindSQL && s.kind != kindPlugin {
+	if s.kind != kindSQL {
 		return 0, fmt.Errorf("db_import_data 不支持该数据库类型")
-	}
-	if s.kind == kindPlugin {
-		if err := s.ext.require(externalFeatureRowsInsert); err != nil {
-			return 0, err
-		}
 	}
 	var records []map[string]any
 	switch strings.ToLower(strings.TrimSpace(format)) {

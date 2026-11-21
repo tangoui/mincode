@@ -462,18 +462,6 @@ func TestBackupDumpDialectSupport(t *testing.T) {
 	if _, err := backupDumpDialect(&dbSession{kind: kindRedis}); err == nil {
 		t.Error("non-SQL sessions must be unsupported")
 	}
-	full := &externalSession{dialect: "postgres", features: map[string]bool{externalFeatureMetadataDDL: true, externalFeatureTableRows: true}}
-	if got, err := backupDumpDialect(&dbSession{kind: kindPlugin, ext: full}); err != nil || got != "postgres" {
-		t.Errorf("plugin postgres: %s %v", got, err)
-	}
-	noDDL := &externalSession{dialect: "postgres", features: map[string]bool{externalFeatureTableRows: true}}
-	if _, err := backupDumpDialect(&dbSession{kind: kindPlugin, ext: noDDL}); err == nil {
-		t.Error("plugin without metadata.ddl must be unsupported")
-	}
-	generic := &externalSession{dialect: "generic", features: full.features}
-	if _, err := backupDumpDialect(&dbSession{kind: kindPlugin, ext: generic}); err == nil {
-		t.Error("generic plugin dialect must be unsupported")
-	}
 }
 
 func backupStringPtr(value string) *string { return &value }

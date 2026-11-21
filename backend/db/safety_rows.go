@@ -18,12 +18,7 @@
 // 第一处修改）。同一主键被多段修改（先删除再新增同一主键除外）时整组不可撤回
 // （ReasonRowChangedTwice）。
 //
-// 插件驱动声明 transaction.snapshotWrite 及所用操作的 rows.* 特性时，整组为一次
-// plugin.db.snapshotWrite 调用（每个单元格修改、新增、删除一步，按主键留底与回读，
-// 不带主键的新增请驱动回传主键），同样整组存为一条记录（见 safety_plugin.go）；超过
-// 1000 步或特性不全时按下面的顺序执行。插件会话与内置会话一样要求令牌。
-//
-// MongoDB、向量库、Cassandra、其余插件以及不支持事务的 SQL 引擎按顺序逐条调用单行写入，
+// MongoDB、向量库、Cassandra 以及不支持事务的 SQL 引擎按顺序逐条调用单行写入，
 // 遇错即停，返回 partial（applied 为已生效条数），记录不可撤回。
 //
 // db_update_cell / db_insert_row / db_delete_row 是单元素整组：不需要 checkId（单行
@@ -95,13 +90,8 @@ func rowsOperation(table, namespace string, changes []rowChange) safetyOperation
 	return safetyOperation{Kind: "rows", Table: table, Changes: changes, Namespace: namespace}
 }
 
-// rowsTransactional: the session runs changes as one guarded transaction —
-// a SQL session with transactions, or a plugin driver with snapshotWrite and
-// the rows.* feature of every change, within one call's step limit.
-func rowsTransactional(s *dbSession, changes []rowChange) bool {
-	if s.kind == kindPlugin {
-		return s.supportsSnapshotWrite() && pluginRowsSupported(s, changes) && pluginRowsSteps(changes) <= externalSnapshotMaxSteps
-	}
+// rowsTransactional reports whether the SQL session can apply changes atomically.
+func rowsTransactional(s *dbSession) bool {
 	return s.kind == kindSQL && s.db != nil && !s.safetyWithoutTransactions()
 }
 
@@ -122,7 +112,7 @@ func checkRows(ctx context.Context, s *dbSession, op safetyOperation, database s
 	ref := sqlsafety.TableRef{Name: op.Table}
 	var pk []string
 	var u *rowsUndo
-	transactional := rowsTransactional(s, op.Changes)
+	transactional := rowsTransactional(s)
 	if transactional {
 		db, table, err := resolveSQLWriteTarget(ctx, s, database, op.Table)
 		if err != nil {
@@ -218,9 +208,7 @@ func (u *rowsUndo) overlapping(runs []rowRun, changes []rowChange) bool {
 func rowsStatement(s *dbSession, ref sqlsafety.TableRef, run rowRun, part []rowChange) sqlsafety.Statement {
 	table := ref.Name
 	quote := func(name string) string { return name }
-	if s.kind == kindPlugin && s.safetyFamily() != sqlsafety.FamilyNone {
-		table, quote = s.safetyQualify(ref.Schema, ref.Name), s.safetyQuote
-	} else if s.kind == kindSQL {
+	if s.kind == kindSQL {
 		if q, err := qualifiedTable(s.dialect, ref.Schema, ref.Name); err == nil {
 			table, quote = q, s.safetyQuote
 		}
@@ -356,9 +344,6 @@ func (u *rowsUndo) assess(run rowRun, part []rowChange) (bool, []sqlsafety.Reaso
 // insertCapturable: the dialect reports the keys of rows it inserts
 // (RETURNING, OUTPUT without triggers, MySQL's auto-increment ID).
 func (u *rowsUndo) insertCapturable(reasons []sqlsafety.Reason) bool {
-	if u.s.kind == kindPlugin {
-		return true // asked for with returning; drivers that cannot answer leave the group not undoable
-	}
 	switch u.s.dialect {
 	case "postgres", "sqlite":
 		return true
@@ -476,7 +461,7 @@ func applyRowChanges(ctx context.Context, s *dbSession, req rowsRequest, checkID
 	switch {
 	case tokenRequired || strings.TrimSpace(optionalString(checkID)) != "":
 		check, plan, err = consumeCheck(s, checkID, confirmText, req.database, hash)
-	case rowsTransactional(s, req.changes):
+	case rowsTransactional(s):
 		var issued *sqlsafety.Check
 		if issued, err = checkOperation(ctx, s, op, req.database); err == nil {
 			check, plan, err = consumeCheck(s, &issued.CheckID, nil, req.database, hash)
@@ -485,7 +470,7 @@ func applyRowChanges(ctx context.Context, s *dbSession, req rowsRequest, checkID
 	if err != nil {
 		return rowsOutcome{}, err
 	}
-	if !rowsTransactional(s, req.changes) {
+	if !rowsTransactional(s) {
 		return applyRowsInOrder(ctx, s, req, runs)
 	}
 	return applyRowsInTransaction(ctx, s, check, plan, req, runs)
@@ -543,16 +528,6 @@ func applyRowsInTransaction(ctx context.Context, s *dbSession, check *sqlsafety.
 		if run.op == rowOpInsert && !sc.Undoable && len(pk) > 0 && u.insertCapturable(sc.Reasons) {
 			capture = &insertCapture{}
 			captures[i] = capture
-		}
-		if s.kind == kindPlugin {
-			step.Snapshot, step.KeyBatches, step.After = "", nil, ""
-			wire, rows, err := pluginRowsWire(s, ref, pk, run.op, part, sc.Undoable, capture)
-			if err != nil {
-				return rowsOutcome{}, err
-			}
-			step.Wire, step.WireRows, step.Capture = wire, rows, capture
-			steps[i] = step
-			continue
 		}
 		lo, op := run.lo, run.op
 		step.Write = func(ctx context.Context, ex sqlExecer) (int64, error) {

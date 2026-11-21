@@ -61,7 +61,7 @@ func prepareTableImport(ctx context.Context, a importPrepareRequest) (string, er
 			release()
 		}
 	}()
-	if s.kind != kindSQL && s.kind != kindPlugin {
+	if s.kind != kindSQL {
 		return "", fmt.Errorf("import_engine_unsupported")
 	}
 	if err := validateImportTarget(ctx, s); err != nil {
@@ -263,7 +263,7 @@ func init() {
 
 // dbDataImportStartHandler: db_data_import_start {planId, idempotencyKey,
 // checkId?, confirmText?}. A new submission must present the token of
-// db_safety_check operation {kind: "import", planId} (plugin sessions excepted).
+// db_safety_check operation {kind: "import", planId}.
 func dbDataImportStartHandler(ctx context.Context, _, raw string) (string, error) {
 	var a struct {
 		PlanID         string  `json:"planId"`

@@ -210,17 +210,9 @@ func dbConnectHandler(_, argsJSON string) (string, error) {
 	cfg.Token = tok
 
 	start := time.Now()
-	var s *dbSession
-	if cfg.Driver != nil {
-		// Plugin-bound connection: only the referenced plugin driver, never a
-		// built-in fallback. The decrypted config goes to provider.Connect only.
-		s, err = connectExternalSession(context.Background(), &cfg)
-		slog.Debug("database connect", "type", "plugin", "plugin", cfg.Driver.PluginID, "driver", cfg.Driver.DriverID, "duration_ms", time.Since(start).Milliseconds(), "success", err == nil)
-	} else {
-		s, err = buildSession(&cfg)
-		// Only log driver type and duration; connection settings and errors may contain secrets.
-		slog.Debug("database connect", "type", cfg.DbType, "duration_ms", time.Since(start).Milliseconds(), "success", err == nil)
-	}
+	s, err := buildSession(&cfg)
+	// Only log driver type and duration; connection settings and errors may contain secrets.
+	slog.Debug("database connect", "type", cfg.DbType, "duration_ms", time.Since(start).Milliseconds(), "success", err == nil)
 	if err != nil {
 		return "", err
 	}
@@ -312,18 +304,6 @@ func dbExecuteQueryHandler(callCtx context.Context, _, argsJSON string) (string,
 		return "", err
 	}
 	defer release()
-	if s.kind == kindPlugin {
-		// Reads go straight to the driver; writes need a check like built-in
-		// SQL sessions and run through the safety net (plugin.db.snapshotWrite
-		// when the driver declares it). Cancellation is registered per call.
-		ctx, cancel := context.WithTimeout(callCtx, timeoutForQuery(a.Query)+externalHostDeadlineSlack)
-		defer cancel()
-		res, err := executeSQLQuery(ctx, s, a)
-		if err != nil {
-			return "", err
-		}
-		return core.EncodeResult(res)
-	}
 	if s.kind != kindSQL && s.kind != kindHTTP && s.kind != kindCQL && s.kind != kindNeo4j && s.kind != kindMongo {
 		if s.kind != kindVector {
 			return "", fmt.Errorf("该会话类型不支持查询")
@@ -371,22 +351,6 @@ func dbExecuteQueryStreamHandler(callCtx context.Context, _, argsJSON string) (s
 		return "", err
 	}
 	defer release()
-	if s.kind == kindPlugin {
-		if !readPath(s, a) {
-			ctx, cancel := context.WithTimeout(callCtx, timeoutForQuery(a.Query)+externalHostDeadlineSlack)
-			defer cancel()
-			res, err := executeSQLQuery(ctx, s, a)
-			if err != nil {
-				return "", err
-			}
-			return core.EncodeResult(emitGuardedResult(*a.QueryID, res))
-		}
-		summary, err := externalStreamQuery(s, a.Query, a.Database, *a.QueryID)
-		if err != nil {
-			return "", err
-		}
-		return core.EncodeResult(summary)
-	}
 	if s.kind != kindSQL {
 		return "", fmt.Errorf("该会话类型暂不支持流式查询")
 	}

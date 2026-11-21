@@ -51,7 +51,7 @@ func checkImport(ctx context.Context, s *dbSession, op safetyOperation, database
 		}
 		rows, countErr = countImportRecords(op.Format, op.Data)
 	}
-	if s.kind != kindSQL && s.kind != kindPlugin {
+	if s.kind != kindSQL {
 		return nil, safetyPlan{}, fmt.Errorf("import_engine_unsupported")
 	}
 	est := sqlsafety.Estimate{Source: "none"}
@@ -93,7 +93,7 @@ func importStatementText(qualified string) string {
 }
 
 // importKeyCapture: the import runs in batched transactions where keys can
-// be captured (DM, Firebird, vector and plugin sessions insert row by row).
+// be captured (DM, Firebird and vector sessions insert row by row).
 func importKeyCapture(s *dbSession) bool {
 	return s.kind == kindSQL && s.vector == nil && s.dialect != "dm" && s.dialect != "firebird"
 }
@@ -171,7 +171,7 @@ func countImportRecords(format, data string) (int64, error) {
 
 // requireImportStartCheck consumes the token db_data_import_start must
 // present. Repeating a submission already made needs none (it starts
-// nothing new); plugin sessions need none yet.
+// nothing new).
 func requireImportStartCheck(ctx context.Context, planID, key string, checkID, confirmText *string) error {
 	_, store, err := databaseTransferManager()
 	if err != nil {

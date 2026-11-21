@@ -82,18 +82,9 @@ func openBackupSession(ctx context.Context, saved *backupSavedConnection) (*dbSe
 		DbType: saved.DbType, Host: saved.Host, Port: saved.Port,
 		Username: saved.Username, Password: password, Database: saved.Database,
 		FilePath: saved.FilePath, Token: token, Org: saved.Org,
-		SSL: saved.SSL, AuthSource: saved.AuthSource,
+		SSL: saved.SSL, AuthSource: saved.AuthSource, LegacyDriver: saved.LegacyDriver,
 	}
-	var session *dbSession
-	if saved.Driver != nil && saved.Driver.PluginID != "" {
-		driver := *saved.Driver
-		cfg.Driver = &driver
-		cfg.ConnectionID = saved.ID
-		cfg.Options = saved.Options
-		session, err = connectExternalSession(ctx, &cfg)
-	} else {
-		session, err = buildSession(&cfg)
-	}
+	session, err := buildSession(&cfg)
 	if err != nil {
 		if saved.SavePassword != nil && !*saved.SavePassword && password == nil {
 			return nil, fmt.Errorf("连接数据库失败（该连接未保存密码，后台备份无法登录）: %w", err)

@@ -344,9 +344,6 @@ func checkDestructive(ctx context.Context, s *dbSession, op safetyOperation, dat
 	case s.kind == kindVector && op.Action == "drop_table":
 		st.Text = "DROP COLLECTION " + database + "." + op.Table
 		extra = append(extra, sqlsafety.ReasonNotUndoableStore)
-	case s.kind == kindPlugin:
-		st.Text = strings.TrimSpace(op.Action + " " + database + " " + op.Table)
-		extra = append(extra, sqlsafety.ReasonNotUndoableStore)
 	default:
 		return nil, safetyPlan{}, fmt.Errorf("当前数据库类型不支持该危险操作")
 	}
@@ -384,10 +381,9 @@ func (g *destructiveGuard) runTable(ctx context.Context, s *dbSession, statement
 	return err
 }
 
-// recordDone saves the audit record (no undo) of a database-wide operation,
-// or of a plugin driver's structured destructive action, that took effect.
+// recordDone saves the audit record (no undo) of a database-wide operation that took effect.
 func (g *destructiveGuard) recordDone(s *dbSession) {
-	if g == nil || !safetySettings().Enabled || (s.kind != kindSQL && s.kind != kindPlugin) {
+	if g == nil || !safetySettings().Enabled || s.kind != kindSQL {
 		return
 	}
 	sc, rs := g.check.Statements[0], g.plan.statements[0]
@@ -469,7 +465,7 @@ func checkSchemaSync(ctx context.Context, s *dbSession, op safetyOperation, data
 
 // schemaSyncGuard runs a checked schema sync: on a host SQL target every
 // statement through runGuarded (an audit record each; DROP TABLE snapshots
-// the table first), on a plugin target in exec mode with an audit record.
+// the table first).
 type schemaSyncGuard struct {
 	target *dbSession
 	check  *sqlsafety.Check
@@ -492,15 +488,6 @@ func (g *schemaSyncGuard) verify(statements []SchemaSyncStatement) error {
 func (g *schemaSyncGuard) run(ctx context.Context, index int) error {
 	sc, rs := g.check.Statements[index], g.plan.statements[index]
 	step := guardedStep{Statement: sc, Parsed: rs.parsed, PrimaryKey: rs.primaryKey, Resolved: rs.resolved}
-	if g.target.kind == kindPlugin {
-		// Plugin targets: DDL in exec mode as before, recorded without undo.
-		if err := execSchemaSyncStatement(ctx, g.target, rs.parsed.Text); err != nil {
-			return err
-		}
-		r := &guardedRun{ctx: ctx, s: g.target, check: g.check, source: "designer", settings: safetySettings(), store: safetyRecords()}
-		r.saveAfterCommit([]*pendingRecord{r.unrecoverable(step, -1)})
-		return nil
-	}
 	if sc.Undoable {
 		if !rs.resolved || rs.parsed.Table == nil {
 			return errors.New("SQL 安全网无法生成整表留底查询，未执行")

@@ -33,9 +33,6 @@ func redisKeyOperation(action string, dbIndex int64, key string) safetyOperation
 
 // requireRedisCheck consumes the token a Redis key edit must present.
 func requireRedisCheck(s *dbSession, checkID, confirmText *string, action string, dbIndex int64, key string) error {
-	if s.kind == kindPlugin {
-		return nil
-	}
 	_, _, err := consumeCheck(s, checkID, confirmText, "", operationHash(redisKeyOperation(action, dbIndex, key)))
 	return err
 }

@@ -73,8 +73,6 @@ func exportBackupArchive(ctx context.Context, a *backupArchive, s *dbSession, ta
 				err = backupSQLArchive(ctx, a, s, target.Database, table)
 			case kindHTTP:
 				err = backupHTTPObject(ctx, a, s, target.Database, table)
-			case kindPlugin:
-				err = backupPluginNative(ctx, a, s, target.Database, table)
 			case kindVector:
 				err = backupVectorObject(ctx, a, s, target.Database, table)
 			default:
@@ -324,45 +322,5 @@ func backupSQLArchive(ctx context.Context, a *backupArchive, s *dbSession, datab
 			}
 			return out.record(row)
 		})
-	})
-}
-
-func backupPluginNative(ctx context.Context, a *backupArchive, s *dbSession, database, table string) error {
-	if s.ext == nil || s.ext.info.BackupVersion != 1 {
-		return fmt.Errorf("native plugin backup was not negotiated")
-	}
-	provider, ok := s.ext.conn.(ExternalBackupConnection)
-	if !ok {
-		return fmt.Errorf("native plugin backup provider missing")
-	}
-	call, err := s.ext.begin(ctx, true)
-	if err != nil {
-		return err
-	}
-	defer s.ext.end(call)
-	stop := context.AfterFunc(call.ctx, call.sendPluginCancel)
-	defer stop()
-	return a.object(database, table, "plugin-native-jsonl-v1", func(out *backupArchiveStream) error {
-		tail := []byte{}
-		err := provider.Backup(call.ctx, call.requestID, database, table, func(data []byte) error {
-			if err := call.ctx.Err(); err != nil {
-				return err
-			}
-			if _, err := out.Write(data); err != nil {
-				return err
-			}
-			tail = append(tail, data...)
-			if len(tail) > 64 {
-				tail = tail[len(tail)-64:]
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-		if !strings.HasSuffix(string(tail), "\n{\"mincodeBackupComplete\":1}\n") {
-			return fmt.Errorf("native plugin backup missing completion marker")
-		}
-		return nil
 	})
 }

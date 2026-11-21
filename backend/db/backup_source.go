@@ -8,23 +8,10 @@ import (
 	"strings"
 )
 
-// backupPluginPageSize 插件驱动逐页读取行数据的每页行数。
-const backupPluginPageSize = 1000
-
 // backupDumpDialect 返回会话对应的备份输出方言；不支持时返回说明原因的错误。
 func backupDumpDialect(s *dbSession) (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("会话不存在")
-	}
-	if s.kind == kindPlugin {
-		if s.ext == nil || !s.ext.has(externalFeatureMetadataDDL) || !s.ext.has(externalFeatureTableRows) {
-			return "", fmt.Errorf("插件驱动未声明 metadata.ddl 与 tableRows，不支持定时备份")
-		}
-		switch s.ext.dialect {
-		case "mysql", "postgres", "sqlite", "sqlserver", "oracle", "duckdb", "clickhouse":
-			return s.ext.dialect, nil
-		}
-		return "", fmt.Errorf("插件驱动的 SQL 方言 %q 不支持定时备份", s.ext.dialect)
 	}
 	if s.kind != kindSQL || s.vector != nil {
 		return "", fmt.Errorf("该数据库类型不是 SQL 数据库，不支持定时备份")
@@ -117,9 +104,6 @@ func (src *sessionBackupSource) close() {
 func (src *sessionBackupSource) dumpDialect() string { return src.dialect }
 
 func (src *sessionBackupSource) qualifyTables() bool {
-	if src.s.kind == kindPlugin {
-		return false
-	}
 	return src.dialect != "sqlite" && src.dialect != "firebird"
 }
 
@@ -139,8 +123,6 @@ func (src *sessionBackupSource) listTables(ctx context.Context, database string)
 	var tables []SchemaTable
 	var err error
 	switch {
-	case s.kind == kindPlugin:
-		tables, err = getDatabaseTables(ctx, s, database)
 	case src.dialect == "sqlite":
 		return src.sqliteTables(ctx)
 	case src.dialect == "mysql":
@@ -210,13 +192,6 @@ func (src *sessionBackupSource) queryStrings(ctx context.Context, query string, 
 
 func (src *sessionBackupSource) tableDDL(ctx context.Context, database, table string) (backupTableDDL, error) {
 	s := src.s
-	if s.kind == kindPlugin {
-		ddl, err := getTableDDL(ctx, s, database, table)
-		if err != nil {
-			return backupTableDDL{}, err
-		}
-		return backupTableDDL{Create: ddl}, nil
-	}
 	switch src.dialect {
 	case "mysql":
 		ddl, err := getTableDDL(ctx, s, database, table)
@@ -419,9 +394,6 @@ func (src *sessionBackupSource) insertColumns(ctx context.Context, database, tab
 }
 
 func (src *sessionBackupSource) streamRows(ctx context.Context, database, table string, onColumns func([]backupColumn) error, onRow func([]any) error) error {
-	if src.s.kind == kindPlugin {
-		return src.streamPluginRows(ctx, database, table, onColumns, onRow)
-	}
 	qualified, err := qualifiedTable(src.dialect, database, table)
 	if err != nil {
 		return err
@@ -482,54 +454,6 @@ func (src *sessionBackupSource) streamSQLRows(ctx context.Context, query string,
 		}
 	}
 	return rows.Err()
-}
-
-func (src *sessionBackupSource) streamPluginRows(ctx context.Context, database, table string, onColumns func([]backupColumn) error, onRow func([]any) error) error {
-	types := map[string]string{}
-	if src.s.ext.has(externalFeatureMetadataColumns) {
-		if columns, err := getTableColumns(ctx, src.s, database, table); err == nil {
-			for _, column := range columns {
-				types[column.Name] = strings.ToUpper(column.DataType)
-			}
-		}
-	}
-	var (
-		offset    uint32
-		token     string
-		announced bool
-	)
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		page, err := externalTableRowsPage(ctx, src.s, database, table, backupPluginPageSize, offset, token)
-		if err != nil {
-			return err
-		}
-		if !announced {
-			columns := make([]backupColumn, len(page.Columns))
-			for i, name := range page.Columns {
-				columns[i] = backupColumn{Name: name, Type: types[name]}
-			}
-			if err := onColumns(columns); err != nil {
-				return err
-			}
-			announced = true
-		}
-		for _, row := range page.Rows {
-			if err := onRow(row); err != nil {
-				return err
-			}
-		}
-		if page.NextPageToken != nil && *page.NextPageToken != "" {
-			token = *page.NextPageToken
-			continue
-		}
-		if len(page.Rows) < backupPluginPageSize || token != "" {
-			return nil
-		}
-		offset += uint32(len(page.Rows))
-	}
 }
 
 func (src *sessionBackupSource) extraDatabaseDDL(ctx context.Context, _ string) ([]string, error) {

@@ -133,20 +133,6 @@ func consumeCheck(s *dbSession, checkID, confirmText *string, database, hash str
 // executeSQLQuery runs the query window text on a SQL session: read-only
 // text inside the read guard, anything else guarded statement by statement.
 func executeSQLQuery(ctx context.Context, s *dbSession, a executeQueryArgs) (*QueryResult, error) {
-	if s.kind == kindPlugin && readPath(s, a) {
-		// Reads go to the driver exactly as before (readOnly false): driver
-		// read-only modes are narrower than the classifier (open user
-		// transactions, multi-statement scripts, keyword allow-lists).
-		return externalExecuteQuery(s, a.Query, a.Database, optionalString(a.QueryID), false)
-	}
-	if pluginReadOnlyProbe(s, a) {
-		// Text the classifier does not know (PromQL, nGQL, a search DSL) on
-		// a driver that enforces read-only executes: run it read-only first;
-		// only a refusal (or any failure) makes it a write needing a check.
-		if res, err := externalExecuteQuery(s, a.Query, a.Database, optionalString(a.QueryID), true); err == nil {
-			return res, nil
-		}
-	}
 	if readPath(s, a) {
 		res, err := runReadPath(ctx, s, a)
 		if isReadOnlyViolation(s.dialect, err) {
@@ -169,9 +155,6 @@ func executeSQLQuery(ctx context.Context, s *dbSession, a executeQueryArgs) (*Qu
 	if err != nil {
 		return nil, err
 	}
-	if s.kind == kindPlugin {
-		ctx = withSafetyQueryID(ctx, optionalString(a.QueryID))
-	}
 	res, err := runGuarded(ctx, s, check, steps, execPerStatement, source)
 	if err != nil {
 		return nil, err
@@ -180,36 +163,6 @@ func executeSQLQuery(ctx context.Context, s *dbSession, a executeQueryArgs) (*Qu
 		return &QueryResult{Columns: []string{}, Rows: [][]any{}}, nil
 	}
 	return res.Last, nil
-}
-
-// pluginReadOnlyProbe: a plugin session whose driver enforces read-only
-// executes (feature readOnly) and declares no SQL dialect ("generic": the
-// only choice for PromQL, nGQL, a search DSL), no token, and text whose
-// statements are all reads or unknown, at least one unknown and none of
-// them SQL. A driver of a SQL dialect is never probed, and neither is SQL
-// the classifier did not clear (unlisted verbs such as SET or VACUUM, reads
-// demoted because they may hide a second statement): the host's write gate
-// must not rest on the driver's own read-only enforcement for SQL.
-func pluginReadOnlyProbe(s *dbSession, a executeQueryArgs) bool {
-	if s.kind != kindPlugin || s.ext == nil || s.ext.dialect != "generic" || !s.ext.has(externalFeatureReadOnly) ||
-		strings.TrimSpace(optionalString(a.CheckID)) != "" {
-		return false
-	}
-	family := s.safetyFamily()
-	unknown := false
-	for _, segment := range sqlsafety.Split(family, a.Query) {
-		switch sqlsafety.Classify(family, segment).Kind {
-		case sqlsafety.KindRead:
-		case sqlsafety.KindUnknown:
-			if sqlsafety.LooksLikeSQL(family, segment) {
-				return false
-			}
-			unknown = true
-		default:
-			return false
-		}
-	}
-	return unknown
 }
 
 // readPath: read-only text without a token runs on the read path. A token
@@ -342,10 +295,6 @@ func queryGuardedSteps(s *dbSession, check *sqlsafety.Check, plan safetyPlan, qu
 	for i, sc := range check.Statements {
 		rs := plan.statements[i]
 		step := guardedStep{Statement: sc, Parsed: rs.parsed, PrimaryKey: rs.primaryKey, Resolved: rs.resolved}
-		if s.kind == kindPlugin && rs.resolved {
-			database := pluginTargetDatabase(check.Database, rs.parsed.Table)
-			step.Database = &database
-		}
 		switch {
 		case sc.Undoable && sc.Kind == sqlsafety.KindData:
 			q, ok := sqlsafety.SnapshotSQL(family, rs.parsed, s.safetyQualify, s.safetyQuote, rs.primaryKey, true)
@@ -449,32 +398,12 @@ type guardedStep struct {
 	KeyBatches [][]any
 	Write      func(ctx context.Context, ex sqlExecer) (int64, error)
 	ParentID   string
-	// Database, when set (plugin sessions), is the database the step's
-	// snapshotWrite call is sent with instead of the check's: "" for a
-	// target resolved in the driver's own schema (pluginTargetDatabase).
-	Database *string
-
-	// Plugin sessions (see safety_plugin.go). Wire, when set, is the
-	// plugin.db.snapshotWrite steps this step is made of (its snapshots and
-	// after-images included); without it the step is built from Snapshot,
-	// After and Parsed.Text. WireRows maps each Wire step to the row it
-	// changes, so a row written by several steps counts once. Capture
-	// collects the keys an insert's returned values report. Verify, after
-	// the commit, counts the rows whose before-image differs from what the
-	// preview saw (an undo cannot check that before writing on a plugin).
-	Wire     []ExternalSnapshotStep
-	WireRows []int
-	Capture  *insertCapture
-	Verify   func(results []externalSnapshotStepResult) int
 }
 
 type guardedResult struct {
 	Affected  []int64
 	RecordIDs []string
 	Last      *QueryResult
-	// Overwritten (plugin undo): rows that changed after the preview and
-	// were overwritten anyway; their new values are in the undo's record.
-	Overwritten int
 }
 
 type guardedRun struct {
@@ -512,9 +441,6 @@ type pendingRecord struct {
 // when the check names a database) under check, recording each change with
 // source. See execMode for transaction scope.
 func runGuarded(ctx context.Context, s *dbSession, check *sqlsafety.Check, steps []guardedStep, mode execMode, source string) (*guardedResult, error) {
-	if s.kind == kindPlugin {
-		return runPluginGuarded(ctx, s, check, steps, mode, source, nil)
-	}
 	r, err := startGuardedRun(ctx, s, check, steps, source)
 	if err != nil {
 		return nil, err
@@ -530,9 +456,6 @@ func runGuarded(ctx context.Context, s *dbSession, check *sqlsafety.Check, steps
 // execBatch) and saves their records merged into the one merge returns
 // (nil: none). Engines that cannot run the steps in one transaction are refused.
 func runGuardedGroup(ctx context.Context, s *dbSession, check *sqlsafety.Check, steps []guardedStep, source string, merge func(r *guardedRun, pending []*pendingRecord) *pendingRecord) (*guardedResult, error) {
-	if s.kind == kindPlugin {
-		return runPluginGuarded(ctx, s, check, steps, execBatch, source, merge)
-	}
 	r, err := startGuardedRun(ctx, s, check, steps, source)
 	if err != nil {
 		return nil, err
@@ -1285,7 +1208,6 @@ func (r *guardedRun) record(step guardedStep, affected int64, undoable bool, rea
 		ID: sqlsafety.NewRecordID(), ConnectionID: r.s.connectionID, DbType: r.s.dialect, Database: r.check.Database,
 		Table: table, Statement: step.Parsed.Text, Kind: step.Statement.Kind, Source: r.source, Affected: max(affected, 0),
 		Undoable: undoable, UndoReason: reason, UndoState: state, ParentID: step.ParentID,
-		OwnSchema: r.s.kind == kindPlugin && step.Database != nil && *step.Database == "",
 	}
 }
 
@@ -1593,43 +1515,15 @@ func columnPositions(columns, pk []string) ([]int, bool) {
 // ── 方言细节 ──
 
 func (s *dbSession) safetyQualify(schema, table string) string {
-	if s.kind == kindPlugin {
-		// Plugin drivers: the family's quoting; the schema is the request's database.
-		if schema == "" {
-			return s.safetyQuote(table)
-		}
-		return s.safetyQuote(schema) + "." + s.safetyQuote(table)
-	}
 	q, _ := qualifiedTable(s.dialect, schema, table)
 	return q
 }
 
-func (s *dbSession) safetyQuote(name string) string { return quoteColumn(s.safetyDialect(), name) }
+func (s *dbSession) safetyQuote(name string) string { return quoteColumn(s.dialect, name) }
 
 // safetyPlaceholder is the n-th (1-based) bind parameter of SQL the safety
 // net generates for this session.
-func (s *dbSession) safetyPlaceholder(n int) string { return placeholder(s.safetyDialect(), n) }
-
-// safetyDialect is the built-in dialect whose quoting and placeholders the
-// safety net writes this session's SQL with: a plugin driver's by its
-// sqlDialect family (MySQL backticks, SQL Server brackets, double quotes
-// elsewhere), a built-in session's own.
-func (s *dbSession) safetyDialect() string {
-	if s.kind != kindPlugin {
-		return s.dialect
-	}
-	switch s.safetyFamily() {
-	case sqlsafety.FamilyMySQL:
-		return "mysql"
-	case sqlsafety.FamilyPostgres:
-		return "postgres"
-	case sqlsafety.FamilySQLServer:
-		return "sqlserver"
-	case sqlsafety.FamilyOracle, sqlsafety.FamilyDM:
-		return "oracle"
-	}
-	return "generic"
-}
+func (s *dbSession) safetyPlaceholder(n int) string { return placeholder(s.dialect, n) }
 
 // wholeTableSnapshotSQL reads every row of table. Postgres reads ONLY the
 // table itself (rows of child tables and partitions are not its rows); SQL

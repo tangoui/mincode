@@ -20,8 +20,8 @@ import (
 // an in-app exclusion mechanism, not protection from external database writers.
 func transferResourceKeys(saved *backupSavedConnection) ([]string, error) {
 	engine := strings.ToLower(saved.DbType)
-	if saved.Driver != nil {
-		engine = "plugin"
+	if saved.LegacyDriver != nil {
+		return nil, errLegacyDatabaseDriver
 	}
 	switch engine {
 	case "mariadb", "tidb", "oceanbase", "polardb", "greatsql", "dolt":

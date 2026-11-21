@@ -223,10 +223,6 @@ func (s *dbSession) safetyFamily() sqlsafety.Family {
 	switch s.kind {
 	case kindSQL:
 		return sqlsafety.FamilyFor(s.dialect)
-	case kindPlugin:
-		if s.ext != nil {
-			return sqlsafety.FamilyFor(s.ext.dialect)
-		}
 	}
 	return sqlsafety.FamilyNone
 }
@@ -329,7 +325,7 @@ func assessStatement(ctx context.Context, s *dbSession, family sqlsafety.Family,
 	case s.safetyWithoutTransactions():
 		extra = append(extra, sqlsafety.ReasonNoTransaction)
 		undoable = false
-	case s.kind != kindSQL && s.kind != kindPlugin:
+	case s.kind != kindSQL:
 		// Non-SQL sessions: no host-side snapshot.
 		extra = append(extra, sqlsafety.ReasonNotUndoableStore)
 		undoable = false
@@ -378,12 +374,6 @@ func assessStatement(ctx context.Context, s *dbSession, family sqlsafety.Family,
 		} else if failure == sqlsafety.ReasonTableNotFound {
 			extra = append(extra, failure)
 		}
-	}
-	// Plugin drivers snapshot only UPDATE/DELETE, and only through
-	// plugin.db.snapshotWrite; anything else is warned about, not undoable.
-	if s.kind == kindPlugin && !s.safetyWithoutTransactions() && (!s.supportsSnapshotWrite() || st.Kind == sqlsafety.KindInsert) {
-		extra = append(extra, sqlsafety.ReasonNotUndoableStore)
-		undoable = false
 	}
 	if script {
 		extra = append(extra, sqlsafety.ReasonExplicitTransaction)
@@ -455,11 +445,6 @@ func resolveSafetyTarget(ctx context.Context, s *dbSession, database string, st 
 		if found != tableFound {
 			if found == tableMissing {
 				failure = sqlsafety.ReasonTableNotFound
-				if s.kind == kindPlugin {
-					// The driver answered for its own schema: later candidates
-					// only stand in for drivers that cannot say.
-					break
-				}
 			}
 			continue
 		}
@@ -498,20 +483,6 @@ func safetySchemaCandidates(ctx context.Context, s *dbSession, database, explici
 	fold := s.identifierFold()
 	var current string
 	switch s.dialect {
-	case "plugin":
-		// An explicit qualifier names the schema. Drivers run unqualified
-		// names in their connection's own schema (search path / current
-		// schema), not in the request's database, so look them up with an
-		// empty database only: drivers resolve that to the same schema, the
-		// backup names the table unqualified and the count, the snapshot and
-		// the statement are all sent with the same empty database (see
-		// pluginTargetDatabase). No other database stands in: a driver that
-		// cannot answer for "" leaves the statement unparsed (not undoable)
-		// rather than backing up a table the statement may not touch.
-		if explicit != "" {
-			return []string{explicit}, true
-		}
-		return []string{""}, true
 	case "sqlite":
 		// qualifiedTable has no schema for SQLite: only the main database is safe.
 		return []string{""}, explicit == "" || strings.EqualFold(explicit, "main")
@@ -633,15 +604,6 @@ const (
 func resolveSafetyTable(ctx context.Context, s *dbSession, schema, table string) (string, []ColumnInfo, tableLookup) {
 	columns, err := getTableColumns(ctx, s, schema, table)
 	fold := s.identifierFold()
-	if err == nil && len(columns) > 0 && s.kind == kindPlugin {
-		// Driver metadata may match names case-insensitively (Oracle): use
-		// the spelling the table listing reports, which statements need.
-		if name, ok := listedSpelling(ctx, s, schema, table); ok && name != table {
-			if listed, err := getTableColumns(ctx, s, schema, name); err == nil && len(listed) > 0 {
-				return name, listed, tableFound
-			}
-		}
-	}
 	if err == nil && len(columns) > 0 {
 		if fold != nil && fold(table) != table {
 			if other, err := getTableColumns(ctx, s, schema, fold(table)); err != nil || len(other) > 0 {
@@ -690,21 +652,6 @@ func resolveSafetyTable(ctx context.Context, s *dbSession, schema, table string)
 		return "", nil, tableUncertain
 	}
 	return name, columns, tableFound
-}
-
-// listedSpelling is table as the schema's table listing spells it: the
-// exact name, else the only case-insensitive match; ok is false when the
-// listing fails or has neither.
-func listedSpelling(ctx context.Context, s *dbSession, schema, table string) (string, bool) {
-	tables, err := getDatabaseTables(ctx, s, schema)
-	if err != nil {
-		return "", false
-	}
-	names := make([]string, len(tables))
-	for i, t := range tables {
-		names[i] = t.Name
-	}
-	return matchName(names, table, nil)
 }
 
 func containsFold(names []string, want string) bool {
@@ -833,11 +780,7 @@ func tableHasTriggers(ctx context.Context, s *dbSession, schema, table string) b
 // estimate, else Source "none".
 func estimateRows(ctx context.Context, s *dbSession, family sqlsafety.Family, database string, rs safetyResolvedStatement) sqlsafety.Estimate {
 	if rs.resolved {
-		if query, ok := sqlsafety.CountSQL(family, rs.parsed, s.safetyQualify); ok && s.kind == kindPlugin {
-			if n, err := externalCount(ctx, s, pluginTargetDatabase(database, rs.parsed.Table), query); err == nil {
-				return sqlsafety.Estimate{Rows: n, Exact: true, Source: "count"}
-			}
-		} else if ok {
+		if query, ok := sqlsafety.CountSQL(family, rs.parsed, s.safetyQualify); ok {
 			var n int64
 			err := withEstimateTx(ctx, s, database, true, func(ctx context.Context, tx *sql.Tx) error {
 				return tx.QueryRowContext(ctx, query).Scan(&n)

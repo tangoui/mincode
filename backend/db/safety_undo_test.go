@@ -710,7 +710,6 @@ func TestUndoReconfirmWithoutUndoIsNotPreviewStale(t *testing.T) {
 	for _, err := range []error{
 		r.reconfirm(guardedStep{}, nil, sqlsafety.ReasonNotUndoableStore),
 		r.reconfirm(guardedStep{}, &sqlsafety.Estimate{Rows: 5}, sqlsafety.ReasonOverSnapshotLimit),
-		r.reconfirmWithoutUndo(sqlsafety.ReasonOverSnapshotLimit),
 	} {
 		if err == nil || strings.HasPrefix(err.Error(), "sqlsafety:") {
 			t.Fatalf("err = %v, want a plain error naming why the undo cannot be backed up", err)

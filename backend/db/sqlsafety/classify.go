@@ -882,21 +882,3 @@ var sqlStatementWords = map[string]bool{
 	"DISASSOCIATE": true, "ADMINISTER": true, "ADD": true, "BACKUP": true, "RESTORE": true,
 	"DFS": true, "REPL": true,
 }
-
-// LooksLikeSQL reports text whose first keyword (after opening
-// parentheses) starts a SQL statement, that starts with "{" (a JDBC escape
-// such as {call p()}), or that carries a MySQL executable comment: SQL even
-// where the classifier could not clear it as a read.
-func LooksLikeSQL(f Family, stmt string) bool {
-	toks, execComment := lexExpanded(f, strings.TrimSpace(stmt))
-	if execComment {
-		return true
-	}
-	for _, t := range toks {
-		if t.isPunct("(") {
-			continue
-		}
-		return t.isPunct("{") || t.kind == tokWord && sqlStatementWords[t.up]
-	}
-	return false
-}

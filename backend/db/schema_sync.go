@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 )
 
 const (
@@ -106,31 +105,10 @@ type SchemaSyncStatementExecution struct {
 	Error  *string `json:"error,omitempty"`
 }
 
-// schemaSyncPluginFeatures are the metadata features a plugin session needs
-// for a schema snapshot (tables, columns, primary key and indexes).
-var schemaSyncPluginFeatures = []string{
-	externalFeatureMetadataTables, externalFeatureMetadataColumns,
-	externalFeatureMetadataPKs, externalFeatureMetadataIndexes,
-}
-
-// schemaSyncDialect is the dialect a session syncs with: the built-in dialect,
-// or a plugin driver's declared sqlDialect when it reports every metadata
-// feature the snapshot reads. Plugin and built-in sessions of the same
-// dialect can be compared with each other.
+// schemaSyncDialect returns the built-in SQL dialect used for schema sync.
 func schemaSyncDialect(session *dbSession) (string, error) {
 	if session == nil {
 		return "", fmt.Errorf("该数据库类型不支持结构同步")
-	}
-	if session.kind == kindPlugin {
-		if session.ext == nil || !supportedSchemaSyncDialect(session.ext.dialect) {
-			return "", fmt.Errorf("unsupported: 插件驱动的 SQL 方言不支持结构同步")
-		}
-		for _, feature := range schemaSyncPluginFeatures {
-			if !session.ext.has(feature) {
-				return "", fmt.Errorf("unsupported: 插件驱动未声明 %s，不支持结构同步", feature)
-			}
-		}
-		return session.ext.dialect, nil
 	}
 	if session.kind != kindSQL || !supportedSchemaSyncDialect(session.dialect) {
 		return "", fmt.Errorf("该数据库类型不支持结构同步")
@@ -140,9 +118,6 @@ func schemaSyncDialect(session *dbSession) (string, error) {
 
 // execSchemaSyncStatement runs one generated DDL statement on the target.
 func execSchemaSyncStatement(ctx context.Context, target *dbSession, statement string) error {
-	if target.kind == kindPlugin {
-		return externalExecStatement(ctx, target, statement, time.Duration(dbDMLTimeoutSecs)*time.Second)
-	}
 	_, err := target.db.ExecContext(ctx, statement)
 	return err
 }

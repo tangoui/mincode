@@ -239,7 +239,7 @@ func loadUndoPlan(ctx context.Context, s *dbSession, store safetyHistoryStore, i
 		return nil, err
 	}
 	switch {
-	case (s.kind != kindSQL || s.db == nil) && !s.supportsSnapshotWrite():
+	case s.kind != kindSQL || s.db == nil:
 		return nil, errors.New("该会话不支持撤回")
 	case rec.ConnectionID == "" || rec.ConnectionID != s.connectionID || rec.DbType != s.dialect:
 		return nil, errors.New("该操作记录不属于当前连接，不能撤回")
@@ -443,12 +443,7 @@ func (p *undoPlan) markConflicts(ctx context.Context, s *dbSession) error {
 	if err != nil {
 		return err
 	}
-	var current map[string][]any
-	if s.kind == kindPlugin {
-		current, err = pluginReadByKey(ctx, s, recordDatabase(p.rec), p.rec.Table, p.pk, columns, p.keys(p.rows))
-	} else {
-		current, err = readRowsByKey(ctx, s, s.db, q, p.pk)
-	}
+	current, err := readRowsByKey(ctx, s, s.db, q, p.pk)
 	if err != nil {
 		return fmt.Errorf("读取当前数据失败: %w", err)
 	}
@@ -745,11 +740,6 @@ func runUndo(ctx context.Context, s *dbSession, store safetyHistoryStore, p *und
 		res.RecordID, res.RecordIDs = out.RecordIDs[0], out.RecordIDs
 	}
 	slog.Info("sql safety undo", "record", p.rec.ID, "restored", res.Restored, "skipped", res.Skipped, "undoRecords", len(res.RecordIDs))
-	if out.Overwritten > 0 {
-		// Plugin drivers: found only after the commit (see safety_plugin.go).
-		slog.Warn("sql safety undo overwrote rows changed after the preview", "record", p.rec.ID, "rows", out.Overwritten)
-		return res, fmt.Errorf("撤回已执行，但有 %d 行在预览之后又被修改过、已被覆盖；被覆盖的值已留底（记录 %s），可再撤回", out.Overwritten, res.RecordID)
-	}
 	return res, nil
 }
 
@@ -789,10 +779,6 @@ func (b *undoSteps) add(kind sqlsafety.Kind, text string, setColumns []string, t
 	}
 	step.Parsed = sqlsafety.Statement{Index: len(b.steps), Text: text, Kind: kind, Table: &table, SetColumns: setColumns}
 	step.PrimaryKey, step.Resolved, step.ParentID = b.p.pk, true, b.p.rec.ID
-	if b.p.rec.OwnSchema {
-		database := ""
-		step.Database = &database
-	}
 	b.steps = append(b.steps, step)
 	b.restored += len(targets)
 }
@@ -849,20 +835,6 @@ func (b *undoSteps) updateStep(targets []undoTarget) error {
 	}
 	text := "UPDATE " + b.qualified() + " SET " + strings.Join(sets, ", ") + " WHERE " + b.keyWhere(len(sets))
 	var step guardedStep
-	if b.s.kind == kindPlugin {
-		err := b.pluginUndoWire(&step, b.p.columns, text, targets, func(t undoTarget) []any {
-			args := make([]any, 0, len(setAt)+len(t.row.key))
-			for _, at := range setAt {
-				args = append(args, t.row.values[at])
-			}
-			return append(args, t.row.key...)
-		}, true, true)
-		if err != nil {
-			return err
-		}
-		b.add(sqlsafety.KindData, text, setColumns, targets, step)
-		return nil
-	}
 	q, err := b.keyedSnapshot(&step, b.p.columns, targets)
 	if err != nil {
 		return err
@@ -900,13 +872,6 @@ func (b *undoSteps) insertStep(targets []undoTarget) error {
 	table := b.qualified()
 	text := "INSERT INTO " + table + " (" + strings.Join(b.quote(b.p.columns), ", ") + ") VALUES (" + strings.Join(marks, ", ") + ")"
 	var step guardedStep
-	if b.s.kind == kindPlugin {
-		if err := b.pluginUndoWire(&step, nil, text, targets, func(t undoTarget) []any { return t.row.values }, true, false); err != nil {
-			return err
-		}
-		b.add(sqlsafety.KindInsert, text, nil, targets, step)
-		return nil
-	}
 	if len(b.p.pk) > 0 {
 		if _, err := b.keyedSnapshot(&step, nil, targets); err != nil {
 			return err
@@ -940,13 +905,6 @@ func (b *undoSteps) deleteStep(targets []undoTarget) error {
 	}
 	text := "DELETE FROM " + b.qualified() + " WHERE " + b.keyWhere(0)
 	var step guardedStep
-	if b.s.kind == kindPlugin {
-		if err := b.pluginUndoWire(&step, nil, text, targets, func(t undoTarget) []any { return t.row.key }, false, true); err != nil {
-			return err
-		}
-		b.add(sqlsafety.KindData, text, nil, targets, step)
-		return nil
-	}
 	q, err := b.keyedSnapshot(&step, nil, targets)
 	if err != nil {
 		return err

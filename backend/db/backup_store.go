@@ -99,23 +99,22 @@ func writeAppKVJSON(key string, value any) error {
 
 // backupSavedConnection 是前端持久化的连接记录（app_db_connections）中备份所需的字段。
 type backupSavedConnection struct {
-	ID           string             `json:"id"`
-	Name         string             `json:"name"`
-	DbType       string             `json:"dbType"`
-	Host         string             `json:"host"`
-	Port         int                `json:"port"`
-	Username     *string            `json:"username"`
-	Password     *string            `json:"password"`
-	Database     *string            `json:"database"`
-	FilePath     *string            `json:"filePath"`
-	Token        *string            `json:"token"`
-	Org          *string            `json:"org"`
-	AuthSource   *string            `json:"authSource"`
-	SSL          bool               `json:"ssl"`
-	SavePassword *bool              `json:"savePassword"`
-	Driver       *ExternalDriverRef `json:"driver,omitempty"`
-	Options      map[string]any     `json:"options,omitempty"`
-	Tunnel       json.RawMessage    `json:"tunnel,omitempty"`
+	ID           string           `json:"id"`
+	Name         string           `json:"name"`
+	DbType       string           `json:"dbType"`
+	Host         string           `json:"host"`
+	Port         int              `json:"port"`
+	Username     *string          `json:"username"`
+	Password     *string          `json:"password"`
+	Database     *string          `json:"database"`
+	FilePath     *string          `json:"filePath"`
+	Token        *string          `json:"token"`
+	Org          *string          `json:"org"`
+	AuthSource   *string          `json:"authSource"`
+	SSL          bool             `json:"ssl"`
+	SavePassword *bool            `json:"savePassword"`
+	LegacyDriver *json.RawMessage `json:"driver,omitempty"`
+	Tunnel       json.RawMessage  `json:"tunnel,omitempty"`
 }
 
 // loadSavedConnection 按 ID 读取已保存连接；凭据仍为密文，由调用方在连接前解密。

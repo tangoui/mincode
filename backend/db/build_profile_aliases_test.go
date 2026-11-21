@@ -8,7 +8,7 @@ import (
 )
 
 // Wire-compatible aliases reuse the MySQL / PostgreSQL drivers: they must be
-// listed, routed to a session builder and readable by schema access.
+// listed and routed to a session builder.
 func TestBuildProfileRoutesCompatibleAliases(t *testing.T) {
 	available := make(map[string]struct{}, len(supportedDatabaseTypes))
 	for _, dbType := range supportedDatabaseTypes {
@@ -17,9 +17,6 @@ func TestBuildProfileRoutesCompatibleAliases(t *testing.T) {
 	for _, dbType := range []string{"dolt", "greatsql", "opentenbase"} {
 		if _, ok := available[dbType]; !ok {
 			t.Errorf("supportedDatabaseTypes is missing %q", dbType)
-		}
-		if !schemaSQLTypes[dbType] {
-			t.Errorf("schemaSQLTypes is missing %q", dbType)
 		}
 		// Port 1 on loopback refuses the connection: the error must come from
 		// the driver, not from the unsupported-type fallback.

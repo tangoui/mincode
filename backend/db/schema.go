@@ -44,9 +44,6 @@ type PrimaryKeyInfo struct {
 // ── db_get_schema ──
 
 func getSchema(ctx context.Context, s *dbSession) (*DbSchemaInfo, error) {
-	if s.kind == kindPlugin {
-		return externalSchema(ctx, s)
-	}
 	info, err := dispatchGetSchema(ctx, s)
 	if err != nil {
 		return nil, err
@@ -56,9 +53,6 @@ func getSchema(ctx context.Context, s *dbSession) (*DbSchemaInfo, error) {
 }
 
 func getNavigationSchema(ctx context.Context, s *dbSession) (*DbSchemaInfo, error) {
-	if s.kind == kindPlugin {
-		return externalNavigationSchema(ctx, s)
-	}
 	if s.kind == kindSQL && s.dialect == "mysql" {
 		info, err := mysqlNavigationSchema(ctx, s)
 		if err != nil {
@@ -93,9 +87,6 @@ func getNavigationSchema(ctx context.Context, s *dbSession) (*DbSchemaInfo, erro
 }
 
 func getDatabaseTables(ctx context.Context, s *dbSession, database string) ([]SchemaTable, error) {
-	if s.kind == kindPlugin {
-		return externalDatabaseTables(ctx, s, database)
-	}
 	if s.kind == kindMongo {
 		return mongoDatabaseTables(ctx, s, database)
 	}
@@ -610,9 +601,6 @@ func clickhouseSchema(ctx context.Context, s *dbSession) (*DbSchemaInfo, error) 
 // ── db_get_table_columns ──
 
 func getTableColumns(ctx context.Context, s *dbSession, database, table string) ([]ColumnInfo, error) {
-	if s.kind == kindPlugin {
-		return externalTableColumns(ctx, s, database, table)
-	}
 	if s.vector != nil && s.kind == kindVector {
 		return vectorTableColumns(ctx, s, database, table)
 	}
@@ -1141,9 +1129,6 @@ func postgresColumns(ctx context.Context, s *dbSession, database, table string) 
 // ── db_get_primary_keys ──
 
 func getPrimaryKeys(ctx context.Context, s *dbSession, database, table string) (*PrimaryKeyInfo, error) {
-	if s.kind == kindPlugin {
-		return externalPrimaryKeys(ctx, s, database, table)
-	}
 	if s.vector != nil && s.kind == kindVector {
 		return &PrimaryKeyInfo{Columns: []string{"id"}}, nil
 	}
@@ -1337,9 +1322,6 @@ func scanPrimaryKeyInfo(rows *sql.Rows) (*PrimaryKeyInfo, error) {
 // ── db_list_indexes / db_list_foreign_keys / db_list_triggers ──
 
 func listIndexes(ctx context.Context, s *dbSession, database, table string) ([]DbIndexInfo, error) {
-	if s.kind == kindPlugin {
-		return externalIndexes(ctx, s, database, table)
-	}
 	if s.vector != nil && s.kind == kindVector {
 		return []DbIndexInfo{}, nil
 	}
@@ -1550,9 +1532,6 @@ func databaseBool(value any) bool {
 }
 
 func listForeignKeys(ctx context.Context, s *dbSession, database, table string) ([]DbForeignKeyInfo, error) {
-	if s.kind == kindPlugin {
-		return externalForeignKeys(ctx, s, database, table)
-	}
 	if s.kind != kindSQL {
 		return nil, fmt.Errorf("该会话类型不支持外键查询")
 	}
@@ -1606,9 +1585,6 @@ func mysqlForeignKeys(ctx context.Context, s *dbSession, database, table string)
 }
 
 func listTriggers(ctx context.Context, s *dbSession, database, table string) ([]DbTriggerInfo, error) {
-	if s.kind == kindPlugin {
-		return externalTriggers(ctx, s, database, table)
-	}
 	if s.kind != kindSQL {
 		return nil, fmt.Errorf("该会话类型不支持触发器查询")
 	}
@@ -1888,9 +1864,6 @@ func sqliteTriggers(ctx context.Context, s *dbSession, table string) ([]DbTrigge
 // ── db_get_table_ddl ──
 
 func getTableDDL(ctx context.Context, s *dbSession, database, table string) (string, error) {
-	if s.kind == kindPlugin {
-		return externalTableDDL(ctx, s, database, table)
-	}
 	if s.vector != nil && s.kind == kindVector {
 		return vectorCollectionDefinition(ctx, s, database, table)
 	}
