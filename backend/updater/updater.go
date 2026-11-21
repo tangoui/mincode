@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -22,7 +23,8 @@ import (
 )
 
 const (
-	ManifestURL = "https://github.com/tangoui/mincode/releases/latest/download/latest.json"
+	releasePage = "https://github.com/tangoui/mincode/releases/latest"
+	ManifestURL = releasePage + "/download/latest.json"
 	AppID       = core.AppID
 	progress    = "app-update:progress"
 )
@@ -46,11 +48,14 @@ type updateInfo struct {
 	PubDate        string `json:"pubDate,omitempty"`
 	Platform       string `json:"platform"`
 	DownloadSize   int64  `json:"downloadSize,omitempty"`
+	ReleaseURL     string `json:"releaseURL,omitempty"`
 }
 
 type installResult struct {
-	Version string `json:"version"`
-	Ready   bool   `json:"ready"`
+	Version    string `json:"version"`
+	Ready      bool   `json:"ready"`
+	ReleaseURL string `json:"releaseURL,omitempty"`
+	Message    string `json:"message,omitempty"`
 }
 
 func init() {
@@ -109,12 +114,39 @@ func checkUpdateHandler(ctx context.Context, _, _ string) (string, error) {
 		info.Available = true
 		info.Version = release.Version
 		info.Notes = release.Notes
-		info.DownloadSize = release.Full.Size
+		if requiresManualUpdate(ctx) {
+			info.ReleaseURL = releasePage
+		} else {
+			info.DownloadSize = release.Full.Size
+		}
 		if !release.PubDate.IsZero() {
 			info.PubDate = release.PubDate.Format(time.RFC3339)
 		}
 	}
 	return core.EncodeResult(info)
+}
+
+func requiresManualUpdate(ctx context.Context) bool {
+	// The AppImage runtime sets this to the path of the outer image.
+	if os.Getenv("APPIMAGE") != "" {
+		return true
+	}
+	if runtime.GOOS != "linux" {
+		return false
+	}
+	exe, err := os.Executable()
+	return err == nil && systemPackageOwnsExecutable(ctx, exe)
+}
+
+func systemPackageOwnsExecutable(ctx context.Context, exe string) bool {
+	// Tango's deb and rpm both install the executable directly under /usr/bin.
+	if filepath.Dir(exe) != "/usr/bin" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, "dpkg-query", "-S", "--", exe).Run() == nil ||
+		exec.CommandContext(ctx, "rpm", "-qf", "--", exe).Run() == nil
 }
 
 func check(ctx context.Context, u *tangoupdater.Updater) (*tangoupdater.Release, error) {
@@ -224,6 +256,12 @@ func downloadAndInstallHandler(ctx context.Context, _, argsJSON string) (string,
 	}
 	if release == nil || (args.Version != "" && args.Version != release.Version) {
 		return "", errors.New("可用版本已变化，请重新检查更新")
+	}
+	if requiresManualUpdate(ctx) {
+		return core.EncodeResult(installResult{
+			Version: release.Version, ReleaseURL: releasePage,
+			Message: "请从 GitHub Releases 下载新版安装包",
+		})
 	}
 	u.OnEvent = func(event tangoupdater.Event) {
 		// The response carries a user-facing error. Keep path and network

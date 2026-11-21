@@ -34,12 +34,12 @@ export interface UpdateInfo {
   pubDate?: string;
   platform: string;
   downloadSize?: number;
+  releaseURL?: string;
 }
 
-export interface UpdateInstallResult {
-  version: string;
-  ready: true;
-}
+export type UpdateInstallResult =
+  | { version: string; ready: true }
+  | { version: string; ready: false; releaseURL: string };
 
 interface UpdateProgress {
   kind: string;
@@ -73,6 +73,9 @@ function parseUpdateInfo(value: unknown): UpdateInfo {
   if (pubDate !== undefined && typeof pubDate !== "string") {
     throw new Error("Invalid update response field: pubDate");
   }
+  if (value.releaseURL !== undefined && typeof value.releaseURL !== "string") {
+    throw new Error("Invalid update response field: releaseURL");
+  }
   return {
     available: value.available,
     version: version as string,
@@ -81,15 +84,19 @@ function parseUpdateInfo(value: unknown): UpdateInfo {
     pubDate,
     platform: platform as string,
     downloadSize: optionalNonNegativeNumber(value.downloadSize, "downloadSize"),
+    releaseURL: value.releaseURL,
   };
 }
 
 function parseUpdateInstallResult(value: unknown): UpdateInstallResult {
   if (!isRecord(value)) throw new Error("Invalid update install response");
-  if (typeof value.version !== "string" || value.ready !== true) {
-    throw new Error("Invalid update install response fields");
+  if (typeof value.version === "string") {
+    if (value.ready === true) return { version: value.version, ready: true };
+    if (value.ready === false && typeof value.releaseURL === "string" && value.releaseURL) {
+      return { version: value.version, ready: false, releaseURL: value.releaseURL };
+    }
   }
-  return { version: value.version, ready: true };
+  throw new Error("Invalid update install response fields");
 }
 
 export function setMinimizeToTray(value: boolean) { return invokeBackend("set_minimize_to_tray", { value }); }

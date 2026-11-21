@@ -59,3 +59,25 @@ it("tracks download progress, then uses restart after the verified update is rea
   await store.restart();
   expect(host.invoke).toHaveBeenLastCalledWith("restart_app");
 });
+
+it("keeps manual updates available and never offers a restart", async () => {
+  const releaseURL = "https://github.com/tangoui/mincode/releases/latest";
+  const check = {
+    available: true, version: "99.0.0", notes: "", currentVersion: "0.4.0", platform: "linux-arm64",
+  };
+  host.invoke
+    .mockResolvedValueOnce({ ...check, releaseURL })
+    .mockResolvedValueOnce(check)
+    .mockResolvedValueOnce({ version: "99.0.0", ready: false, releaseURL });
+  host.listen.mockReturnValue(() => {});
+  const store = useAppUpdateStore();
+
+  expect(await store.checkNow()).toMatchObject({ releaseURL });
+  expect(store.pendingVersion).toBe("99.0.0");
+
+  await store.checkNow();
+  expect(await store.stageUpdate("99.0.0")).toMatchObject({ ready: false, releaseURL });
+  expect(store.info?.releaseURL).toBe(releaseURL);
+  expect(store.readyVersion).toBeUndefined();
+  expect(store.downloading).toBe(false);
+});
