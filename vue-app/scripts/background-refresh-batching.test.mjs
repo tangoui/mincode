@@ -14,49 +14,12 @@ import {
 } from "../src/domain/http/response-body.ts";
 
 const read = (path) => readFile(new URL(`../src/${path}`, import.meta.url), "utf8");
-const [gitPanel, projectView, sshStore, app, streamPanel, httpView] = await Promise.all([
-  read("components/projects/ProjectGitPanel.vue"),
-  read("views/ProjectWorkspaceView.vue"),
+const [sshStore, app, streamPanel, httpView] = await Promise.all([
   read("stores/ssh-connections.ts"),
   read("App.vue"),
   read("components/http/HttpStreamPanel.vue"),
   read("views/HttpWorkspaceView.vue"),
 ]);
-
-test("git auto refresh pauses while hidden and catches up when visible", () => {
-  const auto = gitPanel.match(/function autoRefreshGitPanel\(\) \{[\s\S]*?\n\}/)?.[0];
-  assert.ok(auto);
-  assert.match(auto, /document\.hidden\) return/);
-  assert.match(gitPanel, /addEventListener\("visibilitychange", handleGitPanelVisibilityChange\)/);
-  assert.match(gitPanel, /removeEventListener\("visibilitychange", handleGitPanelVisibilityChange\)/);
-  assert.match(gitPanel, /function handleGitPanelVisibilityChange\(\) \{\s*if \(!document\.hidden\) autoRefreshGitPanel\(\);/);
-});
-
-test("git refreshes sync the project tree in place instead of rebuilding it", () => {
-  const refreshGit = projectView.match(/async function refreshGitPanel\(\) \{[\s\S]*?\n\}/)?.[0];
-  const resourceAction = projectView.match(/async function runResourceGitAction\([\s\S]*?\n\}/)?.[0];
-  assert.ok(refreshGit && resourceAction);
-  for (const body of [refreshGit, resourceAction]) {
-    assert.match(body, /refreshProjectTreeAfterGit\(\)/);
-    assert.doesNotMatch(body, /loadProjectTree\(/);
-  }
-  const inPlace = projectView.match(/async function refreshProjectTreeInPlace\(\)[\s\S]*?\n\}\n/)?.[0];
-  assert.ok(inPlace);
-  assert.doesNotMatch(inPlace, /treeVersion/);
-  assert.match(inPlace, /node\.loaded = false/);
-  assert.match(inPlace, /treeApi\.remove\(child\)/);
-  assert.match(inPlace, /node\.insertChild\(\{ data: childData \}, index\)/);
-  assert.match(projectView, /if \(!\(await refreshProjectTreeInPlace\(\)\)\) await loadProjectTree\(\);/);
-});
-
-test("worktree regrouping keeps expanded folders when the root set is unchanged", () => {
-  // Opening a project re-runs the grouping after async git queries; a full rebuild then
-  // collapsed every folder the user had just expanded.
-  const regroup = projectView.match(/async function reloadWorktreeGrouping\(\) \{[\s\S]*?\n\}/)?.[0];
-  assert.ok(regroup);
-  assert.match(regroup, /await refreshProjectTreeAfterGit\(\);/);
-  assert.doesNotMatch(regroup, /loadProjectTree\(/);
-});
 
 test("ssh profiles persist with a debounce and flush on quit", () => {
   assert.match(sshStore, /PROFILE_PERSIST_DEBOUNCE_MS = 300/);

@@ -3,16 +3,12 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { useVueI18n } from "@/i18n/messages";
 import { DEFAULT_WORKSPACE_ID, useWorkbenchStore } from "@/stores/workbench";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { peekAiAssistantStore } from "@/stores/ai-assistant-shell";
 import { discardDatabaseWorkspaceScope } from "@/stores/database-workspace-shell";
-import { defaultWorktreePath } from "@/domain/workspace/workbench-session";
 import { useWorkspaceStateScope } from "@/composables/use-workspace-state-scope";
 import type { WorkspaceTab } from "@/types/workspace";
 import { focusInlineInput } from "@/domain/ui/focus-inline-input";
 
-// Only reached from explicit user actions; kept out of the startup entry chunk.
-const loadGitService = () => import("@/services/git-service");
 async function deleteWorkspaceScopePersistence(scopeId: string) {
   const { deleteWorkspaceScopePersistence: deleteScope } = await import(
     "@/services/workspace-state-deletion"
@@ -29,16 +25,11 @@ interface WorkspaceManagementOptions {
 export function useWorkspaceManagement({ navigateToTab, navigateToActiveTab }: WorkspaceManagementOptions) {
   const workbench = useWorkbenchStore();
   const terminalWorkspace = useTerminalWorkspaceStore();
-  const localProject = useLocalProjectStore();
   const workspaceStatePreferences = useWorkspaceStateScope().preferences;
   const { t } = useVueI18n();
   const workspaceDialogVisible = ref(false);
   const workspaceEditingId = ref("");
   const workspaceName = ref("");
-  const workspaceWorktreeEnabled = ref(false);
-  const workspaceRepoPath = ref("");
-  const workspaceBranch = ref("");
-  const workspaceCreating = ref(false);
 
   let workspaceConversationPreloadTimer: ReturnType<typeof setTimeout> | undefined;
   function preloadWorkspaceConversation(id: string) {
@@ -64,9 +55,6 @@ export function useWorkspaceManagement({ navigateToTab, navigateToActiveTab }: W
   function openCreateWorkspace() {
     workspaceEditingId.value = "";
     workspaceName.value = "";
-    workspaceWorktreeEnabled.value = false;
-    workspaceRepoPath.value = "";
-    workspaceBranch.value = "";
     workspaceDialogVisible.value = true;
   }
   async function openRenameWorkspace(event: Event, id: string) {
@@ -88,49 +76,12 @@ export function useWorkspaceManagement({ navigateToTab, navigateToActiveTab }: W
   function cancelWorkspaceRename() {
     workspaceEditingId.value = "";
   }
-  const pendingWorktreePath = computed(() =>
-    defaultWorktreePath(workspaceRepoPath.value, workspaceBranch.value)
-  );
-  const workspaceDialogReady = computed(() => {
-    if (!workspaceName.value.trim()) return false;
-    return !workspaceWorktreeEnabled.value || Boolean(pendingWorktreePath.value);
-  });
+  const workspaceDialogReady = computed(() => Boolean(workspaceName.value.trim()));
 
-  async function chooseWorkspaceRepo() {
-    const { chooseGitDirectory } = await loadGitService();
-    const path = await chooseGitDirectory(t("tab.workspaceRepoPlaceholder"));
-    if (path) workspaceRepoPath.value = path;
-  }
-
-  async function saveWorkspaceDialog() {
+  function saveWorkspaceDialog() {
     const name = workspaceName.value.trim();
-    if (!name || workspaceCreating.value) return;
-
-    if (!workspaceWorktreeEnabled.value) {
-      workbench.createWorkspace(name);
-      navigateToActiveTab();
-      workspaceDialogVisible.value = false;
-      return;
-    }
-
-    const repoPath = workspaceRepoPath.value.trim();
-    const branch = workspaceBranch.value.trim();
-    const worktreePath = pendingWorktreePath.value;
-    if (!repoPath || !branch || !worktreePath) return;
-
-    workspaceCreating.value = true;
-    try {
-      // 先建 worktree 再建工作区：目录创建失败时不留下指向空路径的绑定。
-      const { addGitWorktree } = await loadGitService();
-      await addGitWorktree(repoPath, worktreePath, branch, true);
-    } catch (error) {
-      ElMessage.error(t("tab.workspaceWorktreeFailed", { reason: String(error) }));
-      return;
-    } finally {
-      workspaceCreating.value = false;
-    }
-
-    workbench.createWorkspace(name, { repoPath, worktreePath, branch });
+    if (!name) return;
+    workbench.createWorkspace(name);
     navigateToActiveTab();
     workspaceDialogVisible.value = false;
   }
@@ -190,7 +141,6 @@ export function useWorkspaceManagement({ navigateToTab, navigateToActiveTab }: W
       const scopeStillOwned = deletedScopeStillOwned || activeScopeStillOwned;
       if (!scopeStillOwned) {
         await deleteWorkspaceScopePersistence(scopeId);
-        localProject.discardWorkspaceState(scopeId);
         await discardDatabaseWorkspaceScope(scopeId);
       }
       const terminalLayoutIds = record.tabs.map((tab) => tab.id);
@@ -230,11 +180,6 @@ export function useWorkspaceManagement({ navigateToTab, navigateToActiveTab }: W
     workspaceDialogVisible,
     workspaceEditingId,
     workspaceName,
-    workspaceWorktreeEnabled,
-    workspaceRepoPath,
-    workspaceBranch,
-    workspaceCreating,
-    pendingWorktreePath,
     workspaceDialogReady,
     preloadWorkspaceConversation,
     switchWorkspace,
@@ -242,7 +187,6 @@ export function useWorkspaceManagement({ navigateToTab, navigateToActiveTab }: W
     openRenameWorkspace,
     saveWorkspaceRename,
     cancelWorkspaceRename,
-    chooseWorkspaceRepo,
     saveWorkspaceDialog,
     deleteWorkspace,
     permanentlyDeleteWorkspace,

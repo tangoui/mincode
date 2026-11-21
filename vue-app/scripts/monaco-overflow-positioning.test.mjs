@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const editorFiles = [
-  "../src/components/projects/MonacoTextEditor.vue",
-  "../src/components/projects/MonacoDiffEditor.vue",
+  "../src/components/ui/MonacoTextEditor.vue",
+  "../src/components/ui/MonacoDiffEditor.vue",
   "../src/components/ui/ReadonlyCodeViewer.vue",
 ];
 

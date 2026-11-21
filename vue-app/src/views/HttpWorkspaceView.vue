@@ -126,7 +126,7 @@ import {
 import { useHttpPluginTemplatesStore } from "@/stores/http-plugin-templates";
 
 // Markdown responses are rendered on demand; loading the renderer lazily keeps it out of this view's startup chunk.
-const MarkdownPreview = defineAsyncComponent(() => import("@/components/projects/MarkdownPreview.vue"));
+const MarkdownPreview = defineAsyncComponent(() => import("@/components/ui/MarkdownPreview.vue"));
 
 defineOptions({ name: "HttpWorkspaceView" });
 

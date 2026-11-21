@@ -96,7 +96,7 @@ describe("terminal workspace store with terminal tabs", () => {
     expect(store.tabs).toHaveLength(MAX_TERMINAL_TABS);
   });
 
-  it("new local tabs inherit the selected pane's cwd", async () => {
+  it("new local tabs use the default directory unless a folder is supplied", async () => {
     const store = await hydratedStore({
       version: 5,
       current: {
@@ -108,7 +108,8 @@ describe("terminal workspace store with terminal tabs", () => {
     });
     const tab = store.addLocalTab();
     const pane = store.getPane(tab!.activePaneId);
-    expect(pane?.type === "local" ? pane.initialCwd : undefined).toBe("/work/dir");
+    expect(pane?.type).toBe("local");
+    expect(pane?.type === "local" ? pane.initialCwd : undefined).toBeUndefined();
     const explicit = store.addLocalTab({ initialCwd: "/other" });
     const explicitPane = store.getPane(explicit!.activePaneId);
     expect(explicitPane?.type === "local" ? explicitPane.initialCwd : undefined).toBe("/other");

@@ -2,17 +2,16 @@ import { flushPromises, shallowMount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AiAssistantDrawer from "@/components/ai/AiAssistantDrawer.vue";
-import AiConversationSidebar from "@/components/ai/AiConversationSidebar.vue";
 import AiMessageThread from "@/components/ai/AiMessageThread.vue";
 import AiPermissionCard from "@/components/ai/AiPermissionCard.vue";
 import AiPromptComposer from "@/components/ai/AiPromptComposer.vue";
 import AiQueuedMessages from "@/components/ai/AiQueuedMessages.vue";
 import { useAiAssistantStore } from "@/stores/ai-assistant";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useWorkbenchStore } from "@/stores/workbench";
 
 const host = vi.hoisted(() => ({
   invoke: vi.fn<(command: string, args?: Record<string, unknown>) => Promise<unknown>>(),
+  chooseDirectory: vi.fn<() => Promise<string | null>>(),
   events: new Map<string, (payload: unknown) => void>(),
 }));
 vi.mock("vue-router", async (importOriginal) => ({
@@ -24,6 +23,7 @@ vi.mock("@/services/desktop-bridge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/desktop-bridge")>()),
   isDesktopRuntime: () => true,
   invokeBackend: host.invoke,
+  chooseNativeDirectory: host.chooseDirectory,
   listenAppEvent: (event: string, handler: (payload: unknown) => void) => {
     host.events.set(event, handler);
     return () => host.events.delete(event);
@@ -36,7 +36,7 @@ vi.mock("@/services/desktop-stream", async (importOriginal) => ({
 
 const project = "/test/projects/original";
 const replacementProject = "/test/projects/replacement";
-const defaultPath = "/test/app-data/MinCode/agent-workspace";
+const defaultPath = "/test/home";
 const originalId = "original-recovery-id";
 const temporaryId = "temporary-agent-id";
 const replacementId = "replacement-agent-id";
@@ -49,8 +49,7 @@ async function mountAssistant(boundRoot = "") {
     switch (command) {
       case "acp_check_local_directory":
         return { available: args.path === project ? projectAvailable : true };
-      case "acp_default_local_directory":
-        return { path: defaultPath };
+      case "get_user_home_dir": return defaultPath;
       case "local_fs_file_info":
         if (args.projectRoot === project && !projectAvailable) throw new Error("missing project");
         return { isDir: true };
@@ -112,6 +111,7 @@ async function mountAssistant(boundRoot = "") {
   const composer = () => wrapper.getComponent(AiPromptComposer);
   return {
     assistant, conversation, thread, composer,
+    folderButton: () => wrapper.get(`button[title="${defaultPath}"]`),
     queue: () => wrapper.getComponent(AiQueuedMessages),
     permission: () => wrapper.getComponent(AiPermissionCard),
     finishPrompt: () => finishPrompt?.(),
@@ -127,12 +127,7 @@ async function mountAssistant(boundRoot = "") {
       composer().vm.$emit("send");
       await flushPromises();
     },
-    async relink(projectRoot: string) {
-      useLocalProjectStore().projectRoot = projectRoot;
-      const active = assistant.conversationById(conversation.id)!;
-      wrapper.getComponent(AiConversationSidebar).vm.$emit("relink-workspace", active);
-      await flushPromises();
-    },
+
   };
 }
 
@@ -146,6 +141,7 @@ afterEach(() => {
   host.invoke.mockClear();
   host.invoke.mockResolvedValue([]);
   host.events.clear();
+  host.chooseDirectory.mockReset();
 });
 
 describe("local agent directory in the assistant", () => {
@@ -156,12 +152,37 @@ describe("local agent directory in the assistant", () => {
     composer().vm.$emit("send");
     await vi.waitFor(() => expect(calls("acp_prompt")).toHaveLength(1));
     expect(calls("acp_check_local_directory")).toEqual([]);
-    expect(calls("acp_default_local_directory")).toHaveLength(1);
+    expect(calls("get_user_home_dir")).toHaveLength(1);
     expect(calls("acp_launch")).toEqual([expect.objectContaining({ cwd: defaultPath })]);
     expect(calls("acp_new_session")).toEqual([expect.objectContaining({ cwd: defaultPath })]);
     expect(calls("acp_prompt")).toEqual([expect.objectContaining({ sessionId: temporaryId, text: "First message" })]);
     expect(assistant.activeConversation?.projectRoot || "").toBe("");
     expect(assistant.activeConversation?.id).toBe(conversation.id);
+  });
+
+  it("uses the folder chosen in the conversation to launch the local agent", async () => {
+    host.chooseDirectory.mockResolvedValue(replacementProject);
+    const session = await mountAssistant();
+    await session.folderButton().trigger("click");
+    await flushPromises();
+    expect(session.assistant.activeConversation?.projectRoot).toBe(replacementProject);
+    await session.start();
+    expect(calls("acp_launch")).toEqual([expect.objectContaining({ cwd: replacementProject })]);
+  });
+
+  it("restarts an idle home-directory agent in the newly chosen folder", async () => {
+    host.chooseDirectory.mockResolvedValue(replacementProject);
+    const session = await mountAssistant();
+    await session.start();
+    const originalServer = calls("acp_launch")[0]?.serverId;
+    expect(calls("acp_launch")).toEqual([expect.objectContaining({ cwd: defaultPath })]);
+
+    await session.folderButton().trigger("click");
+    await flushPromises();
+    await session.start();
+
+    expect(calls("acp_disconnect")).toContainEqual({ serverId: originalServer });
+    expect(calls("acp_launch").map((args) => args?.cwd)).toEqual([defaultPath, replacementProject]);
   });
 
   it("requires one-time consent and routes the live session while preserving the original recovery ID", async () => {
@@ -257,7 +278,7 @@ describe("local agent directory in the assistant", () => {
     expect(session.thread().props("effectiveDirectory")).toBeFalsy();
     await session.start();
     expect(calls("acp_check_local_directory")).toEqual([{ path: project }, { path: project }]);
-    expect(calls("acp_default_local_directory")).toHaveLength(1);
+    expect(calls("get_user_home_dir")).toHaveLength(1);
     expect(session.thread().props("defaultDirectoryActionLabel")).toBeTruthy();
   });
 
@@ -310,52 +331,6 @@ describe("local agent directory in the assistant", () => {
     expect(session.assistant.activeConversation?.agentReady).toBe(true);
     await session.start();
     expect(calls("acp_load_session")).toHaveLength(1);
-  });
-
-  it.each(["project", "temporary"] as const)("starts in the rebound project after a live %s agent", async (kind) => {
-    const session = await mountAssistant(project);
-    const workbench = useWorkbenchStore();
-    const currentWorkspaceId = workbench.activeWorkspaceId;
-    const originalWorkspace = workbench.createWorkspace("Original workspace")!;
-    workbench.switchWorkspace(currentWorkspaceId);
-    session.assistant.setConversationWorkspace(session.conversation.id, {
-      workspaceId: originalWorkspace.id, scopeId: session.assistant.activeWorkspaceScopeId, projectRoot: project,
-    });
-    if (kind === "project") session.restoreProject();
-    await session.start();
-    if (kind === "temporary") {
-      session.thread().vm.$emit("startInDefaultDirectory");
-      await flushPromises();
-    }
-    session.restoreProject();
-    const previousTarget = calls("acp_launch")[0]!;
-    const previousAdapterId = session.assistant.persistedSnapshot().acpAdapterId;
-
-    expect(workbench.deleteWorkspace(originalWorkspace.id)).toBe(true);
-    await session.relink(replacementProject);
-    expect(session.assistant.activeConversation?.projectRoot).toBe(replacementProject);
-    await session.send("Run in the new project");
-    expect(calls("acp_disconnect")).toContainEqual({ serverId: previousTarget.serverId });
-    expect(calls("acp_launch").map((args) => args?.cwd)).toEqual([previousTarget.cwd, replacementProject]);
-    const replacementTarget = { serverId: calls("acp_launch")[1]?.serverId, sessionId: replacementId };
-    expect(calls("acp_new_session")).toContainEqual(expect.objectContaining({
-      cwd: replacementProject, serverId: replacementTarget.serverId,
-    }));
-    expect(calls("acp_load_session").map((args) => args?.cwd)).not.toContain(replacementProject);
-    await vi.waitFor(() => expect(calls("acp_prompt")).toEqual([expect.objectContaining(replacementTarget)]));
-    expect(calls("local_fs_file_info")).toContainEqual({ projectRoot: replacementProject, filePath: "." });
-    expect(session.assistant.activeConversation?.acpProjectSessions).toContainEqual({
-      projectRoot: project, sessionId: originalId, adapterId: previousAdapterId,
-    });
-    session.finishPrompt();
-    await flushPromises();
-
-    await session.relink(project);
-    await session.start();
-    expect(calls("acp_load_session").at(-1)).toEqual(expect.objectContaining({
-      cwd: project, sessionId: originalId,
-    }));
-    expect(session.assistant.messages).toContainEqual(expect.objectContaining({ content: "Existing transcript" }));
   });
 
 

@@ -94,7 +94,7 @@ test("provider groups can start their CLI in the embedded terminal without sessi
   );
   assert.match(
     viewSource,
-    /const cwd =\s*projectPath \|\|\s*workspaceProjectRoot\.value \|\|\s*\(await chooseNativeDirectory\(/,
+    /const cwd =\s*projectPath \|\|\s*\(await chooseNativeDirectory\(/,
   );
   assert.match(
     viewSource,
@@ -237,7 +237,7 @@ test("restored terminal tabs open a blank shell in the original directory", () =
   );
   // 每条恢复记录都要拿新的 PTY ID，避免附着到上次进程遗留的 shell。
   assert.match(viewSource, /for \(const item of stored\) \{\s+[\s\S]{0,260}const terminalId = nextLiveTerminalId\(\);/);
-  assert.match(viewSource, /\.then\(hydrateSessionListScope\)\s*\.then\(hydrateLiveTerminals\)/);
+  assert.match(viewSource, /void hydrateLiveTerminals\(\)/);
 });
 
 test("a stuck Claude state stops spinning once it goes stale", () => {

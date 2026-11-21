@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, CopyDocument, Document, EditPen, RefreshRight } fro
 import { ElMessage } from "element-plus";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AiImagePreviewToolbar from "@/components/ai/AiImagePreviewToolbar.vue";
-import MarkdownPreview from "@/components/projects/MarkdownPreview.vue";
+import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
 import { getAttachmentImageSrc } from "@/domain/ai/attachments";
 import type { AiAttachment } from "@/domain/ai/attachments";
 import { createAiMessageClipboardPayload } from "@/domain/ai/message-clipboard";

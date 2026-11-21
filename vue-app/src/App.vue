@@ -25,11 +25,7 @@ import { usePluginTakeoverStore } from "@/stores/plugin-takeover";
 import { usePluginViewWarmPoolStore } from "@/stores/plugin-view-warm-pool";
 import { settingsNavigationRequest, type SettingsNavigationCategory } from "@/services/settings-navigation";
 import { enqueuePluginAiTurn, notifyPluginAiTurnApproval, notifyPluginAiTurnCancelled, refreshPendingPluginAiTurns } from "@/services/plugin-ai-turns";
-import {
-  enqueueDatabaseFiles,
-  enqueueProjectFiles,
-} from "@/services/external-file-open";
-import { completeEmbeddedBrowserOpenRequest, completeEmbeddedBrowserTabRequest } from "@/services/browser-service";
+import { enqueueDatabaseFiles } from "@/services/external-file-open";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import {
   loadAiAssistantStore,
@@ -43,8 +39,6 @@ import { useNotificationsStore } from "@/stores/notifications";
 import { useSshMfaStore } from "@/stores/ssh-mfa";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
 import { useAppUpdateStore } from "@/stores/app-update";
-import { useBrowserWorkspaceStore, type BrowserAiTabRequest } from "@/stores/browser-workspace";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
 import { switchDatabaseWorkspaceScope } from "@/stores/database-workspace-shell";
 import { useWorkspaceStatePreferencesStore } from "@/stores/workspace-state-preferences";
@@ -152,8 +146,6 @@ let pendingEdits: ReturnType<typeof import("@/stores/ai-pending-edits").useAiPen
 const notifications = useNotificationsStore();
 const sshMfa = useSshMfaStore();
 const sshConnections = useSshConnectionsStore();
-const browserWorkspace = useBrowserWorkspaceStore();
-const localProject = useLocalProjectStore();
 const workspaceStatePreferences = useWorkspaceStatePreferencesStore();
 
 let workbenchRestorePromise: Promise<void> = Promise.resolve();
@@ -171,12 +163,6 @@ async function routeOpenedFiles(files: string[], targetId?: string) {
   const normalized = [...new Set(files.map((file) => file.trim()).filter(Boolean))];
   if (!normalized.length) return;
   await workbenchRestorePromise;
-  if (targetId === "app-project-drop-target") {
-    if (!workbench.openView("projects")) return;
-    enqueueProjectFiles(normalized);
-    await router.push({ name: "projects" });
-    return;
-  }
   if (targetId === "database-workspace-drop-target") {
     enqueueDatabaseFiles(normalized);
     workbench.openView("database");
@@ -184,23 +170,13 @@ async function routeOpenedFiles(files: string[], targetId?: string) {
     return;
   }
   const databaseFiles: string[] = [];
-  const projectFiles: string[] = [];
-  for (const file of normalized) {
-    if (!databaseFileCandidate(file)) {
-      projectFiles.push(file);
-      continue;
-    }
+  for (const file of normalized.filter(databaseFileCandidate)) {
     try {
       await invokeBackend("db_detect_file_type", { filePath: file });
       databaseFiles.push(file);
     } catch {
-      projectFiles.push(file);
+      // The file is not a supported database.
     }
-  }
-  if (projectFiles.length) {
-    enqueueProjectFiles(projectFiles);
-    workbench.openView("projects");
-    await router.push({ name: "projects" });
   }
   if (databaseFiles.length) {
     enqueueDatabaseFiles(databaseFiles);
@@ -310,10 +286,6 @@ const stopStartupIdleBridges = createStartupIdleBridgeCoordinator([
   }] : []),
   ...(!popupWindow ? [
     {
-      name: "plugin-host-events",
-      load: () => import("@/services/plugin-host-events").then(({ installPluginHostEventBridge }) => installPluginHostEventBridge()),
-    },
-    {
       name: "plugin-associations",
       load: () => import("@/services/plugin-associations").then(({ installPluginAssociations }) => installPluginAssociations()),
     },
@@ -369,11 +341,8 @@ const commandPaletteShortcut = computed(() => keybindings.label("builtin:command
 
 function openCommandPalette(request: Omit<CommandPaletteOpenRequest, "seq">) {
   if (popupWindow) return;
-  // 项目工作区默认搜索项目文件（与旧 ⌘K 行为一致）；显式指定的范围优先。
-  const preferFiles = activeWorkspaceView.value === "projects" && Boolean(localProject.projectRoot);
   commandPaletteOpenRequest.value = {
     seq: commandPaletteOpenRequest.value.seq + 1,
-    scope: request.scope ?? (preferFiles && !request.prefix ? "files" : undefined),
     prefix: request.prefix,
   };
 }
@@ -387,9 +356,7 @@ function syncAiWorkspaceDirectory(aiStore: AiAssistantStore | undefined = peekAi
       workspaceId: workspace.id,
       workspaceName: workspace.name,
       scopeId,
-      projectRoot: localProject.projectRootForWorkspace(scopeId).trim()
-        || workspace.worktree?.worktreePath?.trim()
-        || "",
+      projectRoot: "",
     };
   }));
 }
@@ -411,7 +378,7 @@ async function ensureAssistantLoaded() {
         workspaceId: workbench.activeWorkspaceId,
         workspaceName: workbench.activeWorkspace?.name,
         scopeId,
-        projectRoot: localProject.projectRoot.trim() || workbench.activeWorktreePath,
+        projectRoot: "",
       }),
       import("@/stores/ai-pending-edits").then(({ useAiPendingEditsStore }) => {
         pendingEdits = useAiPendingEditsStore();
@@ -485,11 +452,8 @@ const stopNotificationNavigation = popupWindow
 async function restoreWorkbenchSession() {
   try {
     await Promise.all([workbench.hydrate(), workspaceStatePreferences.hydrate()]);
-    // Fetch the restored view's chunk while the project workspace is still loading.
     void preloadWorkspaceView(workbench.activeTab?.view ?? "dashboard");
     const scopeId = workspaceStatePreferences.scopeIdFor(workbench.activeWorkspaceId);
-    await localProject.hydrate(scopeId);
-    localProject.switchWorkspace(scopeId);
     switchDatabaseWorkspaceScope(scopeId);
     const restoredTab = workbench.activeTab;
     const restoredView = restoredTab?.view ?? "dashboard";
@@ -522,8 +486,6 @@ if (!popupWindow) {
 
 let stopPopupClose: (() => void) | undefined;
 let stopPopupState: (() => void) | undefined;
-let stopBrowserOpen: (() => void) | undefined;
-let stopBrowserTabRequest: (() => void) | undefined;
 let stopBeforeQuit: (() => void) | undefined;
 let stopNativeFileDrop: (() => void) | undefined;
 let stopDesktopNavigate: (() => void) | undefined;
@@ -563,7 +525,6 @@ async function flushPersistentUiState() {
   await Promise.allSettled([
     workbench.flushPersistence(),
     terminalWorkspace.persistLayout(),
-    localProject.flushPersistence(),
     peekAiAssistantStore()?.flushPersistence(),
     pendingEdits?.flushPersistence(),
     workspaceStatePreferences.flushPersistence(),
@@ -577,18 +538,14 @@ if (!popupWindow) {
       () => workbench.activeWorkspaceId,
       () => workspaceStatePreferences.isolationEnabled,
       () => workspaceStatePreferences.sharedWorkspaceId,
-      () => localProject.projectRoot,
-      () => workbench.activeWorktreePath,
       () => workbench.workspaces.map((workspace) => [
         workspace.id,
         workspace.name,
-        workspace.worktree?.worktreePath ?? "",
       ]).join("\u0000"),
     ],
     ([workspaceId]) => {
       if (!workbench.hydrated || !workspaceStatePreferences.hydrated) return;
       const scopeId = workspaceStatePreferences.scopeIdFor(workspaceId);
-      if (localProject.hydrated) localProject.switchWorkspace(scopeId);
       syncAiWorkspaceDirectory();
       switchDatabaseWorkspaceScope(scopeId);
       const aiStore = peekAiAssistantStore();
@@ -597,7 +554,7 @@ if (!popupWindow) {
           workspaceId,
           workspaceName: workbench.activeWorkspace?.name,
           scopeId,
-          projectRoot: localProject.projectRoot.trim() || workbench.activeWorktreePath,
+          projectRoot: "",
         });
       }
     },
@@ -770,36 +727,6 @@ if (!popupWindow) {
     stopPopupClose = listenAppEvent<string>(POPUP_TAB_WINDOW_CLOSING_EVENT, (label) => {
       if (workbench.reclaimPoppedOutTabByLabel(label)) viewResetVersion.value += 1;
     });
-    stopBrowserOpen = listenAppEvent<{ requestId: string; url?: string }>(
-      "browser:ai-open-request",
-      (request) => {
-        const requestId = request?.requestId?.trim();
-        if (!requestId) return;
-        browserWorkspace.requestAiOpenTab(request.url, requestId);
-        workbench.openView("browser");
-        void router.push({ name: "browser" }).catch(async (error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error);
-          browserWorkspace.failOpenRequest(requestId, message);
-          await completeEmbeddedBrowserOpenRequest({ requestId, error: message }).catch(() => undefined);
-        });
-      }
-    );
-    // ACP 的 browser.list_tabs / browser.switch_tab：标签页状态在前端，由 store 回答；
-    // 浏览器工作区没打开时也立即回答（没有标签页），不让后端干等到超时。
-    // 回答逻辑按需加载，不进入口包；加载失败也回一次错误，每个请求恰好一个回复。
-    stopBrowserTabRequest = listenAppEvent<BrowserAiTabRequest>(
-      "browser:ai-tab-request",
-      (request) => {
-        void import("@/services/browser-ai-tabs")
-          .then(({ answerAiTabRequest }) => answerAiTabRequest(browserWorkspace, request))
-          .catch((error: unknown) => {
-            const requestId = typeof request?.requestId === "string" ? request.requestId.trim() : "";
-            if (!requestId) return;
-            const message = error instanceof Error ? error.message : String(error);
-            return completeEmbeddedBrowserTabRequest({ requestId, error: message }).catch(() => undefined);
-          });
-      }
-    );
     stopPopupState = listenAppEvent<PopupWindowState>(POPUP_TAB_STATE_EVENT, (state) => {
       if (state?.type === "terminal-layout") {
         const ownsWindow = Object.values(workbench.poppedOutTabLabels).includes(state.windowLabel);
@@ -851,8 +778,6 @@ onBeforeUnmount(() => {
   stopBeforeQuit?.();
   stopPopupClose?.();
   stopPopupState?.();
-  stopBrowserOpen?.();
-  stopBrowserTabRequest?.();
   stopTerminalSessionFlusher?.();
   notifications.dispose();
   sshMfa.dispose();
@@ -866,9 +791,6 @@ onBeforeUnmount(() => {
       'app-frame--unified-titlebar': unifiedTitleBar,
       'is-plugin-immersive': !!pluginTakeover.immersive,
     }"
-    id="app-project-drop-target"
-    data-file-drop-target
-    :data-file-drop-label="t('project.external.globalDropHint')"
   >
     <AppTabBar />
     <div

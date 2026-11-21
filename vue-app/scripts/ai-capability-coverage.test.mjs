@@ -26,100 +26,6 @@ function capabilityBlock(source, toolName) {
   return source.slice(marker, next > 0 ? next : source.length);
 }
 
-test("workspace capability contracts remain registerable", async () => {
-  const tools = await readTools("workspace-tools.ts");
-  const refresh = tools.match(
-    /"workspace\.refresh_file_index",[\s\S]*?mode: "(read|write)" as const,[\s\S]*?risk: "(read|network|write|dangerous)" as const,/,
-  );
-  assert.ok(refresh, "workspace.refresh_file_index capability must be present");
-  assert.equal(
-    refresh[1],
-    "read",
-    "metadata-only index refresh must use read mode",
-  );
-  assert.equal(
-    refresh[2],
-    "read",
-    "metadata-only index refresh must use read risk",
-  );
-});
-
-test("language server capabilities keep the model inside the bound project", async () => {
-  const tools = await readTools("workspace-tools.ts");
-  for (const command of [
-    "project_lsp_list_servers",
-    "project_lsp_start",
-    "project_lsp_stop",
-    "project_lsp_request",
-    "project_lsp_notify",
-    "project_lsp_logs",
-    "project_lsp_install",
-  ]) {
-    assert.ok(
-      tools.includes(`"${command}"`),
-      `workspace-tools.ts must invoke ${command}`,
-    );
-  }
-
-  // 后端只按 root 找会话，不校验 params 里的文档 uri：不挡就能让语言服务器代读项目外的文件。
-  assert.match(
-    tools,
-    /function assertLspUriIsSafe[\s\S]*?must stay inside the bound project/,
-  );
-  assert.match(
-    tools,
-    /params:\s*lspParams\(\s*input,\s*resourceMetadataPath\(resource, "projectRoot"\),\s*\)/,
-  );
-
-  // request 能发任意 LSP 方法，包含 workspace/executeCommand 这种会让服务器代跑命令的。
-  assert.match(tools, /const LSP_QUERY_METHODS = \[([\s\S]*?)\] as const/);
-  const queryMethods = tools.match(
-    /const LSP_QUERY_METHODS = \[([\s\S]*?)\] as const/,
-  )[1];
-  assert.ok(
-    !queryMethods.includes("executeCommand"),
-    "the query allowlist must not expose workspace/executeCommand",
-  );
-  assert.match(
-    tools,
-    /lspMethod\(\s*input,\s*LSP_QUERY_METHODS,\s*"workspace\.language_server_query",?\s*\)/,
-  );
-
-  // 装语言服务器会在本机跑包管理器，必须走审批。
-  const install = capabilityBlock(tools, "workspace.install_language_server");
-  assert.ok(
-    install,
-    "workspace.install_language_server capability must be present",
-  );
-  assert.ok(
-    install.includes('risk: "dangerous"'),
-    "installing a language server must be dangerous",
-  );
-  assert.ok(
-    install.includes("approvalPreview"),
-    "installing a language server must show an approval preview",
-  );
-
-  const listed =
-    tools.match(
-      /export const workspaceCapabilityNames = \[([\s\S]*?)\];/,
-    )?.[1] ?? "";
-  for (const name of [
-    "workspace.list_language_servers",
-    "workspace.start_language_server",
-    "workspace.stop_language_server",
-    "workspace.language_server_logs",
-    "workspace.install_language_server",
-    "workspace.language_server_query",
-    "workspace.language_server_notify",
-  ]) {
-    assert.ok(
-      listed.includes(`"${name}"`),
-      `workspaceCapabilityNames must list ${name}`,
-    );
-  }
-});
-
 test("MCP capabilities cover the server contract and gate arbitrary tool calls", async () => {
   const tools = await readTools("settings-tools.ts");
   for (const command of [
@@ -324,46 +230,7 @@ test("system capabilities treat the clipboard and screen as sensitive", async ()
   );
 });
 
-test("browser capabilities keep page control on the AI-gated path", async () => {
-  const tools = await readTools("browser-tools.ts");
-  // navigate/reload/get_url/eval 走 embedded_browser_ai_execute，那条路才检查共享开关。
-  for (const command of [
-    "embedded_browser_navigate",
-    "embedded_browser_reload",
-    "embedded_browser_get_url",
-    "embedded_browser_eval",
-  ]) {
-    assert.ok(
-      !tools.includes(`"${command}"`),
-      `browser-tools.ts must not bypass the AI gate with ${command}`,
-    );
-  }
-  assert.match(tools, /invoke\("embedded_browser_ai_execute"/);
-
-  // 清数据是整个 WebView 范围的，会把所有站点登出。
-  const clear = capabilityBlock(tools, "browser.clear_browsing_data");
-  assert.ok(clear, "browser.clear_browsing_data capability must be present");
-  assert.ok(
-    clear.includes('risk: "dangerous"'),
-    "clearing browsing data must be dangerous",
-  );
-
-  const listed =
-    tools.match(/export const browserCapabilityNames = \[([\s\S]*?)\];/)?.[1] ??
-    "";
-  for (const name of [
-    "browser.set_zoom",
-    "browser.close_tab",
-    "browser.clear_browsing_data",
-  ]) {
-    assert.ok(
-      listed.includes(`"${name}"`),
-      `browserCapabilityNames must list ${name}`,
-    );
-  }
-});
-
-test("SFTP and Git additions avoid local paths and sensitive contents", async () => {
+test("SFTP capabilities avoid local paths and sensitive contents", async () => {
   const sftp = await readTools("sftp-tools.ts");
   for (const command of [
     "sftp_get_home",
@@ -410,29 +277,6 @@ test("SFTP and Git additions avoid local paths and sensitive contents", async ()
     "workspace file transfer must not accept a local absolute path",
   );
 
-  const git = await readTools("git-tools.ts");
-  // 整包暂存 diff 里可能夹着 .env，逐文件的 git.diff 挡得住、这里挡不住就白挡了。
-  assert.match(
-    git,
-    /function redactSensitivePatch[\s\S]*?sensitive file section\(s\) redacted/,
-  );
-  assert.match(
-    git,
-    /redactSensitivePatch\(await invoke\("git_get_staged_patch"/,
-  );
-  const listed =
-    git.match(/export const gitCapabilityNames = \[([\s\S]*?)\];/)?.[1] ?? "";
-  for (const name of [
-    "git.staged_patch",
-    "git.read_file_at_ref",
-    "git.reset",
-    "git.revert_hunk",
-  ]) {
-    assert.ok(
-      listed.includes(`"${name}"`),
-      `gitCapabilityNames must list ${name}`,
-    );
-  }
 });
 
 test("database import executes through shared boundary on the approved bound session", async () => {

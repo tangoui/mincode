@@ -23,7 +23,6 @@ import {
   type FormatterPickChoice,
   type MonacoFormatterRuntime,
 } from "@/services/monaco-formatters";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { usePluginFormattersStore } from "@/stores/plugin-formatters";
 
 const BUILTIN_CHOICE = "builtin";
@@ -39,7 +38,7 @@ async function pick(options: {
   builtin: boolean;
 }): Promise<FormatterPickChoice | undefined> {
   const { t } = useVueI18n();
-  const { default: FormatterPickerDialog } = await import("@/components/projects/FormatterPickerDialog.vue");
+  const { default: FormatterPickerDialog } = await import("@/components/ui/FormatterPickerDialog.vue");
   const choices = [
     ...(options.builtin ? [{ value: BUILTIN_CHOICE, label: t("pluginContrib.formatters.builtin") }] : []),
     ...options.formatters.map((formatter) => ({ value: formatter.ref, label: title(formatter), plugin: formatter.pluginName })),
@@ -95,13 +94,7 @@ function runtime(): MonacoFormatterRuntime {
     preferredRef: (language) => store.selectedFor(language)?.ref,
     savePreferredRef: (language) => store.preferenceFor(language)?.formatter,
     formatOnSave: (language) => (store.preferenceFor(language)?.formatOnSave ? store.selectedFor(language) : undefined),
-    projectRoots: () => {
-      try {
-        return useLocalProjectStore().projects.map((project) => project.root);
-      } catch {
-        return [];
-      }
-    },
+    projectRoots: () => [],
     displayName: (formatter) => `${title(formatter)} (${formatter.pluginId})`,
     formatWithLabel: () => useVueI18n().t("pluginContrib.formatters.formatWith"),
     pick,

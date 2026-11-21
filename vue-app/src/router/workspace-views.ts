@@ -26,10 +26,6 @@ const rawWorkspaceViewLoaders = {
     "ssh",
     () => import("@/views/SshWorkspaceView.vue"),
   ),
-  projects: measuredWorkspaceLoader(
-    "projects",
-    () => import("@/views/ProjectWorkspaceView.vue"),
-  ),
   database: measuredWorkspaceLoader(
     "database",
     () => import("@/views/DatabaseWorkspaceView.vue"),
@@ -49,10 +45,6 @@ const rawWorkspaceViewLoaders = {
   sessions: measuredWorkspaceLoader(
     "sessions",
     () => import("@/views/SessionsWorkspaceView.vue"),
-  ),
-  browser: measuredWorkspaceLoader(
-    "browser",
-    () => import("@/views/BrowserWorkspaceView.vue"),
   ),
   plugins: measuredWorkspaceLoader(
     "plugins",

@@ -108,10 +108,6 @@ test("every interactive xterm installs the keymap handler and no terminal file u
 });
 
 test("migrated handlers register catalog commands instead of listening for keys", async () => {
-  const project = await readFile(new URL("views/ProjectWorkspaceView.vue", SRC), "utf8");
-  assert.match(project, /id: "project:copy-node"/);
-  assert.match(project, /id: "project:paste-node"/);
-  assert.match(project, /registerKeybindingContext\("tree\.selection"/);
   const appCommands = await readFile(new URL("composables/use-app-commands.ts", SRC), "utf8");
   for (const id of ["builtin:command-palette", "builtin:settings", "builtin:ai"]) {
     assert.match(appCommands, new RegExp(`id: "${id}"`));

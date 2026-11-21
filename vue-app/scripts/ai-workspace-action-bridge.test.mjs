@@ -9,11 +9,6 @@ import { URL } from "node:url";
  */
 const bridges = [
   {
-    tools: "workspace-tools.ts",
-    dependency: "projectAction",
-    handler: "src/views/ProjectWorkspaceView.vue",
-  },
-  {
     tools: "database-tools.ts",
     dependency: "databaseAction",
     handler: "src/composables/database/useAiDatabaseActions.ts",
@@ -87,73 +82,6 @@ for (const bridge of bridges) {
   });
 }
 
-test("the worktree drawer and workspace binding capabilities reach the project view", async () => {
-  const tools = await readSource("src/services/ai-tools/workspace-tools.ts");
-  const actions = actionNames(tools, "projectAction");
-  for (const action of [
-    "open-worktree-inspector",
-    "select-worktree-repo",
-    "bind-workspace",
-    "unbind-workspace",
-  ]) {
-    assert.ok(
-      actions.includes(action),
-      `workspace-tools.ts must route ${action}`,
-    );
-  }
-
-  // 名单是资源层暴露给模型的清单，漏登记等于工具存在却发现不了。
-  const listed = tools.match(
-    /export const workspaceCapabilityNames = \[([\s\S]*?)\];/,
-  )?.[1];
-  assert.ok(listed, "workspaceCapabilityNames must be present");
-  for (const name of [
-    "workspace.open_worktree_inspector",
-    "workspace.select_worktree_repo",
-    "workspace.bind_worktree",
-    "workspace.unbind_worktree",
-  ]) {
-    assert.ok(
-      listed.includes(`"${name}"`),
-      `workspaceCapabilityNames must list ${name}`,
-    );
-  }
-  assert.ok(listed.includes('"workspace.describe_current_project"'));
-  assert.match(
-    tools,
-    /tool\(\s*"workspace\.describe_current_project"[\s\S]*?without opening, switching, or changing any UI/,
-  );
-  assert.match(
-    tools,
-    /tool\(\s*"workspace\.open_worktree_inspector"[\s\S]*?only when the user explicitly asks/,
-  );
-  assert.match(
-    tools,
-    /tool\(\s*"workspace\.select_worktree_repo"[\s\S]*?not a project-information query/,
-  );
-});
-
-test("every declared workspace tool appears in workspaceCapabilityNames", async () => {
-  const tools = await readSource("src/services/ai-tools/workspace-tools.ts");
-  const declared = [
-    ...new Set(
-      [...tools.matchAll(/tool\("(workspace\.[a-z_]+)"/g)].map(
-        (match) => match[1],
-      ),
-    ),
-  ];
-  const listed =
-    tools.match(
-      /export const workspaceCapabilityNames = \[([\s\S]*?)\];/,
-    )?.[1] ?? "";
-  const missing = declared.filter((name) => !listed.includes(`"${name}"`));
-  assert.deepEqual(
-    missing,
-    [],
-    `workspaceCapabilityNames is missing: ${missing.join(", ")}`,
-  );
-});
-
 test("the table structure drawer capability is wired end to end", async () => {
   const tools = await readSource("src/services/ai-tools/database-tools.ts");
   assert.match(tools, /tool\(\s*"database\.open_table_details"/);
@@ -185,20 +113,6 @@ test("the table structure drawer capability is wired end to end", async () => {
     /openTableDetails: async \(database: string, table: string\)/,
   );
   assert.match(view, /detailsVisible,/);
-});
-
-test("git.worktree_add can start a new branch from a chosen base", async () => {
-  const tools = await readSource("src/services/ai-tools/git-tools.ts");
-  const capability = tools.match(
-    /name: "git\.worktree_add"[\s\S]*?name: "git\.worktree_remove"/,
-  )?.[0];
-  assert.ok(capability, "git.worktree_add capability must be present");
-  assert.match(capability, /baseBranch: \{ \.\.\.branch/);
-  // 后端读的是 baseBranch 字段，工具不透传等于参数白填。
-  assert.match(
-    capability,
-    /baseBranch: stringArgument\(input, "baseBranch"\) \|\| null/,
-  );
 });
 
 test("SSH server management capabilities cover every ssh_admin command", async () => {
@@ -338,25 +252,5 @@ test("schema sync capabilities reach the database view and gate their change ids
   assert.match(
     composable,
     /connectedSchemaSyncSelection[\s\S]*?requires two different connections/,
-  );
-});
-
-test("cross-project index search only reaches saved projects", async () => {
-  const tools = await readSource("src/services/ai-tools/workspace-tools.ts");
-  for (const command of ["project_index_refresh", "project_index_search"]) {
-    assert.ok(
-      tools.includes(`"${command}"`),
-      `workspace-tools.ts must invoke ${command}`,
-    );
-  }
-  // roots 直通后端就等于让模型扫描任意绝对路径，越权范围比 workspace.search 大得多。
-  assert.match(
-    tools,
-    /function savedProjectRoots[\s\S]*?can only reach saved projects/,
-  );
-  assert.match(tools, /project_index_search", \{\s*roots: savedProjectRoots\(/);
-  assert.match(
-    tools,
-    /project_index_refresh", \{\s*roots: savedProjectRoots\(/,
   );
 });

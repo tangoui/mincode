@@ -4,7 +4,7 @@ import { ElAlert, ElButton, ElMessage, ElMessageBox } from "element-plus";
 import { Loading } from "@element-plus/icons-vue";
 import { describePluginActionFailure } from "@/domain/plugin-ui/action-error.mjs";
 import { requiresPluginApproval } from "@/domain/plugin-ui/approval-policy";
-import { isPluginHostDownloadResult, parsePluginHostOpenURLResult, parsePluginHostSaveTextResult } from "@/domain/plugin-ui/host-result.mjs";
+import { parsePluginHostOpenURLResult, parsePluginHostSaveTextResult } from "@/domain/plugin-ui/host-result.mjs";
 import { acceptDrop, parseFileDrop, type PluginFileDrop } from "@/domain/plugin-ui/file-drop.mjs";
 import { MAX_PICKED_PATHS, filterPickedPaths, parsePathPickRequest, pathPickNeedsConfirmation } from "@/domain/plugin-ui/path-picker.mjs";
 import { saveTextFileToDisk } from "@/services/file-download";
@@ -885,7 +885,7 @@ async function handleInvokeRequest(data: unknown) {
     }
     if (!isTask && action.resultHandling === "open-url") {
       const url = parsePluginHostOpenURLResult(result);
-      await openHostLink(url, { download: isPluginHostDownloadResult(result) });
+      await openHostLink(url);
       if (currentSession === session && connected) {
         safePost({ type: "mincode.host.response", id: request.id, ok: true, result: true });
       }

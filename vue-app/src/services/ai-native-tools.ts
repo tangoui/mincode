@@ -4,7 +4,6 @@ import type {
 } from "@/domain/ai/capability-registry";
 import type { AiResourceRegistry } from "@/domain/ai/resource-registry";
 import type { SshRuntimeCredentials } from "@/domain/ssh/types";
-import { gitCapabilities, gitCapabilityNames } from "./ai-tools/git-tools";
 import {
   databaseCapabilities,
   databaseSavedCapabilityNames,
@@ -17,13 +16,8 @@ import {
 } from "./ai-tools/redis-tools";
 import {
   workspaceCapabilities,
-  workspaceCapabilityNames,
 } from "./ai-tools/workspace-tools";
 import { httpCapabilities } from "./ai-tools/http-tools";
-import {
-  browserCapabilities,
-  browserCapabilityNames,
-} from "./ai-tools/browser-tools";
 import {
   terminalCapabilities,
   terminalCapabilityNames,
@@ -87,16 +81,8 @@ export interface NativeAiSftpSession {
 export interface NativeAiResourceSnapshot {
   nativeRuntime?: boolean;
   projectRoot?: string;
-  gitRepositories?: Array<{ path: string; name?: string }>;
-  activeGitRepositoryPath?: string;
   activeTerminalId?: string;
   database?: NativeAiDatabaseSnapshot;
-  embeddedBrowser?: {
-    available: boolean;
-    shared: boolean;
-    tabId?: string;
-    url?: string;
-  };
   terminalPanes: NativeAiTerminalPane[];
   sshProfiles: NativeAiSshProfile[];
   sftpSessions?: NativeAiSftpSession[];
@@ -109,10 +95,6 @@ interface NativeAiToolDependencies {
   sshCredentials?(profileId: string): SshRuntimeCredentials | undefined;
   runSubagentPlan?(
     plan: import("@/domain/ai/subagent-orchestration").SubagentPlanDefinition,
-    context: { conversationId?: string; signal: AbortSignal },
-  ): Promise<unknown>;
-  integrateSubagentResult?(
-    result: { branch: string; commitHash: string; baseCommit: string },
     context: { conversationId?: string; signal: AbortSignal },
   ): Promise<unknown>;
 }
@@ -132,8 +114,6 @@ export interface NativeAiCapabilityDependencies
   createTerminalTab?(
     input: CreateTerminalTabInput,
   ): Promise<{ tabId: string; paneId: string }>;
-  openBrowserTab?(input: { url?: string }): Promise<unknown>;
-  browserTabs?: import("@/services/ai-tools/shared").BrowserTabsDependency;
   closeTerminalPane?(sessionId: string): Promise<boolean>;
   revealTerminalPane?(sessionId: string): void;
   connectSftp?(profileId: string): Promise<{ sessionId: string; home: string }>;
@@ -142,8 +122,6 @@ export interface NativeAiCapabilityDependencies
   openWorkspaceView?(input: {
     view: import("@/types/workspace").WorkspaceView;
   }): Promise<unknown>;
-  projectAction?(input: Record<string, unknown>): Promise<unknown>;
-  listSavedProjects?(conversationId?: string): Array<{ root: string; name: string }>;
   httpAction?(input: Record<string, unknown>): Promise<unknown>;
   databaseAction?(input: Record<string, unknown>): Promise<unknown>;
   redisAction?(input: Record<string, unknown>): Promise<unknown>;
@@ -229,11 +207,8 @@ function stableProjectIdentity(projectRoot: string) {
 }
 
 export type NativeAiResourceSource =
-  | "workspace"
-  | "git"
   | "database"
   | "redis"
-  | "browser"
   | "terminal"
   | "ssh-profile"
   | "sftp"
@@ -252,47 +227,6 @@ export function syncNativeAiResources(
   const syncs = (source: NativeAiResourceSource) =>
     !sources || sources.includes(source);
   const projectRoot = canonicalProjectRoot(snapshot.projectRoot ?? "");
-  const activeGitRepositoryPath = canonicalProjectRoot(
-    snapshot.activeGitRepositoryPath ?? "",
-  );
-  if (syncs("workspace"))
-    registry.replace(
-      "workspace",
-      projectRoot
-        ? [
-            {
-              id: `workspace-project:${stableProjectIdentity(projectRoot)}`,
-              kind: "workspace-project",
-              name: projectRoot.split("/").filter(Boolean).pop() ?? "workspace",
-              state: "available" as const,
-              capabilities: workspaceCapabilityNames,
-              metadata: { projectRoot },
-            },
-          ]
-        : [],
-    );
-  if (syncs("git"))
-    registry.replace(
-      "git",
-      (snapshot.gitRepositories ?? []).flatMap((repository) => {
-        const repoPath = canonicalProjectRoot(repository.path);
-        if (!repoPath) return [];
-        return [
-          {
-            id: `git-repository:${stableProjectIdentity(repoPath)}`,
-            kind: "git-repository",
-            name:
-              repository.name?.trim() ||
-              repoPath.split("/").filter(Boolean).pop() ||
-              "repository",
-            state: "available" as const,
-            active: repoPath === activeGitRepositoryPath,
-            capabilities: gitCapabilityNames,
-            metadata: { projectRoot, repoPath },
-          },
-        ];
-      }),
-    );
   const databaseSnapshot = snapshot.database;
   const safeConnections = (databaseSnapshot?.connections ?? []).flatMap(
     (connection) => {
@@ -354,29 +288,6 @@ export function syncNativeAiResources(
       safeConnections.filter(
         (resource) => resource.metadata.dbType === "redis",
       ),
-    );
-  const embeddedBrowser = snapshot.embeddedBrowser;
-  if (syncs("browser"))
-    registry.replace(
-      "browser",
-      embeddedBrowser?.available &&
-        embeddedBrowser.shared &&
-        embeddedBrowser.tabId
-        ? [
-            {
-              id: "browser:active",
-              kind: "embedded-browser",
-              name: "Shared browser tab",
-              state: "available" as const,
-              active: true,
-              capabilities: browserCapabilityNames,
-              metadata: {
-                tabId: embeddedBrowser.tabId,
-                url: embeddedBrowser.url ?? "",
-              },
-            },
-          ]
-        : [],
     );
   const nativeRuntime = snapshot.nativeRuntime === true;
   const liveTerminalPanes = nativeRuntime
@@ -490,10 +401,9 @@ function globalCapabilities(
 
   return [
     ...workspaceCapabilities(dependencies),
-    ...(dependencies.runSubagentPlan && dependencies.integrateSubagentResult
+    ...(dependencies.runSubagentPlan
       ? subagentCapabilities({
           runPlan: dependencies.runSubagentPlan,
-          integrateResult: dependencies.integrateSubagentResult,
         })
       : []),
     ...(["database", "redis"] as const).map((module) =>
@@ -532,11 +442,9 @@ function globalCapabilities(
       sqlSafety: aiSqlSafety,
     }),
     ...redisCapabilities({ ...dependencies, sqlSafety: aiSqlSafety }),
-    ...gitCapabilities(dependencies),
     ...(dependencies.nativeRuntime === true
       ? httpCapabilities(dependencies)
       : []),
-    ...browserCapabilities(dependencies),
     ...devtoolsCapabilities(),
     ...pluginCapabilities(dependencies, dependencies.nativeRuntime),
     ...sessionsCapabilities(dependencies, dependencies.nativeRuntime),

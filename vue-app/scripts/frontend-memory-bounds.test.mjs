@@ -8,9 +8,6 @@ import {
 } from "../src/services/terminal-session-cache.ts";
 
 const [
-  projectSource,
-  lspWrapperSource,
-  lspRuntimeSource,
   snapshotSource,
   sessionsSource,
   localTerminalSource,
@@ -19,9 +16,6 @@ const [
   workspaceScopeSource,
   terminalWorkspaceSource,
 ] = await Promise.all([
-  readFile(new URL("../src/views/ProjectWorkspaceView.vue", import.meta.url), "utf8"),
-  readFile(new URL("../src/composables/use-project-language-servers.ts", import.meta.url), "utf8"),
-  readFile(new URL("../src/composables/project-language-server-runtime.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/services/terminal-session-cache.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/views/SessionsWorkspaceView.vue", import.meta.url), "utf8"),
   readFile(new URL("../src/components/terminal/LocalTerminal.vue", import.meta.url), "utf8"),
@@ -30,22 +24,6 @@ const [
   readFile(new URL("../src/domain/workspace/state-scope.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/stores/terminal-workspace.ts", import.meta.url), "utf8"),
 ]);
-const lspSource = lspRuntimeSource;
-// The Language servers dialog moved out of ProjectWorkspaceView (Phase G).
-const lspDialogSource = await readFile(new URL("../src/components/projects/ProjectLanguageServersDialog.vue", import.meta.url), "utf8");
-
-test("项目打开时不再全量启用已安装语言服务器", () => {
-  assert.doesNotMatch(projectSource, /Auto-enable all installed servers/);
-  assert.doesNotMatch(projectSource, /installedIds[\s\S]*?enabledServers/);
-  assert.doesNotMatch(lspDialogSource, /installedIds[\s\S]*?enabledServers/);
-  assert.match(lspDialogSource, /function toggleLspServer/);
-});
-
-test("已启用语言服务器也只为当前打开文件的语言启动", () => {
-  assert.match(lspSource, /const openLanguages = new Set/);
-  assert.match(lspSource, /languages\??\.some\(\(language\) => openLanguages\.has\(language\)\)/);
-  assert.doesNotMatch(lspSource, /!neededNow && info\.heavy/);
-});
 
 test("终端快照同时受过期时间、条目数和总字节限制", () => {
   assert.match(snapshotSource, /MAX_SNAPSHOT_AGE_MS/);
@@ -78,19 +56,6 @@ test("终端快照运行时按 LRU 淘汰并拒绝单个超限快照", () => {
 });
 
 
-test("项目工作区后台停留超过宽限期后停止语言服务器", () => {
-  assert.match(lspSource, /limits\.lspBackgroundStopSeconds \* 1000/);
-  assert.match(lspWrapperSource, /watch\(settingsSnapshotVersion, \(\) => controller\?\.settingsChanged\(\)\)/);
-  assert.match(lspWrapperSource, /onDeactivated\(\(\) => \{[\s\S]*?controller\?\.deactivate\(\)/);
-  assert.match(lspWrapperSource, /onActivated\(\(\) => \{[\s\S]*?controller\?\.activate\(\)/);
-  assert.match(lspSource, /function settingsChanged\(\)[\s\S]*?if \(!active\) scheduleBackgroundStop\(\)/);
-  assert.match(lspSource, /function deactivate\(\)[\s\S]*?scheduleBackgroundStop\(\)/);
-  assert.match(lspSource, /setTimeout\(\(\) => \{[\s\S]*?stopSession/);
-  assert.match(lspSource, /function activate\(\)[\s\S]*?activateSessions/);
-  assert.match(lspSource, /if \(!session \|\| session\.generation !== generation\) return/);
-  assert.match(lspSource, /currentWorkspaceActive/);
-});
-
 test("隐藏终端释放 WebGL，非活动分屏延迟释放", () => {
   for (const source of [localTerminalSource, sshTerminalSource]) {
     assert.match(source, /TERMINAL_INACTIVE_WEBGL_DELAY_MS = 30_000/);
@@ -118,16 +83,6 @@ test("AI 非活动工作区缓存同时受数量和文本体积约束", () => {
   assert.match(assistantSource, /!entry\.running/);
 });
 
-
-test("没有匹配文档的语言服务器按类型延迟回收", () => {
-  assert.match(lspSource, /runtimePerformanceSettingsFromSnapshot/);
-  assert.match(lspSource, /limits\.lspIdleStopSeconds \* 1000/);
-  assert.match(lspSource, /limits\.lspAuxiliaryIdleStopSeconds \* 1000/);
-  assert.match(lspSource, /function scheduleIdleSessionStop/);
-  assert.match(lspSource, /openDocuments\.get\(key\)\?\.size/);
-  assert.match(lspSource, /function attachModel[\s\S]*?clearIdleStopTimer/);
-  assert.match(lspSource, /function detachModel[\s\S]*?scheduleIdleSessionStop/);
-});
 
 test("终端布局恢复缓存使用小型 LRU 上限", () => {
   assert.match(terminalWorkspaceSource, /terminalLayoutCacheLimit/);

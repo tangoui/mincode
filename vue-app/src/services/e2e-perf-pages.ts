@@ -143,43 +143,4 @@ export async function perfPagesScenario(config: SmokeConfig, log: PerfLog) {
     notifications.clearRead();
   }
 
-  // ---- Embedded browser: several tabs of harness pages, switch between them.
-  const browserTab = workbench.openView("browser");
-  try {
-    await measure(`内置浏览器打开 ${fixture.browserUrls.length} 个标签`, async () => {
-      await router.push({ name: "browser" });
-      await until(() => visible(".browser-tabbar"), "browser tab bar", wait);
-      // The way a user does it: "+" opens a tab, the address bar navigates it.
-      for (const [index, url] of fixture.browserUrls.entries()) {
-        if (index > 0) {
-          const before = document.querySelectorAll(".browser-tabbar__tab").length;
-          (await until(() => visible<HTMLElement>(".browser-tabbar__add"), "new tab button", wait)).click();
-          await until(() => document.querySelectorAll(".browser-tabbar__tab").length > before, "new browser tab", wait);
-        }
-        const input = await until(() => visible<HTMLInputElement>("[data-browser-address] input, input[data-browser-address]"), "address bar", wait);
-        input.value = url;
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        await nextFrame();
-        // Enter in the address bar opens the *system* browser; the embedded view has its own button.
-        (await until(() => visible<HTMLButtonElement>(".browser-toolbar__preview"), "open embedded button", wait)).click();
-        // Tab titles show the host; wait until this tab stops loading.
-        await until(() => document.querySelectorAll(".browser-tabbar__tab").length === index + 1 && !document.querySelector(".browser-tabbar__tab.is-active .browser-tabbar__loading"), `page ${index} loaded`, wait * 2);
-      }
-      await until(() => ![...document.querySelectorAll(".browser-tabbar__loading")].length, "pages loaded", wait * 2).catch(() => undefined);
-    });
-    await measure("浏览器标签来回切换 3 轮", async () => {
-      for (let round = 0; round < 3; round++) {
-        for (const button of [...document.querySelectorAll<HTMLElement>(".browser-tabbar__select")]) {
-          button.click();
-          await nextFrame();
-          await nextFrame();
-        }
-      }
-    });
-    await measure("浏览器页空闲 5 秒", () => pause(5000));
-  } finally {
-    for (const close of [...document.querySelectorAll<HTMLElement>(".browser-tabbar__close")]) close.click();
-    if (browserTab) workbench.closeTab(browserTab.id, true);
-    await router.push({ name: "dashboard" }).catch(() => undefined);
-  }
 }

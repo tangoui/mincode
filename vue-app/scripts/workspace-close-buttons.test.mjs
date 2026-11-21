@@ -27,7 +27,7 @@ test("shared card tabs reserve close-button width without hover or selection", a
   assert.match(body, /border-radius:\s*50%;/);
   const database = await source("styles/workspaces/database/workspace.css");
   assert.match(rule(database, ".db-connection-tabs__list .el-tabs__item.is-closable"), /--app-workspace-tabs-close-size:\s*16px;/);
-  for (const view of ["DatabaseWorkspaceView", "ProjectWorkspaceView", "SshWorkspaceView"]) {
+  for (const view of ["DatabaseWorkspaceView", "SshWorkspaceView"]) {
     assert.match(await source(`views/${view}.vue`), /<AppWorkspaceTabs\b/);
   }
 });

@@ -112,7 +112,7 @@ import { UI_THEME_CHANGED_EVENT, type UiTheme } from "@/services/ui-theme";
 import { guardTerminalPasteEvents, useTerminalKeybindings } from "@/composables/use-terminal-keybindings";
 import { openSystemBrowser } from "@/services/web-automation-service";
 import { shellOutputEventName, type ShellOutputEvent } from "@/domain/ssh/types";
-import { attachTerminal } from "@/services/debug-service";
+import { getUserHomeDirectory } from "@/services/settings-service";
 
 // 低频弹窗按需加载，避免进入终端首屏 chunk。
 const TerminalBookmarksDialog = defineAsyncComponent(
@@ -166,13 +166,6 @@ const props = withDefaults(
     visible?: boolean;
     canSplit?: boolean;
     keepAliveOnUnmount?: boolean;
-    /**
-     * Attach to this existing session (a debuggee terminal, `debug-…`) instead
-     * of starting one: no process is started, replaced or closed, and the
-     * session's kept output is shown first. Must equal `sessionId` (the id
-     * every channel uses); a pane where they differ attaches to nothing.
-     */
-    attachOnlySessionId?: string;
   }>(),
   {
     shellType: "system",
@@ -188,19 +181,8 @@ const props = withDefaults(
     visible: true,
     canSplit: true,
     keepAliveOnUnmount: true,
-    attachOnlySessionId: undefined,
   }
 );
-
-/** Attach-only pane (see `attachOnlySessionId`). */
-function attachOnly(): boolean {
-  return props.attachOnlySessionId !== undefined;
-}
-
-/** Debuggee terminals belong to their debug session: never started, replaced or closed from a pane. */
-function isDebuggeeShell(id: string): boolean {
-  return id.startsWith("debug-");
-}
 
 const emit = defineEmits<{
   select: [];
@@ -301,9 +283,6 @@ let stopPasteGuard: (() => void) | null = null;
 let stopBufferProbe: (() => void) | null = null;
 let closed = false;
 let backendReady = false;
-/** Attach-only mode: the offset attach returned (null while attaching) and the events received meanwhile. */
-let attachedOffset: number | null = null;
-let pendingAttachedOutput: ShellOutputEvent[] = [];
 // 本地终端的输入和回显都走有确认的 IPC/事件通道，避免 Stream 传输层
 // 在快速输入时只报告“已入队”而导致 PTY 回显缺字符。
 let inputBatcher: TerminalInputBatcher | undefined;
@@ -783,75 +762,6 @@ function handleShellOutput(data: string) {
   emitOutputActivity();
 }
 
-/** Attach-only output: events at or below the attached offset are already in the attached output. */
-function writeAttachedOutput(event: ShellOutputEvent) {
-  if (typeof event.offset === "number" && attachedOffset !== null && event.offset <= attachedOffset) return;
-  handleShellOutput(event.data);
-}
-
-/** Attach-only: an attach is pending, and the end reported meanwhile. */
-let attaching = false;
-let endedDuringAttach: ShellEndedEvent | null = null;
-/** Bumped per attach, so an older attach (before a reload) leaves the newer one's state alone. */
-let attachRun = 0;
-
-/**
- * Attach-only mode: the output listener is already subscribed, so nothing is
- * lost between the attach and the first event; overlapping events are dropped.
- */
-async function attachShell() {
-  if (!xterm || closed) return;
-  attachedOffset = null;
-  pendingAttachedOutput = [];
-  // An end reported while attaching is applied after the attach result, which would otherwise undo it.
-  attaching = true;
-  endedDuringAttach = null;
-  const run = (attachRun += 1);
-  try {
-    if (props.attachOnlySessionId !== props.sessionId) throw new Error("invalid_request: attachOnlySessionId must equal sessionId");
-    const result = await attachTerminal(props.sessionId);
-    if (closed || !xterm) return;
-    if (typeof result?.output !== "string" || typeof result.offset !== "number") throw new Error("invalid attach result");
-    handleShellOutput(result.output);
-    attachedOffset = result.offset;
-    const pending = pendingAttachedOutput;
-    pendingAttachedOutput = [];
-    for (const event of pending) writeAttachedOutput(event);
-    resizeSync.reset();
-    if (result.ended) {
-      status.value = "ended";
-      const endedAt = Date.now();
-      emitActivity({ phase: "completed", updatedAt: endedAt, endedAt });
-      xterm.writeln(`\r\n\x1b[33m[MinCode] ${t("terminal.sessionEnded")}\x1b[0m`);
-      return;
-    }
-    const ended = endedDuringAttach;
-    if (ended) {
-      endedDuringAttach = null;
-      attaching = false;
-      applyShellEnded(ended);
-      return;
-    }
-    backendReady = true;
-    status.value = "ready";
-    emitActivity({ phase: "quiet", updatedAt: Date.now() });
-    fitAndResize();
-    focusTerminal();
-  } catch {
-    attachedOffset = 0;
-    pendingAttachedOutput = [];
-    status.value = "error";
-    const endedAt = Date.now();
-    emitActivity({ phase: "failed", updatedAt: endedAt, endedAt });
-    xterm?.writeln(`\x1b[31m[MinCode] ${t("terminal.attachFailed")}\x1b[0m`);
-  } finally {
-    if (run === attachRun) {
-      attaching = false;
-      endedDuringAttach = null;
-    }
-  }
-}
-
 function applyShellEnded(event: ShellEndedEvent) {
   status.value = event.recoverable ? "connecting" : "ended";
   clearQuietActivityTimer();
@@ -862,7 +772,7 @@ function applyShellEnded(event: ShellEndedEvent) {
     updatedAt: endedAt,
     ...(event.recoverable ? {} : { endedAt }),
   });
-  if (!event.recoverable && !attachOnly()) deleteTerminalSnapshot(props.sessionId);
+  if (!event.recoverable) deleteTerminalSnapshot(props.sessionId);
   xterm?.writeln(`\r\n\x1b[33m[MinCode] ${t("terminal.sessionEnded")}\x1b[0m`);
   if (props.task && !event.recoverable) {
     taskBlock.value = "exited";
@@ -870,16 +780,8 @@ function applyShellEnded(event: ShellEndedEvent) {
   }
 }
 
-/** Reload: an attached pane attaches again (nothing is restarted); others ask the owner. */
 function reloadPane() {
-  if (!attachOnly()) {
-    emit("reload");
-    return;
-  }
-  backendReady = false;
-  status.value = "connecting";
-  xterm?.reset();
-  void attachShell();
+  emit("reload");
 }
 
 onMounted(async () => {
@@ -940,8 +842,7 @@ onMounted(async () => {
   window.addEventListener("focus", handleWindowFocus);
   window.addEventListener(TERMINAL_COLOR_SCHEME_CHANGED_EVENT, handleColorSchemeChange);
 
-  // An attached session returns its kept output itself; a snapshot would repeat it.
-  const snapshot = attachOnly() ? undefined : readTerminalSnapshot(props.sessionId);
+  const snapshot = readTerminalSnapshot(props.sessionId);
   if (snapshot) xterm.write(snapshot);
   fitAndResize();
 
@@ -954,19 +855,10 @@ onMounted(async () => {
 
   // 必须先订阅输出，再创建或重新附加 PTY，避免首个 shell prompt 丢失。
   stopOutput = listenAppEvent<ShellOutputEvent>(shellOutputEventName(props.sessionId), (event) => {
-    if (!attachOnly()) {
-      handleShellOutput(event.data);
-      return;
-    }
-    if (attachedOffset === null) pendingAttachedOutput.push(event);
-    else writeAttachedOutput(event);
+    handleShellOutput(event.data);
   });
   stopEnded = listenAppEvent<ShellEndedEvent>("shell-session-ended", (event) => {
     if (event.sessionId !== props.sessionId || closed) return;
-    if (attaching) {
-      endedDuringAttach = event;
-      return;
-    }
     applyShellEnded(event);
   });
 
@@ -1008,15 +900,16 @@ onMounted(async () => {
 });
 
 async function startShellSession(cols: number, rows: number) {
-  if (isDebuggeeShell(props.sessionId)) throw new Error("forbidden: a debuggee terminal is only attached");
   if (props.task) return startTaskSession(props.task, cols, rows);
   if (!props.profile) {
+    const cwd = props.initialCwd || await getUserHomeDirectory();
+    if (closed) return "";
     return invokeBackend<string>("start_local_shell", {
       payload: {
         sessionId: props.sessionId,
         shellType: props.shellType,
         customPath: props.customPath,
-        cwd: props.initialCwd,
+        cwd,
         extraEnv: props.extraEnv,
         attachIfExists: true,
         cols,
@@ -1113,10 +1006,6 @@ async function reviewAndLaunchProfile() {
 
 async function connectShell() {
   if (!xterm || closed) return;
-  if (attachOnly()) {
-    await attachShell();
-    return;
-  }
   try {
     const dimensions = clampTerminalDimensions(xterm.cols, xterm.rows);
     const message = await startShellSession(dimensions.cols, dimensions.rows);
@@ -1160,7 +1049,7 @@ onBeforeUnmount(() => {
   clearQuietActivityTimer();
   inputBatcher?.dispose();
   inputBatcher = undefined;
-  if (serializeAddon && xterm && isDesktopRuntime() && !attachOnly()) {
+  if (serializeAddon && xterm && isDesktopRuntime()) {
     try {
       saveTerminalSnapshot(props.sessionId, serializeAddon.serialize({ scrollback: 2000 }));
     } catch {
@@ -1187,7 +1076,7 @@ onBeforeUnmount(() => {
   } finally {
     releaseTerminalWebgl();
   }
-  if (!props.keepAliveOnUnmount && !attachOnly() && !isDebuggeeShell(props.sessionId) && isDesktopRuntime()) {
+  if (!props.keepAliveOnUnmount && isDesktopRuntime()) {
     deleteTerminalSnapshot(props.sessionId);
     void invokeBackend<void>("close_local_shell", {
       payload: { sessionId: props.sessionId },

@@ -6,10 +6,6 @@ export interface SubagentCapabilityDependencies {
     plan: SubagentPlanDefinition,
     context: { conversationId?: string; signal: AbortSignal },
   ): Promise<unknown>;
-  integrateResult(
-    result: { branch: string; commitHash: string; baseCommit: string },
-    context: { conversationId?: string; signal: AbortSignal },
-  ): Promise<unknown>;
 }
 
 export function subagentCapabilities(
@@ -24,7 +20,7 @@ export function subagentCapabilities(
     tool: {
       name: "agent.run_parallel",
       description:
-        "Delegate 1-16 tasks to separate, user-visible child conversations and return their results to this conversation. When the user asks to hand off one task to a new conversation, call this tool with exactly one task. Include the task and relevant context in its prompt so the child can work independently. Use read mode for analysis or drafting, and write mode for file changes. For multiple tasks, use independent or dependency-ordered scopes where separate execution helps. Write tasks run in isolated Git worktrees and must finish with a clean committed change for review and explicit integration. Ready tasks are scheduled automatically without a fixed concurrency cap or shared slots across conversations. Subagents cannot create other agents.",
+        "Delegate 1-16 tasks to separate, user-visible child conversations and return their results to this conversation. When the user asks to hand off one task to a new conversation, call this tool with exactly one task. Include the task and relevant context in its prompt so the child can work independently. Use read mode for analysis or drafting from supplied context. For multiple tasks, use independent or dependency-ordered scopes where separate execution helps. Ready tasks are scheduled automatically without a fixed concurrency cap or shared slots across conversations. Subagents cannot create other agents.",
       inputSchema: {
         type: "object",
         properties: {
@@ -57,8 +53,8 @@ export function subagentCapabilities(
                 },
                 mode: {
                   type: "string",
-                  enum: ["read", "write"],
-                  description: "Read performs analysis only; write receives an isolated worktree and must commit its changes.",
+                  enum: ["read"],
+                  description: "Read performs analysis using the supplied context.",
                 },
                 model: {
                   type: "string",
@@ -116,45 +112,5 @@ export function subagentCapabilities(
         conversationId,
         signal,
       }),
-  }, {
-    module: "agent",
-    discovery: true,
-    target: "none",
-    mode: "write",
-    risk: "dangerous",
-    tool: {
-      name: "agent.integrate_result",
-      description:
-        "Integrate one reviewed write-subagent result into the conversation's bound Git worktree, then clean up its isolated worktree and temporary branch. Use only the exact branch, commitHash, and baseCommit returned by agent.run_parallel. Dependency-ordered results must be integrated upstream-first. Conflicts are automatically aborted and retain the source worktree.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          branch: {
-            type: "string",
-            pattern: "^mincode/agent/[a-z0-9][a-z0-9-]{0,95}$",
-            description: "Exact mincode/agent/* branch returned by the write task.",
-          },
-          commitHash: {
-            type: "string",
-            pattern: "^[0-9a-fA-F]{40,64}$",
-            description: "Exact source commit hash returned by the write task.",
-          },
-          baseCommit: {
-            type: "string",
-            pattern: "^[0-9a-fA-F]{40,64}$",
-            description: "Exact baseline commit returned by the write task.",
-          },
-        },
-        required: ["branch", "commitHash", "baseCommit"],
-        additionalProperties: false,
-      },
-    },
-    approvalPreview: ({ input }) =>
-      `Integrate reviewed subagent result ${String(input.branch ?? "")} at ${String(input.commitHash ?? "").slice(0, 12)}, then remove its isolated worktree and temporary branch`,
-    execute: ({ input, signal, conversationId }) => dependencies.integrateResult({
-      branch: String(input.branch ?? "").trim(),
-      commitHash: String(input.commitHash ?? "").trim(),
-      baseCommit: String(input.baseCommit ?? "").trim(),
-    }, { signal, conversationId }),
   }];
 }

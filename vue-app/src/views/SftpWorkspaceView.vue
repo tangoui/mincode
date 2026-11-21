@@ -68,7 +68,7 @@ import { useSftpSessionsStore } from "@/stores/sftp-sessions";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
 
 // The remote file editor is opened on demand; loading it lazily keeps Monaco out of this view's startup chunk.
-const MonacoTextEditor = defineAsyncComponent(() => import("@/components/projects/MonacoTextEditor.vue"));
+const MonacoTextEditor = defineAsyncComponent(() => import("@/components/ui/MonacoTextEditor.vue"));
 
 defineOptions({ name: "SftpWorkspaceView" });
 

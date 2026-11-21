@@ -16,8 +16,6 @@ export const HOST_KEYBINDING_RULES: readonly KeymapPresetRule[] = [
   { key: "alt+up", command: "ai:previous-conversation", when: "ai.panel.focus && !ai.multiline.field && !editor.focus" },
   { key: "alt+down", command: "ai:next-conversation", when: "ai.panel.focus && !ai.multiline.field && !editor.focus" },
   { key: "mod+c", command: "ai:copy-message", when: "text.selection && ai.message.selection" },
-  { key: "mod+c", command: "project:copy-node", when: "tree.selection && !text.selection" },
-  { key: "mod+v", command: "project:paste-node", when: "tree.selection" },
 ];
 
 /**
@@ -28,15 +26,6 @@ export const HOST_KEYBINDING_RULES: readonly KeymapPresetRule[] = [
  * The handlers' own `when` keeps every debug key away from a focused terminal.
  */
 const DEBUG_RULES: KeymapPresetRule[] = [
-  { key: "f8", command: "project:debug.stepOver", when: "debug.active" },
-  { key: "f7", command: "project:debug.stepInto", when: "debug.active" },
-  { key: "shift+f7", command: "project:debug.smartStepInto", when: "debug.active" },
-  { key: "shift+f8", command: "project:debug.stepOut", when: "debug.active" },
-  { key: "alt+f9", command: "project:debug.runToCursor", when: "debug.active" },
-  { key: "cmd+alt+r", command: "project:debug.resume", when: "debug.active", platform: "mac" },
-  { key: "f9", command: "project:debug.resume", when: "debug.active", platform: ["win", "linux"] },
-  { key: "alt+f8", command: "project:debug.evaluate", when: "debug.active" },
-  { key: "mod+f8", command: "project:debug.toggleBreakpoint" },
 ];
 
 const TAB_RULES: KeymapPresetRule[] = Array.from({ length: 9 }, (_, index) => ({

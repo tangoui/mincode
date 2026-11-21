@@ -52,23 +52,3 @@ test("non-dangerous session grants keep their tool and resource scope", async ()
   const store = await grantSession(write("a.ts"));
   assert.equal(await store.matches(write("b.ts")), true);
 });
-
-test("workspace.run_command forwards the run signal so stopping cancels the backend command", async () => {
-  const calls = [];
-  const capability = workspaceCapabilities({
-    invoke: async (command, args, options) => {
-      calls.push({ command, args, options });
-      return { stdout: "", stderr: "", exit_code: 0, success: true };
-    },
-  }).find((item) => item.tool.name === "workspace.run_command");
-  assert.ok(capability);
-  const controller = new AbortController();
-  await capability.execute({
-    input: { command: "npm test" },
-    resourceId: "project:/repo",
-    resource: { id: "project:/repo", metadata: { projectRoot: "/repo" } },
-    signal: controller.signal,
-  });
-  assert.equal(calls[0]?.command, "workspace_exec");
-  assert.equal(calls[0]?.options?.signal, controller.signal);
-});

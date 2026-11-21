@@ -193,7 +193,6 @@ test("terminal wiring never renders HTML and disposes the provider", async () =>
   assert.doesNotMatch(service, /innerHTML|insertAdjacentHTML|v-html/);
   assert.match(service, /normalizeWebUrl\(resolved\)/);
   assert.match(service, /openSystemBrowser\(url\)/);
-  assert.match(service, /options\.kind !== "local"/);
   for (const [path, kind] of [
     ["../src/components/terminal/LocalTerminal.vue", "local"],
     ["../src/components/terminal/SshTerminal.vue", "ssh"],

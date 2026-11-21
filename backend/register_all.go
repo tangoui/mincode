@@ -14,6 +14,7 @@ import (
 	_ "mincode/app/backend/agentprogress"
 	_ "mincode/app/backend/ai"
 	_ "mincode/app/backend/aistore"
+	_ "mincode/app/backend/appstore"
 	_ "mincode/app/backend/crypto"
 	"mincode/app/backend/db"
 	_ "mincode/app/backend/dbimport"

@@ -48,7 +48,7 @@ import { attachMonacoMenuContext, type MonacoMenuContext } from "@/services/mona
 export type MonacoEditorKind = "text" | "project" | "sql" | "sftp" | "json" | "conflict" | "ddl";
 
 export interface MonacoEditorHandlers {
-  /** `editor:save` / `editor:save-all` (fallback) while this editor has focus. */
+  /** `editor:save` while this editor has focus. */
   save?: () => void;
   /** `database:run-query` while this editor has focus. */
   run?: () => void;
@@ -142,10 +142,6 @@ function runEditorHandler(kind: keyof MonacoEditorHandlers, args: MonacoCommandA
     return;
   }
   // A registered workspace-wide save-all (phase 6) wins; until then it saves the focused editor.
-  if (args?.id === "editor:save-all" && canRunKeybindingCommand(args.id, currentKeybindingContext(document.activeElement))) {
-    runAppCommand(args);
-    return;
-  }
   const handler = focusedEditor()?.handlers[kind];
   if (handler) handler();
   else if (args) runFallback(args);

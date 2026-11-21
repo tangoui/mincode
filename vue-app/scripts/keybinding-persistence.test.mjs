@@ -140,7 +140,7 @@ test("legacy palette choices keep their behaviour through the resolver and match
   assert.notEqual(press(modShiftP, cmdK), "builtin:command-palette");
 });
 
-test("host rules keep AI panel keys and project clipboard keys", () => {
+test("host rules keep AI panel keys", () => {
   const resolution = resolve([]);
   const ai = { "ai.panel.focus": true };
   assert.equal(press(resolution, { code: "Escape", key: "Escape" }, { focus: "input", context: { ...ai, "ai.running": true } }), "ai:stop");
@@ -159,10 +159,6 @@ test("host rules keep AI panel keys and project clipboard keys", () => {
   const selectedMessage = { "text.selection": true, "ai.message.selection": true };
   assert.equal(press(resolution, { code: "KeyC", metaKey: true }, { context: selectedMessage }), "ai:copy-message");
   assert.equal(press(resolution, { code: "KeyC", metaKey: true }, { focus: "input", context: selectedMessage }), "ignore");
-  assert.equal(press(resolution, { code: "KeyC", metaKey: true }, { context: { "tree.selection": true } }), "project:copy-node");
-  assert.equal(press(resolution, { code: "KeyC", metaKey: true }, { context: { "tree.selection": true, "text.selection": true } }), "ignore");
-  assert.equal(press(resolution, { code: "KeyV", metaKey: true }, { context: { "tree.selection": true } }), "project:paste-node");
-  assert.equal(press(resolution, { code: "KeyV", metaKey: true }, { focus: "input", context: { "tree.selection": true } }), "ignore");
 });
 
 function paletteShortcutOverridesFor(shortcut) {

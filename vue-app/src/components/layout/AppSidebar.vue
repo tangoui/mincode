@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useTerminalAttentionStore } from "@/stores/terminal-attention";
-import { useSourceControlBadgeStore } from "@/stores/source-control-badge";
-import { useWorkspaceStatePreferencesStore } from "@/stores/workspace-state-preferences";
 import { Expand, Fold, MagicStick, Setting } from "@element-plus/icons-vue";
 import {
   sidebarLabelsVisible,
@@ -25,7 +23,6 @@ import {
   type SidebarItemId,
   type SidebarMainItem,
 } from "@/services/sidebar-items";
-import { setEmbeddedBrowserOverlayBlocked } from "@/services/browser-overlay-events";
 import { preloadWorkspaceView } from "@/router/workspace-views";
 import {
   createDefaultSidebarVisibility,
@@ -137,7 +134,6 @@ const order = ref(loadOrder());
 const labelsVisible = sidebarLabelsVisible();
 const visibility = ref(createDefaultSidebarVisibility());
 const dragging = ref<SidebarItemId>();
-const visibleTooltipSources = new Set<string>();
 // Terminal / sessions workspaces holding a terminal that wants the user back.
 const terminalAttention = useTerminalAttentionStore();
 const attentionViews = computed(() => {
@@ -145,12 +141,6 @@ const attentionViews = computed(() => {
   for (const paneId of terminalAttention.items.keys()) views.add(terminalAttention.sessionPanes.has(paneId) ? "sessions" : "terminal");
   return views;
 });
-// Changed files in the active workspace's project view, shown on the source-control entry.
-const sourceControlBadge = useSourceControlBadgeStore();
-const workspaceStatePreferences = useWorkspaceStatePreferencesStore();
-const sourceControlChangeCount = computed(() =>
-  sourceControlBadge.countFor(workspaceStatePreferences.scopeIdFor(workbench.activeWorkspaceId))
-);
 const items = computed(() =>
   order.value
     .map((view) => defaultItems.find((item) => item.id === view))
@@ -199,33 +189,6 @@ function handleVisibilityChange(event: Event) {
   visibility.value = (event as CustomEvent<SidebarVisibility>).detail;
 }
 
-function showSidebarTooltip(source: string) {
-  const tooltipSource = `sidebar-tooltip:${source}`;
-  visibleTooltipSources.add(tooltipSource);
-  setEmbeddedBrowserOverlayBlocked(tooltipSource, true);
-}
-
-function hideSidebarTooltip(source: string) {
-  const tooltipSource = `sidebar-tooltip:${source}`;
-  visibleTooltipSources.delete(tooltipSource);
-  setEmbeddedBrowserOverlayBlocked(tooltipSource, false);
-}
-
-function clearSidebarTooltips() {
-  for (const source of visibleTooltipSources) setEmbeddedBrowserOverlayBlocked(source, false);
-  visibleTooltipSources.clear();
-}
-
-watch(
-  visibility,
-  (nextVisibility) => {
-    for (const item of sidebarMainItems) {
-      if (!nextVisibility[item.id]) hideSidebarTooltip(item.id);
-    }
-    if (!nextVisibility.ai) hideSidebarTooltip("assistant");
-  },
-  { deep: true }
-);
 
 onMounted(async () => {
   window.addEventListener(SIDEBAR_VISIBILITY_EVENT, handleVisibilityChange);
@@ -253,7 +216,6 @@ onBeforeUnmount(() => {
   cancelInitialPluginMenu?.();
   window.removeEventListener(PLUGIN_MENU_EVENT, handlePluginMenu);
   window.removeEventListener(PLUGIN_CATALOG_EVENT, refreshPluginMenu);
-  clearSidebarTooltips();
   window.removeEventListener(SIDEBAR_VISIBILITY_EVENT, handleVisibilityChange);
 });
 </script>
@@ -268,8 +230,6 @@ onBeforeUnmount(() => {
         :content="t(item.labelKey)"
         placement="right"
         :disabled="labelsVisible"
-        @before-show="showSidebarTooltip(item.id)"
-        @hide="hideSidebarTooltip(item.id)"
       >
         <el-button
           class="app-activity-button"
@@ -288,23 +248,13 @@ onBeforeUnmount(() => {
           @dragover.prevent
           @drop.prevent="dropOn(item.id)"
         >
-          <el-badge
-            v-if="item.id === 'source-control'"
-            :value="sourceControlChangeCount"
-            :max="99"
-            :hidden="!sourceControlChangeCount"
-            class="app-activity-button__count"
-          >
-            <el-icon><component :is="item.icon" /></el-icon>
-          </el-badge>
-          <el-badge v-else is-dot type="warning" :hidden="!attentionViews.has(item.id)" class="app-activity-button__attention">
+          <el-badge is-dot type="warning" :hidden="!attentionViews.has(item.id)" class="app-activity-button__attention">
             <el-icon><component :is="item.icon" /></el-icon>
           </el-badge>
           <span v-if="labelsVisible" class="app-activity-button__label" :title="t(item.labelKey)">{{ t(item.labelKey) }}</span>
         </el-button>
       </el-tooltip>
-      <el-tooltip v-for="view in menuViews" :key="`${view.pluginId}:${view.id}`" :content="`${view.pluginName} · ${pluginTitle(view)}`" placement="right" :disabled="labelsVisible"
-        @before-show="showSidebarTooltip(`plugin:${view.pluginId}:${view.id}`)" @hide="hideSidebarTooltip(`plugin:${view.pluginId}:${view.id}`)">
+      <el-tooltip v-for="view in menuViews" :key="`${view.pluginId}:${view.id}`" :content="`${view.pluginName} · ${pluginTitle(view)}`" placement="right" :disabled="labelsVisible">
         <el-button class="app-activity-button" text native-type="button" :class="{ 'is-active': pluginActive(view) }" :aria-label="`${view.pluginName} · ${pluginTitle(view)}`" :aria-current="pluginActive(view) ? 'page' : undefined" @click="openPluginMenu(view)">
           <el-icon><component :is="pluginViewIcon(view.icon)" /></el-icon>
           <span v-if="labelsVisible" class="app-activity-button__label" :title="`${view.pluginName} · ${pluginTitle(view)}`">{{ pluginTitle(view) }}</span>
@@ -317,8 +267,6 @@ onBeforeUnmount(() => {
         :content="t('nav.plugins')"
         placement="right"
         :disabled="labelsVisible"
-        @before-show="showSidebarTooltip('plugins')"
-        @hide="hideSidebarTooltip('plugins')"
       >
         <el-button
           class="app-activity-button"
@@ -360,8 +308,6 @@ onBeforeUnmount(() => {
         :content="aiTooltip"
         placement="right"
         :disabled="labelsVisible"
-        @before-show="showSidebarTooltip('assistant')"
-        @hide="hideSidebarTooltip('assistant')"
       >
         <el-button
           class="app-activity-button"
@@ -380,8 +326,6 @@ onBeforeUnmount(() => {
         :content="settingsLabel"
         placement="right"
         :disabled="labelsVisible"
-        @before-show="showSidebarTooltip('settings')"
-        @hide="hideSidebarTooltip('settings')"
       >
         <el-button
           class="app-activity-button"

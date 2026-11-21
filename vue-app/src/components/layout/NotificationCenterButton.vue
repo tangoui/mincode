@@ -21,7 +21,7 @@ const hasReadNotifications = computed(() => notifications.items.some((item) => B
 
 function fallbackTarget(source: NotificationSource) {
   if (source === "ai") return { kind: "ai" } as const;
-  const views = { db: "database", git: "projects", ssh: "terminal", update: "settings" } as const;
+  const views = { db: "database", ssh: "terminal", update: "settings" } as const;
   const view = views[source as keyof typeof views];
   return view ? { kind: "view", view } as const : undefined;
 }

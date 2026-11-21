@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isDesktopRuntime } from "@/services/desktop-bridge";
 import { computed, nextTick, ref } from "vue";
 import type { TabPaneName } from "element-plus";
 import { Close, Plus } from "@element-plus/icons-vue";
@@ -15,7 +16,7 @@ import {
 } from "@/domain/terminal/resource-usage";
 import { useVueI18n } from "@/i18n/messages";
 
-export type TerminalTabAddMenuCommand = "configured" | "ssh" | `profile:${string}`;
+export type TerminalTabAddMenuCommand = "configured" | "ssh" | "folder" | `profile:${string}`;
 
 const props = defineProps<{
   tabs: TerminalTab[];
@@ -152,7 +153,7 @@ function shownUsage(tab: TerminalTab) {
 }
 
 function handleAddMenu(command: string | number | object) {
-  if (command === "configured" || command === "ssh") emit("add-menu", command);
+  if (command === "configured" || command === "ssh" || command === "folder") emit("add-menu", command);
   else if (typeof command === "string" && command.startsWith("profile:")) emit("add-menu", command as `profile:${string}`);
 }
 </script>
@@ -318,6 +319,7 @@ function handleAddMenu(command: string | number | object) {
         </el-button>
         <template #dropdown>
           <el-dropdown-menu>
+            <el-dropdown-item v-if="isDesktopRuntime()" command="folder">{{ t("project.chooseFolder") }}</el-dropdown-item>
             <el-dropdown-item command="configured">{{ t("terminal.tabs.configuredShell") }}</el-dropdown-item>
             <el-dropdown-item command="ssh">{{ t("terminal.tabs.ssh") }}</el-dropdown-item>
             <el-dropdown-item

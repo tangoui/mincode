@@ -144,7 +144,7 @@ async function run() {
     const { createApp, h, ref } = await import(vueUrl);
     const { buildSnippetRegistry } = await import('/src/domain/editor/snippets.ts');
     const { setMonacoSnippets, monacoSnippetLanguages } = await import('/src/services/monaco-snippets.ts');
-    const Editor = (await import('/src/components/projects/MonacoTextEditor.vue')).default;
+    const Editor = (await import('/src/components/ui/MonacoTextEditor.vue')).default;
     const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
     const snippets = [{ name: 'Console log', prefixes: ['clog'], body: 'console.log(\${1:value});$0', description: 'Log a value' }];
     const registry = buildSnippetRegistry([{ pluginId: 'e2e.snippets', pluginName: 'E2E Snippets', version: '1.0.0', source: 'local',

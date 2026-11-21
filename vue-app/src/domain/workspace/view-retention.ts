@@ -4,7 +4,6 @@ import type { WorkspaceTab, WorkspaceView } from "@/types/workspace";
 const CACHEABLE_VIEWS: ReadonlyArray<readonly [WorkspaceView, string]> = [
   ["terminal", "TerminalWorkspaceView"],
   ["sessions", "SessionsWorkspaceView"],
-  ["projects", "ProjectWorkspaceView"],
   ["ssh", "SshWorkspaceView"],
   ["sftp", "SftpWorkspaceView"],
   ["database", "DatabaseWorkspaceView"],

@@ -5,13 +5,12 @@ import { ElMessage } from "element-plus";
 import { useVueI18n } from "@/i18n/messages";
 import { useAiPendingEditsStore } from "@/stores/ai-pending-edits";
 import { pendingEditStats, pendingEditsForProjectRoot } from "@/domain/ai/pending-edits";
-import { useLocalProjectStore } from "@/stores/local-project";
+import { DEFAULT_EDITOR_PREFERENCES } from "@/domain/projects/types";
 
 const props = defineProps<{ projectRoot: string }>();
 const { t } = useVueI18n();
 const pendingEdits = useAiPendingEditsStore();
-const project = useLocalProjectStore();
-const MonacoDiffEditor = defineAsyncComponent(() => import("@/components/projects/MonacoDiffEditor.vue"));
+const MonacoDiffEditor = defineAsyncComponent(() => import("@/components/ui/MonacoDiffEditor.vue"));
 const reviewDiffReady = ref(false);
 const readyReviewFileId = ref<string>();
 const reviewFullscreen = ref(false);
@@ -270,7 +269,7 @@ async function revertSelected() {
           :path="selected.path"
           :original-content="selected.before ?? ''"
           :modified-content="selected.after"
-          :preferences="project.editorPreferences"
+          :preferences="DEFAULT_EDITOR_PREFERENCES"
           @ready="markReviewDiffReady"
         />
         <div v-else class="ai-edit-review__empty">{{ t("ai.edits.noPending") }}</div>

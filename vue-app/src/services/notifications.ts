@@ -6,7 +6,7 @@ import { desktopNotificationTarget } from "@/domain/notifications/target";
 function fallbackDesktopTarget(input: AppNotificationInput) {
   if (input.source === "ai") return { kind: "ai" };
   if (input.source === "update") return { kind: "view", value: "settings" };
-  const views = { db: "database", git: "projects", ssh: "terminal" } as const;
+  const views = { db: "database", ssh: "terminal" } as const;
   const value = input.source ? views[input.source as keyof typeof views] : undefined;
   return value ? { kind: "view", value } : undefined;
 }

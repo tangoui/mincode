@@ -72,17 +72,6 @@ test("full-trust: frame authorizes before confirming", async () => {
   assert.doesNotMatch(frame, /getPluginDangerousActionTrust/);
 });
 
-test("full-trust: test runs authorize", async () => {
-  const panel = await source("components/projects/ProjectPluginTestsPanel.vue");
-  const body = functionBody(panel, "confirmRisk");
-  const authorize = body.search(/authorizeWithoutPrompt\(provider\.pluginId, "testRun", provider\.runRisk, /);
-  assert.notEqual(authorize, -1);
-  assert.ok(authorize < body.indexOf("ElMessageBox.confirm"));
-  // A trusted skip returns before store.confirmRun: it is not recorded as the user's confirmation.
-  assert.match(body, /if \(await authorizeWithoutPrompt\([^)]*\)\) return true;/);
-  assert.ok(body.indexOf("store.confirmRun") > body.indexOf("ElMessageBox.confirm"));
-});
-
 test("full-trust: host UI bridge never authorizes", async () => {
   // Never-skipped confirmations: host.terminal.open, host.project.open,
   // process launches, uriHandlers links, external opens, ai.config, grants and

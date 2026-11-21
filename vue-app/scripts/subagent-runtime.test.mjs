@@ -82,9 +82,8 @@ test("two conversations each dispatch more than four subagents without shared sl
   const calls = [];
   harness.run = async (options) => {
     calls.push(options);
-    assert.deepEqual(options.tools.map((tool) => tool.name), ["workspace.read_file", "git.status"]);
-    assert.match(options.messages[0].content, /Do not.*create other agents/);
-    await options.executeTool({ name: "workspace.read_file" }, options.signal);
+    assert.deepEqual(options.tools, []);
+    assert.match(options.messages[0].content, /You have no tools/);
     await executionGate.promise;
     return { completed: true, outcome: "task_completed", summary: "analysis complete" };
   };
@@ -199,42 +198,6 @@ test("each delegated task uses its chosen provider and model", async () => {
   const result = await executeSubagentPlan(definition, deps);
   assert.equal(result.state, "succeeded");
   assert.deepEqual(calls, [["test-model", undefined], ["model-b", "https://other.example"]]);
-});
-
-test("write subagents also exclude agent creation and tool-discovery capabilities", async () => {
-  const controller = new AbortController();
-  let observed = 0;
-  harness.run = async (options) => {
-    observed += 1;
-    assert.deepEqual(options.tools.map((tool) => tool.name), [
-      "workspace.read_file", "workspace.write_file", "git.status", "git.commit",
-    ]);
-    assert.match(options.messages[0].content, /Never.*create other agents/);
-    await options.executeTool({ name: "workspace.write_file" }, options.signal);
-    return { completed: true, outcome: "task_completed", summary: "write complete" };
-  };
-  const deps = dependencies("write-conversation", controller, []);
-  deps.invoke = async (command, input) => {
-    if (command === "git_create_agent_worktree") {
-      return { path: `/test/${input.taskId}`, projectPath: `/test/${input.taskId}`, name: input.taskId,
-        branch: `mincode/agent/${input.taskId}`, baseCommit: "b".repeat(40) };
-    }
-    if (command === "git_inspect_agent_worktree") {
-      return { clean: true, commitsAhead: 1, changedFiles: ["test.ts"], head: "a".repeat(40) };
-    }
-    throw new Error(`Unexpected command: ${command}`);
-  };
-  const definition = plan(2);
-  definition.tasks.forEach((task) => { task.mode = "write"; });
-  const result = await executeSubagentPlan(definition, deps);
-  assert.equal(result.state, "succeeded");
-  assert.equal(observed, 2);
-  assert.equal(result.integrationRequired, true);
-
-  // Even an unadvertised hallucinated call must meet the dispatch-side allowlist.
-  const drawer = await readFile(new URL("../src/components/ai/AiAssistantDrawer.vue", import.meta.url), "utf8");
-  assert.match(drawer, /if \(policy\.allowedTools && !policy\.allowedTools\.has\(call\.name\)\)/);
-  assert.match(drawer, /Tool is not allowed for this subagent/);
 });
 
 test("each subagent loop gets its own system reminder source", async () => {

@@ -132,10 +132,8 @@ test("segmented controls use neutral tracks and surface selections without works
     "styles/workspaces/database/object-browser.css",
     "styles/workspaces/database/result-grid.css",
     "styles/shared/git-sftp-workspace-refinement.css",
-    "styles/workspaces/git/source-console.css",
     "styles/workspaces/sessions/workspace.css",
     "styles/workspaces/ssh/connection-form.css",
-    "styles/workspaces/project/git-panel.css",
   ]) {
     const css = await source(path);
     assert.doesNotMatch(css, /--el-segmented-item-selected-(?:bg-color|color):/, path);

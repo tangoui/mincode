@@ -153,19 +153,3 @@ test("limits mirror the contract", async () => {
     assert.equal(FILE_ICON_LIMITS[name], point.limits[name], name);
   }
 });
-
-test("icons render only in image context", async () => {
-  const component = await readSource("../src/components/projects/ProjectFileIcon.vue");
-  for (const forbidden of [/v-html/, /innerHTML/, /outerHTML/, /<object\b/, /<embed\b/, /<iframe\b/, /insertAdjacentHTML/, /DOMParser/]) {
-    assert.doesNotMatch(component, forbidden);
-  }
-  assert.match(component, /<img[\s\S]*?:src="pluginIconURL"/);
-  assert.match(component, /maskImage/);
-  const store = await readSource("../src/stores/file-icon-theme.ts");
-  assert.match(store, /startsWith\("blob:"\)/, "only blob: URLs reach the renderer");
-  const consumer = await readSource("../src/services/contributions/file-icons.ts");
-  assert.match(consumer, /export function applyFileIconThemePreference\(themeId: string\): void/);
-  assert.match(consumer, /data-theme-kind/);
-  const index = await readSource("../src/services/contributions/index.ts");
-  assert.match(index, /\/\/ fileIcons \(Phase D\)\n\s*registerFileIconContributionConsumer,/);
-});

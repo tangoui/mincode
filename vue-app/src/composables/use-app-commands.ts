@@ -46,28 +46,6 @@ export function useAppCommands(options: AppCommandsOptions): void {
       keywords: ["keybindings", "shortcuts", "keymap", "快捷键"],
       execute: () => options.openSettings("shortcuts"),
     }),
-    // Palette entry points. The palette falls back to "all" where no project is open.
-    registerCommand({
-      id: "builtin:quick-open",
-      source: "builtin",
-      title: () => t("keybindings.command.builtin:quick-open"),
-      showInPalette: false,
-      execute: () => options.openPalette({ scope: "files" }),
-    }),
-    registerCommand({
-      id: "builtin:find-in-files",
-      source: "builtin",
-      title: () => t("keybindings.command.builtin:find-in-files"),
-      showInPalette: false,
-      execute: () => options.openPalette({ scope: "content" }),
-    }),
-    registerCommand({
-      id: "builtin:recent-files",
-      source: "builtin",
-      title: () => t("keybindings.command.builtin:recent-files"),
-      showInPalette: false,
-      execute: () => options.openPalette({ prefix: "@" }),
-    }),
     registerCommand({
       id: "builtin:search-everywhere",
       source: "builtin",

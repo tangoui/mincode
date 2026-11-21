@@ -36,11 +36,10 @@ export function registerLanguageFeatureContributionConsumer(): () => void {
     lastSyncError = message;
   };
   const apply = lazyContributionApply(async () => {
-    const [{ collectLanguageFeatures }, monaco, { useVueI18n }, { useLocalProjectStore }, { languageFeatureCommandRuntime }] = await Promise.all([
+    const [{ collectLanguageFeatures }, monaco, { useVueI18n }, { languageFeatureCommandRuntime }] = await Promise.all([
       import("@/domain/plugins/language-features"),
       (stage ??= import("@/services/monaco-language-features")),
       import("@/i18n/messages"),
-      import("@/stores/local-project"),
       import("@/services/contributions/language-features-runtime"),
     ]);
     lastSyncError = undefined;
@@ -48,13 +47,7 @@ export function registerLanguageFeatureContributionConsumer(): () => void {
       wired = true;
       monaco.setMonacoLanguageFeatureRuntime({
         locale: () => useVueI18n().localeChain.value[0] ?? "en",
-        projectRoots: () => {
-          try {
-            return useLocalProjectStore().projects.map((project) => project.root);
-          } catch {
-            return [];
-          }
-        },
+        projectRoots: () => [],
         ...languageFeatureCommandRuntime,
       });
     }

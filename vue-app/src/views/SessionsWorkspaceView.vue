@@ -53,7 +53,6 @@ import {
   nextAiMessageRenderStart,
 } from "@/domain/ai/message-render-window";
 import {
-  useWorkspaceStateScope,
   useWorkspaceScopedPersistence,
   type CapturedWorkspaceStateScope,
 } from "@/composables/use-workspace-state-scope";
@@ -75,7 +74,6 @@ import {
 } from "@/domain/terminal/terminal-activity";
 import type { LocalTerminalActivity } from "@/components/terminal/LocalTerminal.vue";
 import { useAiAssistantStore } from "@/stores/ai-assistant";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import { useWorkbenchStore } from "@/stores/workbench";
 import {
@@ -93,7 +91,7 @@ import { loadPluginSessionMessages } from "@/services/plugin-session-sources";
 import { usePluginDataProvidersStore } from "@/stores/plugin-data-providers";
 
 // Markdown and live terminals are rendered on demand; loading them lazily keeps them out of this view's startup chunk.
-const MarkdownPreview = defineAsyncComponent(() => import("@/components/projects/MarkdownPreview.vue"));
+const MarkdownPreview = defineAsyncComponent(() => import("@/components/ui/MarkdownPreview.vue"));
 const TerminalPaneLayout = defineAsyncComponent(() => import("@/components/terminal/TerminalPaneLayout.vue"));
 const SessionToolSettingsDialog = defineAsyncComponent(
   () => import("@/components/sessions/SessionToolSettingsDialog.vue"),
@@ -219,13 +217,6 @@ interface LiveSessionTerminal {
 }
 
 type SessionPanel = "conversation" | "terminal";
-type SessionListScope = "workspace" | "all";
-
-interface PersistedSessionListScope {
-  version: 1;
-  scope: SessionListScope;
-}
-
 /**
  * 终端标签的可序列化元数据。PTY 无法跨进程存活，重启后只恢复标签身份
  * （名称、图标、会话、工作目录），落回原目录的空白 shell。
@@ -254,11 +245,6 @@ const workbench = useWorkbenchStore();
 const terminalAttention = useTerminalAttentionStore();
 const terminalWorkspace = useTerminalWorkspaceStore();
 const assistant = useAiAssistantStore();
-const localProject = useLocalProjectStore();
-const workspaceStateScope = useWorkspaceStateScope();
-const sessionListScopePersistence = useWorkspaceScopedPersistence<PersistedSessionListScope>(
-  "app_sessions_list_scope_v1"
-);
 const liveTerminalsPersistence = useWorkspaceScopedPersistence<PersistedLiveTerminals>(
   "app_sessions_live_terminals_v1",
   { migrateLegacy: false }
@@ -266,8 +252,6 @@ const liveTerminalsPersistence = useWorkspaceScopedPersistence<PersistedLiveTerm
 const workspaceElement = ref<HTMLElement | null>(null);
 const messageListElement = ref<ScrollbarInstance | null>(null);
 const search = ref("");
-const sessionListScope = ref<SessionListScope>("workspace");
-const sessionListScopeReady = ref(false);
 const projects = ref<ClaudeProject[]>([]);
 const sessionsByProvider = reactive<Record<ProviderId, Session[]>>({});
 const projectSessions = reactive<Record<string, Session[]>>({});
@@ -345,7 +329,6 @@ const selectedPluginSession = ref<PluginSessionSummary>();
 let pluginMessageController: AbortController | undefined;
 let reloadPluginMessagesOnActivate = false;
 let liveTerminalSequence = 0;
-let sessionListScopeLoadSequence = 0;
 // 终端标签写回的工作区作用域在恢复时固定，切换工作区不会把旧标签写进新作用域。
 let liveTerminalsScope: CapturedWorkspaceStateScope | undefined;
 
@@ -374,25 +357,7 @@ function updateNavigatorCollapsed(value: boolean) {
 }
 useToggleSidebarCommand(() => navigatorCollapsed.value, updateNavigatorCollapsed);
 
-async function hydrateSessionListScope() {
-  sessionListScopeReady.value = false;
-  const requestId = ++sessionListScopeLoadSequence;
-  const captured = sessionListScopePersistence.capture();
-  const persisted = await sessionListScopePersistence.load(captured);
-  if (requestId !== sessionListScopeLoadSequence || !sessionListScopePersistence.isCurrent(captured)) return;
-  sessionListScope.value = persisted?.scope === "all" ? "all" : "workspace";
-  sessionListScopeReady.value = true;
-}
-
 const normalizedQuery = computed(() => search.value.trim().toLocaleLowerCase());
-const workspaceProjectRoot = computed(() => normalizeFilesystemPath(localProject.projectRoot));
-const effectiveSessionListScope = computed<SessionListScope>(() =>
-  workspaceProjectRoot.value ? sessionListScope.value : "all"
-);
-const sessionListScopeOptions = computed(() => [
-  { value: "workspace", label: t("sessions.scopeWorkspace") },
-  { value: "all", label: t("sessions.scopeAll") },
-]);
 const selectedPath = computed(
   () => selected.value?.session.decodedPath || selected.value?.session.cwd || ""
 );
@@ -480,21 +445,6 @@ function normalizeFilesystemPath(value: string | undefined) {
   return /^[A-Za-z]:\//.test(normalized) ? normalized.toLocaleLowerCase() : normalized;
 }
 
-function isPathWithinWorkspace(path: string | undefined) {
-  if (effectiveSessionListScope.value === "all") return true;
-  const root = workspaceProjectRoot.value;
-  const candidate = normalizeFilesystemPath(path);
-  return Boolean(root && candidate && (candidate === root || candidate.startsWith(`${root}/`)));
-}
-
-function sessionMatchesScope(session: Session) {
-  return isPathWithinWorkspace(session.decodedPath || session.cwd);
-}
-
-function projectMatchesScope(project: ClaudeProject) {
-  return isPathWithinWorkspace(project.decodedPath);
-}
-
 function sessionMatches(session: Session) {
   if (!normalizedQuery.value) return true;
   return [session.title, session.cwd, session.decodedPath, session.model, session.id, session.uuid]
@@ -506,7 +456,6 @@ function sessionMatches(session: Session) {
 
 function projectMatches(project: ClaudeProject) {
   return (
-    projectMatchesScope(project) &&
     (!normalizedQuery.value ||
       project.decodedPath.toLocaleLowerCase().includes(normalizedQuery.value) ||
       (projectSessions[project.encodedDir] ?? []).some(sessionMatches))
@@ -515,7 +464,7 @@ function projectMatches(project: ClaudeProject) {
 
 function providerProjectGroups(provider: ProviderId) {
   const groups = new Map<string, ProviderProjectGroup>();
-  for (const session of (sessionsByProvider[provider] ?? []).filter(sessionMatchesScope)) {
+  for (const session of (sessionsByProvider[provider] ?? [])) {
     const path = (session.decodedPath || session.cwd || "").trim();
     const pathKey = normalizeFilesystemPath(path) || "__unknown__";
     const key = `${provider}:${pathKey}`;
@@ -549,10 +498,8 @@ function providerProjectLabel(group: ProviderProjectGroup) {
 
 function providerSessionCount(id: ProviderId) {
   return id === "claude"
-    ? projects.value
-        .filter(projectMatchesScope)
-        .reduce((count, project) => count + project.sessionCount, 0)
-    : (sessionsByProvider[id] ?? []).filter(sessionMatchesScope).length;
+    ? projects.value.reduce((count, project) => count + project.sessionCount, 0)
+    : (sessionsByProvider[id] ?? []).length;
 }
 
 // The sidebar's filtering and grouping are cached per provider so unrelated
@@ -1238,7 +1185,6 @@ async function createProviderTerminal(provider: ProviderId, projectPath?: string
 
   const cwd =
     projectPath ||
-    workspaceProjectRoot.value ||
     (await chooseNativeDirectory(
       t("sessions.chooseTerminalFolder", { provider: providerLabel(provider) }),
     ));
@@ -1415,7 +1361,6 @@ async function openDeepLinkedSession() {
   }
 
   const requestId = ++sessionDeepLinkSequence;
-  sessionListScope.value = "all";
   let matchingSession: Session | undefined;
   if (target.provider === "claude") {
     for (const project of projects.value) {
@@ -1823,13 +1768,6 @@ function resumeSelectedSession() {
 }
 
 watch(
-  () => sessionListScopePersistence.scopeId.value,
-  () => {
-    void hydrateSessionListScope();
-  }
-);
-
-watch(
   () => messages.value.length,
   (length, previousLength) => {
     visibleMessageStart.value = nextAiMessageRenderStart(visibleMessageStart.value, previousLength, length);
@@ -1844,11 +1782,6 @@ async function loadEarlierMessages() {
   await nextTick();
   if (wrap) messageListElement.value?.setScrollTop(wrap.scrollHeight - distanceFromBottom);
 }
-
-watch(sessionListScope, (scope) => {
-  if (!sessionListScopeReady.value) return;
-  void sessionListScopePersistence.save({ version: 1, scope });
-});
 
 watch(
   () => [route.query.provider, route.query.sessionId] as const,
@@ -1872,13 +1805,10 @@ function startBackgroundRefresh() {
 
 onMounted(() => {
   void hydrateNavigatorLayout();
+  void hydrateLiveTerminals();
   stopClaudeActivity = listenAppEvent<ClaudeActivityEvent>("terminal-activity", applyClaudeActivity);
   startBackgroundRefresh();
   window.addEventListener(SESSION_TOOLS_EVENT, onToolPrefsChanged);
-  void workspaceStateScope
-    .hydrate()
-    .then(hydrateSessionListScope)
-    .then(hydrateLiveTerminals);
   void initializeToolPrefs()
     .then(refreshAll)
     .then(async () => {
@@ -2043,18 +1973,6 @@ onBeforeUnmount(() => {
             @click="refreshAll"
           />
         </div>
-      </div>
-
-      <div class="sessions-scope">
-        <el-segmented
-          v-model="sessionListScope"
-          :options="sessionListScopeOptions"
-          size="small"
-          :aria-label="t('sessions.scopeLabel')"
-        />
-        <p v-if="sessionListScope === 'workspace' && !workspaceProjectRoot" class="sessions-scope__hint">
-          {{ t("sessions.scopeNoProject") }}
-        </p>
       </div>
 
       <div class="sessions-search">
@@ -2317,8 +2235,7 @@ onBeforeUnmount(() => {
         <PluginSessionSources
           v-if="pluginSessionSources.length"
           :sources="pluginSessionSources"
-          :scope="effectiveSessionListScope"
-          :project-root="workspaceProjectRoot || undefined"
+          scope="all"
           :selected-key="selected?.provider"
           :selected-session-id="selectedIsPlugin ? selectedSessionId : undefined"
           :refresh-token="pluginRefreshToken"

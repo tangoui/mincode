@@ -7,8 +7,6 @@ import {
   Close,
   Connection,
   DataAnalysis,
-  Files,
-  FolderOpened,
   Link,
   Monitor,
   Promotion,
@@ -21,7 +19,6 @@ import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
 import { scheduleIdleTask } from "@/services/idle-task";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
 import { syncSessionToolRoots } from "@/services/session-tool-preferences";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
 import { useWorkbenchStore } from "@/stores/workbench";
 import type { WorkspaceTab, WorkspaceView } from "@/types/workspace";
@@ -63,7 +60,6 @@ const router = useRouter();
 const workbench = useWorkbenchStore();
 const database = useDatabaseWorkspaceStore();
 const ssh = useSshConnectionsStore();
-const project = useLocalProjectStore();
 const { t, intlLocale } = useVueI18n();
 
 const loading = ref(false);
@@ -99,7 +95,6 @@ const activeTabs = computed(() =>
   )
 );
 const connectedDatabaseCount = computed(() => database.connectedConnections.length);
-const projectName = computed(() => basename(project.projectRoot) || t("dashboard.project.none"));
 const quickActions: Array<{
   view: WorkspaceView;
   titleKey: MessageKey;
@@ -113,13 +108,6 @@ const quickActions: Array<{
     descriptionKey: "dashboard.quick.terminalHint",
     icon: Monitor,
     tone: "teal",
-  },
-  {
-    view: "projects",
-    titleKey: "dashboard.quick.projects",
-    descriptionKey: "dashboard.quick.projectsHint",
-    icon: FolderOpened,
-    tone: "blue",
   },
   {
     view: "ssh",
@@ -333,19 +321,6 @@ onBeforeUnmount(stopClock);
 
       <div class="dashboard-grid">
         <div class="dashboard-grid__column dashboard-grid__column--primary">
-          <article class="dashboard-card dashboard-card--project">
-            <el-button text native-type="button" class="dashboard-project" @click="openView('projects')">
-              <span class="dashboard-project__icon"><Files /></span>
-              <span class="dashboard-project__main"
-                ><small>{{ t("dashboard.project.current") }}</small
-                ><strong>{{ projectName }}</strong></span
-              >
-              <em v-if="project.dirtyCount">{{
-                t("dashboard.project.dirty", { count: project.dirtyCount })
-              }}</em>
-              <el-icon><ArrowRight /></el-icon>
-            </el-button>
-          </article>
 
           <article class="dashboard-card dashboard-card--sessions">
             <header class="dashboard-card__header">
@@ -1003,64 +978,6 @@ onBeforeUnmount(stopClock);
 }
 .dashboard-health-dot.is-ready {
   background: var(--el-color-success);
-}
-.dashboard-card--project {
-  flex: none;
-}
-.dashboard-project.el-button {
-  display: flex;
-  width: 100%;
-  min-height: 76px;
-  align-items: center;
-  gap: 12px;
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  padding: 16px 18px;
-  text-align: left;
-  cursor: pointer;
-}
-.dashboard-project:hover {
-  background: var(--app-accent-soft);
-}
-.dashboard-project__icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  flex: none;
-  place-items: center;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
-  color: var(--app-accent);
-}
-.dashboard-project__main {
-  min-width: 0;
-  flex: 1;
-}
-.dashboard-project small,
-.dashboard-project strong {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dashboard-project small {
-  margin-bottom: 2px;
-  color: var(--app-text-muted);
-  font-size: 9px;
-}
-.dashboard-project strong {
-  color: var(--app-text);
-  font-size: 13px;
-}
-.dashboard-project em {
-  color: var(--el-color-warning);
-  font-size: 9px;
-  font-style: normal;
-}
-.dashboard-project .el-icon {
-  color: var(--app-border-strong);
 }
 .dashboard-footer {
   display: flex;

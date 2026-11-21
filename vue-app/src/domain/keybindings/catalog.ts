@@ -87,12 +87,7 @@ function editor(monacoCommand: string, titleKey: MessageKey, options: Partial<En
 const ENTRIES: Entry[] = [
   // General
   app("builtin:command-palette", "keybindings.command.builtin:command-palette", "general", { showInPalette: false, available: true }),
-  app("builtin:quick-open", "keybindings.command.builtin:quick-open", "navigation", { available: true }),
   app("builtin:search-everywhere", "keybindings.command.builtin:search-everywhere", "navigation", { available: true }),
-  app("builtin:find-in-files", "keybindings.command.builtin:find-in-files", "navigation", { available: true }),
-  app("builtin:recent-files", "keybindings.command.builtin:recent-files", "navigation", { available: true }),
-  // No workspace-symbol provider behind the palette yet (LSP workspace/symbol is not wired).
-  app("builtin:go-to-symbol", "keybindings.command.builtin:go-to-symbol", "navigation"),
   app("builtin:settings", "keybindings.command.builtin:settings", "general", { showInPalette: true, available: true }),
   app("builtin:keybindings", "keybindings.command.builtin:keybindings", "general", { showInPalette: true, available: true }),
   app("builtin:ai", "keybindings.command.builtin:ai", "general", { showInPalette: true, available: true }),
@@ -118,8 +113,6 @@ const ENTRIES: Entry[] = [
   app("workbench:navigate-forward", "keybindings.command.workbench:navigate-forward", "navigation"),
   // Editor host commands (per-editor handlers; phase 3 dispatches to the focused editor)
   { ...app("editor:save", "keybindings.command.editor:save", "editor", { available: true }), scope: "editor" },
-  // Registered by the project workspace; elsewhere Monaco falls back to saving the focused editor.
-  { ...app("editor:save-all", "keybindings.command.editor:save-all", "editor", { showInPalette: true, available: true }), scope: "editor" },
   { ...app("database:run-query", "keybindings.command.database:run-query", "database", { available: true }), scope: "database" },
   // Registered by the database workspace while it is shown: submits the result grid's staged changes.
   {
@@ -174,31 +167,6 @@ const ENTRIES: Entry[] = [
     }),
   ),
   { ...app("ai:copy-message", "keybindings.command.ai:copy-message", "ai", { available: true }), scope: "ai" },
-  // Project explorer
-  { ...app("project:copy-node", "keybindings.command.project:copy-node", "project", { available: true }), scope: "project" },
-  { ...app("project:paste-node", "keybindings.command.project:paste-node", "project", { available: true }), scope: "project" },
-  // Debugger (registered by the project workspace while it is shown, composables/use-debug-commands.ts).
-  ...(
-    [
-      "stepOver",
-      "stepInto",
-      "smartStepInto",
-      "stepOut",
-      "runToCursor",
-      "resume",
-      "evaluate",
-      "toggleBreakpoint",
-      "run",
-      "debug",
-      "stop",
-    ] as const
-  ).map(
-    (name): Entry => ({
-      ...app(`project:debug.${name}`, `debug.command.${name}`, "project", { showInPalette: true, available: true }),
-      scope: "project",
-      repeatable: name.startsWith("step"),
-    }),
-  ),
 ];
 
 export const KEYBINDING_COMMANDS: readonly KeybindingCommand[] = Object.freeze(

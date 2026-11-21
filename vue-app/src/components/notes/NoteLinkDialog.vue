@@ -18,7 +18,8 @@ interface LinkCandidate {
   input: NoteLinkInput;
 }
 
-const LINK_TYPES: readonly NoteLinkType[] = ["ssh", "project", "database", "ai", "http"];
+const LINK_TYPES = ["ssh", "database", "ai", "http"] as const;
+type LinkType = (typeof LINK_TYPES)[number];
 
 const props = defineProps<{ noteId: string; modelValue: boolean }>();
 const emit = defineEmits<{ (e: "update:modelValue", value: boolean): void }>();
@@ -26,8 +27,8 @@ const { t } = useVueI18n();
 const store = useNotesStore();
 const snapshot = useLinkObjectSnapshot();
 
-const activeType = ref<NoteLinkType>("ssh");
-const queries = reactive<Record<NoteLinkType, string>>({ ssh: "", project: "", database: "", ai: "", http: "" });
+const activeType = ref<LinkType>("ssh");
+const queries = reactive<Record<LinkType, string>>({ ssh: "", database: "", ai: "", http: "" });
 const busyKeys = reactive(new Set<string>());
 
 const visible = computed({
@@ -45,15 +46,12 @@ function fromMap(objectType: NoteLinkType, objects: Map<string, string>) {
   return [...objects].map(([objectId, name]) => candidate({ objectType, objectId, nameSnapshot: name }));
 }
 
-const candidates = computed<Record<NoteLinkType, LinkCandidate[]>>(() => {
+const candidates = computed<Record<LinkType, LinkCandidate[]>>(() => {
   const value = snapshot.value;
   const scopeName = value.workspaceNames.get(value.currentScopeId) ?? "";
   const byName = (items: LinkCandidate[]) => items.sort((a, b) => a.name.localeCompare(b.name));
   return {
     ssh: byName(fromMap("ssh", value.ssh)),
-    project: byName(
-      [...value.currentProjects].map(([root, name]) => candidate({ objectType: "project", objectId: root, nameSnapshot: name }, root)),
-    ),
     database: byName(fromMap("database", value.database)),
     // 对话保持 store 的顺序（最近的在前）。
     ai: [...value.currentAi].map(([id, title]) =>
@@ -73,14 +71,14 @@ const candidates = computed<Record<NoteLinkType, LinkCandidate[]>>(() => {
   };
 });
 
-function filtered(type: NoteLinkType) {
+function filtered(type: LinkType) {
   const query = queries[type].trim().toLocaleLowerCase();
   const items = candidates.value[type];
   if (!query) return items;
   return items.filter((item) => `${item.name}\n${item.detail}`.toLocaleLowerCase().includes(query));
 }
 
-function emptyText(type: NoteLinkType) {
+function emptyText(type: LinkType) {
   if (candidates.value[type].length) return t("notes.link.noMatch");
   return snapshot.value.unavailable.has(type) ? t("notes.link.unavailable") : t(`notes.link.empty.${type}`);
 }
@@ -118,7 +116,7 @@ async function toggle(item: LinkCandidate) {
           :aria-label="t('notes.link.searchLabel', { type: t(`notes.linkType.${type}`) })"
           :clear-label="t('notes.link.clearSearch')"
         />
-        <p v-if="type === 'project' || type === 'ai'" class="note-link-dialog__hint">{{ t("notes.link.currentWorkspaceOnly") }}</p>
+        <p v-if="type === 'ai'" class="note-link-dialog__hint">{{ t("notes.link.currentWorkspaceOnly") }}</p>
         <el-scrollbar class="note-link-dialog__scroll" max-height="320px">
           <ul v-if="filtered(type).length" class="note-link-dialog__list" role="list">
             <li v-for="item in filtered(type)" :key="item.key">

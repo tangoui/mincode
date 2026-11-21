@@ -11,7 +11,6 @@
 import type { PointContribution } from "@/domain/plugins/contributions";
 import { collectJsonValidationEntries, type JsonValidationIssue } from "@/domain/plugins/json-validation";
 import { monacoJsonSchemaIssues, setMonacoJsonSchemas } from "@/services/monaco-json-schemas";
-import { useLocalProjectStore } from "@/stores/local-project";
 
 let lastIssues: JsonValidationIssue[] = [];
 
@@ -20,13 +19,7 @@ export function jsonValidationRuntimeIssues(): readonly JsonValidationIssue[] {
   return [...lastIssues, ...monacoJsonSchemaIssues()];
 }
 
-function projectRoots(): string[] {
-  try {
-    return useLocalProjectStore().projects.map((project) => project.root);
-  } catch {
-    return [];
-  }
-}
+function projectRoots(): string[] { return []; }
 
 /** Applies one snapshot of the point. Returns the cleanup of this snapshot. */
 export function applyJsonValidationContributions(contributions: PointContribution[]): () => void {

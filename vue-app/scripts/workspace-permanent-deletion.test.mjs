@@ -2,14 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [tabBar, workspaceManagement, workbench, scopedPersistence, deletionService, localProject, sshView, styles, zh, en] =
+const [tabBar, workspaceManagement, workbench, scopedPersistence, deletionService, sshView, styles, zh, en] =
   await Promise.all([
     readFile(new URL("../src/components/layout/AppTabBar.vue", import.meta.url), "utf8"),
     readFile(new URL("../src/composables/use-workspace-management.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/stores/workbench.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/services/workspace-scoped-persistence.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/services/workspace-state-deletion.ts", import.meta.url), "utf8"),
-    readFile(new URL("../src/stores/local-project.ts", import.meta.url), "utf8"),
     readFile(new URL("../src/views/SshWorkspaceView.vue", import.meta.url), "utf8"),
     readFile(new URL("../src/styles/shared/workspace-menus.css", import.meta.url), "utf8"),
     readFile(new URL("../src/i18n/locales/zh.ts", import.meta.url), "utf8"),
@@ -65,7 +64,6 @@ test("deleted scopes cannot be recreated by delayed cached-view writes", () => {
     scopedPersistence,
     /function save\(scopeId: string, value: T\)[\s\S]*?return Promise\.resolve\(\)/,
   );
-  assert.match(localProject, /filter\(\(\[workspaceId\]\) => !isWorkspaceScopePermanentlyDeleted\(workspaceId\)\)/);
   assert.match(sshView, /filter\(\(session\) => !isWorkspaceScopePermanentlyDeleted\(session\.workspaceScopeId\)\)/);
 });
 

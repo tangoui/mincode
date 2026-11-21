@@ -665,10 +665,9 @@ export const useTerminalWorkspaceStore = defineStore("terminal-workspace", () =>
     return tab;
   }
 
-  /** 新建本地终端标签；未指定目录时继承当前选中分屏的工作目录（与分屏一致）。 */
   function addLocalTab(options: LocalTerminalPaneOptions = {}) {
     if (!canAddTab.value) return null;
-    return addTab(createLocalPane(inheritSplitCwd(options, getPane(activePaneId.value))));
+    return addTab(createLocalPane(options));
   }
 
   function addSshTab(options: SshTerminalPaneOptions) {

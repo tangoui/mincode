@@ -51,7 +51,6 @@ export const MONACO_EDITOR_KIND_CONTEXT_KEY = "mincodeEditorKind";
 export const MONACO_EDITOR_HOST_COMMANDS: Readonly<Record<string, string>> = Object.freeze({
   "editor:save": MONACO_EDITOR_SAVE_COMMAND,
   // Until a workspace save-all handler is registered, save-all saves the focused editor.
-  "editor:save-all": MONACO_EDITOR_SAVE_COMMAND,
   "database:run-query": MONACO_EDITOR_RUN_COMMAND,
 });
 

@@ -1,6 +1,5 @@
 import { watch } from "vue";
 import { useWorkspaceStateScope } from "@/composables/use-workspace-state-scope";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { beginPluginWorkspaceScope, commitPluginWorkspaceScope, restorePluginFloatingViews, type PluginWorkspaceScope } from "@/services/plugin-service";
 import { isDesktopRuntime } from "@/services/desktop-bridge";
 
@@ -43,7 +42,6 @@ export function installPluginWorkspaceScopeBridge(): () => void {
   owner = token;
   publish(undefined);
   const state = useWorkspaceStateScope();
-  const project = useLocalProjectStore();
   let epoch = 0;
   let running = false;
   let pending = false;
@@ -51,10 +49,8 @@ export function installPluginWorkspaceScopeBridge(): () => void {
 
   const capture = () => {
     const captured = state.capture();
-    const hydrated = state.workbench.hydrated && state.preferences.hydrated && project.hydrated;
-    const root = hydrated ? project.projectRootForWorkspace(captured.scopeId).trim()
-      || state.workbench.workspaces.find((workspace) => workspace.id === captured.workspaceId)?.worktree?.worktreePath?.trim() || "" : "";
-    return { ...captured, root, hydrated };
+    const hydrated = state.workbench.hydrated && state.preferences.hydrated;
+    return { ...captured, root: "", hydrated };
   };
   type Desired = ReturnType<typeof capture>;
   const isCurrent = (request: Desired, requestEpoch: number) => {

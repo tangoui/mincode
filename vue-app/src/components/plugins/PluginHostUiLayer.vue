@@ -4,14 +4,13 @@ import { useVueI18n } from "@/i18n/messages";
 import { filterQuickPickItems, SERVICE_PROVIDER_REMEMBER_ID, type PluginPrompt } from "@/domain/plugins/host-prompts";
 import { diffModelPath, utf8Length } from "@/domain/plugins/host-ui";
 import { answerPrompt } from "@/services/plugin-host-ui";
-import { useLocalProjectStore } from "@/stores/local-project";
+import { DEFAULT_EDITOR_PREFERENCES } from "@/domain/projects/types";
 import { usePluginHostUiStore } from "@/stores/plugin-host-ui";
 
-const MonacoDiffEditor = defineAsyncComponent(() => import("@/components/projects/MonacoDiffEditor.vue"));
+const MonacoDiffEditor = defineAsyncComponent(() => import("@/components/ui/MonacoDiffEditor.vue"));
 
 const { t } = useVueI18n();
 const store = usePluginHostUiStore();
-const project = useLocalProjectStore();
 
 const prompt = computed<PluginPrompt | undefined>(() => store.prompts[0]);
 const query = ref("");
@@ -293,7 +292,7 @@ function onPickKey(event: KeyboardEvent) {
         :path="diffModelPath(diff.key, diff.language)"
         :original-content="diff.left.content"
         :modified-content="diff.right.content"
-        :preferences="project.editorPreferences"
+        :preferences="DEFAULT_EDITOR_PREFERENCES"
         navigation
       />
     </div>

@@ -281,8 +281,8 @@ const read = (path) => readFileSync(join(root, path), "utf8");
 
 test("every Monaco host installs the keymap on mount and releases its registration", () => {
   for (const path of [
-    "src/components/projects/MonacoTextEditor.vue",
-    "src/components/projects/MonacoDiffEditor.vue",
+    "src/components/ui/MonacoTextEditor.vue",
+    "src/components/ui/MonacoDiffEditor.vue",
     "src/components/ui/ReadonlyCodeViewer.vue",
   ]) {
     const source = read(path);
@@ -291,7 +291,7 @@ test("every Monaco host installs the keymap on mount and releases its registrati
     assert.match(source, /onBeforeUnmount\([\s\S]*?(keymapRegistration\?\.dispose\(\)|disposeDiffNavigation\?\.\(\))/, path);
   }
   // No other component creates Monaco editors outside these hosts.
-  const text = read("src/components/projects/MonacoTextEditor.vue");
+  const text = read("src/components/ui/MonacoTextEditor.vue");
   assert.doesNotMatch(text, /keybindings:\s*\[monaco\.KeyMod\.CtrlCmd \| monaco\.KeyCode\.KeyS\]/);
   assert.match(text, /id: "app\.save-file"/);
   assert.match(text, /registerMonacoEditor\(editor, \{[\s\S]*?kind: props\.kind \?\? "text"/);

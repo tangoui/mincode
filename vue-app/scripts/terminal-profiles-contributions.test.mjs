@@ -213,7 +213,7 @@ test("the WebView sends only a profile reference to the host", async () => {
   assert.ok(payloads.includes("pluginId"));
   assert.doesNotMatch(payloads, /\b(argv|args|command|env|extraEnv|customPath|cwd):/);
   const terminal = await readSource("../src/components/terminal/LocalTerminal.vue");
-  assert.match(terminal, /if \(!props\.profile\) \{\s*return invokeBackend<string>\("start_local_shell"/);
+  assert.match(terminal, /if \(!props\.profile\) \{[\s\S]*?return invokeBackend<string>\("start_local_shell"/);
   // The profile path never falls back to the system shell on failure.
   assert.match(terminal, /if \(props\.profile\) \{\s*blockProfile\(error\);\s*return;/);
 });
@@ -249,12 +249,6 @@ test("every view hosting terminal panes handles open default shell", async () =>
   const workspace = await readSource("../src/views/TerminalWorkspaceView.vue");
   assert.match(workspace, /@use-default-shell="useDefaultShell"/);
   assert.match(workspace, /await closeNativeSession\(paneId\);\s*terminalWorkspace\.replaceProfilePaneWithShell\(paneId\);/);
-  const project = await readSource("../src/views/ProjectWorkspaceView.vue");
-  assert.match(project, /@use-default-shell="useDefaultShellInProjectTerminalPane"/);
-  assert.match(
-    project,
-    /async function useDefaultShellInProjectTerminalPane\(paneId: string\) \{\s*await closeProjectTerminalSession\(paneId\);\s*terminalWorkspace\.replaceProfilePaneWithShell\(paneId\);/,
-  );
   const sessions = await readSource("../src/views/SessionsWorkspaceView.vue");
   assert.match(sessions, /@use-default-shell="useDefaultShellInSessionPane\(entry\.key, \$event\)"/);
   const handler = sessions.match(/async function useDefaultShellInSessionPane[\s\S]*?\n\}/)?.[0] ?? "";
@@ -264,7 +258,7 @@ test("every view hosting terminal panes handles open default shell", async () =>
   const store = await readSource("../src/stores/terminal-workspace.ts");
   assert.match(store, /root: replaceProfilePaneWithDefaultShell\(current\.root, paneId\)/);
   // Every TerminalPaneLayout host wires the emit.
-  for (const [name, source] of [["TerminalWorkspaceView", workspace], ["ProjectWorkspaceView", project], ["SessionsWorkspaceView", sessions]]) {
+  for (const [name, source] of [["TerminalWorkspaceView", workspace], ["SessionsWorkspaceView", sessions]]) {
     const hosts = [...source.matchAll(/<TerminalPaneLayout\b[\s\S]*?\/>/g)].map((match) => match[0]);
     assert.ok(hosts.length > 0, name);
     for (const host of hosts) assert.match(host, /@use-default-shell=/, name);

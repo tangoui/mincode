@@ -112,7 +112,7 @@ vi.mock("@/stores/ssh-connections", () => ({
     credentialsFor: () => ({ password: "ssh-secret-pass", ftpPassword: "ftp-secret-pass", passphrase: "phrase-secret" }),
   }),
 }));
-vi.mock("@/components/projects/MonacoTextEditor.vue", async () => {
+vi.mock("@/components/ui/MonacoTextEditor.vue", async () => {
   const { defineComponent: define, h: render } = await import("vue");
   return { __esModule: true, default: define({ name: "MonacoTextEditorStub", setup: () => () => render("div") }) };
 });

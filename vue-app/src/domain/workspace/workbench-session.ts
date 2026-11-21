@@ -3,26 +3,22 @@ import {
   type WorkspaceDefinition,
   type WorkspaceTab,
   type WorkspaceView,
-  type WorkspaceWorktreeBinding,
 } from "../../types/workspace.ts";
 
 export const WORKBENCH_SESSION_VERSION = 4 as const;
 export const DEFAULT_WORKSPACE_ID = "workspace:default";
 const MAX_PERSISTED_TABS = 200;
-const MAX_PATH_LENGTH = 4096;
 const MAX_REF_LENGTH = 512;
 
 export const viewTitleKeys: Record<WorkspaceView, WorkspaceTab["titleKey"]> = {
   dashboard: "nav.dashboard",
   terminal: "nav.terminal",
   ssh: "nav.ssh",
-  projects: "nav.projects",
   database: "nav.database",
   sftp: "nav.sftp",
   http: "nav.http",
   notes: "nav.notes",
   sessions: "nav.sessions",
-  browser: "nav.browser",
   plugins: "nav.plugins",
   "plugin-view": "plugins.viewTitle",
   "service-result": "plugins.services.result.title",
@@ -117,41 +113,6 @@ function boundedString(value: unknown, maxLength: number) {
   return trimmed.length > 0 && trimmed.length <= maxLength ? trimmed : "";
 }
 
-/**
- * worktree 绑定要求 repoPath 与 worktreePath 同时有效：只有其一时无法定位工作目录，
- * 保留半份绑定会让消费方拿到无法解析的路径，因此整体丢弃回落到未绑定状态。
- */
-export function normalizeWorktreeBinding(
-  value: unknown,
-): WorkspaceWorktreeBinding | undefined {
-  if (!isRecord(value)) return undefined;
-  const repoPath = boundedString(value.repoPath, MAX_PATH_LENGTH);
-  const worktreePath = boundedString(value.worktreePath, MAX_PATH_LENGTH);
-  if (!repoPath || !worktreePath) return undefined;
-  const branch = boundedString(value.branch, MAX_REF_LENGTH);
-  const baseRef = boundedString(value.baseRef, MAX_REF_LENGTH);
-  return {
-    repoPath,
-    worktreePath,
-    ...(branch ? { branch } : {}),
-    ...(baseRef ? { baseRef } : {}),
-  };
-}
-
-/**
- * 由仓库路径与分支名推导默认 worktree 目录，统一放在仓库同级的 .worktrees 下。
- * 分支名可能带 `/`，直接拼进路径会生成多层目录，因此非法路径字符一律折叠为 `-`；
- * 折叠后若只剩点号（如分支名为 `..`），拼出的路径会回指仓库本身，必须整体拒绝。
- */
-export function defaultWorktreePath(repoPath: string, branch: string) {
-  const repo = repoPath.trim().replace(/\/+$/, "");
-  const slug = branch
-    .trim()
-    .replace(/[^\w.-]+/g, "-")
-    .replace(/^[-.]+|[-.]+$/g, "");
-  return repo && slug ? `${repo}/.worktrees/${slug}` : "";
-}
-
 export function isPluginViewTab(
   tab: WorkspaceTab,
   workspaceId: string,
@@ -188,13 +149,11 @@ export function normalizeWorkspaces(value: unknown): WorkspaceDefinition[] {
       );
     })
     .map((item) => {
-      const worktree = normalizeWorktreeBinding(item.worktree);
       return {
         id: item.id,
         name: item.name.trim(),
         createdAt: Number.isFinite(item.createdAt) ? item.createdAt : now(),
         updatedAt: Number.isFinite(item.updatedAt) ? item.updatedAt : now(),
-        ...(worktree ? { worktree } : {}),
       };
     });
   const withoutDefault = restored.filter(

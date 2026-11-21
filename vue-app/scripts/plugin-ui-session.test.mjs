@@ -48,8 +48,7 @@ test("host result handling keeps save-text-file and declares open-url in the fra
     cancelledResult: { saved: false },
   });
   assert.match(frame, /action\.resultHandling === "open-url"/);
-  // The host picks the browser: built-in where the platform has one, system for downloads or elsewhere.
-  assert.match(frame, /openHostLink\(url, \{ download: isPluginHostDownloadResult\(result\) \}\)/);
+  assert.match(frame, /openHostLink\(url\)/);
   assert.doesNotMatch(frame, /openSystemBrowser/);
   assert.doesNotMatch(frame, /window\.open/);
   assert.match(pluginService, /resultHandling\?: "save-text-file" \| "open-url"/);

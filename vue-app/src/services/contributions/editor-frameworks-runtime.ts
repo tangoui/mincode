@@ -6,7 +6,6 @@ import { setEditorFrameworks, setFrameworkRoots, type FrameworkRegistration } fr
 import { registerMonacoContributionHook } from "@/services/monaco-contributions";
 import { attachMonacoFrameworks, frameworkModelPath } from "@/services/monaco-frameworks";
 import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
-import { useLocalProjectStore } from "@/stores/local-project";
 
 let detectionError: string | undefined;
 export function editorFrameworkDetectionError(): string | undefined { return detectionError; }
@@ -35,7 +34,7 @@ export function applyEditorFrameworks(contributions: PointContribution[]): () =>
     }
   }
   setEditorFrameworks(registrations);
-  const store = useLocalProjectStore();
+  const roots: string[] = [];
   let disposed = false;
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -44,12 +43,12 @@ export function applyEditorFrameworks(contributions: PointContribution[]): () =>
     generation += 1;
     const token = generation;
     // 项目变更后立即撤销旧匹配，异步期间采用拒绝默认值。
-    setFrameworkRoots([], store.projects.map((item) => item.root));
+    setFrameworkRoots([], roots);
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined;
       if (!isDesktopRuntime()) { detectionError = "Native project detection is unavailable in browser preview"; return; }
-      void detectFrameworkRoots(registrations, store.projects.map((item) => item.root), openPaths(), readMarker).then((result) => {
+      void detectFrameworkRoots(registrations, roots, openPaths(), readMarker).then((result) => {
         if (disposed || token !== generation) return;
         detectionError = undefined;
         setFrameworkRoots(result.roots, result.boundaries);
@@ -58,7 +57,7 @@ export function applyEditorFrameworks(contributions: PointContribution[]): () =>
       });
     }, 150);
   };
-  const stopWatch = watch(() => store.projects.map((item) => item.root), refresh, { immediate: true });
+  const stopWatch = watch(() => roots, refresh, { immediate: true });
   const detach = registerMonacoContributionHook((monaco) => {
     openPaths = () => monaco.editor.getModels().filter((model) => !model.isDisposed()).map(frameworkModelPath).filter(Boolean);
     const modelListeners = new Map<string, { dispose(): void }>();

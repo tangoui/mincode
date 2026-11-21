@@ -4,7 +4,7 @@
  * sends back, and output matching that cannot be satisfied by local echo.
  */
 
-export const SMOKE_SCENARIOS = ["terminal", "ssh", "database", "plugin", "ai", "associations", "ebook", "formatter", "ai-catalogs", "browser", "ai-prompts", "ai-sidebar", "rust-plugin", "ts-plugin", "file-templates", "lsp", "linters", "port-manager", "terminal-attention", "services", "large-text", "mail-client", "debugger", "sql-safety", "sftp-transfers", "plugin-providers", "ui-runtime", "perf", "perf-database", "perf-http", "perf-ai", "perf-remote", "laravel", "perf-sessions", "perf-git", "perf-pages", "perf-plugins", "perf-plugin-startup", "git-ai-commit", "terminal-tabs", "terminal-size"] as const;
+export const SMOKE_SCENARIOS = ["terminal", "ssh", "database", "plugin", "ai", "associations", "ebook", "ai-catalogs", "ai-prompts", "ai-sidebar", "rust-plugin", "ts-plugin", "port-manager", "terminal-attention", "services", "mail-client", "sql-safety", "sftp-transfers", "plugin-providers", "ui-runtime", "perf-database", "perf-http", "perf-ai", "perf-remote", "perf-sessions", "perf-pages", "perf-plugins", "perf-plugin-startup", "terminal-tabs", "terminal-size"] as const;
 export type SmokeScenario = (typeof SMOKE_SCENARIOS)[number];
 
 export interface SmokeConfig {
@@ -138,11 +138,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
   if (!/^[A-Za-z0-9]+$/.test(nonce)) throw new Error("invalid smoke config: nonce");
   const timeoutMs = Number.isInteger(raw.timeoutMs) && (raw.timeoutMs as number) > 0 ? raw.timeoutMs as number : 30_000;
   const config: SmokeConfig = { scenarios: [...new Set(scenarios as SmokeScenario[])], nonce, timeoutMs };
-  if(config.scenarios.includes("file-templates")) {
-    const v=record(raw.fileTemplates);
-    if(v?.phase!=="setup"&&v?.phase!=="cold")throw new Error("invalid fileTemplates phase");
-    config.fileTemplates={packagePath:text(v.packagePath,"fileTemplates.packagePath"),projectRoot:text(v.projectRoot,"fileTemplates.projectRoot"),phase:v.phase};
-  }
   if (config.scenarios.includes("port-manager")) {
     const fixture = record(raw.portManager);
     const pid = fixture?.pid;
@@ -207,10 +202,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
     const browserUrls = Array.isArray(pages?.browserUrls) ? pages!.browserUrls.map((item, index) => text(item, `perfPages.browserUrls[${index}]`)) : [];
     config.perfPages = { sshProfiles: Number(pages?.sshProfiles) || 0, browserUrls };
   }
-  if (config.scenarios.includes("perf-git")) {
-    const git = record(raw.perfGit);
-    config.perfGit = { repoRoot: text(git?.repoRoot, "perfGit.repoRoot"), modified: Number(git?.modified) || 0, untracked: Number(git?.untracked) || 0, ...(Number(git?.historyCommits) > 0 ? { historyCommits: Number(git?.historyCommits) } : {}) };
-  }
   if (config.scenarios.includes("perf-sessions")) {
     const sessions = record(raw.perfSessions);
     config.perfSessions = {
@@ -241,47 +232,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
     if (!bodies.length) throw new Error("perfHttp.bodies required");
     config.perfHttp = { baseUrl: text(http?.baseUrl, "perfHttp.baseUrl"), bodies };
   }
-  if (config.scenarios.includes("perf")) {
-    const perf = record(raw.perf);
-    const smallFiles = Array.isArray(perf?.smallFiles) ? perf!.smallFiles.map((item, index) => text(item, `perf.smallFiles[${index}]`)) : [];
-    if (!smallFiles.length) throw new Error("perf.smallFiles required");
-    config.perf = {
-      projectRoot: text(perf?.projectRoot, "perf.projectRoot"), fileCount: Number(perf?.fileCount) || 0,
-      bigFile: text(perf?.bigFile, "perf.bigFile"), bigFileLines: Number(perf?.bigFileLines) || 0,
-      ...(perf?.bigPlainFile === undefined ? {} : { bigPlainFile: text(perf.bigPlainFile, "perf.bigPlainFile") }),
-      ...(perf?.only === "pages" ? { only: "pages" as const } : {}),
-      smallFiles, terminalLines: Number(perf?.terminalLines) || 100000,
-    };
-  }
-  if (config.scenarios.includes("large-text")) {
-    config.largeText = { filePath: text(record(raw.largeText)?.filePath, "largeText.filePath") };
-  }
-  if (config.scenarios.includes("lsp")) {
-    config.lsp = { projectRoot: text(record(raw.lsp)?.projectRoot, "lsp.projectRoot") };
-  }
-  if (config.scenarios.includes("laravel")) {
-    const fixture = record(raw.laravel);
-    config.laravel = {
-      laravelPackage: text(fixture?.laravelPackage, "laravel.laravelPackage"),
-      i18nPackage: text(fixture?.i18nPackage, "laravel.i18nPackage"),
-      projectRoot: text(fixture?.projectRoot, "laravel.projectRoot"),
-      canary: text(fixture?.canary, "laravel.canary"),
-    };
-  }
-  if (config.scenarios.includes("git-ai-commit")) {
-    const fixture = record(raw.gitAiCommit);
-    config.gitAiCommit = {
-      repoRoot: text(fixture?.repoRoot, "gitAiCommit.repoRoot"),
-      baseUrl: loopbackUrl(fixture?.baseUrl, "gitAiCommit.baseUrl"),
-      apiKey: text(fixture?.apiKey, "gitAiCommit.apiKey", 256),
-      model: text(fixture?.model, "gitAiCommit.model", 128),
-      answer: text(fixture?.answer, "gitAiCommit.answer", 256),
-    };
-  }
-  if (config.scenarios.includes("linters")) {
-    const fixture = record(raw.linters);
-    config.linters = { packagePath: text(fixture?.packagePath, "linters.packagePath"), projectRoot: text(fixture?.projectRoot, "linters.projectRoot") };
-  }
   if (config.scenarios.includes("ssh") || config.scenarios.includes("sftp-transfers") || config.scenarios.includes("perf-remote")) {
     const ssh = record(raw.ssh);
     config.ssh = {
@@ -293,21 +243,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
   }
   if (config.scenarios.includes("database")) {
     config.database = { filePath: text(record(raw.database)?.filePath, "database.filePath") };
-  }
-  if (config.scenarios.includes("debugger")) {
-    const fixture = record(raw.debugger);
-    const line = (value: unknown, field: string) => {
-      if (!Number.isInteger(value) || (value as number) < 1) throw new Error(`invalid smoke config: ${field}`);
-      return value as number;
-    };
-    config.debugger = {
-      packagePath: text(fixture?.packagePath, "debugger.packagePath"),
-      python: text(fixture?.python, "debugger.python"),
-      projectRoot: text(fixture?.projectRoot, "debugger.projectRoot"),
-      program: text(fixture?.program, "debugger.program"),
-      logLine: line(fixture?.logLine, "debugger.logLine"),
-      stopLine: line(fixture?.stopLine, "debugger.stopLine"),
-    };
   }
   if (config.scenarios.includes("plugin-providers")) {
     const fixture = record(raw.pluginProviders);
@@ -364,28 +299,6 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
     config.ebook = { packagePath: text(fixture.packagePath, "ebook.packagePath"), paths: fixture.paths.map(value => text(value, "ebook.paths")) };
   }
   if(config.scenarios.includes("mail-client")){const fixture=record(raw.mailClient);config.mailClient={packagePath:text(fixture?.packagePath,"mailClient.packagePath"),outputDir:text(fixture?.outputDir,"mailClient.outputDir"),attachmentPath:text(fixture?.attachmentPath,"mailClient.attachmentPath"),controlUrl:loopbackUrl(fixture?.controlUrl,"mailClient.controlUrl"),expectedSubject:text(fixture?.expectedSubject,"mailClient.expectedSubject")};}
-  if (config.scenarios.includes("formatter")) {
-    const fixture = record(raw.formatter);
-    config.formatter = { packagePath: text(fixture?.packagePath, "formatter.packagePath"), imagePath: text(fixture?.imagePath, "formatter.imagePath") };
-  }
-  if (config.scenarios.includes("browser")) {
-    const browser = record(raw.browser);
-    config.browser = {
-      firstUrl: loopbackUrl(browser?.firstUrl, "browser.firstUrl"),
-      secondUrl: loopbackUrl(browser?.secondUrl, "browser.secondUrl"),
-      errorUrl: loopbackUrl(browser?.errorUrl, "browser.errorUrl"),
-    };
-    const use = record(browser?.use);
-    if (use) {
-      config.browser.use = {
-        openerUrl: loopbackUrl(use.openerUrl, "browser.use.openerUrl"),
-        formsUrl: loopbackUrl(use.formsUrl, "browser.use.formsUrl"),
-        articleUrl: loopbackUrl(use.articleUrl, "browser.use.articleUrl"),
-        filesUrl: loopbackUrl(use.filesUrl, "browser.use.filesUrl"),
-        downloadName: text(use.downloadName, "browser.use.downloadName", 255),
-      };
-    }
-  }
   if (config.scenarios.includes("ai")) {
     const ai = record(raw.ai);
     config.ai = {

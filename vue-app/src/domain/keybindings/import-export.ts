@@ -30,7 +30,6 @@ export const VSCODE_COMMAND_ALIASES: Readonly<Record<string, string>> = Object.f
   "workbench.action.navigateBack": "workbench:navigate-back",
   "workbench.action.navigateForward": "workbench:navigate-forward",
   "workbench.action.files.save": "editor:save",
-  "workbench.action.files.saveAll": "editor:save-all",
   "workbench.action.terminal.copySelection": "terminal:copy",
   "workbench.action.terminal.paste": "terminal:paste",
   "workbench.action.terminal.focusFind": "terminal:find",

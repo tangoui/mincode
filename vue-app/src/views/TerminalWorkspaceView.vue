@@ -27,20 +27,18 @@ import { terminalTabUsage } from "@/domain/terminal/resource-usage";
 import { useTerminalResourceUsage } from "@/composables/use-terminal-resource-usage";
 import { endLocalShellProcess } from "@/services/terminal-resource-usage";
 import { workspaceTabRoute } from "@/domain/workspace/tab-route";
-import { withWorkspaceCwd } from "@/domain/terminal/types";
 import { useVueI18n } from "@/i18n/messages";
 import { useWorkspaceStateScope } from "@/composables/use-workspace-state-scope";
 import { useActiveViewCommands } from "@/composables/use-active-view-commands";
 import { registerCommand } from "@/services/command-registry";
 import { deleteTerminalSnapshot } from "@/services/terminal-session-cache";
 import { loadLocalShellCwds } from "@/services/terminal-service";
-import { emitAppEvent, invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
+import { chooseNativeDirectory, emitAppEvent, invokeBackend, isDesktopRuntime, nativeErrorMessage } from "@/services/desktop-bridge";
 import { isPopupWindow, popupWindowLabel, POPUP_TAB_STATE_EVENT } from "@/services/popup-tab";
 import { recordClosedTabs } from "@/services/closed-tab-history";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import { useTerminalAttentionStore } from "@/stores/terminal-attention";
 import { useTerminalProfilesStore } from "@/stores/terminal-profiles";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { terminalProfileTitle } from "@/domain/terminal/profiles";
 import { ensureTerminalProfileConfirmed, terminalProfileErrorMessage } from "@/services/terminal-profile-service";
 
@@ -51,13 +49,12 @@ const workspaceStateScope = useWorkspaceStateScope();
 const workbench = workspaceStateScope.workbench;
 const workspaceStatePreferences = workspaceStateScope.preferences;
 const workspaceStateScopeId = workspaceStateScope.scopeId;
-const { tabs, activeTabId, activeTab, activePaneId, canClose, canSplit, canAddTab } = storeToRefs(terminalWorkspace);
+const { tabs, activeTabId, activeTab, canClose, canSplit, canAddTab } = storeToRefs(terminalWorkspace);
 const { t, localeChain } = useVueI18n();
 const router = useRouter();
 const route = useRoute();
 const terminalAttention = useTerminalAttentionStore();
 const terminalProfiles = useTerminalProfilesStore();
-const localProject = useLocalProjectStore();
 const shellConfigurationVisible = ref(false);
 const sshConnectionVisible = ref(false);
 const sshConnections = useSshConnectionsStore();
@@ -227,13 +224,18 @@ function addLocalTab(options: LocalTerminalPaneOptions) {
   if (!terminalWorkspace.addLocalTab(options)) warnMaxTabs();
 }
 
-// New shell tab: like a split, it starts in the live directory of the selected pane
-// (falling back to the store's last known cwd inside addLocalTab).
-async function addShellTab(options: LocalTerminalPaneOptions) {
-  if (!ensureCanAddTab()) return;
-  const paneId = activePaneId.value;
-  const liveCwd = options.initialCwd ? undefined : (await loadLocalShellCwds([paneId]))[paneId];
-  addLocalTab(liveCwd ? { ...options, initialCwd: liveCwd } : options);
+function addShellTab(options: LocalTerminalPaneOptions) {
+  if (ensureCanAddTab()) addLocalTab(options);
+}
+
+async function addShellTabInFolder() {
+  if (!isDesktopRuntime() || !ensureCanAddTab()) return;
+  try {
+    const path = await chooseNativeDirectory(t("project.chooseFolder"));
+    if (path) addShellTab({ initialCwd: path });
+  } catch (error) {
+    ElMessage.error(nativeErrorMessage(error));
+  }
 }
 
 function addConfiguredShell(options: LocalTerminalPaneOptions) {
@@ -253,7 +255,7 @@ async function addProfilePane(key: string) {
     ElMessage.warning(t("pluginContrib.terminalProfiles.desktopOnly"));
     return;
   }
-  const workspaceFolder = workbench.activeWorktreePath || localProject.projectRoot || "";
+  const workspaceFolder = "";
   const target = { pluginId: profile.pluginId, profileId: profile.id, workspaceFolder };
   try {
     const launch = await ensureTerminalProfileConfirmed(target);
@@ -337,7 +339,7 @@ function handleTerminalCreate(event: Event) {
     const target = terminalLayoutTarget(detail.tabId);
     terminalWorkspace.activateTab(
       detail.tabId,
-      withWorkspaceCwd(initialPane, workbench.activeWorktreePath),
+      initialPane,
       target.layoutId,
       target.fallbackLayoutId
     );
@@ -365,6 +367,7 @@ function openShellConfiguration() {
 function handleAddMenu(kind: TerminalTabAddMenuCommand) {
   if (kind === "configured") openShellConfiguration();
   else if (kind === "ssh") openNewSsh();
+  else if (kind === "folder") void addShellTabInFolder();
   else void addProfilePane(kind.slice("profile:".length));
 }
 
@@ -384,7 +387,7 @@ useActiveViewCommands(() => [
     title: () => t("keybindings.command.terminal:new-tab"),
     subtitle: () => t("commandPalette.source.builtin"),
     keywords: ["terminal", "tab", "终端", "标签"],
-    // Same path as the strip's "+" button: tab limit message and live cwd inheritance.
+    // Same path as the strip’s "+" button.
     execute: whileTerminalViewShown(() => void addShellTab({ shellType: "system" })),
   }),
   registerCommand({

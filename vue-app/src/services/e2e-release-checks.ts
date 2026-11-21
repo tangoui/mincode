@@ -9,15 +9,6 @@
 import type { SmokeConfig } from "@/domain/e2e/desktop-smoke";
 import type { DatabaseQueryResult } from "@/domain/database/types";
 import type { SqlSafetyCheck } from "@/domain/database/sql-safety";
-import type { DebugEvent } from "@/domain/debug/types";
-import {
-  debugRequest,
-  onDebugEvent,
-  prepareDebugger,
-  startDebugger,
-  stopDebugSession,
-  trustDebugger,
-} from "@/services/debug-service";
 import { installLocalPlugin, previewLocalPlugin, setPluginEnabled, uninstallPlugin } from "@/services/plugin-service";
 import { checkSqlSafety, runWithSafety, sqlSafetyArgs } from "@/services/sql-safety-service";
 import { listSqlSafetyHistory, previewSqlSafetyUndo, undoSqlSafety } from "@/services/sql-safety-history";
@@ -44,63 +35,6 @@ async function until<T>(read: () => T | undefined | false | null | Promise<T | u
 
 function randomId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-// ---- debugger ----
-
-/**
- * Installs the packaged python-debug plugin, then launches debugpy on a
- * fixture script with a logpoint and a later ordinary breakpoint through the
- * same prepare → trust → start path the UI uses. The program must log the
- * interpolated message without pausing there, stop at the ordinary
- * breakpoint, and finish after continue.
- */
-export async function debuggerScenario(config: SmokeConfig, log: StepLog) {
-  const fixture = config.debugger!;
-  const preview = await previewLocalPlugin(fixture.packagePath);
-  if (preview.manifest.id !== "python-debug") throw new Error(`unexpected package id ${preview.manifest.id}`);
-  await installLocalPlugin(fixture.packagePath);
-  await setPluginEnabled("python-debug", true);
-  log.done("python-debug plugin installed from the packaged .min and enabled");
-  const events: DebugEvent[] = [];
-  const stop = onDebugEvent((event) => events.push(event));
-  let sessionId = "";
-  try {
-    const configuration = { request: "launch", program: fixture.program, python: fixture.python, console: "internalConsole", justMyCode: true };
-    let prepared = await prepareDebugger({ pluginId: "python-debug", type: "python", projectRoot: fixture.projectRoot, configuration, noDebug: false });
-    if (!prepared.launch.argv.includes("debugpy.adapter")) throw new Error(`unexpected adapter command ${prepared.launch.argv.join(" ")}`);
-    if (!prepared.launch.trusted) prepared = await trustDebugger(prepared.prepareId, prepared.launch.fingerprint);
-    log.done("prepare resolved the debugpy adapter; the confirmed fingerprint was trusted");
-    const started = await startDebugger({
-      prepareId: prepared.prepareId,
-      fingerprint: prepared.launch.fingerprint,
-      breakpoints: { [fixture.program]: [
-        { line: fixture.logLine, logMessage: `LOG value={value} ${config.nonce}`, enabled: true },
-        { line: fixture.stopLine, enabled: true },
-      ] },
-      exceptionFilters: [],
-    });
-    sessionId = started.sessionId;
-    if (started.capabilities.supportsLogPoints !== true) throw new Error("debugpy did not advertise logpoint support");
-    log.done("session started; adapter advertised supportsLogPoints");
-    const stopped = await until(() => events.find((event) => event.sessionId === sessionId && event.event === "stopped"), "stopped event", config.timeoutMs);
-    const threadId = Number(stopped.body?.threadId);
-    const trace = await debugRequest<{ stackFrames: Array<{ line: number }> }>(sessionId, "stackTrace", { threadId, startFrame: 0, levels: 5 });
-    if (trace.stackFrames[0]?.line !== fixture.stopLine) throw new Error(`first stop was line ${trace.stackFrames[0]?.line}, want the ordinary breakpoint on ${fixture.stopLine}`);
-    log.done(`first stop is the ordinary breakpoint (line ${fixture.stopLine}); the logpoint did not pause`);
-    await debugRequest(sessionId, "continue", { threadId });
-    await until(() => events.find((event) => event.sessionId === sessionId && event.event === "mincode.sessionEnded"), "session end", config.timeoutMs);
-    const output = events.filter((event) => event.sessionId === sessionId && event.event === "output").map((event) => String(event.body?.output ?? "")).join("");
-    if (!output.includes(`LOG value=7 ${config.nonce}`)) throw new Error(`interpolated logpoint output missing: ${JSON.stringify(output.slice(-400))}`);
-    if (!output.includes("done 8")) throw new Error("program output after continue missing");
-    log.done("console received the interpolated logpoint message and the program finished after continue");
-  } finally {
-    stop();
-    if (sessionId) await stopDebugSession(sessionId).catch(() => undefined);
-    await setPluginEnabled("python-debug", false).catch(() => undefined);
-    await uninstallPlugin("python-debug", true).catch(() => undefined);
-  }
-  log.done("plugin disabled and uninstalled");
 }
 
 // ---- SQL safety net ----

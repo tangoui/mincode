@@ -9,12 +9,6 @@ import {
 
 const base = { scenarios: ["terminal"], nonce: "abc123", timeoutMs: 5000 };
 
-test('formatter smoke requires explicit disposable package and image', () => {
- assert.throws(() => parseSmokeConfig({...base, scenarios:['formatter']}), /formatter/);
- const formatter = {packagePath:'/tmp/p', imagePath:'/tmp/image.png'};
- assert.deepEqual(parseSmokeConfig({...base, scenarios:['formatter'], formatter}).formatter, formatter);
-});
-
 test("smoke config requires known scenarios and a fixture for each", () => {
   assert.deepEqual(parseSmokeConfig(base), { scenarios: ["terminal"], nonce: "abc123", timeoutMs: 5000 });
   assert.equal(parseSmokeConfig({ ...base, timeoutMs: -1 }).timeoutMs, 30000);
@@ -35,15 +29,6 @@ test("the AI fixture must be a loopback http endpoint", () => {
   const ai = { model: "m", apiKey: "k", expectedText: "t", slowPrompt: "s" };
   assert.equal(parseSmokeConfig({ ...base, scenarios: ["ai"], ai: { ...ai, baseUrl: "http://127.0.0.1:9/v1" } }).ai.baseUrl, "http://127.0.0.1:9/v1");
   assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["ai"], ai: { ...ai, baseUrl: "https://api.example.com/v1" } }), /loopback/);
-});
-
-test("browser smoke requires explicit loopback fixture URLs", () => {
-  assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["browser"] }), /browser.firstUrl/);
-  const browser = { firstUrl: "http://127.0.0.1:9001/first", secondUrl: "http://127.0.0.1:9001/second", errorUrl: "http://127.0.0.1:9001/navigation-error" };
-  assert.deepEqual(parseSmokeConfig({ ...base, scenarios: ["browser"], browser }).browser, browser);
-  for (const field of ["firstUrl", "secondUrl", "errorUrl"]) {
-    assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["browser"], browser: { ...browser, [field]: "https://example.com/" } }), /loopback/);
-  }
 });
 
 test("echo probes cannot be satisfied by the echoed command line", () => {
@@ -95,11 +80,6 @@ test("Rust plugin smoke requires a real compiled package", () => {
 test("TypeScript plugin smoke requires a built package", () => {
  assert.throws(()=>parseSmokeConfig({...base,scenarios:["ts-plugin"]}),/tsPlugin.packagePath/);
  assert.deepEqual(parseSmokeConfig({...base,scenarios:["ts-plugin"],tsPlugin:{packagePath:"/tmp/ts/dist-plugin"}}).tsPlugin,{packagePath:"/tmp/ts/dist-plugin"});
-});
-
-test("lsp smoke requires its project fixture", () => {
-  assert.throws(() => parseSmokeConfig({ ...base, scenarios: ["lsp"] }), /lsp\.projectRoot/);
-  assert.deepEqual(parseSmokeConfig({ ...base, scenarios: ["lsp"], lsp: { projectRoot: "/tmp/p" } }).lsp, { projectRoot: "/tmp/p" });
 });
 
 test("perf-remote accepts an optional laggy sshd port for the predictive echo block", () => {
