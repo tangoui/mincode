@@ -1,0 +1,72 @@
+name: Renew update manifest
+
+on:
+  schedule:
+    - cron: "19 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: renew-update-manifest
+
+env:
+  GOWORK: "off"
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find the latest published release's manifest
+        id: manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TANGO_UPDATE_KEY: ${{ secrets.TANGO_UPDATE_KEY }}
+        run: |
+          if [[ -z "${TANGO_UPDATE_KEY//[[:space:]]/}" ]]; then
+            echo "TANGO_UPDATE_KEY is absent; skipping manifest renewal."
+            exit 0
+          fi
+          published="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 \
+            --json tagName --jq '.[0].tagName // empty')"
+          if [[ -z "$published" ]]; then
+            echo "No release has been published yet."
+            exit 0
+          fi
+          tag="$(gh release view --json tagName,assets \
+            --jq 'select(any(.assets[]; .name == "latest.json")) | .tagName')"
+          if [[ -z "$tag" ]]; then
+            echo "The latest release has no latest.json."
+            exit 0
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7.0.1
+        if: steps.manifest.outputs.tag != ''
+        with:
+          ref: refs/tags/${{ steps.manifest.outputs.tag }}
+      - uses: actions/setup-go@v7.0.0
+        if: steps.manifest.outputs.tag != ''
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Re-sign and replace latest.json
+        if: steps.manifest.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.manifest.outputs.tag }}
+          TANGO_UPDATE_KEY: ${{ secrets.TANGO_UPDATE_KEY }}
+        run: |
+          tango_version="$(go list -m -f '{{.Version}}' github.com/tangoui/tango)"
+          go install "github.com/tangoui/tango/cmd/tan@$tango_version"
+          tan="$(go env GOPATH)/bin/tan"
+          gh release download "$TAG" --pattern latest.json
+          # Signing the unchanged manifest must reproduce its signature.
+          "$tan" sign-update -expires 0 -o unchanged.json latest.json
+          if ! jq -es '.[0].signature == .[1].signature' latest.json unchanged.json >/dev/null; then
+            echo "::error::TANGO_UPDATE_KEY does not match the published manifest."
+            exit 1
+          fi
+          "$tan" sign-update latest.json
+          gh release upload "$TAG" latest.json --clobber

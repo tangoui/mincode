@@ -1,0 +1,323 @@
+name: Draft release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: draft-release-${{ github.ref }}
+
+env:
+  GOWORK: "off"
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      update-public-key: ${{ steps.key.outputs.public_key }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "26"
+      - name: Verify the release version
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          config_version="$(jq -er .version tan.json)"
+          app_version="$(sed -nE 's/^var AppVersion = "([^"]+)"$/\1/p' backend/misc/misc.go)"
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ||
+                "$version" != "$config_version" || "$version" != "$app_version" ]]; then
+            echo "::error::Expected vX.Y.Z matching tan.json ($config_version) and misc.AppVersion ($app_version); got $GITHUB_REF_NAME"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Derive the public key for the packaged applications
+        id: key
+        env:
+          TANGO_UPDATE_KEY: ${{ secrets.TANGO_UPDATE_KEY }}
+        run: |
+          node <<'NODE'
+          const { createPrivateKey, createPublicKey } = require('node:crypto');
+          const { appendFileSync } = require('node:fs');
+          const encoded = process.env.TANGO_UPDATE_KEY.trim();
+          if (!encoded) process.exit(0);
+          const key = Buffer.from(encoded, 'base64');
+          if (key.toString('base64') !== encoded || ![32, 64].includes(key.length)) {
+            throw new Error('TANGO_UPDATE_KEY must be a Tango Ed25519 private key');
+          }
+          // PKCS#8 Ed25519 private keys wrap the 32-byte seed.
+          const header = Buffer.from('302e020100300506032b657004220420', 'hex');
+          const privateKey = createPrivateKey({
+            key: Buffer.concat([header, key.subarray(0, 32)]),
+            format: 'der',
+            type: 'pkcs8',
+          });
+          const publicKey = createPublicKey(privateKey).export({ format: 'der', type: 'spki' }).subarray(-32);
+          if (key.length === 64 && !publicKey.equals(key.subarray(32))) {
+            throw new Error('TANGO_UPDATE_KEY contains a mismatched Ed25519 public key');
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `public_key=${publicKey.toString('base64')}\n`);
+          NODE
+
+  checks:
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    name: Package (${{ matrix.target }})
+    needs: [verify, checks]
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: darwin/arm64
+          - runner: macos-15-intel
+            target: darwin/amd64
+          - runner: windows-latest
+            target: windows/amd64
+          - runner: ubuntu-22.04
+            target: linux/amd64
+    env:
+      TARGET: ${{ matrix.target }}
+      VERSION: ${{ needs.verify.outputs.version }}
+      TANGO_UPDATE_PUBLIC_KEY: ${{ needs.verify.outputs.update-public-key }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "26"
+      - uses: pnpm/action-setup@v6.1.1
+        with:
+          cache: true
+      - name: Install tan from the app's Tango revision
+        run: |
+          tango_version="$(go list -m -f '{{.Version}}' github.com/tangoui/tango)"
+          go install "github.com/tangoui/tango/cmd/tan@$tango_version"
+          go env GOPATH | sed 's|$|/bin|' >> "$GITHUB_PATH"
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure Windows signing
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+        run: |
+          if (!$env:WINDOWS_CERT_BASE64) { exit 0 }
+          $certificate = Join-Path $env:RUNNER_TEMP 'mincode-signing.pfx'
+          [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $tool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$tool) { throw 'Windows SDK signtool.exe was not found' }
+          $tool.DirectoryName >> $env:GITHUB_PATH
+          "TANGO_WINDOWS_CERT=$certificate" >> $env:GITHUB_ENV
+
+      - name: Build the frontend and package the desktop app
+        env:
+          TANGO_WINDOWS_CERT_PASSWORD: ${{ runner.os == 'Windows' && secrets.WINDOWS_CERT_PASSWORD || '' }}
+        run: |
+          test "$(go env GOHOSTOS)/$(go env GOHOSTARCH)" = "$TARGET"
+          linker="$RUNNER_TEMP/mincode-link.cjs"
+          # Tango supplies its own -ldflags. Append the two project values at
+          # link time so Tango's strip and Windows GUI flags still apply.
+          cat > "$linker" <<'NODE'
+          const { spawnSync } = require('node:child_process');
+          const { createHash } = require('node:crypto');
+          const { basename } = require('node:path');
+          const [, , tool, ...args] = process.argv;
+          const isLinker = ['link', 'link.exe'].includes(basename(tool));
+          const versionQuery = isLinker && args[0] === '-V=full';
+          const values = [
+            `mincode/app/backend/misc.AppVersion=${process.env.VERSION}`,
+            `mincode/app/backend/updater.ManifestPublicKey=${process.env.TANGO_UPDATE_PUBLIC_KEY}`,
+          ];
+          if (isLinker && !versionQuery && process.env.TOOLEXEC_IMPORTPATH === 'mincode/app') {
+            args.unshift(...values.flatMap(value => ['-X', value]));
+          }
+          const result = spawnSync(tool, args, { stdio: versionQuery ? ['inherit', 'pipe', 'inherit'] : 'inherit' });
+          if (result.error) throw result.error;
+          if (versionQuery && result.status === 0) {
+            const version = result.stdout.toString().trimEnd();
+            const hash = createHash('sha256').update(values.join('\n')).digest('hex');
+            console.log(`${version} mincode=${hash}`);
+          }
+          process.exitCode = result.status ?? 1;
+          NODE
+          # Go's GOFLAGS parser requires quoting the entire -toolexec argument.
+          export GOFLAGS="'-toolexec=node \"$linker\"'"
+          args=(-platform "$TARGET")
+          if [[ "$TARGET" != darwin/* ]]; then
+            args+=(-features all)
+          fi
+          pnpm package:desktop "${args[@]}"
+
+      - name: Sign the macOS app and disk image
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          TANGO_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+        run: |
+          if [[ -z "$APPLE_CERT_BASE64" || -z "$TANGO_SIGN_IDENTITY" ]]; then
+            echo "Apple signing credentials are absent; keeping the ad-hoc signature."
+            exit 0
+          fi
+          work="$(mktemp -d)"
+          keychain="$work/release.keychain-db"
+          password="$(openssl rand -hex 24)"
+          mount="$work/mount"
+          trap 'hdiutil detach -quiet "$mount" 2>/dev/null || true; security delete-keychain "$keychain" 2>/dev/null || true; rm -rf "$work"' EXIT
+          printf '%s' "$APPLE_CERT_BASE64" | base64 -D > "$work/signing.p12"
+          security create-keychain -p "$password" "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$work/signing.p12" -k "$keychain" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain"
+
+          apps=(dist/"${TARGET/\//-}"/*.app)
+          images=(dist/*.dmg)
+          tan sign "${apps[0]}"
+          # Replace the bundle inside the image while preserving the Finder layout.
+          hdiutil convert -quiet "${images[0]}" -format UDRW -o "$work/writable.dmg"
+          mkdir "$mount"
+          hdiutil attach -quiet -nobrowse -mountpoint "$mount" "$work/writable.dmg"
+          installed="$mount/$(basename "${apps[0]}")"
+          rm -rf "$installed"
+          ditto "${apps[0]}" "$installed"
+          hdiutil detach -quiet "$mount"
+          hdiutil convert -quiet "$work/writable.dmg" -format ULMO -o "$work/signed.dmg"
+          tan sign "$work/signed.dmg"
+          mv "$work/signed.dmg" "${images[0]}"
+
+      - name: Archive install packages and update inputs
+        run: |
+          shopt -s nullglob
+          case "$TARGET" in
+            darwin/*) assets=(dist/*.dmg) ;;
+            windows/*) assets=(dist/*-setup.exe) ;;
+            linux/*) assets=(dist/*.tar.gz dist/*.AppImage) ;;
+          esac
+          test "${#assets[@]}" -gt 0
+          tar -cf packages.tar -- "${assets[@]}" "dist/${TARGET/\//-}"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: desktop-${{ runner.os }}-${{ runner.arch }}
+          path: packages.tar
+          if-no-files-found: error
+
+  manifest:
+    needs: [verify, package]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          path: packages
+      - name: Stage release assets
+        run: |
+          for archive in packages/*/packages.tar; do
+            tar -xf "$archive"
+          done
+          shopt -s nullglob
+          mkdir release
+          cp dist/*.dmg dist/*-setup.exe dist/*.tar.gz dist/*.AppImage release/
+      - name: Generate the signed update manifest and patches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TANGO_UPDATE_KEY: ${{ secrets.TANGO_UPDATE_KEY }}
+        run: |
+          if [[ -z "${TANGO_UPDATE_KEY//[[:space:]]/}" ]]; then
+            echo "::warning::TANGO_UPDATE_KEY is absent. The draft will contain install packages without an update manifest."
+            exit 0
+          fi
+          tango_version="$(go list -m -f '{{.Version}}' github.com/tangoui/tango)"
+          go install "github.com/tangoui/tango/cmd/tan@$tango_version"
+          tan="$(go env GOPATH)/bin/tan"
+
+          published="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 \
+            --json tagName --jq '.[0].tagName // empty')"
+          prev_args=()
+          if [[ -n "$published" ]]; then
+            previous="$(gh release view --json tagName,assets \
+              --jq 'select(any(.assets[]; .name == "latest.json")) | .tagName')"
+            if [[ -n "$previous" && "$previous" != "$GITHUB_REF_NAME" ]]; then
+              gh release download "$previous" --dir prev --pattern latest.json \
+                --pattern '*.exe' --pattern '*.AppImage' --pattern '*.tar.gz'
+              prev_args=(-prev prev)
+            elif [[ -z "$previous" ]]; then
+              echo "The previous release has no latest.json; publishing full update payloads."
+            fi
+          fi
+
+          notes_args=()
+          notes="docs/releases/$VERSION.md"
+          if [[ -f "$notes" ]]; then
+            notes_args=(-notes "@$notes")
+          fi
+          # Seed a separate output directory: tan copies update payloads into
+          # it, including the Linux tarball when no AppImage was built.
+          "$tan" release-manifest -build dist -o release -url "" "${prev_args[@]}" "${notes_args[@]}"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-assets
+          path: release/
+          if-no-files-found: error
+
+  release:
+    needs: [verify, manifest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-assets
+          path: release
+      - name: Create draft
+        shell: bash
+        run: |
+          existing="$(gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" |
+            jq -r --arg tag "$GITHUB_REF_NAME" '[.[][] | select(.tag_name == $tag)] |
+              if any(.[]; .draft == false) then "published"
+              elif length != 0 then "draft"
+              else "missing"
+              end')"
+          if [[ "$existing" == published ]]; then
+            echo "::error::$GITHUB_REF_NAME is already published."
+            exit 1
+          fi
+          if [[ "$existing" == draft ]]; then
+            gh release upload "$GITHUB_REF_NAME" --clobber release/*
+            exit 0
+          fi
+          notes="docs/releases/$VERSION.md"
+          if [[ ! -f "$notes" ]]; then
+            notes=/dev/null
+          fi
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+            --title "$GITHUB_REF_NAME" --notes-file "$notes" release/*

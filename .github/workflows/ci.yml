@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: "off"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "26"
+      - uses: pnpm/action-setup@v6.1.1
+        with:
+          cache: true
+
+      - name: Check Go formatting
+        run: |
+          unformatted="$(git ls-files -z '*.go' | xargs -0 gofmt -l)"
+          if [[ -n "$unformatted" ]]; then
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+      - name: Check and build the frontend
+        working-directory: vue-app
+        run: |
+          pnpm lint
+          pnpm test
+          pnpm test:components
+          pnpm build
+
+      - name: Vet Linux and Windows
+        env:
+          CGO_ENABLED: "0"
+          GOARCH: amd64
+        run: |
+          status=0
+          for target in linux windows; do
+            echo "::group::go vet $target/amd64"
+            GOOS="$target" go vet -tags production,nocoredrivers ./... || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+      - name: Test Go packages
+        env:
+          CGO_ENABLED: "1"
+        run: go test -tags production,nocoredrivers ./internal/... ./backend/...
+
+  build:
+    name: Build (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, windows-latest]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "26"
+      - uses: pnpm/action-setup@v6.1.1
+        with:
+          cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir vue-app build
+      - name: Vet macOS with cgo
+        if: runner.os == 'macOS'
+        env:
+          CGO_ENABLED: "1"
+        run: go vet -tags production,nocoredrivers ./...
+      - name: Build the desktop app
+        env:
+          CGO_ENABLED: "1"
+        run: go build -tags production,nocoredrivers .
