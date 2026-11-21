@@ -23,7 +23,15 @@ func newAppMenu(app *tango.App, showMain func(), navigate func(kind, value strin
 	return &appMenu{app: app, showMain: showMain, navigate: navigate}
 }
 
+// installsAppMenu reports whether goos gets the application menu. On macOS it
+// lives in the system menu bar; Windows and Linux would show it as a menu bar
+// inside the window, where it duplicates the app's own UI, so they get none.
+func installsAppMenu(goos string) bool { return goos == "darwin" }
+
 func (m *appMenu) install() {
+	if !installsAppMenu(runtime.GOOS) {
+		return
+	}
 	if err := menu.SetAppMenu(m.app, m.build()); err != nil {
 		log.Printf("app menu unavailable: %v", err)
 	}

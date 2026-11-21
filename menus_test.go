@@ -47,3 +47,11 @@ func TestAppMenuCheckUpdateNavigation(t *testing.T) {
 		t.Fatalf("navigation target = %q, want %q", target, want)
 	}
 }
+
+func TestAppMenuOnlyInstalledOnMacOS(t *testing.T) {
+	for goos, want := range map[string]bool{"darwin": true, "windows": false, "linux": false} {
+		if got := installsAppMenu(goos); got != want {
+			t.Errorf("installsAppMenu(%q) = %v, want %v", goos, got, want)
+		}
+	}
+}
