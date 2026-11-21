@@ -6,16 +6,16 @@ const localPane = {
   id: "terminal-1",
   type: "local",
   shellType: "system",
-  cwd: "/Users/admin/projects/min",
+  cwd: "/home/user/projects/min",
 };
 
 test("inherits the source pane working directory when splitting", () => {
   assert.deepEqual(inheritSplitCwd({}, localPane), {
-    initialCwd: "/Users/admin/projects/min",
+    initialCwd: "/home/user/projects/min",
   });
   assert.deepEqual(inheritSplitCwd({ shellType: "zsh" }, localPane), {
     shellType: "zsh",
-    initialCwd: "/Users/admin/projects/min",
+    initialCwd: "/home/user/projects/min",
   });
 });
 

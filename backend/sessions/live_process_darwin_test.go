@@ -9,7 +9,7 @@ import (
 
 func TestMatchingProcessIDsUsesExecutableBasename(t *testing.T) {
 	output := `
- 101 /Users/admin/.local/bin/claude
+ 101 /home/user/.local/bin/claude
  202 /opt/homebrew/bin/codex
  303 /Applications/Claude Desktop.app/Contents/MacOS/2.1.237
  404 /Applications/Developer Tools.app/Contents/MacOS/zsh

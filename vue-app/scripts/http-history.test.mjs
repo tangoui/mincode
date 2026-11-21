@@ -9,7 +9,7 @@ import {
 } from "../src/domain/http/history.ts";
 
 test("summarizes history URLs and derives display names", () => {
-  assert.equal(historyUrlSummary("https://www.mincodeai.cn/index.html#/community"), "www.mincodeai.cn/index.html");
+  assert.equal(historyUrlSummary("https://www.example.com/index.html#/community"), "www.example.com/index.html");
   assert.equal(historyUrlSummary("https://api.example.com/?a=1"), "api.example.com");
   assert.equal(historyUrlSummary("{{baseUrl}}/users/42?x=1"), "{{baseUrl}}/users/42");
   assert.equal(historyDisplayName({ name: "用户详情", url: "https://x/users/1" }, "Request"), "用户详情");

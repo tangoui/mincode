@@ -1,22 +1,13 @@
-# 构建产物
-/mincode-tango-web
-/mincode-tango-web-lean
+# Build output
 /bin
 /build
 /dist
 /frontend/dist
 /vue-app/.tmp
 node_modules/
-# Node template entrypoints are source files, not generated binaries.
-!plugins/templates/local-process-node/bin/
-plugins/templates/local-process-node/bin/*
-!plugins/templates/local-process-node/bin/plugin.mjs
-!plugins/templates/visual-process-node/bin/
-plugins/templates/visual-process-node/bin/*
-!plugins/templates/visual-process-node/bin/plugin.mjs
 .DS_Store
 
-# 以下与 mincode 仓库的忽略规则保持一致
+# Tooling and local files
 logs
 *.log
 *.tsbuildinfo
@@ -24,13 +15,7 @@ coverage
 .env
 !.env.example
 *.local
-.qoder/
-.qoder-cn
-*.qoder
-.serena/
-.claude/*
-!.claude/skills
-.mincode/
+.claude/
 .idea
 .vscode/*
 !.vscode/extensions.json
@@ -38,18 +23,7 @@ __pycache__/
 *.pyc
 .gocache/
 go.work*
-.verification/
-.superpowers
 outputs/
-.cua-tmp/
-# 官方插件构建产物（保留手写配置和自定义 HTML）
-/official-plugins/*/bin/
-/official-plugins/*/.go-build-*/
-/official-plugins/*/.ocr-assets-*/
-/official-plugins/*/backend/target/
-/official-plugins/*/lib/runtime.mjs
-/official-plugins/*/ui/app.js
-/official-plugins/*/ui/style.css
-/official-plugins/*/ui/chunks/
-/official-plugins/*/ui/index.html
-!/official-plugins/knowledge-base/ui/index.html
+
+# Update signing keys (never commit the private key)
+*.key
