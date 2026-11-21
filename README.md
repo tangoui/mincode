@@ -20,8 +20,6 @@
 | AI 助手 | 接入自己的模型（OpenAI 兼容、Anthropic 等）或本地 Agent（ACP），可调用终端、数据库、HTTP 等工具 |
 | 设置 | 外观、快捷键、终端、AI、数据导入导出、检查更新 |
 
-本仓库不包含商业版的项目编辑器、Git、调试器、内置浏览器、插件系统和云端服务。DuckDB、Oracle、YashanDB、ClickHouse、达梦 DM 驱动未内置。
-
 ## 系统要求
 
 - macOS 12+、Windows 10+（x64）、Linux（x64）

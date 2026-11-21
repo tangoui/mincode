@@ -20,8 +20,6 @@ This repository is the open source edition of MinCode, and a complete example of
 | AI assistant | Bring your own model (OpenAI-compatible, Anthropic, ...) or a local agent over ACP, with tools for terminals, databases and HTTP |
 | Settings | Appearance, shortcuts, terminal, AI, data import/export, updates |
 
-The commercial edition's project editor, Git, debugger, built-in browser, plugin system and cloud services are not part of this repository. DuckDB, Oracle, YashanDB, ClickHouse and Dameng (DM) drivers are not built in.
-
 ## Requirements
 
 - macOS 12+, Windows 10+ (x64), Linux (x64)
