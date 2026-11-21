@@ -135,7 +135,6 @@ declare module 'vue' {
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ElTree: typeof import('element-plus/es')['ElTree']
     ElTreeSelect: typeof import('element-plus/es')['ElTreeSelect']
-    FormatterPickerDialog: typeof import('./src/components/ui/FormatterPickerDialog.vue')['default']
     GeneralSettingsPanel: typeof import('./src/components/settings/GeneralSettingsPanel.vue')['default']
     GridExportSubmenu: typeof import('./src/components/database/results/GridExportSubmenu.vue')['default']
     GridFilterSubmenu: typeof import('./src/components/database/results/GridFilterSubmenu.vue')['default']

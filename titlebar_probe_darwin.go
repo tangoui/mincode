@@ -6,6 +6,7 @@ package main
 #cgo CFLAGS: -x objective-c
 #cgo LDFLAGS: -framework Cocoa
 #import <Cocoa/Cocoa.h>
+#include <stdint.h>
 
 typedef struct {
 	double buttonY[3];
@@ -13,7 +14,7 @@ typedef struct {
 	double contentTop;
 } titleBarGeometry;
 
-static titleBarGeometry readTitleBarGeometry(void *nativeWindow) {
+static titleBarGeometry readTitleBarGeometry(uintptr_t nativeWindow) {
 	NSWindow *window = (NSWindow *)nativeWindow;
 	NSView *content = window.contentView;
 	NSView *frame = content.superview;
@@ -43,7 +44,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"unsafe"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/ipc"
@@ -68,7 +68,7 @@ func init() {
 				if window == 0 {
 					return
 				}
-				geometry := C.readTitleBarGeometry(unsafe.Pointer(window))
+				geometry := C.readTitleBarGeometry(C.uintptr_t(window))
 				for i, y := range geometry.buttonY {
 					result.ButtonY[i] = float64(y)
 				}

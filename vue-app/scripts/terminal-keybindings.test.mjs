@@ -112,8 +112,8 @@ const MATRIX = [
   ["mincode", "win", false, "ctrl+v", "run:paste"],
   ["mincode", "win", false, "ctrl+shift+v", "run:paste"],
   ["mincode", "win", false, "ctrl+f", "run:find"],
-  ["mincode", "win", false, "ctrl+shift+l", "bubble"], // lock (phase 2 gap)
-  ["mincode", "linux", false, "ctrl+shift+l", "bubble"],
+  ["mincode", "win", false, "ctrl+shift+l", "shell"],
+  ["mincode", "linux", false, "ctrl+shift+l", "shell"],
   ["mincode", "win", false, "ctrl+k", "bubble"], // palette is on the skip-shell list
   ["mincode", "win", false, "ctrl+w", "shell"], // close-tab has !terminal.focus
   ["mincode", "win", false, "ctrl+i", "shell"], // AI toggle is not a skip-shell command (Ctrl+I = Tab)
@@ -149,7 +149,7 @@ test("sendKeybindingsToShell intercepts only ⌘ and Ctrl+Shift chords", () => {
   assert.equal(win.press("ctrl+k"), "shell");
   assert.equal(win.press("ctrl+shift+c"), "run:copy");
   assert.equal(win.press("ctrl+shift+v"), "run:paste");
-  assert.equal(win.press("ctrl+shift+l"), "bubble");
+  assert.equal(win.press("ctrl+shift+l"), "shell");
   const mac = harness({ platform: "mac", sendKeybindingsToShell: true });
   assert.equal(mac.press("cmd+v"), "run:paste");
   assert.equal(mac.press("cmd+k"), "bubble");
@@ -190,9 +190,9 @@ test("decideTerminalKey ignores bare modifiers and reports the bubbling binding"
     canExecuteApp: (command) => REGISTERED.has(command),
   };
   assert.equal(decideTerminalKey(keydown("ctrl+Control", { code: "ControlLeft" }), env).kind, "shell");
-  const lock = decideTerminalKey(keydown("ctrl+shift+l"), env);
-  assert.equal(lock.kind, "bubble");
-  assert.equal(lock.binding.command);
+  const palette = decideTerminalKey(keydown("ctrl+k"), env);
+  assert.equal(palette.kind, "bubble");
+  assert.equal(palette.binding.command, "builtin:command-palette");
   // Unregistered skip-shell commands do not steal the key.
   assert.equal(decideTerminalKey(keydown("ctrl+k"), { ...env, canExecuteApp: () => false }).kind, "shell");
 });

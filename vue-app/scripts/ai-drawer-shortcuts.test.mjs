@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { adjacentConversationId } from "../src/domain/ai/drawer-shortcuts.ts";
 import { KEYBINDING_COMMANDS } from "../src/domain/keybindings/catalog.ts";
+import { messagesEn } from "../src/i18n/locales/en.ts";
+import { messagesZh } from "../src/i18n/locales/zh.ts";
 
 // Esc / ⌘⇧O / ⌘⇧F / Alt+↑↓ key matching moved to the keybinding dispatcher
 // (HOST_KEYBINDING_RULES); keybinding-persistence.test.mjs checks the keys.
@@ -32,14 +34,10 @@ test("drawer registers the panel commands and settings documents them", async ()
   assert.match(drawer, /for \(const dispose of keybindingDisposers\) dispose\(\)/);
   // Settings lists every catalog command (KeybindingSettingsPanel), including the AI panel ones.
   assert.match(settings, /defineAsyncComponent\(\(\) => import\("@\/components\/settings\/KeybindingSettingsPanel\.vue"\)\)/);
-  const catalog = new Set(KEYBINDING_COMMANDS.map((command) => command.id));
   for (const id of ["ai:stop", "ai:new-conversation", "ai:search-conversations", "ai:previous-conversation", "ai:next-conversation", "ai:copy-message"]) {
-    assert.ok(catalog.has(id), id);
-  }
-  for (const locale of ["zh", "en"]) {
-    const source = await readFile(new URL(`../src/i18n/locales/${locale}.ts`, import.meta.url), "utf8");
-    for (const name of ["group.ai", "group.aiDesc", "aiStop", "aiNewConversation", "aiSwitchConversation", "aiSearchConversations", "scope.ai"]) {
-      assert.match(source, new RegExp(`"settings\\.shortcuts\\.${name.replace(".", "\\.")}"`));
-    }
+    const command = KEYBINDING_COMMANDS.find((entry) => entry.id === id);
+    assert.ok(command, id);
+    assert.ok(messagesZh[command.titleKey], `zh ${id}`);
+    assert.ok(messagesEn[command.titleKey], `en ${id}`);
   }
 });

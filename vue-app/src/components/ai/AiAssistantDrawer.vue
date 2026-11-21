@@ -3743,8 +3743,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
           runResources,
           runProjectRoot,
           signal,
-          {
-          },
+          isolatedExternal ? { allowedTools: new Set() } : undefined,
         ),
       // MCP tools and every mutation remain serialized. Native capabilities explicitly
       // classified as read-only can be run together because they have no same-turn

@@ -58,8 +58,9 @@ test("rows list every catalog command with labels, sources and availability", ()
   assert.equal(palette.bindings[0].label, "⌘K");
   assert.equal(palette.source, "default");
   assert.equal(palette.modified, false);
-  assert.equal(row(rows, "builtin:quick-open").available, true);
-  assert.equal(row(rows, "builtin:go-to-symbol").available, false);
+  assert.equal(row(rows, "builtin:search-everywhere").available, true);
+  assert.equal(row(rows, "builtin:quick-open"), undefined);
+  assert.equal(row(rows, "builtin:go-to-symbol"), undefined);
 
 
   const win = rowsFor("win");

@@ -1,7 +1,6 @@
 // Opt-in native performance probe for the remaining pages (-tags e2e builds only):
 //  - SSH workspace with 500 saved connections (sidebar list and the server overview),
-//  - the Settings dialog, every category in turn,
-//  - the embedded browser with several tabs (harness-served pages), switching between them.
+//  - the Settings dialog, every category in turn.
 import router from "@/router";
 import type { SmokeConfig } from "@/domain/e2e/desktop-smoke";
 import type { SshConnectionProfile } from "@/domain/ssh/types";

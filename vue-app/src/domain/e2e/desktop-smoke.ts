@@ -17,13 +17,9 @@ export interface SmokeConfig {
   sqlSafety?: { filePath: string };
   /** Upload source, download destination and the exact byte size (needs the ssh fixture). */
   sftpTransfers?: { uploadPath: string; downloadPath: string; size: number };
-  /** Disposable Go module; gopls must be installed on the harness PATH. */
-  lsp?: { projectRoot: string };
-  largeText?: { filePath: string };
   perfDatabase?: { filePath: string; table: string; rows: number; columns: number; extraTables?: number; redis?: { port: number; keys: number } };
   perfAi?: { turns: number };
-  perfPages?: { sshProfiles: number; browserUrls: string[] };
-  perfGit?: { repoRoot: string; modified: number; untracked: number; historyCommits?: number };
+  perfPages?: { sshProfiles: number };
   perfSessions?: { projects: number; sessionsPerProject: number; longTitle: string; longMessages: number; expandProjects?: number };
   perfRemote?: {
     remoteDir: string; remoteFiles: number; localLines: number; sshLines: number; uploadFolder?: string; uploadFiles?: number; only?: "typing";
@@ -31,16 +27,6 @@ export interface SmokeConfig {
     laggySsh?: { port: number };
   };
   perfHttp?: { baseUrl: string; bodies: { label: string; path: string; marker: string }[] };
-  perf?: { projectRoot: string; fileCount: number; bigFile: string; bigFileLines: number; bigPlainFile?: string; smallFiles: string[]; terminalLines: number; only?: "pages" };
-  /** A repository with one staged file and an OpenAI-compatible endpoint: silent, then a 45 s reasoning model, then silent. */
-  gitAiCommit?: { repoRoot: string; baseUrl: string; apiKey: string; model: string; answer: string };
-  browser?: {
-    firstUrl: string;
-    secondUrl: string;
-    errorUrl: string;
-    /** macOS browser-use pages (popup/opener, dialogs, forms, article, files); absent on Windows runs of older harnesses. */
-    use?: { openerUrl: string; formsUrl: string; articleUrl: string; filesUrl: string; downloadName: string };
-  };
   ai?: { baseUrl: string; model: string; apiKey: string; expectedText: string; slowPrompt: string };
 }
 
@@ -112,8 +98,7 @@ export function parseSmokeConfig(value: unknown): SmokeConfig {
   }
   if (config.scenarios.includes("perf-pages")) {
     const pages = record(raw.perfPages);
-    const browserUrls = Array.isArray(pages?.browserUrls) ? pages!.browserUrls.map((item, index) => text(item, `perfPages.browserUrls[${index}]`)) : [];
-    config.perfPages = { sshProfiles: Number(pages?.sshProfiles) || 0, browserUrls };
+    config.perfPages = { sshProfiles: Number(pages?.sshProfiles) || 0 };
   }
   if (config.scenarios.includes("perf-sessions")) {
     const sessions = record(raw.perfSessions);

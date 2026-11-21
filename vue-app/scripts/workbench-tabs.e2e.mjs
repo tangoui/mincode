@@ -1,12 +1,9 @@
-// Opt-in headless Chrome smoke test for the workbench tab commands (phase 6; browser preview, no IPC
+// Opt-in headless Chrome smoke test for the workbench tab commands (browser preview, no IPC
 // runtime). Not part of run-tests.mjs (needs a Vite dev server and Chrome). Run from vue-app/:
 //   node scripts/workbench-tabs.e2e.mjs
-// CHROME_PATH overrides the browser binary. Opens two workbench tabs, then under the MinCode preset presses
-// Ctrl+Tab (next tab) and ⌘W/Ctrl+W (close tab); switches to the official VS Code preset (registered from
-// official-plugins/keymaps) and presses ⌥⌘→/Ctrl+PageDown (next tab), ⇧⌘T/Ctrl+Shift+T (reopen closed) and
-// ⌘W/Ctrl+W again.
+// CHROME_PATH overrides the browser binary. Opens two workbench tabs, then under the MinCode preset
+// presses Ctrl+Tab (next tab) and ⌘W/Ctrl+W (close tab).
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -45,21 +42,6 @@ async function waitForHttp(url, timeout = 60000) {
     await sleep(250);
   }
   throw new Error(`timeout waiting for ${url}`);
-}
-
-/** The official VS Code preset and its plugin id, read from the declarative keymap plugin package. */
-function officialVsCodePreset() {
-  const root = fileURLToPath(new URL("../../official-plugins/", import.meta.url));
-  for (const name of readdirSync(root)) {
-    const manifestPath = join(root, name, "plugin.json");
-    if (!existsSync(manifestPath)) continue;
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    for (const item of manifest.contributes?.keymaps ?? []) {
-      const preset = typeof item?.path === "string" ? JSON.parse(readFileSync(join(root, name, item.path), "utf8")) : item;
-      if (preset?.id?.endsWith(".vscode")) return { pluginId: manifest.id, preset };
-    }
-  }
-  throw new Error("official VS Code keymap preset not found");
 }
 
 const vitePort = await freePort();
@@ -135,9 +117,6 @@ async function run() {
   const KEYS = {
     Tab: { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 },
     W: { key: "w", code: "KeyW", windowsVirtualKeyCode: 87 },
-    T: { key: "t", code: "KeyT", windowsVirtualKeyCode: 84 },
-    ArrowRight: { key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 },
-    PageDown: { key: "PageDown", code: "PageDown", windowsVirtualKeyCode: 34 },
   };
   const press = async (key, modifiers) => {
     // Keys go to the document body: blur whatever the app focused so the workbench (not an editor) is the target.
@@ -172,8 +151,8 @@ async function run() {
     };
     workbench.openView('http');
     await router.push({ name: 'http' });
-    workbench.openView('plugins');
-    await router.push({ name: 'plugins' });
+    workbench.openView('notes');
+    await router.push({ name: 'notes' });
     return true;
   })()`);
   for (let attempt = 0; ; attempt += 1) {
@@ -183,53 +162,21 @@ async function run() {
     if (await evaluate(`!!window.__tabsE2E`)) break;
     if (attempt >= 4) throw new Error("page kept reloading during setup");
   }
-  await waitFor(`window.__tabsE2E.ids().length >= 2 && window.__tabsE2E.route() === 'plugins'`, "two workbench tabs");
-  let { ids, active } = await snapshot();
+  await waitFor(`window.__tabsE2E.ids().length >= 2 && window.__tabsE2E.route() === 'notes'`, "two workbench tabs");
+  const { ids, active } = await snapshot();
   step(`opened tabs: ${ids.join(", ")} (active ${active})`);
 
   // MinCode preset (default).
   await waitFor(`window.__tabsE2E.keybindings.presetId === 'mincode'`, "MinCode preset active");
-  let expected = nextOf(ids, active);
+  const expected = nextOf(ids, active);
   await press(KEYS.Tab, 2);
   await waitFor(`window.__tabsE2E.active() === ${JSON.stringify(expected)}`, "MinCode Ctrl+Tab → next tab");
   step(`MinCode Ctrl+Tab selected ${expected}`);
 
-  let closing = expected;
+  const closing = expected;
   await press(KEYS.W, MOD);
   await waitFor(`!window.__tabsE2E.ids().includes(${JSON.stringify(closing)})`, `MinCode ${mac ? "⌘W" : "Ctrl+W"} → close tab`);
   step(`MinCode ${mac ? "⌘W" : "Ctrl+W"} closed ${closing}`);
-
-  // VS Code preset from the official declarative keymap plugin.
-  const { pluginId, preset } = officialVsCodePreset();
-  await evaluate(`(async () => {
-    const { registerKeymapPreset } = await import('/src/domain/keybindings/preset.ts');
-    try {
-      registerKeymapPreset(${JSON.stringify(preset)}, { source: 'plugin', pluginId: ${JSON.stringify(pluginId)} });
-    } catch (error) {
-      // Already registered by the keymap plugin service.
-      if (!String(error).includes('built in')) console.debug(error);
-    }
-    window.__tabsE2E.keybindings.setPreset(${JSON.stringify(preset.id)});
-    return true;
-  })()`);
-  await waitFor(`window.__tabsE2E.keybindings.presetId === ${JSON.stringify(preset.id)}`, "VS Code preset active");
-  step(`switched to ${preset.id}`);
-
-  await press(KEYS.T, MOD | 8);
-  await waitFor(`window.__tabsE2E.ids().includes(${JSON.stringify(closing)})`, `VS Code ${mac ? "⇧⌘T" : "Ctrl+Shift+T"} → reopen closed tab`);
-  step(`VS Code ${mac ? "⇧⌘T" : "Ctrl+Shift+T"} reopened ${closing}`);
-
-  ({ ids, active } = await snapshot());
-  expected = nextOf(ids, active);
-  if (mac) await press(KEYS.ArrowRight, 1 | 4);
-  else await press(KEYS.PageDown, 2);
-  await waitFor(`window.__tabsE2E.active() === ${JSON.stringify(expected)}`, "VS Code next tab");
-  step(`VS Code ${mac ? "⌥⌘→" : "Ctrl+PageDown"} selected ${expected}`);
-
-  closing = expected;
-  await press(KEYS.W, MOD);
-  await waitFor(`!window.__tabsE2E.ids().includes(${JSON.stringify(closing)})`, "VS Code close tab");
-  step(`VS Code ${mac ? "⌘W" : "Ctrl+W"} closed ${closing}`);
 
   if (errors.length) throw new Error(`uncaught page errors:\n${errors.join("\n")}`);
 }

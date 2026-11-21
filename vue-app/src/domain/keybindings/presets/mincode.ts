@@ -18,16 +18,6 @@ export const HOST_KEYBINDING_RULES: readonly KeymapPresetRule[] = [
   { key: "mod+c", command: "ai:copy-message", when: "text.selection && ai.message.selection" },
 ];
 
-/**
- * Debugger keys of the MinCode preset (IntelliJ IDEA's, minus Run / Debug /
- * Stop, which only the IntelliJ keymap binds). Stepping keys apply only
- * during a debug session: without one, F8 / ⇧F8 / ⌥F8 keep Monaco's problem
- * navigation (the Monaco mirror falls back to the shadowed editor command).
- * The handlers' own `when` keeps every debug key away from a focused terminal.
- */
-const DEBUG_RULES: KeymapPresetRule[] = [
-];
-
 const TAB_RULES: KeymapPresetRule[] = Array.from({ length: 9 }, (_, index) => ({
   key: `mod+${index + 1}`,
   command: `workbench:tab-${index + 1}`,
@@ -70,6 +60,5 @@ export const MINCODE_PRESET: KeymapPresetData = {
     { key: "ctrl+pageup", command: "terminal:prev-tab", when: "terminal.focus", platform: ["win", "linux"] },
     { key: "cmd+shift+]", command: "terminal:next-tab", when: "terminal.focus", platform: "mac" },
     { key: "ctrl+pagedown", command: "terminal:next-tab", when: "terminal.focus", platform: ["win", "linux"] },
-    ...DEBUG_RULES,
   ],
 };

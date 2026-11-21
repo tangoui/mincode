@@ -297,8 +297,6 @@ func waitOrDump(t *testing.T, app *automation.App, win *automation.Window, cond 
 	}
 	state := win.EvalString(`JSON.stringify({
 		activeTabs: [...document.querySelectorAll("[class*=tab][class*=active], [aria-selected=true]")].map((n) => n.innerText.trim()).filter(Boolean).slice(0, 8),
-		projectView: !!document.querySelector(".project-editor-pane, .project-workspace"),
-
 		text: document.body.innerText.slice(0, 800),
 		notices: [...document.querySelectorAll(".el-notification, .el-message, [class*=notification-item]")].map((n) => n.innerText).slice(0, 10),
 	})`)

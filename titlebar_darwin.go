@@ -4,6 +4,7 @@ package main
 #cgo CFLAGS: -x objective-c
 #cgo LDFLAGS: -framework Cocoa
 #import <Cocoa/Cocoa.h>
+#include <stdint.h>
 
 static void alignTitleBar(NSWindow *window, CGFloat centerY) {
 	if ((window.styleMask & NSWindowStyleMaskFullScreen) != 0) return;
@@ -29,7 +30,7 @@ static void alignTitleBar(NSWindow *window, CGFloat centerY) {
 	}
 }
 
-static void scheduleAlignTitleBar(void *nativeWindow, CGFloat centerY) {
+static void scheduleAlignTitleBar(uintptr_t nativeWindow, CGFloat centerY) {
 	NSWindow *window = (NSWindow *)nativeWindow;
 	dispatch_async(dispatch_get_main_queue(), ^{ alignTitleBar(window, centerY); });
 }
@@ -38,7 +39,6 @@ import "C"
 
 import (
 	"encoding/json"
-	"unsafe"
 
 	"github.com/tangoui/tango"
 	"github.com/tangoui/tango/ipc"
@@ -79,7 +79,7 @@ func alignMainTitleBar(app *tango.App, router *ipc.Router, surface *tango.Surfac
 	align := func() {
 		if centerY > 0 {
 			if window := surface.Native(); window != 0 {
-				C.scheduleAlignTitleBar(unsafe.Pointer(window), C.CGFloat(centerY))
+				C.scheduleAlignTitleBar(C.uintptr_t(window), C.CGFloat(centerY))
 			}
 		}
 	}

@@ -234,24 +234,3 @@ test("the keymap service applies one global rule set and disposes the previous o
   }
   assert.doesNotMatch(service, /addEventListener\("keydown"/);
 });
-
-test("MinCode: debugger F-keys are mirrored with a runtime debug.active check and give the key back to Monaco", () => {
-  for (const platform of PLATFORMS) {
-    const result = build("mincode", platform);
-    const cases = [
-      ["f8", "project:debug.stepOver", "editor.action.marker.nextInFiles"],
-      ["shift+f8", "project:debug.stepOut", "editor.action.marker.prevInFiles"],
-      ["alt+f8", "project:debug.evaluate", "editor.action.marker.next"],
-      ["f7", "project:debug.stepInto", undefined],
-      ["shift+f7", "project:debug.smartStepInto", undefined],
-      ["alt+f9", "project:debug.runToCursor", undefined],
-    ];
-    for (const [text, id, fallback] of cases) {
-      const rule = winner(result, key(text, platform), { kind: "project" });
-      assert.equal(rule.command, MONACO_APP_COMMAND, `${platform} ${text}`);
-      assert.deepEqual(rule.commandArgs, { id, when: "debug.active", ...(fallback ? { fallback } : {}) }, `${platform} ${text}`);
-    }
-    const toggle = winner(result, key("mod+f8", platform), { kind: "project" });
-    assert.deepEqual(toggle.commandArgs, { id: "project:debug.toggleBreakpoint" }, platform);
-  }
-});

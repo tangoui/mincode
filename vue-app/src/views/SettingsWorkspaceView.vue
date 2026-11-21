@@ -140,11 +140,6 @@ import {
   persistSettingsSnapshot,
   readSettingsSnapshot,
 } from "@/services/settings-persistence";
-import {
-  aiSettingsExternalRevision,
-  externallySyncedSettingsLists,
-  registerSettingsFlush,
-} from "@/services/ai-external-sync";
 import { saveTextFileToDisk } from "@/services/file-download";
 import {
   DEFAULT_WORKSPACE_CACHE_LIMIT,
@@ -301,7 +296,7 @@ interface VueSettings extends RuntimePerformanceSettings {
   editorCustomTheme: CustomEditorTheme;
 }
 
-const props = defineProps<{ modelValue: boolean; initialCategory?: Category; initialPluginId?: string }>();
+const props = defineProps<{ modelValue: boolean; initialCategory?: Category }>();
 const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
 const fullscreen = ref(false);
 const importInput = ref<HTMLInputElement>();
@@ -823,27 +818,6 @@ async function updateSidebarVisibility(id: SidebarItemId, visible: boolean) {
 }
 watch(settings, schedulePersist, { deep: true });
 watch(locale, schedulePersist);
-// A plugin sync (services/ai-external-sync.ts) first saves this page's pending
-// edits so it merges them, then publishes the AI lists it wrote. Take those
-// lists (not the snapshot, which a save of ours during the sync may have
-// overwritten) and save at once, keeping any other edits. Before hydration
-// there is nothing to replace: hydrateSettings reads the new snapshot.
-async function flushPendingPersist() {
-  await nextTick();
-  if (!settingsHydrated.value || !persistTimer) return;
-  clearTimeout(persistTimer);
-  persistTimer = undefined;
-  await persistSettingsSnapshot({ ...settings, locale: locale.value });
-}
-onBeforeUnmount(registerSettingsFlush(flushPendingPersist));
-watch(aiSettingsExternalRevision, () => {
-  const lists = externallySyncedSettingsLists();
-  if (!settingsHydrated.value || !lists) return;
-  const external = normalizeSettings(lists as unknown as Partial<VueSettings>);
-  settings.aiProfiles = external.aiProfiles;
-  settings.mcpServers = external.mcpServers;
-  persist();
-});
 watch(aiApprovalMode, (mode) => {
   approvalMode.value = mode;
 }, { immediate: true });

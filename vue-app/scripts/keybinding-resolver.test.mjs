@@ -158,9 +158,9 @@ test("MinCode preset with host rules keeps panel keys scoped", () => {
     const truthy = clause.op === "" ? Boolean(value) : (clause.op === "==") === (value === clause.value);
     return clause.negate ? !truthy : truthy;
   });
-  const copy = lookupKeybinding(resolution, chords("cmd+c"), context({ "tree.selection": true }));
-  assert.equal(copy.binding.command, "project:copy-node");
-  assert.equal(lookupKeybinding(resolution, chords("cmd+c"), context({ "tree.selection": true, "text.selection": true })).kind, "none");
+  const copy = lookupKeybinding(resolution, chords("cmd+c"), context({ "ai.message.selection": true, "text.selection": true }));
+  assert.equal(copy.binding.command, "ai:copy-message");
+  assert.equal(lookupKeybinding(resolution, chords("cmd+c"), context({ "text.selection": true })).kind, "none");
   const palette = lookupKeybinding(resolution, chords("cmd+k"), context({}));
   assert.equal(palette.binding.command, "builtin:command-palette");
 });
@@ -169,12 +169,12 @@ test("narrower overrides that win are not conflicts; shadowed ones are", () => {
   const conflicts = (rules, host = []) =>
     findKeybindingConflicts(resolveKeybindings({ platform: "mac", presets: [preset(rules)], host }).bindings).map((c) => [c.first.command, c.second.command]);
   // Panel-scoped host rule after a preset's global binding: intended override.
-  assert.deepEqual(conflicts([{ key: "mod+shift+f", command: "builtin:find-in-files" }], [{ key: "mod+shift+f", command: "ai:search-conversations", when: "ai.panel.focus" }]), []);
+  assert.deepEqual(conflicts([{ key: "mod+shift+f", command: "builtin:search-everywhere" }], [{ key: "mod+shift+f", command: "ai:search-conversations", when: "ai.panel.focus" }]), []);
   // The narrow binding is earlier, so the global one always wins: real conflict.
   assert.deepEqual(conflicts([
     { key: "mod+shift+f", command: "ai:search-conversations", when: "ai.panel.focus" },
-    { key: "mod+shift+f", command: "builtin:find-in-files" },
-  ]), [["ai:search-conversations", "builtin:find-in-files"]]);
+    { key: "mod+shift+f", command: "builtin:search-everywhere" },
+  ]), [["ai:search-conversations", "builtin:search-everywhere"]]);
   // Terminal commands scoped to terminal focus run before the window dispatcher.
   assert.deepEqual(conflicts([
     { key: "mod+k mod+s", command: "builtin:keybindings" },
@@ -227,7 +227,7 @@ test("the built-in preset have no conflicts on any platform", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Debugger keys
+// Monaco defaults
 // ---------------------------------------------------------------------------
 
 /** The resolution the keybindings store builds for a preset (pruned Monaco defaults + host rules). */
@@ -254,41 +254,13 @@ const lookupIn = (resolution, key, platform, values) => {
   return hit.kind === "execute" ? hit.binding.command : null;
 };
 
-test("F8 resolves to project:debug.stepOver when debug.active", () => {
-  for (const platform of ["mac", "win", "linux"]) {
-    const resolution = storeResolution("mincode", platform);
-    const session = { "debug.active": true };
-    // The host rule wins over Monaco's F8 default even with the editor focused.
-    assert.equal(lookupIn(resolution, "f8", platform, { ...session, "editor.focus": true }), "project:debug.stepOver", platform);
-    assert.equal(lookupIn(resolution, "f8", platform, session), "project:debug.stepOver", platform);
-    assert.equal(lookupIn(resolution, "f7", platform, session), "project:debug.stepInto", platform);
-    assert.equal(lookupIn(resolution, "shift+f7", platform, session), "project:debug.smartStepInto", platform);
-    assert.equal(lookupIn(resolution, "shift+f8", platform, { ...session, "editor.focus": true }), "project:debug.stepOut", platform);
-    assert.equal(lookupIn(resolution, "alt+f9", platform, session), "project:debug.runToCursor", platform);
-    assert.equal(lookupIn(resolution, "alt+f8", platform, session), "project:debug.evaluate", platform);
-    assert.equal(lookupIn(resolution, platform === "mac" ? "cmd+alt+r" : "f9", platform, session), "project:debug.resume", platform);
-  }
-});
-
-test("F8 falls back to marker.nextInFiles without a session", () => {
+test("F8 and Shift+F8 keep Monaco problem navigation", () => {
   for (const platform of ["mac", "win", "linux"]) {
     const resolution = storeResolution("mincode", platform);
     assert.equal(lookupIn(resolution, "f8", platform, { "editor.focus": true }), "editor:editor.action.marker.nextInFiles", platform);
     assert.equal(lookupIn(resolution, "shift+f8", platform, { "editor.focus": true }), "editor:editor.action.marker.prevInFiles", platform);
     for (const key of ["f8", "f7", "shift+f7", "shift+f8", "alt+f9", "alt+f8", platform === "mac" ? "cmd+alt+r" : "f9"]) {
       assert.equal(lookupIn(resolution, key, platform, {}), null, `${platform} ${key}`);
-    }
-  }
-});
-
-test("mod+f8 toggles breakpoint without a session", () => {
-  for (const platform of ["mac", "win", "linux"]) {
-    const resolution = storeResolution("mincode", platform);
-    assert.equal(lookupIn(resolution, "mod+f8", platform, {}), "project:debug.toggleBreakpoint", platform);
-    assert.equal(lookupIn(resolution, "mod+f8", platform, { "editor.focus": true }), "project:debug.toggleBreakpoint", platform);
-    // Run / Debug / Stop stay out of the MinCode default preset.
-    for (const command of ["project:debug.run", "project:debug.debug", "project:debug.stop"]) {
-      assert.deepEqual(bindingsForCommand(resolution, command), [], `${platform} ${command}`);
     }
   }
 });
@@ -300,14 +272,14 @@ test("a state-scoped binding over a Monaco default is layering, a focus-only one
       presets: [preset([rule])],
       defaults: [{ key: "f8", command: "editor:editor.action.marker.nextInFiles" }],
     }).bindings).map((c) => [c.first.command, c.second.command]);
-  assert.deepEqual(conflicts({ key: "f8", command: "project:debug.stepOver", when: "debug.active" }), []);
-  assert.deepEqual(conflicts({ key: "f8", command: "project:debug.stepOver", when: "!input.focus" }), [["editor:editor.action.marker.nextInFiles", "project:debug.stepOver"]]);
-  assert.deepEqual(conflicts({ key: "f8", command: "project:debug.stepOver" }), [["editor:editor.action.marker.nextInFiles", "project:debug.stepOver"]]);
+  assert.deepEqual(conflicts({ key: "f8", command: "ai:stop", when: "ai.running" }), []);
+  assert.deepEqual(conflicts({ key: "f8", command: "ai:stop", when: "!input.focus" }), [["editor:editor.action.marker.nextInFiles", "ai:stop"]]);
+  assert.deepEqual(conflicts({ key: "f8", command: "ai:stop" }), [["editor:editor.action.marker.nextInFiles", "ai:stop"]]);
   // A chord default has no Monaco fallback: a state-scoped prefix key would eat it, so it stays a conflict.
   const prefix = findKeybindingConflicts(resolveKeybindings({
     platform: "mac",
-    presets: [preset([{ key: "mod+k", command: "project:debug.stepOver", when: "debug.active" }])],
+    presets: [preset([{ key: "mod+k", command: "ai:stop", when: "ai.running" }])],
     defaults: [{ key: "mod+k mod+c", command: "editor:editor.action.commentLine" }],
   }).bindings).map((c) => [c.kind, c.first.command, c.second.command]);
-  assert.deepEqual(prefix, [["prefix", "editor:editor.action.commentLine", "project:debug.stepOver"]]);
+  assert.deepEqual(prefix, [["prefix", "editor:editor.action.commentLine", "ai:stop"]]);
 });
