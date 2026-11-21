@@ -3,7 +3,6 @@ package ai
 import (
 	"encoding/json"
 	"testing"
-	"time"
 )
 
 func decodeResponseFixture(t *testing.T, payload string) map[string]json.RawMessage {
@@ -100,34 +99,9 @@ func TestExtractOpenAIChatAcceptsStringAndPartsContent(t *testing.T) {
 	}
 }
 
-// 提交信息不能沿用内联补全那个 160 的小预算：推理模型的思考 token 也计入输出上限。
-func TestCommitMessageBudgetExceedsInlineBudget(t *testing.T) {
-	if commitMessageOutputTokens <= inlineCompletionOutputTokens {
-		t.Fatalf("提交信息预算 %d 必须大于内联补全预算 %d",
-			commitMessageOutputTokens, inlineCompletionOutputTokens)
-	}
+func TestConfiguredOutputTokensPrefersExplicitLimit(t *testing.T) {
 	config := &aiStreamConfig{MaxOutputTokens: 4096}
-	if got := configuredOutputTokens(config, commitMessageOutputTokens); got != 4096 {
-		t.Fatalf("用户显式配置的上限必须优先: %d", got)
-	}
-}
-
-func TestCommitMessageConfigCapsShortTaskBudget(t *testing.T) {
-	config := commitMessageConfig(aiStreamConfig{MaxOutputTokens: 4096})
-	if config.MaxOutputTokens != commitMessageOutputTokens {
-		t.Fatalf("提交信息输出预算未收口: %d", config.MaxOutputTokens)
-	}
-	smaller := commitMessageConfig(aiStreamConfig{MaxOutputTokens: 512})
-	if smaller.MaxOutputTokens != 512 {
-		t.Fatalf("用户设置的更小预算应保留: %d", smaller.MaxOutputTokens)
-	}
-}
-
-func TestCommitMessageRequestHasShortTimeout(t *testing.T) {
-	if commitMessageRequestTimeout != 90*time.Second {
-		t.Fatalf("提交信息请求超时应为 90 秒，实际为 %s", commitMessageRequestTimeout)
-	}
-	if commitMessageRequestTimeout >= aiHTTPClient().Timeout {
-		t.Fatalf("提交信息请求必须比通用非流式请求更早超时")
+	if got := configuredOutputTokens(config, inlineCompletionOutputTokens); got != 4096 {
+		t.Fatalf("configuredOutputTokens = %d, want 4096", got)
 	}
 }

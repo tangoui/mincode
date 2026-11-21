@@ -21,7 +21,6 @@ export const BACKEND_COMMANDS = [
   "agent_run_start",
   "agent_run_update",
   "ai_complete_inline",
-  "ai_generate_commit_message",
   "ai_list_models",
   "ai_store_delete_conversation",
   "ai_store_list_workspaces",
