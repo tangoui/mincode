@@ -23,7 +23,7 @@ import (
 
 const (
 	ManifestURL = "https://github.com/tangoui/mincode/releases/latest/download/latest.json"
-	AppID       = "com.tangoui.mincode"
+	AppID       = core.AppID
 	progress    = "app-update:progress"
 )
 
@@ -69,7 +69,7 @@ func newUpdater() (*tangoupdater.Updater, error) {
 		PublicKey:   strings.TrimSpace(ManifestPublicKey),
 		Version:     misc.AppVersion,
 		AppID:       AppID,
-		StateDir:    filepath.Join(dataDir, AppID, "updates"),
+		StateDir:    filepath.Join(dataDir, core.AppDataNamespace, "updates"),
 		Platform:    runtime.GOOS + "-" + runtime.GOARCH,
 	}, nil
 }

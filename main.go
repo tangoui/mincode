@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -52,16 +54,33 @@ var trayIconDark []byte
 
 const appID = updater.AppID
 
-// appIdentity 是应用名和 ID。测试可用 MINCODE_APP_NAME / MINCODE_APP_ID 换一套身份：
-// tango 按应用名给 WebView 的本地存储分目录（macOS 为 ~/Library/WebKit/<名字>），按 ID
-// 做单实例与窗口几何，换了身份的进程与平时运行的 MinCode 互不影响（e2e/ 用它隔离）。
+// appIdentity chooses the native identity. macOS WebKit falls back to the
+// process name for a bare executable, so use the build namespace in that case.
+// Packaged apps use the bundle ID and keep their display name.
 func appIdentity() (name, id string) {
 	name, id = "MinCode", appID
-	if v := os.Getenv("MINCODE_APP_NAME"); v != "" {
-		name = v
+	if runtime.GOOS == "darwin" {
+		exe, _ := os.Executable()
+		binaryDir := filepath.Dir(exe)
+		contents := filepath.Dir(binaryDir)
+		bundle := filepath.Dir(contents)
+		if filepath.Base(binaryDir) != "MacOS" || filepath.Base(contents) != "Contents" || filepath.Ext(bundle) != ".app" {
+			name = core.AppDataNamespace
+		}
+	}
+	appNameOverride := os.Getenv("MINCODE_APP_NAME")
+	dataOverride := core.UserDataDirOverride()
+	if override := appNameOverride; override != "" && !strings.EqualFold(override, "MinCode") {
+		name = override
+	} else if dataOverride != "" && runtime.GOOS == "darwin" {
+		hash := sha256.Sum256([]byte(dataOverride))
+		name = fmt.Sprintf("%s.e2e.%x", core.AppDataNamespace, hash[:8])
 	}
 	if v := os.Getenv("MINCODE_APP_ID"); v != "" {
 		id = v
+	} else if appNameOverride != "" || dataOverride != "" {
+		hash := sha256.Sum256([]byte(appNameOverride + "\x00" + dataOverride))
+		id = fmt.Sprintf("%s.e2e.%x", appID, hash[:8])
 	}
 	return name, id
 }

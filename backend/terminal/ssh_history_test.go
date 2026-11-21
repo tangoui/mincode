@@ -71,7 +71,7 @@ func TestSSHHistoryLimit(t *testing.T) {
 	}
 }
 
-func TestSSHHistoryPathCollisionAndMigration(t *testing.T) {
+func TestSSHHistoryIgnoresLegacyMinCodeDirectory(t *testing.T) {
 	root := t.TempDir()
 	p := sshHistoryPayload{ProfileID: "a", Host: "h", Port: 22, Username: "u"}
 	conflict := filepath.Join(root, "mincode")
@@ -101,8 +101,8 @@ func TestSSHHistoryPathCollisionAndMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := readSSHHistory(path)
-	if err != nil || got.Enabled || len(got.Entries) != 1 || !got.Entries[0].Favorite {
-		t.Fatalf("migration: %+v %v", got, err)
+	if err != nil || !got.Enabled || len(got.Entries) != 0 {
+		t.Fatalf("legacy history leaked into the open-source namespace: %+v %v", got, err)
 	}
 	if _, err := os.Stat(old); err != nil {
 		t.Fatal("legacy removed")

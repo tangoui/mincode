@@ -53,9 +53,6 @@ function customPerformancePatch(patch: Partial<RuntimePerformanceSettings>) {
 
 // 0 表示不限制，数值展示统一转为「不限制」文案。
 
-function formatPerformanceSeconds(value: number) {
-  return value <= 0 ? t("settings.performanceUnlimited") : `${value}s`;
-}
 function formatPerformanceMiB(value: number) {
   return value <= 0 ? t("settings.performanceUnlimited") : `${value} MiB`;
 }
@@ -187,39 +184,6 @@ const themeOptions: Array<{ value: UiTheme; labelKey: MessageKey }> = [
       </el-select>
     </div>
     <template v-if="settings.performanceProfile === 'custom'">
-      <div class="settings-slider-row">
-        <strong>{{ t("settings.lspIdleStop") }}</strong>
-        <el-slider
-          :model-value="settings.lspIdleStopSeconds"
-          :min="RUNTIME_PERFORMANCE_LIMITS.lspIdleStopSeconds.min"
-          :max="RUNTIME_PERFORMANCE_LIMITS.lspIdleStopSeconds.max"
-          :step="30"
-          @update:model-value="customPerformancePatch({ lspIdleStopSeconds: $event as number })"
-        />
-        <b>{{ formatPerformanceSeconds(settings.lspIdleStopSeconds) }}</b>
-      </div>
-      <div class="settings-slider-row">
-        <strong>{{ t("settings.lspAuxiliaryIdleStop") }}</strong>
-        <el-slider
-          :model-value="settings.lspAuxiliaryIdleStopSeconds"
-          :min="RUNTIME_PERFORMANCE_LIMITS.lspAuxiliaryIdleStopSeconds.min"
-          :max="RUNTIME_PERFORMANCE_LIMITS.lspAuxiliaryIdleStopSeconds.max"
-          :step="30"
-          @update:model-value="customPerformancePatch({ lspAuxiliaryIdleStopSeconds: $event as number })"
-        />
-        <b>{{ formatPerformanceSeconds(settings.lspAuxiliaryIdleStopSeconds) }}</b>
-      </div>
-      <div class="settings-slider-row">
-        <strong>{{ t("settings.lspBackgroundStop") }}</strong>
-        <el-slider
-          :model-value="settings.lspBackgroundStopSeconds"
-          :min="RUNTIME_PERFORMANCE_LIMITS.lspBackgroundStopSeconds.min"
-          :max="RUNTIME_PERFORMANCE_LIMITS.lspBackgroundStopSeconds.max"
-          :step="30"
-          @update:model-value="customPerformancePatch({ lspBackgroundStopSeconds: $event as number })"
-        />
-        <b>{{ formatPerformanceSeconds(settings.lspBackgroundStopSeconds) }}</b>
-      </div>
       <div class="settings-slider-row">
         <strong>{{ t("settings.aiInactiveCacheCount") }}</strong>
         <el-slider

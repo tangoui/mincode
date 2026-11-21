@@ -24,7 +24,42 @@ func useUsageRoots(t *testing.T) (dataRoot, cacheRoot string) {
 	userDataDir = func() string { return filepath.Join(base, "data") }
 	userCacheDir = func() (string, error) { return filepath.Join(base, "cache"), nil }
 	t.Cleanup(func() { userDataDir, userCacheDir = prevData, prevCache })
-	return filepath.Join(base, "data", appDataDirectory), filepath.Join(base, "cache", "MinCode")
+	return filepath.Join(base, "data", appDataDirectory), filepath.Join(base, "cache", appDataDirectory)
+}
+
+func TestCollectDataUsageIsolatesCache(t *testing.T) {
+	dataRoot, cacheRoot := useUsageRoots(t)
+	writeUsageFile(t, filepath.Join(filepath.Dir(cacheRoot), "MinCode", "commercial-cache"), 100)
+	writeUsageFile(t, filepath.Join(cacheRoot, "oss-cache"), 7)
+	for _, tc := range []struct {
+		name, dataOverride, want string
+		bytes                    int64
+	}{
+		{"", "", cacheRoot, 7},
+		{"OssE2E", "", cacheRoot + "-OssE2E", 0},
+		{"OssE2E", filepath.Dir(dataRoot), filepath.Join(filepath.Dir(dataRoot), "cache", appDataDirectory), 0},
+		{"MinCode", "", cacheRoot + "-MinCode", 0},
+	} {
+		t.Setenv("MINCODE_APP_NAME", tc.name)
+		t.Setenv("MINCODE_DATA_DIR", tc.dataOverride)
+		usage, err := CollectDataUsage(context.Background())
+		if err != nil || usage.CacheRoot != tc.want || usage.TotalBytes != tc.bytes {
+			t.Errorf("name=%q override=%q: usage=%+v err=%v, want cache %q with %d bytes", tc.name, tc.dataOverride, usage, err, tc.want, tc.bytes)
+		}
+	}
+}
+
+func TestCollectDataUsageOmitsRemovedCategories(t *testing.T) {
+	useUsageRoots(t)
+	usage, err := CollectDataUsage(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"plugins", "pluginData", "configSync", "externalMcp", "browser", "agentWorktrees"} {
+		if _, ok := usageByID(t, usage)[id]; ok {
+			t.Errorf("unexpected storage category %q", id)
+		}
+	}
 }
 
 func usageByID(t *testing.T, usage DataUsage) map[string]DataUsageItem {
@@ -45,7 +80,7 @@ func TestCollectDataUsageGroupsEntriesAndSumsToTotal(t *testing.T) {
 	writeUsageFile(t, filepath.Join(dataRoot, "terminal-activity", "x.json"), 7)
 	writeUsageFile(t, filepath.Join(dataRoot, "notes-assets", "a.png"), 11)
 	writeUsageFile(t, filepath.Join(dataRoot, ".key_salt"), 3)
-	writeUsageFile(t, filepath.Join(cacheRoot, "updates", "1.0", "pkg.zip"), 40)
+	writeUsageFile(t, filepath.Join(dataRoot, "updates", "1.0", "pkg.zip"), 40)
 	writeUsageFile(t, filepath.Join(cacheRoot, "misc.tmp"), 5)
 
 	usage, err := CollectDataUsage(context.Background())
@@ -61,12 +96,10 @@ func TestCollectDataUsageGroupsEntriesAndSumsToTotal(t *testing.T) {
 		path         string
 	}{
 		"database":   {150, 2, filepath.Join(dataRoot, databaseFileName)},
-		"plugins":    {50, 2, filepath.Join(dataRoot, "plugins")},
 		"terminal":   {7, 1, filepath.Join(dataRoot, "terminal-activity")},
 		"notes":      {11, 1, filepath.Join(dataRoot, "notes-assets")},
-		"other":      {3, 1, dataRoot},
-		"pluginData": {0, 0, dataRoot},
-		"updates":    {40, 1, filepath.Join(cacheRoot, "updates")},
+		"other":      {53, 3, dataRoot},
+		"updates":    {40, 1, filepath.Join(dataRoot, "updates")},
 		"cacheOther": {5, 1, cacheRoot},
 	}
 	for id, want := range cases {
@@ -75,10 +108,10 @@ func TestCollectDataUsageGroupsEntriesAndSumsToTotal(t *testing.T) {
 			t.Errorf("%s = %+v, want bytes=%d files=%d path=%s", id, got, want.bytes, want.files, want.path)
 		}
 	}
-	if byID["pluginData"].Exists || !byID["plugins"].Exists {
+	if !byID["other"].Exists || !byID["updates"].Exists {
 		t.Errorf("exists flags wrong: %+v", byID)
 	}
-	if byID["updates"].Group != "cache" || byID["database"].Group != "data" {
+	if byID["cacheOther"].Group != "cache" || byID["database"].Group != "data" {
 		t.Errorf("groups wrong: %+v", byID)
 	}
 	if usage.TotalBytes != 266 {
@@ -106,16 +139,16 @@ func TestCollectDataUsageDoesNotFollowSymlinks(t *testing.T) {
 	dataRoot, _ := useUsageRoots(t)
 	outside := filepath.Join(t.TempDir(), "big.bin")
 	writeUsageFile(t, outside, 4096)
-	writeUsageFile(t, filepath.Join(dataRoot, "plugins", "a.js"), 10)
-	if err := os.Symlink(filepath.Dir(outside), filepath.Join(dataRoot, "plugins", "link")); err != nil {
+	writeUsageFile(t, filepath.Join(dataRoot, "notes-assets", "a.png"), 10)
+	if err := os.Symlink(filepath.Dir(outside), filepath.Join(dataRoot, "notes-assets", "link")); err != nil {
 		t.Skip("symlinks unavailable:", err)
 	}
 	usage, err := CollectDataUsage(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := usageByID(t, usage)["plugins"].Bytes; got >= 4096 {
-		t.Fatalf("plugins bytes = %d, symlink target was counted", got)
+	if got := usageByID(t, usage)["notes"].Bytes; got >= 4096 {
+		t.Fatalf("notes bytes = %d, symlink target was counted", got)
 	}
 }
 

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"mincode/app/backend/core"
+
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -187,7 +189,7 @@ func backupRedis(ctx context.Context, a *backupArchive, s *dbSession, target Bac
 	return a.object(target.Database, "keys", "redis-dump-base64", func(out *backupArchiveStream) error {
 		// SCAN may repeat keys. Record identities are deduplicated in a private
 		// disk-backed SQLite set, so backup memory does not grow with key count.
-		file, err := os.CreateTemp("", "mincode-redis-backup-*.sqlite")
+		file, err := os.CreateTemp("", core.AppDataNamespace+"-redis-backup-*.sqlite")
 		if err != nil {
 			return err
 		}

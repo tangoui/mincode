@@ -277,7 +277,6 @@ export function parseConfigImport(
     else skippedKeys.push(key);
   }
 
-  // 只含插件数据的文件没有应用配置，由调用方在确认插件数据存在后放行。
   if (!Object.keys(values).length && !options.allowEmpty) throw new Error(invalidMessage);
   return {
     includesSecrets:

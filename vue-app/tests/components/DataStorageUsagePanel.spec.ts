@@ -17,13 +17,13 @@ vi.mock("@/services/desktop-bridge", () => ({
 import DataStorageUsagePanel from "@/components/settings/DataStorageUsagePanel.vue";
 
 const usage: DataUsage = {
-  dataRoot: "/Users/me/Library/Application Support/com.mincode.desktop",
-  cacheRoot: "/Users/me/Library/Caches/MinCode",
+  dataRoot: "/Users/me/Library/Application Support/com.tangoui.mincode",
+  cacheRoot: "/Users/me/Library/Caches/com.tangoui.mincode",
   totalBytes: 5 * 1024 * 1024 + 2048,
   items: [
-    { id: "database", group: "data", path: "/Users/me/Library/Application Support/com.mincode.desktop/mincode.sqlite3", bytes: 5 * 1024 * 1024, files: 3, exists: true },
-    { id: "pluginData", group: "data", path: "/Users/me/Library/Application Support/com.mincode.desktop", bytes: 0, files: 0, exists: false },
-    { id: "updates", group: "cache", path: "/Users/me/Library/Caches/MinCode/updates", bytes: 2048, files: 1, exists: true },
+    { id: "database", group: "data", path: "/Users/me/Library/Application Support/com.tangoui.mincode/mincode.sqlite3", bytes: 5 * 1024 * 1024, files: 3, exists: true },
+    { id: "notes", group: "data", path: "/Users/me/Library/Application Support/com.tangoui.mincode", bytes: 0, files: 0, exists: false },
+    { id: "cacheOther", group: "cache", path: "/Users/me/Library/Caches/com.tangoui.mincode", bytes: 2048, files: 1, exists: true },
   ],
 };
 
@@ -56,12 +56,12 @@ describe("storage details panel", () => {
     expect(wrapper.text()).toContain(usage.cacheRoot);
     expect(wrapper.find('[data-item="database"]').text()).toContain("5.0 MB");
     expect(wrapper.find('[data-item="database"]').text()).toContain("3 个文件");
-    expect(wrapper.find('[data-item="pluginData"]').text()).toContain("无");
-    expect(wrapper.find('[data-item="pluginData"] button').attributes("disabled")).toBeDefined();
+    expect(wrapper.find('[data-item="notes"]').text()).toContain("无");
+    expect(wrapper.find('[data-item="notes"] button').attributes("disabled")).toBeDefined();
 
     await wrapper.find('[data-group="data"] .settings-data-usage__group-head button').trigger("click");
     expect(bridge.invoke).toHaveBeenLastCalledWith("local_fs_show_in_file_manager", { path: usage.dataRoot, select: true });
-    await wrapper.find('[data-item="updates"] button').trigger("click");
+    await wrapper.find('[data-item="cacheOther"] button').trigger("click");
     expect(bridge.invoke).toHaveBeenLastCalledWith("local_fs_show_in_file_manager", { path: usage.items[2].path, select: true });
 
     await applySavedLocale("en");

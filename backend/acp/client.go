@@ -302,7 +302,7 @@ func (c *bridgeClient) WriteTextFile(ctx context.Context, p acpsdk.WriteTextFile
 	} else if !os.IsNotExist(statErr) {
 		return acpsdk.WriteTextFileResponse{}, fmt.Errorf("inspect text file: %w", statErr)
 	}
-	temp, err := os.CreateTemp(dir, ".mincode-acp-*.tmp")
+	temp, err := os.CreateTemp(dir, "."+core.AppDataNamespace+"-acp-*.tmp")
 	if err != nil {
 		return acpsdk.WriteTextFileResponse{}, fmt.Errorf("create temporary text file: %w", err)
 	}

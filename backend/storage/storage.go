@@ -21,6 +21,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const appDataDirectory = core.AppDataNamespace
+
 const (
 	databaseFileName = "mincode.sqlite3"
 	schemaVersion    = 1

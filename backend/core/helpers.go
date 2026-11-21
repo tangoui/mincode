@@ -198,14 +198,23 @@ func readMachineID() string {
 // MinCode. Unset or relative, the platform directory below is used.
 const userDataDirEnv = "MINCODE_DATA_DIR"
 
+const AppID = "com.tangoui.mincode"
+
+func UserDataDirOverride() string {
+	if dir := os.Getenv(userDataDirEnv); filepath.IsAbs(dir) {
+		return filepath.Clean(dir)
+	}
+	return ""
+}
+
 // UserDataDir 返回平台数据目录（对齐 Rust dirs::data_dir）：
 //
 //	macOS   => ~/Library/Application Support
 //	Linux   => $XDG_DATA_HOME 或 ~/.local/share
 //	Windows => %APPDATA%
 func UserDataDir() string {
-	if dir := os.Getenv(userDataDirEnv); dir != "" && filepath.IsAbs(dir) {
-		return filepath.Clean(dir)
+	if dir := UserDataDirOverride(); dir != "" {
+		return dir
 	}
 	switch runtime.GOOS {
 	case "darwin":

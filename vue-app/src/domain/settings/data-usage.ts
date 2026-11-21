@@ -27,13 +27,9 @@ export interface DataUsageGroup {
 const ITEM_LABELS: Record<string, MessageKey> = {
   database: "settings.data.usage.item.database",
   notes: "settings.data.usage.item.notes",
-  plugins: "settings.data.usage.item.plugins",
-  pluginData: "settings.data.usage.item.pluginData",
   terminal: "settings.data.usage.item.terminal",
   other: "settings.data.usage.item.other",
   updates: "settings.data.usage.item.updates",
-  agentWorktrees: "settings.data.usage.item.agentWorktrees",
-  browser: "settings.data.usage.item.browser",
   cacheOther: "settings.data.usage.item.cacheOther",
 };
 

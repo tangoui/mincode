@@ -12,28 +12,32 @@ import (
 )
 
 // 设置页“存储明细”按类别统计应用数据占用。类别按顶层条目名归类，
-// 未识别的条目（密钥、会话凭据等小文件）计入 other，保证各项之和等于总量。
+// 未识别的条目计入 other，保证各项之和等于总量。
 var usageCategories = []struct {
 	id    string
 	match func(name string) bool
 }{
 	{"database", func(name string) bool { return strings.HasPrefix(name, databaseFileName) }},
 	{"notes", func(name string) bool { return name == "notes-assets" }},
-	{"plugins", func(name string) bool { return name == "plugins" }},
-	{"pluginData", func(name string) bool { return name == "plugin-storage" || name == "plugin-development.json" }},
 	{"terminal", func(name string) bool { return name == "terminal-activity" || name == "ssh-command-history" }},
-	{"configSync", func(name string) bool { return name == "config-sync" }},
-	{"externalMcp", func(name string) bool { return name == "external-mcp" }},
-}
-
-// 缓存目录（os.UserCacheDir()/MinCode）下的已知子目录，其余计入 cacheOther。
-var cacheCategories = map[string]string{
-	"updates":         "updates",
-	"agent-worktrees": "agentWorktrees",
-	"EmbeddedBrowser": "browser",
+	{"updates", func(name string) bool { return name == "updates" }},
 }
 
 var userCacheDir = os.UserCacheDir
+
+func appCacheRoot() string {
+	if override := core.UserDataDirOverride(); override != "" {
+		return filepath.Join(override, "cache", appDataDirectory)
+	}
+	base, err := userCacheDir()
+	if err != nil || base == "" {
+		return ""
+	}
+	if name := os.Getenv("MINCODE_APP_NAME"); filepath.IsLocal(name) && filepath.Base(name) == name && name != "." {
+		return filepath.Join(base, appDataDirectory+"-"+name)
+	}
+	return filepath.Join(base, appDataDirectory)
+}
 
 // DataUsageItem 是一个类别的占用。Path 为该类别最具代表性的位置：单一条目时指向它，
 // 多个条目或兜底类别时指向所在目录。
@@ -85,14 +89,11 @@ func CollectDataUsage(ctx context.Context) (DataUsage, error) {
 	}
 	usage.Items = append(usage.Items, dataItems...)
 
-	if cacheBase, err := userCacheDir(); err == nil && cacheBase != "" {
-		usage.CacheRoot = filepath.Join(cacheBase, "MinCode")
-		cacheItems, err := collectGroup(ctx, usage.CacheRoot, "cache", func(name string) string {
-			if id, ok := cacheCategories[name]; ok {
-				return id
-			}
+	usage.CacheRoot = appCacheRoot()
+	if usage.CacheRoot != "" {
+		cacheItems, err := collectGroup(ctx, usage.CacheRoot, "cache", func(string) string {
 			return "cacheOther"
-		}, []string{"updates", "agentWorktrees", "browser", "cacheOther"}, "cacheOther")
+		}, []string{"cacheOther"}, "cacheOther")
 		if err != nil {
 			return DataUsage{}, err
 		}

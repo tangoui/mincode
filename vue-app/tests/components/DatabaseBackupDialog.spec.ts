@@ -49,7 +49,7 @@ describe("backup dialog capability", () => {
   });
   it("shows a translated reason and blocks saving when the engine cannot be backed up", async () => {
     await openEditor(capability({ supported: false, reason: "pluginNoStream", limitations: [], scope: "table" }));
-    expect(document.body.textContent).toContain("未提供原生备份流");
+    expect(document.body.textContent).toContain("当前驱动无法完整导出数据库");
     const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(b => b.textContent?.includes("保存"));
     expect(save?.disabled).toBe(true);
   });

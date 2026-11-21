@@ -43,8 +43,8 @@ func ensureLocalAgentDefaultDirectory(dataDir string) (string, error) {
 	}
 	defer root.Close()
 
-	path := filepath.Join("MinCode", "agent-workspace")
-	for _, name := range []string{"MinCode", path} {
+	path := filepath.Join(core.AppDataNamespace, "agent-workspace")
+	for _, name := range []string{core.AppDataNamespace, path} {
 		if err := root.Mkdir(name, 0700); err != nil && !errors.Is(err, os.ErrExist) {
 			return "", fmt.Errorf("create default agent directory: %w", err)
 		}

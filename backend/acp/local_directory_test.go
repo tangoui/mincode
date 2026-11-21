@@ -44,7 +44,7 @@ func TestCheckLocalAgentDirectory(t *testing.T) {
 
 func TestEnsureLocalAgentDefaultDirectory(t *testing.T) {
 	dir := t.TempDir()
-	want := filepath.Join(dir, "MinCode", "agent-workspace")
+	want := filepath.Join(dir, core.AppDataNamespace, "agent-workspace")
 	for range 2 {
 		got, err := ensureLocalAgentDefaultDirectory(dir)
 		if got != want || err != nil {
@@ -56,7 +56,7 @@ func TestEnsureLocalAgentDefaultDirectory(t *testing.T) {
 	}
 
 	blockedDir := t.TempDir()
-	blocked := filepath.Join(blockedDir, "MinCode", "agent-workspace")
+	blocked := filepath.Join(blockedDir, core.AppDataNamespace, "agent-workspace")
 	if err := os.MkdirAll(filepath.Dir(blocked), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestLocalAgentTransportCloseDisconnectsServer(t *testing.T) {
 
 func TestEnsureLocalAgentDefaultDirectoryRejectsSymlinks(t *testing.T) {
 	outside := t.TempDir()
-	for _, name := range []string{"MinCode", filepath.Join("MinCode", "agent-workspace")} {
+	for _, name := range []string{core.AppDataNamespace, filepath.Join(core.AppDataNamespace, "agent-workspace")} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			link := filepath.Join(root, name)

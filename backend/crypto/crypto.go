@@ -435,5 +435,5 @@ func saltPath() string {
 	if dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, "com.tangoui.mincode", ".key_salt")
+	return filepath.Join(dir, core.AppID, ".key_salt")
 }
