@@ -23,11 +23,10 @@ function assertWriteCapability(source, name) {
 }
 
 test("AI capabilities that change workspace state require write approval", async () => {
-  const [database, redis, http, workspace] = await Promise.all([
+  const [database, redis, http] = await Promise.all([
     toolSource("database-tools.ts"),
     toolSource("redis-tools.ts"),
     toolSource("http-tools.ts"),
-    toolSource("workspace-tools.ts"),
   ]);
 
   for (const name of [
@@ -42,9 +41,6 @@ test("AI capabilities that change workspace state require write approval", async
     "http.open_saved_request",
     "http.open_history_item",
   ]) assertWriteCapability(http, name);
-  for (const name of ["workspace.select_saved_project", "workspace.open_project_file"]) {
-    assertWriteCapability(workspace, name);
-  }
 });
 
 test("HTTP environment capabilities declare every handler-required identifier", async () => {

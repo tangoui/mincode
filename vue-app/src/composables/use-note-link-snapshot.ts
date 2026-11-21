@@ -20,7 +20,6 @@ import {
 } from "@/stores/ai-assistant-shell";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
 import { useHttpResourcesStore } from "@/stores/http-resources";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
 import { useWorkbenchStore } from "@/stores/workbench";
 
@@ -110,7 +109,6 @@ export function useLinkObjectSnapshot(): ComputedRef<LinkObjectSnapshot> {
   const ssh = useSshConnectionsStore();
   const database = useDatabaseWorkspaceStore();
   const http = useHttpResourcesStore();
-  const projects = useLocalProjectStore();
   const workspaceScope = useWorkspaceStateScope();
   const workbench = useWorkbenchStore();
   const aiShell = useAiAssistantShellStore();
@@ -155,12 +153,6 @@ export function useLinkObjectSnapshot(): ComputedRef<LinkObjectSnapshot> {
       if (!workspaceNames.has(scopeId)) workspaceNames.set(scopeId, workspace.name);
     }
 
-    const otherWorkspaceProjects = new Map<string, string[]>();
-    for (const [scopeId, roots] of projects.rootsByOtherWorkspace()) {
-      // 已删除（可恢复）的工作区不算「其他工作区」。
-      if (scopeId !== currentScopeId && liveScopeIds.has(scopeId)) otherWorkspaceProjects.set(scopeId, roots);
-    }
-    if (!projects.hydrated) unavailable.add("project");
     if (!ssh.hydrated) unavailable.add("ssh");
     // 只看已保存连接列表的加载结果；database.loading / error 也会因单次查询而变化。
     if (database.connectionsStatus !== "ready") unavailable.add("database");
@@ -186,8 +178,8 @@ export function useLinkObjectSnapshot(): ComputedRef<LinkObjectSnapshot> {
       database: new Map(database.connections.map((connection) => [connection.id, connection.name])),
       http: httpNames,
       httpCollections,
-      currentProjects: new Map(projects.projects.map((entry) => [entry.root, entry.name])),
-      otherWorkspaceProjects,
+      currentProjects: new Map(),
+      otherWorkspaceProjects: new Map(),
       currentAi,
       currentScopeId,
       liveScopeIds,
@@ -243,8 +235,6 @@ export async function openLinkTarget(link: NoteLink, snapshot: LinkObjectSnapsho
         await openView(router, "ssh");
         return;
       case "project":
-        await openView(router, "projects");
-        await requestAiWorkspaceAction("projects", { action: "select", root: link.objectId });
         return;
       case "database":
         await openView(router, "database");

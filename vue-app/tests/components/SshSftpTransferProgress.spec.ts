@@ -27,7 +27,7 @@ vi.mock("@/services/desktop-bridge", () => ({
   },
 }));
 // The editor and plugin menu integrations do not participate in file transfers.
-vi.mock("@/components/projects/MonacoTextEditor.vue", () => ({ default: { template: "<div />" } }));
+vi.mock("@/components/ui/MonacoTextEditor.vue", () => ({ default: { template: "<div />" } }));
 vi.mock("@/components/plugins/PluginMenuItems.vue", () => ({ default: { template: "<div />" } }));
 vi.mock("@/components/plugins/PluginServiceMenuItems.vue", () => ({ default: { template: "<div />" } }));
 vi.mock("@/stores/ssh-connections", () => ({

@@ -125,16 +125,12 @@ const HANDLER_OWNERS = {
   "terminal:next-tab": ["view", "views/TerminalWorkspaceView.vue"],
   "terminal:prev-tab": ["view", "views/TerminalWorkspaceView.vue"],
   "builtin:command-palette": ["startup", "composables/use-app-commands.ts"],
-  "builtin:quick-open": ["startup", "composables/use-app-commands.ts"],
   "builtin:search-everywhere": ["startup", "composables/use-app-commands.ts"],
-  "builtin:find-in-files": ["startup", "composables/use-app-commands.ts"],
-  "builtin:recent-files": ["startup", "composables/use-app-commands.ts"],
   "builtin:settings": ["startup", "composables/use-app-commands.ts"],
   "builtin:keybindings": ["startup", "composables/use-app-commands.ts"],
   "builtin:ai": ["startup", "composables/use-app-commands.ts"],
   "builtin:lock-app": ["startup", "composables/use-app-commands.ts"],
   "workbench:toggle-sidebar": ["view", "composables/use-active-view-commands.ts"],
-  "workbench:show-view.source-control": ["startup", "composables/use-workbench-tab-commands.ts"],
   "workbench:show-view.terminal": ["startup", "composables/use-workbench-tab-commands.ts"],
   "workbench:show-view.plugins": ["startup", "composables/use-workbench-tab-commands.ts"],
   "workbench:new-terminal": ["startup", "composables/use-workbench-tab-commands.ts"],
@@ -143,27 +139,6 @@ const HANDLER_OWNERS = {
   "workbench:reopen-closed": ["startup", "composables/use-workbench-tab-commands.ts"],
   "workbench:next-tab": ["startup", "composables/use-workbench-tab-commands.ts"],
   "workbench:prev-tab": ["startup", "composables/use-workbench-tab-commands.ts"],
-  ...Object.fromEntries(
-    Array.from({ length: 9 }, (_, index) => [`workbench:tab-${index + 1}`, ["startup", "composables/use-workbench-tab-commands.ts"]]),
-  ),
-  "editor:save": ["editor", "domain/keybindings/monaco-keymap-rules.ts"],
-  "editor:save-all": ["view", "views/ProjectWorkspaceView.vue"],
-  "database:run-query": ["editor", "domain/keybindings/monaco-keymap-rules.ts"],
-  "database:submit-grid-changes": ["view", "views/DatabaseWorkspaceView.vue"],
-  "ai:new-conversation": ["view", "components/ai/AiAssistantDrawer.vue"],
-  "ai:search-conversations": ["view", "components/ai/AiAssistantDrawer.vue"],
-  "ai:previous-conversation": ["view", "components/ai/AiAssistantDrawer.vue"],
-  "ai:next-conversation": ["view", "components/ai/AiAssistantDrawer.vue"],
-  "ai:stop": ["view", "components/ai/AiAssistantDrawer.vue"],
-  "ai:copy-message": ["view", "components/ai/AiAssistantDrawer.vue"],
-  "project:copy-node": ["view", "views/ProjectWorkspaceView.vue"],
-  "project:paste-node": ["view", "views/ProjectWorkspaceView.vue"],
-  ...Object.fromEntries(
-    ["stepOver", "stepInto", "smartStepInto", "stepOut", "runToCursor", "resume", "evaluate", "toggleBreakpoint", "run", "debug", "stop"].map((name) => [
-      `project:debug.${name}`,
-      ["view", "composables/use-debug-commands.ts"],
-    ]),
-  ),
 };
 
 test("every available app command in the catalog has a registered handler", async () => {
@@ -222,7 +197,6 @@ test("startup and view registrations are wired into their owners", async () => {
     assert.match(viewCommands, new RegExp(`${hook}\\(`), hook);
   }
   for (const view of [
-    "views/ProjectWorkspaceView.vue",
     "views/DatabaseWorkspaceView.vue",
     "views/HttpWorkspaceView.vue",
     "views/SshWorkspaceView.vue",
@@ -230,9 +204,5 @@ test("startup and view registrations are wired into their owners", async () => {
   ]) {
     assert.match(await read(view), /useToggleSidebarCommand\(/, view);
   }
-  const project = await read("views/ProjectWorkspaceView.vue");
-  assert.match(project, /registerDocumentTabHost\(\{/);
-  assert.match(project, /useActiveViewCommands\(\(\) => \[/);
-  assert.match(project, /useDebugCommands\(\{/);
   assert.match(await read("composables/use-debug-commands.ts"), /useActiveViewCommands\(\(\) => registerDebugCommands\(options\)\)/);
 });

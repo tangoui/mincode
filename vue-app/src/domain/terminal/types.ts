@@ -171,18 +171,6 @@ export function inheritSplitCwd(
   return cwd ? { ...options, initialCwd: cwd } : options;
 }
 
-/**
- * 新建终端标签页时落在工作区绑定的 worktree 目录。
- * 仅用于全新标签页：分屏应继承同级 Pane 的实时目录，套用工作区根会把用户弹回仓库顶层。
- */
-export function withWorkspaceCwd(
-  options: LocalTerminalPaneOptions,
-  worktreePath: string | undefined
-): LocalTerminalPaneOptions {
-  if (options.initialCwd) return options;
-  const cwd = worktreePath?.trim();
-  return cwd ? { ...options, initialCwd: cwd } : options;
-}
 
 export function isSshTerminalPane(node: TerminalPaneNode): node is SshTerminalPane {
   return node.type === "ssh";

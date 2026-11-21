@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { ElScrollbar } from "element-plus";
-import MarkdownPreview from "@/components/projects/MarkdownPreview.vue";
+import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
 import {
   presentAiAgentEventDetail,
   type AiAgentEventDetailPresentation,

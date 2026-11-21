@@ -16,7 +16,6 @@
     "test:components": "vue-tsc -p tsconfig.vitest.json --noEmit --incremental false && node scripts/vitest.mjs run",
     "ci": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:components && pnpm run build && pnpm run check:bundle",
     "test:command-palette": "node --experimental-strip-types --import ./scripts/ts-resolve.mjs --test scripts/command-palette.test.mjs scripts/command-shortcuts.test.mjs scripts/command-when.test.mjs",
-    "test:project-workspaces": "node --experimental-strip-types --test scripts/project-workspace-persistence.test.mjs scripts/project-file-icon.test.mjs scripts/project-paths.test.mjs scripts/project-editor-language.test.mjs scripts/ai-project-context.test.mjs",
     "test:workspace-state-scope": "node scripts/workspace-state-scope.test.mjs",
     "test:http-resources": "node --experimental-strip-types --test scripts/http-resources.test.mjs",
     "test:database-table-search": "node --experimental-strip-types --test scripts/database-table-search.test.mjs scripts/database-charset-change.test.mjs",

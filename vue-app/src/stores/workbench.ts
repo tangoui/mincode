@@ -6,7 +6,6 @@ import type {
   WorkspaceDefinition,
   WorkspaceTab,
   WorkspaceView,
-  WorkspaceWorktreeBinding,
 } from "@/types/workspace";
 import {
   DEFAULT_WORKSPACE_ID,
@@ -16,7 +15,6 @@ import {
   isTransientTab,
   normalizeWorkbenchSession,
   normalizeWorkspaces,
-  normalizeWorktreeBinding,
   pluginViewTabId,
   prependDeletedWorkspace,
   serviceResultTabId,
@@ -76,9 +74,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   );
   const activeTab = computed(() => tabs.value.find((tab) => tab.id === activeTabId.value));
   const activeTabPopupLabel = computed(() => poppedOutTabLabels.value[activeTabId.value]);
-  const activeWorktree = computed(() => activeWorkspace.value?.worktree);
-  /** 已绑定 worktree 时作为该工作区的默认工作目录；未绑定返回空串，由调用方回退。 */
-  const activeWorktreePath = computed(() => activeWorktree.value?.worktreePath ?? "");
 
   function tabId(view: WorkspaceView) {
     return `${activeWorkspaceId.value}:${view}`;
@@ -396,44 +391,21 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     return next;
   }
 
-  function createWorkspace(name: string, worktree?: WorkspaceWorktreeBinding) {
+  function createWorkspace(name: string) {
     const trimmed = name.trim();
     if (!trimmed) return undefined;
     if (!admitWorkspace()) return undefined;
     const timestamp = now();
-    const binding = normalizeWorktreeBinding(worktree);
     const workspace: WorkspaceDefinition = {
       id: createId("workspace"),
       name: trimmed,
       createdAt: timestamp,
       updatedAt: timestamp,
-      ...(binding ? { worktree: binding } : {}),
     };
     workspaces.value.push(workspace);
     activeWorkspaceId.value = workspace.id;
     activeTabId.value = "";
     return workspace;
-  }
-
-  function setWorkspaceWorktree(id: string, worktree: WorkspaceWorktreeBinding) {
-    const workspace = workspaces.value.find((item) => item.id === id);
-    const binding = normalizeWorktreeBinding(worktree);
-    if (!workspace || !binding) return false;
-    workspace.worktree = binding;
-    workspace.updatedAt = now();
-    return true;
-  }
-
-  function clearWorkspaceWorktree(id: string) {
-    const workspace = workspaces.value.find((item) => item.id === id);
-    if (!workspace?.worktree) return false;
-    delete workspace.worktree;
-    workspace.updatedAt = now();
-    return true;
-  }
-
-  function workspaceWorktree(id: string) {
-    return workspaces.value.find((item) => item.id === id)?.worktree;
   }
 
   function renameWorkspace(id: string, name: string) {
@@ -602,11 +574,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     flushPersistence,
     activeTabPopupLabel,
     poppedOutTabLabels,
-    activeWorktree,
-    activeWorktreePath,
-    setWorkspaceWorktree,
-    clearWorkspaceWorktree,
-    workspaceWorktree,
     openView,
     openPluginView,
     openServiceResult,

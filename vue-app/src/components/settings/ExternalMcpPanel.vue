@@ -3,13 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { Check, CopyDocument } from "@element-plus/icons-vue";
 import { useVueI18n } from "@/i18n/messages";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { disableExternalMcp, enableExternalMcp, externalMcpState, getExternalMcpClientExecutable, refreshExternalMcp } from "@/services/external-mcp-service";
 import { copyText, isDesktopRuntime, nativeErrorMessage } from "@/services/desktop-bridge";
 
 const { t } = useVueI18n();
-const projects = useLocalProjectStore();
-const count = computed(() => projects.projects.length);
+const count = 0;
 const executable = ref("");
 const transient = ref(false);
 const executableLoading = ref(false);

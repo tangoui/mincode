@@ -1,26 +1,21 @@
 import { h } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessageBox } from "element-plus";
 import router from "@/router";
-import { enqueueProjectFiles } from "@/services/external-file-open";
 import { useVueI18n } from "@/i18n/messages";
 import { openPluginViewTab } from "@/domain/workspace/open-plugin-view";
 import {
   parsePluginDiffOpen,
-  parsePluginEditorOpen,
-  parsePluginProjectOpen,
   parsePluginTerminalOpen,
   parsePluginViewOpen,
   promptEventId,
   type PluginTerminalOpenRequest,
 } from "@/domain/plugins/host-ui";
 import type { PluginPrompt, PromptAnswer } from "@/domain/plugins/host-prompts";
-import { requestAiWorkspaceAction } from "@/services/ai-workspace-actions";
 import { openPluginViewWithRequest } from "@/services/plugin-view-open-requests";
 import { listPluginViews } from "@/services/plugin-service";
 import { localizedPluginTitle } from "@/services/plugin-titles";
 import { invokeBackend, isDesktopRuntime, listenAppEvent } from "@/services/desktop-bridge";
 import { usePluginHostUiStore } from "@/stores/plugin-host-ui";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import { useWorkbenchStore } from "@/stores/workbench";
 
@@ -33,8 +28,6 @@ export function installPluginHostUiBridge(): () => void {
   if (!isDesktopRuntime()) return () => undefined;
   const store = usePluginHostUiStore();
   const stops = [
-    listenAppEvent("plugin:project-open", (event) => void openProject(event)),
-    listenAppEvent("plugin:editor-open", (event) => void openEditor(event)),
     listenAppEvent("plugin:view-open", (event) => void openView(event)),
     listenAppEvent("plugin:diff-open", (event) => {
       const diff = parsePluginDiffOpen(event);
@@ -127,34 +120,6 @@ export async function answerBackupDialog(
   await answer(...args);
 }
 
-async function openEditor(event: unknown) {
-  const request = parsePluginEditorOpen(event);
-  if (!request) return;
-  // Files open through a saved Local Project; the root is the one the
-  // frontend announced to the plugin host (see plugin-host-events.ts).
-  const project = useLocalProjectStore();
-  const saved = project.projects.some((entry) => entry.root === request.root);
-  if (!saved) {
-    const { t } = useVueI18n();
-    ElMessage.warning({ message: t("pluginHostUi.editorNotInProject", { plugin: request.pluginName }), grouping: true, showClose: true });
-    return;
-  }
-  useWorkbenchStore().openView("projects");
-  await router.push({ name: "projects" });
-  try {
-    await requestAiWorkspaceAction("projects", {
-      action: "open-file",
-      path: request.path,
-      projectRoot: request.root,
-      ...(request.line ? { line: request.line } : {}),
-      ...(request.column ? { column: request.column } : {}),
-    });
-  } catch {
-    const { t } = useVueI18n();
-    ElMessage.warning({ message: t("pluginHostUi.editorOpenFailed", { plugin: request.pluginName }), grouping: true, showClose: true });
-  }
-}
-
 async function openView(event: unknown) {
   const request = parsePluginViewOpen(event);
   if (!request) return;
@@ -199,26 +164,4 @@ async function openTerminal(request: PluginTerminalOpenRequest) {
     ...(command ? { initialCommand: command } : {}),
   });
   await router.push({ name: "terminal" });
-}
-
-async function openProject(event: unknown) {
-  const request = parsePluginProjectOpen(event);
-  if (!request) return;
-  const { t } = useVueI18n();
-  try {
-    await ElMessageBox.confirm(
-      h("div", { style: "white-space: pre-wrap; overflow-wrap: anywhere" }, t("pluginHostUi.projectConfirmBody", { plugin: request.pluginName, path: request.path })),
-      t("pluginHostUi.projectConfirmTitle"), { type: "warning", autofocus: false },
-    );
-  } catch { return; }
-  try {
-    // Revalidate after confirmation; the directory may have disappeared.
-    const info = await invokeBackend<{ path: string; kind: string }>("local_fs_inspect_external_file", { path: request.path });
-    if (info.kind !== "directory" || info.path !== request.path) throw new Error("project directory changed");
-    if (!useWorkbenchStore().openView("projects")) return;
-    enqueueProjectFiles([info.path]);
-    await router.push({ name: "projects" });
-  } catch {
-    ElMessage.error(t("pluginHostUi.projectOpenFailed"));
-  }
 }

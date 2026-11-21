@@ -5,7 +5,7 @@ import test from "node:test";
 const [threadSource, bubbleSource, previewSource, drawerSource] = await Promise.all([
   readFile(new URL("../src/components/ai/AiMessageThread.vue", import.meta.url), "utf8"),
   readFile(new URL("../src/components/ai/AiMessageBubble.vue", import.meta.url), "utf8"),
-  readFile(new URL("../src/components/projects/MarkdownPreview.vue", import.meta.url), "utf8"),
+  readFile(new URL("../src/components/ui/MarkdownPreview.vue", import.meta.url), "utf8"),
   readFile(new URL("../src/components/ai/AiAssistantDrawer.vue", import.meta.url), "utf8"),
 ]);
 

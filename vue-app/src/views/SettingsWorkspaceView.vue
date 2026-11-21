@@ -253,7 +253,7 @@ import {
 } from "@/stores/ai-conversation-preferences";
 
 // Monaco is several MB; load it only when one of the JSON/Skill editor dialogs opens.
-const MonacoTextEditor = defineAsyncComponent(() => import("@/components/projects/MonacoTextEditor.vue"));
+const MonacoTextEditor = defineAsyncComponent(() => import("@/components/ui/MonacoTextEditor.vue"));
 // The keybinding table (resolver, presets, recorder) loads only when the shortcuts page opens.
 const KeybindingSettingsPanel = defineAsyncComponent(() => import("@/components/settings/KeybindingSettingsPanel.vue"));
 // Plugin settings (contributes.configuration) load only when the plugins page opens.

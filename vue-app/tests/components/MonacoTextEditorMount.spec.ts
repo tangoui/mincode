@@ -22,7 +22,7 @@ vi.mock("@/services/monaco-formatters", () => ({ formatProjectModelOnSave: vi.fn
 vi.mock("@/services/monaco-keymap", () => ({ ensureMonacoKeymap() {}, registerMonacoEditor: () => fixture.disposable }));
 vi.mock("@/services/monaco-languages", () => ({ detectMonacoEditorLanguage: () => "typescript", PLUGIN_LANGUAGES_CHANGED_EVENT: "fixture-languages" }));
 vi.mock("@/services/ui-theme", () => ({ readStoredUiTheme: () => "light", resolveMonacoEditorTheme: () => "vs", UI_THEME_CHANGED_EVENT: "fixture-theme" }));
-import MonacoTextEditor from "@/components/projects/MonacoTextEditor.vue";
+import MonacoTextEditor from "@/components/ui/MonacoTextEditor.vue";
 
 const preferences = { fontSize: 15, tabSize: 4, wordWrap: "on" as const, minimap: false, lineNumbers: "relative" as const, stickyScroll: false };
 let wrapper: VueWrapper | undefined;

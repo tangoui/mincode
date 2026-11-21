@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onDeactivated, ref, shallowRef, watch } from "vue";
 import { ElMessage, ElMessageBox, type ScrollbarInstance } from "element-plus";
-import MonacoTextEditor from "@/components/projects/MonacoTextEditor.vue";
+import MonacoTextEditor from "@/components/ui/MonacoTextEditor.vue";
 import SftpTransferPanel from "@/components/sftp/SftpTransferPanel.vue";
 import { useSftpTransferQueue } from "@/composables/useSftpTransferQueue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";

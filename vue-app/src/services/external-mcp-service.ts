@@ -1,5 +1,4 @@
 import { reactive, readonly, watch } from "vue";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useWorkbenchStore } from "@/stores/workbench";
 import { useWorkspaceStatePreferencesStore } from "@/stores/workspace-state-preferences";
 import { useWorkspaceStateScope } from "@/composables/use-workspace-state-scope";
@@ -34,13 +33,11 @@ function requireDesktop() {
 function currentScope(): { key: string; projects: Project[] } {
   const workbench = useWorkbenchStore();
   const preferences = useWorkspaceStatePreferencesStore();
-  const local = useLocalProjectStore();
-  if (!workbench.hydrated || !preferences.hydrated || !local.hydrated) {
+  if (!workbench.hydrated || !preferences.hydrated) {
     throw new Error("Workspace projects are not ready");
   }
   const scopeId = useWorkspaceStateScope().scopeId.value;
-  if (local.activeWorkspaceId !== scopeId) throw new Error("Workspace projects are changing");
-  const projects = local.projects.map(({ name, root }) => ({ name, root }));
+  const projects: Project[] = [];
   return { key: JSON.stringify([scopeId, projects]), projects };
 }
 
@@ -132,13 +129,11 @@ export function startExternalMcpScopeSync(): () => void {
   const workbench = useWorkbenchStore();
   const preferences = useWorkspaceStatePreferencesStore();
   const workspaceScope = useWorkspaceStateScope();
-  const local = useLocalProjectStore();
   let previous = "";
   let revision = 0;
   stopWatching = watch(
-    () => [state.status?.enabled, workbench.hydrated, preferences.hydrated, local.hydrated,
-      workspaceScope.scopeId.value, workbench.activeWorkspaceId, local.activeWorkspaceId,
-      JSON.stringify(local.projects.map(({ name, root }) => ({ name, root })))].join("\u0000"),
+    () => [state.status?.enabled, workbench.hydrated, preferences.hydrated,
+      workspaceScope.scopeId.value, workbench.activeWorkspaceId].join("\u0000"),
     () => {
       const changed = ++revision;
       void serial(async () => {

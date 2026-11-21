@@ -95,12 +95,6 @@ vi.mock("@/services/desktop-bridge", () => ({
   copyText: vi.fn(),
   readText: vi.fn(),
 }));
-vi.mock("@/services/debug-service", () => ({
-  attachTerminal: (id: string) => {
-    native.calls.push(`attach:${id}`);
-    return native.attach(id);
-  },
-}));
 
 import LocalTerminal from "@/components/terminal/LocalTerminal.vue";
 
@@ -146,7 +140,7 @@ const ID = "debug-s1-1";
 async function mountPane(props: Record<string, unknown>, errorHandler?: (error: unknown) => void) {
   wrapper = mount(LocalTerminal, {
     global: { config: { errorHandler } },
-    props: { sessionId: ID, attachOnlySessionId: ID, canSplit: false, keepAliveOnUnmount: false, ...props },
+    props: { sessionId: ID, canSplit: false, keepAliveOnUnmount: false, ...props },
   });
   await flushPromises();
   return wrapper;
@@ -292,7 +286,7 @@ describe("LocalTerminal in a terminal tab", () => {
     wrapper = mount(defineComponent({
       setup: () => () => h(KeepAlive, null, {
         default: () => shown.value
-          ? h(LocalTerminal, { sessionId: ID, attachOnlySessionId: ID, active: false, visible: true })
+          ? h(LocalTerminal, { sessionId: ID, active: false, visible: true })
           : null,
       }),
     }));

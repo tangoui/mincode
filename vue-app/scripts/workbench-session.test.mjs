@@ -3,9 +3,7 @@ import test from "node:test";
 import {
   DEFAULT_WORKSPACE_ID,
   WORKBENCH_SESSION_VERSION,
-  defaultWorktreePath,
   normalizeWorkbenchSession,
-  normalizeWorktreeBinding,
   prependDeletedWorkspace,
 } from "../src/domain/workspace/workbench-session.ts";
 
@@ -180,84 +178,6 @@ test("restores at most one instance of the same plugin view per workspace", () =
       .length,
     1,
   );
-});
-
-test("keeps the worktree binding across a session round trip", () => {
-  const bound = {
-    ...workspace("workspace:task"),
-    worktree: {
-      repoPath: "/repo",
-      worktreePath: "/repo/.worktrees/task",
-      branch: "feat/task",
-      baseRef: "main",
-    },
-  };
-  const restored = normalizeWorkbenchSession({
-    version: WORKBENCH_SESSION_VERSION,
-    workspaces: [workspace(DEFAULT_WORKSPACE_ID), bound],
-    activeWorkspaceId: "workspace:task",
-    tabs: [],
-    activeTabId: "",
-    lastActiveTabByWorkspace: {},
-    deletedWorkspaces: [],
-  });
-
-  assert.ok(restored);
-  assert.deepEqual(restored.workspaces[1].worktree, bound.worktree);
-  assert.equal(restored.workspaces[0].worktree, undefined);
-});
-
-test("drops half-written bindings instead of surfacing an unusable working directory", () => {
-  assert.equal(normalizeWorktreeBinding({ repoPath: "/repo" }), undefined);
-  assert.equal(
-    normalizeWorktreeBinding({ worktreePath: "/repo/.worktrees/task" }),
-    undefined,
-  );
-  assert.equal(
-    normalizeWorktreeBinding({ repoPath: "  ", worktreePath: "/wt" }),
-    undefined,
-  );
-  assert.equal(normalizeWorktreeBinding(undefined), undefined);
-});
-
-test("omits blank refs so the binding never persists empty branch keys", () => {
-  assert.deepEqual(
-    normalizeWorktreeBinding({
-      repoPath: " /repo ",
-      worktreePath: "/wt",
-      branch: "  ",
-    }),
-    {
-      repoPath: "/repo",
-      worktreePath: "/wt",
-    },
-  );
-});
-
-test("flattens slashed branch names so the derived worktree stays one level deep", () => {
-  assert.equal(
-    defaultWorktreePath("/repo", "feat/login"),
-    "/repo/.worktrees/feat-login",
-  );
-  assert.equal(
-    defaultWorktreePath("/repo/", "fix/a/b"),
-    "/repo/.worktrees/fix-a-b",
-  );
-  assert.equal(
-    defaultWorktreePath("/repo", "release-1.2"),
-    "/repo/.worktrees/release-1.2",
-  );
-});
-
-test("keeps derived worktree paths inside .worktrees even for traversal-like branch names", () => {
-  assert.equal(
-    defaultWorktreePath("/repo", "../../etc"),
-    "/repo/.worktrees/etc",
-  );
-  assert.equal(defaultWorktreePath("/repo", ".."), "");
-  assert.equal(defaultWorktreePath("/repo", "///"), "");
-  assert.equal(defaultWorktreePath("", "feat/login"), "");
-  assert.equal(defaultWorktreePath("/repo", "   "), "");
 });
 
 test("drops service result tabs from a restored session: their content lived in memory only", () => {

@@ -5,9 +5,6 @@ import MinCodeMark from "@/assets/brand/mincode-mark.svg";
 import { useVueI18n } from "@/i18n/messages";
 import { useAppLockStore } from "@/stores/app-lock";
 import { isolateBackground } from "@/composables/use-background-isolation";
-import { setEmbeddedBrowserOverlayBlocked } from "@/services/browser-overlay-events";
-import { hideEmbeddedBrowser } from "@/services/browser-service";
-import { isDesktopRuntime } from "@/services/desktop-bridge";
 
 const { t } = useVueI18n();
 const appLock = useAppLockStore();
@@ -18,7 +15,6 @@ const passcodeInput = ref<{ focus: () => void } | null>(null);
 const lockRoot = ref<HTMLElement | null>(null);
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
 let releaseBackground: (() => void) | undefined;
-const overlayBlockSource = "app-lock";
 
 const waiting = computed(() => remainingSeconds.value > 0);
 const submitDisabled = computed(() => !passcode.value || waiting.value || appLock.verifying);
@@ -58,10 +54,6 @@ watch(
 onMounted(async () => {
   // 遮罩只挡住视觉；不把背景设为 inert 时，Tab 仍能把焦点移到被遮住的终端等控件并执行输入。
   if (lockRoot.value) releaseBackground = isolateBackground(lockRoot.value);
-  // 内嵌浏览器是叠在 WebView 之上的原生窗口，HTML 遮罩挡不住它；锁定时必须先隐藏。
-  // 屏蔽源让浏览器页在解锁前保持隐藏；直接 hide 不依赖被遮挡窗口里会被节流的 rAF。
-  setEmbeddedBrowserOverlayBlocked(overlayBlockSource, true);
-  if (isDesktopRuntime()) void hideEmbeddedBrowser().catch(() => undefined);
   refreshCountdown();
   countdownTimer = setInterval(refreshCountdown, 1000);
   await nextTick();
@@ -71,7 +63,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   releaseBackground?.();
   releaseBackground = undefined;
-  setEmbeddedBrowserOverlayBlocked(overlayBlockSource, false);
   if (countdownTimer) clearInterval(countdownTimer);
 });
 </script>

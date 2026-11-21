@@ -10,9 +10,23 @@
  * commands (services/ai-tools/workspace-tools.ts rejects `plugin:` ids).
  */
 import { parsePluginLspServerId } from "@/domain/projects/lsp";
-import type { LspStartResult } from "@/services/lsp-service";
 import { confirmPluginLaunch, type ResolvedProcessLaunch } from "@/services/plugin-launch-confirm";
 import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
+
+interface LspStartResult {
+  id: string;
+  name: string;
+  languages: string[];
+  installed: boolean;
+  executable?: string;
+  heavy: boolean;
+  auxiliary?: boolean;
+  installHint: string;
+  platform: string;
+  running: boolean;
+  generation?: number;
+  error?: string;
+}
 
 export interface PluginLanguageServerLaunch extends ResolvedProcessLaunch {
   serverId: string;

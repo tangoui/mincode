@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { buildSqlCompletionItems } from "../src/domain/database/sql-completion.ts";
 
-const editor = await readFile(new URL("../src/components/projects/MonacoTextEditor.vue", import.meta.url), "utf8");
+const editor = await readFile(new URL("../src/components/ui/MonacoTextEditor.vue", import.meta.url), "utf8");
 
 test("SQL files outside the database editor still get keyword and snippet completions", () => {
   const register = editor.slice(editor.indexOf("function registerSqlCompletions"), editor.indexOf("function applyPreferences"));

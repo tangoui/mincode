@@ -6,25 +6,21 @@
  * the budget 3 times is disabled for this terminal. Nothing is rendered as
  * HTML: xterm only decorates cells and the hover text is a plain `title`.
  * Opening needs a click: URL targets go through the system-browser boundary
- * (normalizeWebUrl + openSystemBrowser), file targets (local terminals only)
- * must resolve inside a saved Local Project and open in the editor.
+ * (normalizeWebUrl + openSystemBrowser).
  */
 import type { IBufferLine, IDisposable, ILink, Terminal } from "@xterm/xterm";
 import { ElMessage } from "element-plus";
+import { useVueI18n } from "@/i18n/messages";
 import {
   TERMINAL_LINK_LINE_SCAN_MAX_CHARS,
   TERMINAL_LINK_OVERRUNS_BEFORE_DISABLE,
   TERMINAL_LINK_WRAPPED_ROWS_MAX,
-  resolveTerminalLinkFile,
   resolveTerminalLinkUrl,
   scanTerminalLine,
-  terminalLinkAbsolutePath,
   terminalLinkHoverText,
-  type TerminalLinkFilePosition,
   type TerminalLinkMatch,
   type TerminalLinkTerminal,
 } from "@/domain/terminal/terminal-links";
-import { useVueI18n } from "@/i18n/messages";
 import { normalizeWebUrl, type TerminalWebLinkFailure } from "@/services/terminal-web-links";
 import { isDesktopRuntime } from "@/services/desktop-bridge";
 import { openSystemBrowser } from "@/services/web-automation-service";
@@ -82,35 +78,6 @@ function readLogicalLine(xterm: Terminal, row: number): LogicalLine {
   return result;
 }
 
-async function openFileTarget(position: TerminalLinkFilePosition, cwd: string | undefined) {
-  const { t } = useVueI18n();
-  const [{ resolveLocalMarkdownTarget }, { useLocalProjectStore }, { useWorkbenchStore }, { requestAiWorkspaceAction }, router] =
-    await Promise.all([
-      import("@/domain/markdown-local-paths"),
-      import("@/stores/local-project"),
-      import("@/stores/workbench"),
-      import("@/services/ai-workspace-actions"),
-      import("@/router").then((module) => module.default),
-    ]);
-  const project = useLocalProjectStore();
-  const absolute = terminalLinkAbsolutePath(position.path, cwd);
-  // resolveLocalMarkdownTarget percent-decodes; terminal text is literal.
-  const target = absolute ? resolveLocalMarkdownTarget(absolute.replace(/%/g, "%25"), project.projects, project.projectRoot) : null;
-  if (!target || !target.relativePath) {
-    ElMessage.warning({ message: t("pluginContrib.terminalLinks.outsideProject"), grouping: true, showClose: true });
-    return;
-  }
-  useWorkbenchStore().openView("projects");
-  await router.push({ name: "projects" });
-  await requestAiWorkspaceAction("projects", {
-    action: "open-file",
-    path: target.relativePath,
-    projectRoot: target.projectRoot,
-    ...(position.line ? { line: position.line } : {}),
-    ...(position.column ? { column: position.column } : {}),
-  });
-}
-
 /** Registers the plugin link provider on `xterm`; dispose it on unmount. */
 export function attachPluginTerminalLinks(xterm: Terminal, options: PluginTerminalLinksOptions): IDisposable {
   const store = useTerminalLinksStore();
@@ -141,10 +108,7 @@ export function attachPluginTerminalLinks(xterm: Terminal, options: PluginTermin
 
   function targetLabel(match: TerminalLinkMatch): string | undefined {
     const target = match.rule.target;
-    if (target.type === "url") return resolveTerminalLinkUrl(target.url, match.groups);
-    const position = resolveTerminalLinkFile(target, match.groups);
-    if (!position) return undefined;
-    return `${position.path}${position.line ? `:${position.line}` : ""}${position.column ? `:${position.column}` : ""}`;
+    return target.type === "url" ? resolveTerminalLinkUrl(target.url, match.groups) : undefined;
   }
 
   function activate(match: TerminalLinkMatch) {
@@ -163,13 +127,6 @@ export function attachPluginTerminalLinks(xterm: Terminal, options: PluginTermin
       void openSystemBrowser(url).catch(() => options.onWebLinkFailure("open-failed"));
       return;
     }
-    if (options.kind !== "local") return;
-    const position = resolveTerminalLinkFile(target, match.groups);
-    if (!position) return;
-    void openFileTarget(position, options.cwd?.()).catch(() => {
-      const { t } = useVueI18n();
-      ElMessage.error({ message: t("pluginContrib.terminalLinks.openFailed"), grouping: true, showClose: true });
-    });
   }
 
   function clearHover() {

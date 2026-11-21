@@ -106,6 +106,4 @@ test("only the terminal workspace view registers the terminal tab commands, whil
   assert.match(view, /selectAdjacentTab\(1\)/);
   assert.match(view, /selectAdjacentTab\(-1\)/);
   assert.match(view, /route\.name === "terminal"/);
-  const project = await readFile(new URL("views/ProjectWorkspaceView.vue", SRC), "utf8");
-  for (const id of COMMANDS) assert.doesNotMatch(project, new RegExp(id), id);
 });

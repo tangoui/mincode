@@ -75,7 +75,7 @@ vi.mock("@/stores/ssh-connections", () => ({
   }),
 }));
 
-vi.mock("@/components/projects/MonacoTextEditor.vue", async () => {
+vi.mock("@/components/ui/MonacoTextEditor.vue", async () => {
   const { defineComponent, h } = await import("vue");
   // __esModule lets the view's defineAsyncComponent unwrap the default export like a real SFC import.
   return {

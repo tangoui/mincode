@@ -8,7 +8,7 @@ const [drawer, thread, bubble, store, markdown, zh, en] = await Promise.all([
   read("../src/components/ai/AiMessageThread.vue"),
   read("../src/components/ai/AiMessageBubble.vue"),
   read("../src/stores/ai-assistant.ts"),
-  read("../src/components/projects/MarkdownPreview.vue"),
+  read("../src/components/ui/MarkdownPreview.vue"),
   read("../src/i18n/locales/zh.ts"),
   read("../src/i18n/locales/en.ts"),
 ]);

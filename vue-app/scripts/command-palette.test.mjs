@@ -7,10 +7,6 @@ import {
   pluginServicePaletteItems,
 } from "../src/domain/commands/command-palette.ts";
 import { paletteServiceInput, servicesForPalette } from "../src/domain/plugins/services.ts";
-import {
-  parseProjectCodeSearchResponse,
-  renderProjectCodeSearchResult,
-} from "../src/services/project-search.ts";
 
 const items = [
   { id: "settings", kind: "command", title: "Open Settings", keywords: ["preferences"], priority: 1, action: { type: "open-settings" } },
@@ -125,45 +121,6 @@ test("leaves kind groups unlabelled so the caller localizes them", () => {
   assert.equal(group.label, undefined);
   assert.equal(group.kind, "command");
   assert.equal(group.key, "command");
-});
-
-test("maps native code-search matches to file palette render models", () => {
-  const response = parseProjectCodeSearchResponse({
-    query: "renderResult",
-    mode: "symbol",
-    engine: "rg",
-    filesConsidered: 4,
-    results: [{
-      relativePath: "src/services/project-search.ts",
-      kind: "symbol",
-      line: 111,
-      column: 17,
-      lineText: "export function renderProjectCodeSearchResult(",
-      score: 90,
-      reason: "declaration",
-    }],
-    truncated: false,
-    durationMs: 12,
-  });
-  const item = renderProjectCodeSearchResult("/repo", response.results[0]);
-  assert.deepEqual(item, {
-    kind: "file",
-    title: "project-search.ts",
-    subtitle: "src/services/project-search.ts",
-    search: {
-      scope: { path: "src/services/project-search.ts" },
-      detail: "export function renderProjectCodeSearchResult(",
-      line: 111,
-      column: 17,
-    },
-    action: {
-      type: "open-file",
-      root: "/repo",
-      path: "src/services/project-search.ts",
-      line: 111,
-      column: 17,
-    },
-  });
 });
 
 function serviceEntry(overrides = {}) {

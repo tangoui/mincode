@@ -24,7 +24,6 @@ import type { DatabaseConnection } from "@/domain/database/types";
 import type { SshRuntimeCredentials } from "@/domain/ssh/types";
 import { restoreSshProfile, useSshConnectionsStore } from "@/stores/ssh-connections";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useHttpResourcesStore } from "@/stores/http-resources";
 import {
   chooseEnvironmentPackFile,
@@ -37,7 +36,6 @@ const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
 const { t } = useVueI18n();
 const sshStore = useSshConnectionsStore();
 const databaseStore = useDatabaseWorkspaceStore();
-const projectStore = useLocalProjectStore();
 const httpResourcesStore = useHttpResourcesStore();
 const { collections: httpCollections } = storeToRefs(httpResourcesStore);
 const workspaceStateScope = useWorkspaceStateScope();
@@ -46,7 +44,6 @@ const activeTab = ref<"export" | "import">("export");
 const includeSsh = ref(true);
 const includeDatabase = ref(true);
 const includeHttp = ref(true);
-const includeProjects = ref(true);
 const exportPassword = ref("");
 const exportConfirm = ref("");
 const exporting = ref(false);
@@ -61,14 +58,13 @@ const exportCounts = computed(() => ({
   ssh: sshStore.profiles.length,
   database: databaseStore.connections.length,
   http: httpCollections.value.length,
-  projects: projectStore.projects.length,
 }));
 const passwordMismatch = computed(
   () => Boolean(exportConfirm.value) && exportPassword.value !== exportConfirm.value
 );
 const canExport = computed(
   () =>
-    [includeSsh.value, includeDatabase.value, includeHttp.value, includeProjects.value].some(
+    [includeSsh.value, includeDatabase.value, includeHttp.value].some(
       Boolean
     ) &&
     exportPassword.value.length >= 8 &&
@@ -89,14 +85,11 @@ function errorText(error: unknown) {
 
 async function hydrateSources() {
   await workspaceStateScope.hydrate();
-  const workspaceScopeId = workspaceStateScope.capture().scopeId;
   await Promise.all([
     sshStore.hydrated ? Promise.resolve() : sshStore.hydrate(),
     databaseStore.initialize(),
-    projectStore.hydrated ? Promise.resolve() : projectStore.hydrate(workspaceScopeId),
     httpResourcesStore.hydrate(),
   ]);
-  if (projectStore.hydrated) projectStore.switchWorkspace(workspaceScopeId);
 }
 
 watch(
@@ -131,9 +124,7 @@ function selectedItems(): EnvironmentPackData["items"] {
     httpCollections: includeHttp.value ? cloneValue(httpCollections.value) : [],
     // 旧字段只维持环境包格式兼容；环境随顶级集合导出。
     httpEnvironments: { environments: [], activeEnvId: "" },
-    localProjects: includeProjects.value
-      ? projectStore.projects.map((project) => ({ ...project }))
-      : [],
+    localProjects: [],
   };
 }
 
@@ -204,7 +195,7 @@ async function parseImport() {
       sshIds: new Set(sshStore.profiles.map((profile) => profile.id)),
       databaseIds: new Set(databaseStore.connections.map((connection) => connection.id)),
       httpIds: new Set(httpCollections.value.map((collection) => collection.id)),
-      projectRoots: new Set(projectStore.projects.map((project) => project.root)),
+      projectRoots: new Set(),
     });
   } catch (error) {
     parsed.value = undefined;
@@ -224,7 +215,6 @@ async function confirmImport() {
   const addedDatabaseIds: string[] = [];
   const addedHttpCollectionIds: string[] = [];
   const addedHttpEnvironmentIds: string[] = [];
-  const addedProjectRoots: string[] = [];
   try {
     const data = parsed.value;
     let sshAdded = 0;
@@ -263,20 +253,11 @@ async function confirmImport() {
     });
     await httpResourcesStore.flushPersistence();
 
-    const beforeProjectRoots = new Set(projectStore.projects.map((project) => project.root));
-    const projectsAdded = projectStore.mergeProjects(data.items.localProjects);
-    addedProjectRoots.push(
-      ...projectStore.projects
-        .filter((project) => !beforeProjectRoots.has(project.root))
-        .map((project) => project.root)
-    );
-    if (addedProjectRoots.length) await projectStore.flushPersistence();
     const total =
       sshAdded +
       databaseAdded +
       httpAdded.collections +
-      httpAdded.environments +
-      projectsAdded;
+      httpAdded.environments;
     ElMessage.success(t("settings.data.envImported", { count: total }));
     importFilename.value = "";
     importContent.value = "";
@@ -313,10 +294,6 @@ async function confirmImport() {
           environmentIds: addedHttpEnvironmentIds,
         });
         await httpResourcesStore.flushPersistence();
-      })(),
-      (async () => {
-        for (const root of addedProjectRoots) projectStore.removeProject(root);
-        await projectStore.flushPersistence();
       })(),
     ]);
     const rollbackFailure = rollbackResults.find(
@@ -407,14 +384,6 @@ const previewRows = computed(() => {
               <span
                 ><strong>{{ t("settings.data.envHttp") }}</strong
                 ><small>{{ exportCounts.http }}</small></span
-              >
-            </div>
-            <div class="environment-pack-dialog__selection-item" :class="{ 'is-selected': includeProjects }">
-              <el-checkbox v-model="includeProjects" />
-              <el-icon><FolderOpened /></el-icon>
-              <span
-                ><strong>{{ t("settings.data.envProjects") }}</strong
-                ><small>{{ exportCounts.projects }}</small></span
               >
             </div>
           </div>

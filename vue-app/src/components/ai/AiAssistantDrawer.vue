@@ -31,13 +31,12 @@ import {
   type AiConversationStatus,
   type AiQueuedMessage,
 } from "@/stores/ai-assistant";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useAiPendingEditsStore } from "@/stores/ai-pending-edits";
 import { useSessionProgressStore } from "@/stores/session-progress";
 import AiQueuedMessages from "@/components/ai/AiQueuedMessages.vue";
 import AiPendingEdits from "@/components/ai/AiPendingEdits.vue";
 import AiMessageThread from "@/components/ai/AiMessageThread.vue";
-import MarkdownPreview from "@/components/projects/MarkdownPreview.vue";
+import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
 
 type AiMessageThreadInstance = InstanceType<typeof AiMessageThread>;
 import AiMessageNavigator from "@/components/ai/AiMessageNavigator.vue";
@@ -54,11 +53,10 @@ import { useWorkbenchStore } from "@/stores/workbench";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
 import { usePluginMcpServersStore } from "@/stores/plugin-mcp-servers";
 import { useAiConversationPreferencesStore } from "@/stores/ai-conversation-preferences";
-import { useBrowserWorkspaceStore } from "@/stores/browser-workspace";
-import { browserTabsDependency } from "@/services/browser-ai-tabs";
 import {
   copyText,
   emitAppEvent,
+  chooseNativeDirectory,
   invokeBackend,
   isBrowserLocalMode,
   isDesktopRuntime,
@@ -219,7 +217,7 @@ import {
 } from "@/services/settings-persistence";
 import { loadSidebarVisibility, saveSidebarVisibility, sidebarItemIds } from "@/services/sidebar-preferences";
 import { applyUiTheme, normalizeUiTheme } from "@/services/ui-theme";
-import { setAutostart, setMinimizeToTray } from "@/services/settings-service";
+import { getUserHomeDirectory, setAutostart, setMinimizeToTray } from "@/services/settings-service";
 import { aiCapabilityRegistry, type AiCapabilityExecutionResult, type AiCapabilityRisk } from "@/domain/ai/capability-registry";
 import { createTurnSnapshotRecorder, isSideEffectRisk, resolveTurnSnapshotRoot, type TurnSnapshot } from "@/domain/ai/turn-snapshots";
 import {
@@ -249,8 +247,6 @@ import {
   pluginContextBudget,
   type PluginAiContextProvider,
 } from "@/domain/ai/plugin-context";
-import { createProjectFileContext, type ProjectContextFileResult } from "@/domain/ai/project-context";
-import { refreshProjectFileIndex, searchProjectFileIndex } from "@/services/project-index";
 import { conversationExportFileName, conversationToMarkdown } from "@/domain/ai/conversation-export";
 import { searchAiConversationMessages, type AiMessageSearchMatch } from "@/services/ai-conversation-persistence";
 import { saveTextFileToDisk } from "@/services/file-download";
@@ -277,14 +273,12 @@ import {
 } from "@/services/ai-native-tools";
 import {
   isTerminalLeafPane,
-  withWorkspaceCwd,
   type LocalTerminalPaneOptions,
   type TerminalPaneNode,
 } from "@/domain/terminal/types";
 import { aiCloseTargetForPane, isBackgroundTerminalPane, terminalTabForPane } from "@/domain/terminal/terminal-tabs";
 import type { CreateTerminalTabInput } from "@/services/ai-tools/terminal-tools";
 import type { WorkspaceView } from "@/types/workspace";
-import { loadAiGitRepositories, type AiGitRepositorySnapshot } from "@/services/git-service";
 import {
   availableAiCapabilityModules,
   isDirectConversationIntent,
@@ -338,8 +332,6 @@ import {
 } from "@/services/ai-approval-policy";
 
 const VISUAL_CAPTURE_TOOL_NAMES = new Set([
-  "browser.capture_view",
-  "browser.computer_action",
   "computer.capture_screen",
   "computer.open_app",
   "computer.open_url",
@@ -449,7 +441,6 @@ function delegationStatusTag(status: AiConversationStatus) {
 }
 const progress = useSessionProgressStore();
 void progress.ensureListening();
-const localProject = useLocalProjectStore();
 const pendingEdits = useAiPendingEditsStore();
 const databaseWorkspace = useDatabaseWorkspaceStore();
 const sshConnections = useSshConnectionsStore();
@@ -464,7 +455,6 @@ const aiContextProviders = useAiContextProvidersStore();
 const AiPluginContextDialog = defineAsyncComponent(() => import("@/components/ai/AiPluginContextDialog.vue"));
 const AiRewindRestoreDialog = defineAsyncComponent(() => import("@/components/ai/AiRewindRestoreDialog.vue"));
 void pluginPrompts.hydrate();
-const browserWorkspace = useBrowserWorkspaceStore();
 const router = useRouter();
 const route = useRoute();
 // 顶部标签页呈现：路由停在 ai 标签时以全幅覆盖层展示同一宿主实例，
@@ -944,7 +934,6 @@ const stopToolApprovalUpdates = toolApprovalQueue.subscribe(() => {
 const editingQueueId = ref<string>();
 
 const capabilityTools = ref(aiCapabilityRegistry.listTools());
-const gitRepositorySnapshot = ref<AiGitRepositorySnapshot>({ repositories: [] });
 /**
  * Browser-local mode is plain chat straight to the provider: no native tools, no MCP and no
  * approvals, so their entries stay hidden (the browser stream also never sends tools).
@@ -1252,49 +1241,42 @@ const activeConversationWorkspaceName = computed(() => {
   const conversation = assistant.activeConversation;
   return conversation ? conversationWorkspaceName(conversation) : "";
 });
+const homeDirectory = ref("");
+const homeDirectoryReady = isDesktopRuntime()
+  ? getUserHomeDirectory().then((path) => { homeDirectory.value = path; })
+  : Promise.resolve();
+void homeDirectoryReady.catch(() => undefined);
+const canChooseWorkingDirectory = computed(() => {
+  const conversation = assistant.activeConversation;
+  return isDesktopRuntime() && Boolean(conversation && !conversation.external && !conversation.running
+    && !conversation.agentReady && !agentStartPromises.has(conversation.id));
+});
+const choosingWorkingDirectory = ref(false);
+async function chooseWorkingDirectory() {
+  const conversation = assistant.activeConversation;
+  if (!conversation || !canChooseWorkingDirectory.value || choosingWorkingDirectory.value) return;
+  choosingWorkingDirectory.value = true;
+  try {
+    const path = await chooseNativeDirectory(t("project.chooseFolder"), workspaceRoot());
+    if (!path || assistant.activeConversationId !== conversation.id || !canChooseWorkingDirectory.value) return;
+    assistant.setConversationWorkspace(conversation.id, {
+      workspaceId: conversation.workspaceId ?? workbench.activeWorkspaceId,
+      workspaceName: conversation.workspaceName,
+      scopeId: conversation.workspaceScopeId ?? assistant.activeWorkspaceScopeId,
+      projectRoot: path,
+    });
+    conversationWorkspaceContexts.delete(conversation.id);
+    unavailableAcpDirectories.delete(conversation.id);
+  } catch (error) {
+    ElMessage.error(nativeErrorMessage(error));
+  } finally {
+    choosingWorkingDirectory.value = false;
+  }
+}
 const pendingEditsProjectRoot = computed(() =>
   assistant.activeConversation?.projectRoot?.trim() || workspaceRoot()
 );
-// "@path" mentions search the conversation's project and attach the chosen file.
 const dismissedMentionInput = ref<string>();
-const fileMention = computed(() => {
-  if (toolSuggestionsVisible.value || input.value === dismissedMentionInput.value) return null;
-  return pendingEditsProjectRoot.value ? parseAiFileMention(input.value) : null;
-});
-const fileMentionSuggestions = ref<AiPromptSuggestion[]>([]);
-const warmedMentionRoots = new Set<string>();
-let fileMentionSearchSequence = 0;
-let fileMentionSearchTimer: ReturnType<typeof setTimeout> | undefined;
-async function searchFileMention(root: string, query: string, sequence: number) {
-  const files = await searchProjectFileIndex([root], query, 12).catch(() => []);
-  if (sequence !== fileMentionSearchSequence) return;
-  fileMentionSuggestions.value = files.map((file) => ({
-    id: `file:${file.path}`,
-    name: file.name,
-    description: file.path,
-    kind: "file" as const,
-    insertText: file.path,
-  }));
-  if (!warmedMentionRoots.has(root)) {
-    warmedMentionRoots.add(root);
-    await refreshProjectFileIndex([root]).catch(() => undefined);
-    if (sequence === fileMentionSearchSequence) await searchFileMention(root, query, sequence);
-  }
-}
-watch(
-  () => [fileMention.value?.query, pendingEditsProjectRoot.value] as const,
-  ([query, root]) => {
-    const sequence = ++fileMentionSearchSequence;
-    clearTimeout(fileMentionSearchTimer);
-    activeToolIndex.value = 0;
-    if (query === undefined || !root) {
-      fileMentionSuggestions.value = [];
-      return;
-    }
-    fileMentionSearchTimer = setTimeout(() => void searchFileMention(root, query, sequence), 120);
-  },
-);
-onBeforeUnmount(() => clearTimeout(fileMentionSearchTimer));
 // "@mention" of a plugin context provider (contributes.aiContextProviders): offered under the same
 // gate as rules/skills injection, it only opens a preview; the user decides whether to insert.
 const pluginContextOffered = computed(() => {
@@ -1319,9 +1301,9 @@ const contextMentionSuggestions = computed<AiPromptSuggestion[]>(() => {
     contextKey: provider.key,
   }));
 });
-const mentionSuggestionsActive = computed(() => Boolean(fileMention.value) || contextMentionSuggestions.value.length > 0);
+const mentionSuggestionsActive = computed(() => contextMentionSuggestions.value.length > 0);
 const composerSuggestions = computed(() => mentionSuggestionsActive.value
-  ? [...contextMentionSuggestions.value, ...(fileMention.value ? fileMentionSuggestions.value : [])]
+  ? contextMentionSuggestions.value
   : filteredToolSuggestions.value);
 function dismissComposerSuggestions() {
   if (mentionSuggestionsActive.value) dismissedMentionInput.value = input.value;
@@ -1373,22 +1355,6 @@ const attachmentChipLabels = computed<Record<string, string>>(() => Object.fromE
     return [[attachment.id, t("pluginContrib.aiContextProviders.chipLabel", { plugin })]];
   }),
 ));
-async function attachMentionedFile(suggestion: AiPromptSuggestion) {
-  const mention = fileMention.value;
-  const root = pendingEditsProjectRoot.value;
-  if (!mention || !root) return;
-  input.value = applyAiFileMention(input.value, mention, suggestion.insertText);
-  try {
-    const file = await invokeBackend<ProjectContextFileResult>("local_fs_read_ai_context_text_file", {
-      projectRoot: root,
-      filePath: suggestion.insertText,
-    });
-    const { attachment } = createProjectFileContext(suggestion.insertText, file, root);
-    if (!attachments.value.some((item) => item.name === attachment.name)) appendDraftAttachments([attachment]);
-  } catch (error) {
-    ElMessage.warning(`${suggestion.insertText}: ${attachmentError(error)}`);
-  }
-}
 const activeConversationWorkspaceAvailable = computed(() => {
   const conversation = assistant.activeConversation;
   return Boolean(conversation && conversationWorkspaceAvailable(conversation));
@@ -1559,7 +1525,7 @@ async function performConversationRelink(conversation: AiConversation) {
       workspaceId: workbench.activeWorkspaceId,
       workspaceName: workbench.activeWorkspace?.name,
       scopeId: assistant.topWorkspaceScopeId,
-      projectRoot: localProject.projectRoot.trim() || workbench.activeWorktreePath,
+      projectRoot: workspaceRoot(),
     });
     if (!moved) return;
     conversationWorkspaceContexts.delete(conversation.id);
@@ -1666,10 +1632,6 @@ async function clearConversationMessages(conversation: AiConversation) {
   ElMessage.success(t("ai.conversation.messagesCleared"));
 }
 function insertToolSuggestion(suggestion: AiPromptSuggestion) {
-  if (suggestion.kind === "file") {
-    void attachMentionedFile(suggestion);
-    return;
-  }
   if (suggestion.kind === "prompt") {
     insertPluginPrompt(suggestion.promptKey ?? "");
     return;
@@ -1685,7 +1647,7 @@ function insertToolSuggestion(suggestion: AiPromptSuggestion) {
 function insertPluginPrompt(key: string) {
   const prompt = pluginPrompts.enabledPrompts.find((item) => item.key === key);
   if (!prompt) return;
-  const roots = [workspaceRoot(), ...localProject.projects.map((project) => project.root)].filter(Boolean);
+  const roots = [workspaceRoot()].filter(Boolean);
   const expanded = expandAiPromptTemplate(
     prompt.body,
     prompt.variables.length ? currentAiPromptVariables(roots) : {},
@@ -2364,29 +2326,16 @@ async function syncAiNativeResources(force = false): Promise<void> {
     if (!force && aiNativeResourcesSynced) return;
   }
 
-  const projectRoot = localProject.projectRoot;
+  const projectRoot = workspaceRoot();
   const syncVersion = aiNativeResourceSyncVersion;
   aiNativeResourcesSynced = false;
   aiNativeResourceSyncPromise = (async () => {
-    const [snapshot, liveTerminalPanes] = await Promise.all([
-      loadAiGitRepositories(projectRoot),
-      allTerminalPanes(),
-    ]);
-    if (projectRoot !== localProject.projectRoot || syncVersion !== aiNativeResourceSyncVersion) return;
-    gitRepositorySnapshot.value = snapshot;
+    const liveTerminalPanes = await allTerminalPanes();
+    if (projectRoot !== workspaceRoot() || syncVersion !== aiNativeResourceSyncVersion) return;
     syncNativeAiResources(aiResourceRegistry, {
       nativeRuntime: isDesktopRuntime(),
       projectRoot,
-      gitRepositories: gitRepositorySnapshot.value.repositories,
-      activeGitRepositoryPath: gitRepositorySnapshot.value.activeRepositoryPath,
       activeTerminalId: terminalWorkspace.activePaneId,
-      // AI 目标页（按标签页共享），不是用户眼前的前台页。
-      embeddedBrowser: {
-        available: Boolean(browserWorkspace.activeBrowserResource),
-        shared: Boolean(browserWorkspace.activeBrowserResource),
-        tabId: browserWorkspace.activeBrowserResource?.tabId || undefined,
-        url: browserWorkspace.activeBrowserResource?.url || undefined,
-      },
       database: {
         connections: databaseWorkspace.connections,
         sessions: databaseWorkspace.sessionIds,
@@ -2407,17 +2356,6 @@ async function syncAiNativeResources(force = false): Promise<void> {
   }
   if (!aiNativeResourcesSynced) await syncAiNativeResources(force);
 }
-watch(
-  [
-    () => browserWorkspace.activeBrowserResource?.tabId,
-    () => browserWorkspace.activeBrowserResource?.url,
-  ],
-  () => {
-    invalidateAiNativeResources();
-    scheduleAiNativeResourceSync();
-  },
-  { flush: "post" }
-);
 
 // Keep the cached preflight accurate when the user changes a resource outside
 // an AI call. This avoids the former expensive forced terminal/Git probe before
@@ -2499,7 +2437,7 @@ async function createTerminalTabForAi(input: CreateTerminalTabInput) {
     initialCwd: input.initialCwd
       || (input.conversationId ? conversationWorkspaceContexts.get(input.conversationId)?.projectRoot : undefined),
   };
-  terminalWorkspace.activateTab(tab.id, withWorkspaceCwd(options, workbench.activeWorktreePath));
+  terminalWorkspace.activateTab(tab.id, options);
   const paneId = terminalWorkspace.activePaneId;
   await router.push({ name: "terminal" });
   invalidateAiNativeResources();
@@ -2561,35 +2499,15 @@ async function disconnectSftpForAi(sessionId: string) {
   invalidateAiNativeResources();
   await syncAiNativeResources();
 }
-function createSubagentResources(projectRoot: string, name?: string) {
+function createSubagentResources(projectRoot: string) {
   const resources = createResourceRegistry();
   syncNativeAiResources(resources, {
     nativeRuntime: isDesktopRuntime(),
     projectRoot,
-    gitRepositories: [{ path: projectRoot, name }],
-    activeGitRepositoryPath: projectRoot,
     terminalPanes: [],
     sshProfiles: [],
-  }, ["workspace", "git"]);
+  }, ["sftp-workspace-transfer"]);
   return resources;
-}
-
-async function integrateSubagentResultForAi(
-  result: { branch: string; commitHash: string; baseCommit: string },
-  execution: { conversationId?: string; signal: AbortSignal },
-) {
-  throwIfAborted(execution.signal);
-  const conversationId = execution.conversationId?.trim() ?? "";
-  if (!conversationId) throw new Error("Subagent integration requires a conversation context");
-  const workspace = workspaceContextForConversation(conversationId);
-  await ensureConversationProjectAvailable(workspace, true);
-  throwIfAborted(execution.signal);
-  return invokeBackend("git_integrate_agent_worktree", {
-    repoPath: workspace.projectRoot,
-    branch: result.branch,
-    commitHash: result.commitHash,
-    baseCommit: result.baseCommit,
-  });
 }
 
 function subagentTaskPresentationStatus(state: SubagentTaskState) {
@@ -2820,25 +2738,13 @@ const unregisterNativeAiCapabilities = registerNativeAiCapabilities({
   invoke: invokeBackend,
   listResources: nativeResourceList,
   runSubagentPlan: isDesktopRuntime() ? executeSubagentPlanForAi : undefined,
-  integrateSubagentResult: isDesktopRuntime() ? integrateSubagentResultForAi : undefined,
   createTerminalTab: isDesktopRuntime() ? createTerminalTabForAi : undefined,
   closeTerminalPane: isDesktopRuntime() ? closeTerminalPaneForAi : undefined,
   revealTerminalPane: revealTerminalPaneForAi,
   connectSftp: isDesktopRuntime() ? connectSftpForAi : undefined,
   disconnectSftp: isDesktopRuntime() ? disconnectSftpForAi : undefined,
   workspaceRoot,
-  // browser.list_tabs / browser.switch_tab 直接读写前端的标签页共享状态。
-  browserTabs: browserTabsDependency(browserWorkspace),
   openWorkspaceView: isDesktopRuntime() ? openWorkspaceViewForAi : undefined,
-  projectAction: isDesktopRuntime() ? async (input) => {
-    await openWorkspaceViewForAi({ view: "projects" });
-    return requestAiWorkspaceAction("projects", input);
-  } : undefined,
-  listSavedProjects: (conversationId) => {
-    const conversation = conversationId ? assistant.conversationById(conversationId) : undefined;
-    if (!conversation?.workspaceId || !workbench.workspaces.some((item) => item.id === conversation.workspaceId)) return [];
-    return localProject.projectsForWorkspace(conversation.workspaceScopeId || "");
-  },
   httpAction: isDesktopRuntime() ? async (input) => {
     await openWorkspaceViewForAi({ view: "http" });
     return requestAiWorkspaceAction("http", input);
@@ -2967,9 +2873,10 @@ function acpEventAnchor(conversationId: string, eventId: string) {
   }
   return triggerMessageId;
 }
-/** 本工作区显式打开过项目时以其为根，否则回落到工作区绑定的 worktree。 */
 function workspaceRoot() {
-  return localProject.projectRoot.trim() || workbench.activeWorktreePath;
+  const conversation = assistant.activeConversation;
+  if (conversation?.external && !conversation.external.workspace) return "";
+  return conversation?.projectRoot?.trim() || homeDirectory.value;
 }
 function agentToolDisplayName(name: string) {
   if (name === MCP_LOAD_TOOL_NAME) return t("ai.tool.mcpLoadTools");
@@ -3226,35 +3133,13 @@ function historicalToolModules(history: readonly AiLoopMessage[]) {
 }
 function currentCapabilityModule() {
   const view = workbench.activeTab?.view;
-  if (view === "projects") return "workspace";
   return view;
 }
 const ACTIVE_WORKSPACE_UI_TOOL_NAMES = new Set([
   "terminal.create_session",
-  "workspace.select_saved_project",
-  "workspace.open_project_file",
-  "workspace.refresh_project",
-  "workspace.save_project_file",
-  "workspace.close_project_file",
-  "workspace.reveal_project",
-  "workspace.rename_saved_project",
-  "workspace.remove_saved_project",
-  "workspace.open_worktree_inspector",
-  "workspace.select_worktree_repo",
-  "workspace.bind_worktree",
-  "workspace.unbind_worktree",
-  "workspace.describe_current_project",
-  "workspace.list_language_servers",
-  "workspace.start_language_server",
-  "workspace.stop_language_server",
-  "workspace.language_server_logs",
-  "workspace.install_language_server",
-  "workspace.language_server_query",
-  "workspace.language_server_notify",
 ]);
 const PROJECT_SCOPED_RESOURCE_KINDS = new Set([
   "workspace-project",
-  "git-repository",
   "sftp-workspace-transfer",
 ]);
 
@@ -3294,7 +3179,7 @@ async function refreshConversationRuntimeResources(
   await syncAiNativeResources(force);
   replaceConversationRuntimeResources(resources);
   if (!projectRoot) {
-    syncNativeAiResources(resources, { terminalPanes: [], sshProfiles: [] }, ["workspace", "git"]);
+    syncNativeAiResources(resources, { terminalPanes: [], sshProfiles: [] }, ["sftp-workspace-transfer"]);
     return;
   }
   await ensureConversationProjectAvailable({
@@ -3303,15 +3188,12 @@ async function refreshConversationRuntimeResources(
     projectRoot,
     resources,
   });
-  const snapshot = await loadAiGitRepositories(projectRoot);
   syncNativeAiResources(resources, {
     nativeRuntime: isDesktopRuntime(),
     projectRoot,
-    gitRepositories: snapshot.repositories,
-    activeGitRepositoryPath: snapshot.activeRepositoryPath,
     terminalPanes: [],
     sshProfiles: [],
-  }, ["workspace", "git"]);
+  }, ["sftp-workspace-transfer"]);
 }
 
 function workspaceContextForConversation(conversationId: string) {
@@ -3321,19 +3203,19 @@ function workspaceContextForConversation(conversationId: string) {
   if (!workspace) throw new Error(t("ai.conversation.workspace.unavailable"));
 
   const workspaceScopeId = conversation.workspaceScopeId?.trim() || assistant.activeWorkspaceScopeId;
-  // Relayed conversations never see a local project, whatever workspace owns them.
-  const projectRoot = conversation.external && !conversation.external.workspace
+  const explicitDirectory = conversation.external && !conversation.external.workspace
     ? ""
-    : conversation.projectRoot?.trim() || workspace.worktree?.worktreePath?.trim() || "";
+    : conversation.projectRoot?.trim() ?? "";
+  const projectRoot = explicitDirectory || (conversation.external ? "" : homeDirectory.value);
   if (
     conversation.workspaceId !== workspace.id
     || conversation.workspaceScopeId !== workspaceScopeId
-    || conversation.projectRoot !== projectRoot
+    || (conversation.projectRoot ?? "") !== explicitDirectory
   ) {
     assistant.setConversationWorkspace(conversationId, {
       workspaceId: workspace.id,
       scopeId: workspaceScopeId,
-      projectRoot,
+      projectRoot: explicitDirectory,
     });
   }
 
@@ -3395,7 +3277,7 @@ async function snapshotBeforeSideEffect(
   const root = resolveTurnSnapshotRoot({
     ...target,
     boundRoot: conversation?.projectRoot,
-    allowedRoots: localProject.projectsForWorkspace(conversation?.workspaceScopeId || "").map((item) => item.root),
+    allowedRoots: [],
   });
   if (root) await turnSnapshotRecorder.beforeSideEffect(snapshotTurnId, root);
 }
@@ -3427,7 +3309,7 @@ async function executeAgentTool(
   }
   const conversation = assistant.conversationById(conversationId);
   const owner = workbench.workspaces.find((item) => item.id === conversation?.workspaceId);
-  if (call.name.startsWith("workspace.") || call.name.startsWith("git.")) {
+  if (call.name === "workspace.open_view") {
     if (!owner) return { content: "This conversation is not linked to a valid workspace, so project resources are unavailable.", status: "failed" as const };
     if (ACTIVE_WORKSPACE_UI_TOOL_NAMES.has(call.name) && owner.id !== workbench.activeWorkspaceId) {
       return { content: "This tool can only act on the active workspace. Ask the user to switch to the workspace linked to this conversation.", status: "failed" as const };
@@ -3440,14 +3322,6 @@ async function executeAgentTool(
         ...(!parsedArgs.cwd || policy.forceProjectRoot ? { cwd: projectRoot } : {}),
       }
     : parsedArgs;
-  if (call.name.startsWith("workspace.") && ACTIVE_WORKSPACE_UI_TOOL_NAMES.has(call.name)) {
-    const allowedRoots = localProject.projectsForWorkspace(conversation?.workspaceScopeId || "").map((item) => item.root);
-    if (projectRoot) allowedRoots.push(projectRoot);
-    const requestedRoots = [args.root, args.projectRoot, args.repoPath].filter((value): value is string => typeof value === "string" && !!value);
-    if (requestedRoots.some((root) => !allowedRoots.includes(root))) {
-      return { content: "The target project does not belong to the workspace linked to this conversation.", status: "failed" as const };
-    }
-  }
   const mcpTool = mcpTools.find((tool) => tool.name === call.name);
   if (mcpTool) {
     const authorizationRequest = {
@@ -3603,7 +3477,7 @@ async function executeAgentTool(
     const attachments: AiAttachment[] | undefined = captureData
       ? [{
           id: globalThis.crypto?.randomUUID?.() ?? `computer-capture-${Date.now()}`,
-          name: `${call.name.startsWith("browser.") ? "browser" : "desktop"}-capture-${Date.now()}.png`,
+          name: `${"desktop"}-capture-${Date.now()}.png`,
           mimeType: captureMimeType,
           size: Math.floor(captureData.length * 0.75),
           kind: "image",
@@ -4229,6 +4103,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
   }
   let runContext: ConversationWorkspaceContext;
   try {
+    if (!targetConversation?.projectRoot && !targetConversation?.external) await homeDirectoryReady;
     runContext = workspaceContextForConversation(conversationId);
     await refreshConversationRuntimeResources(runContext.resources, runContext.projectRoot);
   } catch (error) {
@@ -4441,18 +4316,12 @@ async function sendAgentic(request?: QueuedSendRequest) {
     // Tool selection follows earlier turns only when they are part of this request.
     const toolHistory = relayedTurnRun?.history === "none" ? [] : persistedHistory;
     const historicalModules = historicalToolModules(toolHistory);
-    const runGitSnapshot = await runWithAbort(
-      abortController.signal,
-      () => loadAiGitRepositories(runProjectRoot),
-    );
     syncNativeAiResources(runResources, {
       nativeRuntime: isDesktopRuntime(),
       projectRoot: runProjectRoot,
-      gitRepositories: runGitSnapshot.repositories,
-      activeGitRepositoryPath: runGitSnapshot.activeRepositoryPath,
       terminalPanes: [],
       sshProfiles: [],
-    }, ["workspace", "git"]);
+    }, ["sftp-workspace-transfer"]);
     const capabilities = aiCapabilityRegistry.listCapabilities();
     const availableModules = availableAiCapabilityModules(
       capabilities,
@@ -4969,7 +4838,10 @@ async function stopDefaultDirectoryAgent(conversationId: string) {
 
 const localAgentDirectoryDeps = {
   check: async (path: string) => (await invokeBackend<{ available: boolean }>("acp_check_local_directory", { path })).available,
-  getDefault: async () => (await invokeBackend<{ path: string }>("acp_default_local_directory", {})).path,
+  getDefault: async () => {
+    await homeDirectoryReady;
+    return homeDirectory.value;
+  },
 };
 
 async function startAgent(conversationId?: string, useDefaultOnce = false, request?: QueuedSendRequest) {
@@ -4997,6 +4869,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
     const startPromise = (async (): Promise<AcpRunTarget | undefined> => {
       let running = acpRunTargets.get(id);
       if (running && !remote && running.directoryKind !== "project") return running;
+      if (!conversation.projectRoot && !remote) await homeDirectoryReady;
       let context = remote ? workspaceContextForConversation(id) : running?.context ?? workspaceContextForConversation(id);
       let directoryKind: AcpRunTarget["directoryKind"] = "project";
       if (remote) {
@@ -5008,7 +4881,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
       } else {
         if (useDefaultOnce && (unavailableAcpDirectories.get(id) !== context.projectRoot || conversation.running)) return;
         if (!useDefaultOnce) unavailableAcpDirectories.delete(id);
-        const directory = await resolveLocalAgentDirectory(context.projectRoot, useDefaultOnce, localAgentDirectoryDeps);
+        const directory = await resolveLocalAgentDirectory(conversation.projectRoot?.trim() ?? "", useDefaultOnce, localAgentDirectoryDeps);
         if (acpDisposed || !assistant.conversationById(id)) return;
         if (directory.kind === "unavailable") {
           unavailableAcpDirectories.set(id, directory.path);
@@ -5843,7 +5716,7 @@ watch(
   warmUpProjectSnapshot,
   { immediate: true },
 );
-watch(() => localProject.projectRoot, () => {
+watch(workspaceRoot, () => {
   invalidateAiNativeResources();
   void syncAiNativeResources();
 }, { immediate: true });
@@ -6353,6 +6226,16 @@ onBeforeUnmount(() => {
             { label: t('ai.agent'), value: 'agent' },
           ]"
         />
+        <el-button
+          v-if="isDesktopRuntime() && assistant.activeConversation && !assistant.activeConversation.external"
+          text
+          size="small"
+          :icon="FolderOpened"
+          :disabled="!canChooseWorkingDirectory"
+          :loading="choosingWorkingDirectory"
+          :title="workspaceRoot()"
+          @click="chooseWorkingDirectory"
+        >{{ t("project.chooseFolder") }}</el-button>
         <div v-if="conversationPreferences.globalMode" class="ai-assistant-workspace-context">
           <span class="ai-assistant-workspace-context__icon" aria-hidden="true">
             <el-icon><FolderOpened /></el-icon>

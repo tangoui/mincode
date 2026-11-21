@@ -14,11 +14,6 @@ const routes: RouteRecordRaw[] = [
   },
   { path: "/ssh", name: "ssh", component: workspaceViewLoaders.ssh },
   {
-    path: "/projects",
-    name: "projects",
-    component: workspaceViewLoaders.projects,
-  },
-  {
     path: "/database",
     name: "database",
     component: workspaceViewLoaders.database,
@@ -36,11 +31,6 @@ const routes: RouteRecordRaw[] = [
     component: workspaceViewLoaders.sessions,
   },
   {
-    path: "/browser",
-    name: "browser",
-    component: workspaceViewLoaders.browser,
-  },
-  {
     path: "/plugins",
     name: "plugins",
     component: workspaceViewLoaders.plugins,
@@ -56,7 +46,6 @@ const routes: RouteRecordRaw[] = [
     component: workspaceViewLoaders["service-result"],
   },
   { path: "/ai", name: "ai", component: workspaceViewLoaders.ai },
-  { path: "/git", redirect: { name: "projects" } },
   { path: "/settings", redirect: { name: "dashboard" } },
   { path: "/:pathMatch(.*)*", redirect: { name: "dashboard" } },
 ];

@@ -17,5 +17,5 @@ test("command palette search engine loads only after the first shortcut request"
   assert.match(app, /seq: commandPaletteOpenRequest\.value\.seq \+ 1/);
   assert.match(app, /v-if="commandPaletteOpenRequest\.seq > 0"/);
   assert.match(host, /useCommandPalette\(/);
-  assert.match(host, /watch\([\s\S]*props\.openRequest\.seq[\s\S]*openPalette\(\{ scope: props\.openRequest\.scope, prefix: props\.openRequest\.prefix \}\)/);
+  assert.match(host, /watch\([\s\S]*props\.openRequest\.seq[\s\S]*openPalette\(\{ prefix: props\.openRequest\.prefix \}\)/);
 });

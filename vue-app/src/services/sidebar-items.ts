@@ -1,14 +1,11 @@
 import type { Component } from "vue";
-import type { LocationQueryRaw, RouteLocationRaw } from "vue-router";
+import type { RouteLocationRaw } from "vue-router";
 import {
   Box,
   ChatDotSquare,
-  Compass,
   Connection,
   DataAnalysis,
   Files,
-  FolderOpened,
-  ForkSpoon,
   Link,
   Monitor,
   Notebook,
@@ -18,15 +15,13 @@ import type { MessageKey } from "@/i18n/messages";
 import type { WorkspaceView } from "@/types/workspace";
 
 type SidebarWorkspaceView = Exclude<WorkspaceView, "settings" | "plugin-view" | "service-result">;
-export type SidebarItemId = SidebarWorkspaceView | "source-control" | "ai";
+export type SidebarItemId = SidebarWorkspaceView | "ai";
 
 export interface SidebarItem {
   id: SidebarItemId;
   labelKey: MessageKey;
   icon: Component;
   placement: "main" | "footer";
-  view?: SidebarWorkspaceView;
-  query?: LocationQueryRaw;
 }
 
 export const sidebarItems = [
@@ -35,20 +30,6 @@ export const sidebarItems = [
     labelKey: "nav.dashboard",
     icon: Odometer,
     placement: "main",
-  },
-  {
-    id: "projects",
-    labelKey: "nav.projects",
-    icon: FolderOpened,
-    placement: "main",
-  },
-  {
-    id: "source-control",
-    labelKey: "nav.sourceControl",
-    icon: ForkSpoon,
-    placement: "main",
-    view: "projects",
-    query: { panel: "git" },
   },
   {
     id: "database",
@@ -72,7 +53,6 @@ export const sidebarItems = [
   },
   { id: "http", labelKey: "nav.http", icon: Link, placement: "main" },
   { id: "notes", labelKey: "nav.notes", icon: Notebook, placement: "main" },
-  { id: "browser", labelKey: "nav.browser", icon: Compass, placement: "main" },
   { id: "plugins", labelKey: "nav.plugins", icon: Box, placement: "main" },
   { id: "ai", labelKey: "ai.chat", icon: ChatDotSquare, placement: "footer" },
 ] as const satisfies readonly SidebarItem[];
@@ -87,35 +67,17 @@ export const sidebarMainItems = sidebarItems.filter(
 export type SidebarMainItem = (typeof sidebarMainItems)[number];
 
 export function sidebarItemView(item: SidebarMainItem): SidebarWorkspaceView {
-  return "view" in item ? item.view : item.id;
+  return item.id;
 }
 
 export function sidebarItemRoute(item: SidebarMainItem): RouteLocationRaw {
-  return {
-    name: sidebarItemView(item),
-    ...("query" in item ? { query: item.query } : {}),
-  };
-}
-
-function queryMatches(item: SidebarMainItem, query: Readonly<Record<string, unknown>>) {
-  return (
-    "query" in item &&
-    Object.entries(item.query).every(([key, value]) => query[key] === value)
-  );
+  return { name: item.id };
 }
 
 export function sidebarItemIsActive(
   item: SidebarMainItem,
   activeView: WorkspaceView,
-  query: Readonly<Record<string, unknown>>,
+  _query: Readonly<Record<string, unknown>>,
 ) {
-  const view = sidebarItemView(item);
-  if (activeView !== view) return false;
-  if ("query" in item) return queryMatches(item, query);
-  return !sidebarMainItems.some(
-    (candidate) =>
-      candidate.id !== item.id &&
-      sidebarItemView(candidate) === view &&
-      queryMatches(candidate, query),
-  );
+  return activeView === item.id;
 }

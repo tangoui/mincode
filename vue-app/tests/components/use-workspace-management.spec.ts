@@ -8,17 +8,12 @@ const elementPlus = vi.hoisted(() => ({
   confirm: vi.fn(),
   error: vi.fn(),
 }));
-const gitService = vi.hoisted(() => ({
-  addGitWorktree: vi.fn(),
-  chooseGitDirectory: vi.fn(),
-}));
 
 vi.mock("element-plus", async (importOriginal) => ({
   ...(await importOriginal<typeof import("element-plus")>()),
   ElMessage: { error: elementPlus.error },
   ElMessageBox: { confirm: elementPlus.confirm },
 }));
-vi.mock("@/services/git-service", () => gitService);
 
 function setup() {
   const navigateToTab = vi.fn();
@@ -43,8 +38,6 @@ describe("useWorkspaceManagement", () => {
   beforeEach(() => {
     elementPlus.confirm.mockReset();
     elementPlus.error.mockReset();
-    gitService.addGitWorktree.mockReset();
-    gitService.chooseGitDirectory.mockReset();
   });
 
   it("creates a plain workspace and navigates to it", async () => {
@@ -59,57 +52,9 @@ describe("useWorkspaceManagement", () => {
 
     const created = workbench.workspaces.at(-1);
     expect(created?.name).toBe("Feature");
-    expect(created?.worktree).toBeUndefined();
     expect(workbench.activeWorkspaceId).toBe(created?.id);
     expect(navigateToActiveTab).toHaveBeenCalledOnce();
     expect(api.workspaceDialogVisible.value).toBe(false);
-    expect(gitService.addGitWorktree).not.toHaveBeenCalled();
-  });
-
-  it("creates the git worktree before binding it to a new workspace", async () => {
-    const { api, workbench } = setup();
-    gitService.addGitWorktree.mockResolvedValue(undefined);
-    api.openCreateWorkspace();
-    api.workspaceName.value = "Fix";
-    api.workspaceWorktreeEnabled.value = true;
-    expect(api.workspaceDialogReady.value).toBe(false);
-    api.workspaceRepoPath.value = "/repo/";
-    api.workspaceBranch.value = "fix/login bug";
-    expect(api.pendingWorktreePath.value).toBe("/repo/.worktrees/fix-login-bug");
-
-    await api.saveWorkspaceDialog();
-
-    expect(gitService.addGitWorktree).toHaveBeenCalledWith(
-      "/repo/",
-      "/repo/.worktrees/fix-login-bug",
-      "fix/login bug",
-      true
-    );
-    expect(workbench.workspaces.at(-1)?.worktree).toMatchObject({
-      worktreePath: "/repo/.worktrees/fix-login-bug",
-      branch: "fix/login bug",
-    });
-    expect(api.workspaceCreating.value).toBe(false);
-  });
-
-  it("does not create a workspace when the worktree cannot be created", async () => {
-    const { api, workbench, navigateToActiveTab } = setup();
-    gitService.addGitWorktree.mockRejectedValue(new Error("branch already checked out"));
-    const before = workbench.workspaces.length;
-    api.openCreateWorkspace();
-    api.workspaceName.value = "Broken";
-    api.workspaceWorktreeEnabled.value = true;
-    api.workspaceRepoPath.value = "/repo";
-    api.workspaceBranch.value = "main";
-
-    await api.saveWorkspaceDialog();
-
-    expect(workbench.workspaces).toHaveLength(before);
-    expect(elementPlus.error).toHaveBeenCalledOnce();
-    expect(String(elementPlus.error.mock.calls[0]?.[0])).toContain("branch already checked out");
-    expect(navigateToActiveTab).not.toHaveBeenCalled();
-    expect(api.workspaceDialogVisible.value).toBe(true);
-    expect(api.workspaceCreating.value).toBe(false);
   });
 
   it("keeps the workspace when the delete confirmation is cancelled", async () => {

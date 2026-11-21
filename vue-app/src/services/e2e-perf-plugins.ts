@@ -67,7 +67,6 @@ export async function perfPluginsScenario(config: SmokeConfig, log: PerfLog) {
     await measure("插件页与本地项目、数据库来回切换 5 轮", async () => {
       for (let round = 0; round < 5; round++) {
         await router.push(workspaceTabRoute(tabs[round % tabs.length]!)); await settle();
-        await router.push({ name: "projects" }); await settle();
         await router.push(workspaceTabRoute(tabs[(round + 1) % tabs.length]!)); await settle();
         await router.push({ name: "database" }); await settle();
       }

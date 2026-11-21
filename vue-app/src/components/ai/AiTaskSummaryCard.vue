@@ -2,7 +2,7 @@
 import { CircleCheck, CopyDocument } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { computed } from "vue";
-import MarkdownPreview from "@/components/projects/MarkdownPreview.vue";
+import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
 import { createAiMessageClipboardPayload } from "@/domain/ai/message-clipboard";
 import {
   formatAiMessageFullTime,

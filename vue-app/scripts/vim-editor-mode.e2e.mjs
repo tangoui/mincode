@@ -160,7 +160,7 @@ async function run() {
     const { createApp, h, ref } = await import(vueUrl);
     const { registerKeymapPreset } = await import('/src/domain/keybindings/preset.ts');
     const { useKeybindingsStore } = await import('/src/stores/keybindings.ts');
-    const Editor = (await import('/src/components/projects/MonacoTextEditor.vue')).default;
+    const Editor = (await import('/src/components/ui/MonacoTextEditor.vue')).default;
     const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
     registerKeymapPreset({ id: 'e2e.vim', title: { zh: 'E2E Vim', en: 'E2E Vim' }, extends: 'mincode', editorMode: 'vim', rules: [] }, { source: 'plugin', pluginId: 'e2e' });
     const store = useKeybindingsStore(pinia);

@@ -26,7 +26,6 @@ import { createLinterProjectPrompts, type LinterPromptDecision } from "@/service
 import { getPluginConfiguration, setPluginConfiguration } from "@/services/plugin-configuration-service";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { usePluginLintersStore } from "@/stores/plugin-linters";
 import { useWorkbenchStore } from "@/stores/workbench";
 
@@ -75,13 +74,7 @@ async function confirmLinterPrompt(plan: LinterPromptPlan<PluginLinter>): Promis
   }
 }
 
-function projectRoot(): string {
-  try {
-    return useLocalProjectStore().projectRoot.trim() || useWorkbenchStore().activeWorktreePath || "";
-  } catch {
-    return "";
-  }
-}
+function projectRoot(): string { return ""; }
 
 let projectPrompts: ReturnType<typeof createLinterProjectPrompts> | undefined;
 
@@ -123,13 +116,7 @@ function runtime(): MonacoLinterRuntime {
   return {
     selected: (language) => store.selectedFor(language),
     preference: (language) => store.preferenceFor(language),
-    projectRoots: () => {
-      try {
-        return useLocalProjectStore().projects.map((project) => project.root);
-      } catch {
-        return [];
-      }
-    },
+    projectRoots: () => [],
     sourceLabel: (linter) => `${title(linter)} (${linter.pluginName})`,
     report,
     modelOpened: (language) => {

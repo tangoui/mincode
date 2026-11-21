@@ -156,20 +156,12 @@ async function openFileDialog(options: OpenFileOptions) {
   }
 }
 
-export interface ChooseDirectoryOptions {
-  /**
-   * 为本地项目选择文件夹：浏览器本地模式下改用 `showDirectoryPicker`，返回 `browser://<id>/<文件夹名>`
-   * （见 services/browser-runtime/project-fs.ts）。其他调用方需要真实磁盘路径，不传此项。
-   */
-  browserProject?: boolean;
+export function openExternalUrl(url: string) {
+  return nativeCall<void>("shell.openURL", { url });
 }
 
-/** 通过原生对话框选择一个目录；用户取消时返回 null。 */
-export async function chooseNativeDirectory(title: string, directory?: string, options: ChooseDirectoryOptions = {}) {
-  if (options.browserProject && !isDesktopRuntime()) {
-    const { openBrowserDirectory } = await import("@/services/browser-runtime/project-fs");
-    return openBrowserDirectory();
-  }
+/** Opens a native folder picker and returns null if the user cancels. */
+export async function chooseNativeDirectory(title: string, directory?: string) {
   const selected = await openFileDialog({
     CanChooseDirectories: true,
     CanChooseFiles: false,

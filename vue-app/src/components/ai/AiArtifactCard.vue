@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { Check, CopyDocument, Document } from "@element-plus/icons-vue";
-import MarkdownPreview from "@/components/projects/MarkdownPreview.vue";
+import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
 import type { AiArtifactPresentation } from "@/domain/ai/event-presentations";
 
 const props = defineProps<{

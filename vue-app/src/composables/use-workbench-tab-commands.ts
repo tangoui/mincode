@@ -9,7 +9,7 @@
  * otherwise on the workbench tabs of the active workspace.
  */
 import { onBeforeUnmount } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage } from "element-plus";
 import { useRouter } from "vue-router";
 import {
   adjacentTabId,
@@ -18,12 +18,10 @@ import {
   type EditorAreaFocus,
 } from "@/domain/workbench/tab-navigation";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
-import { requestAiWorkspaceAction } from "@/services/ai-workspace-actions";
 import { recordClosedTabs, takeClosedEntry } from "@/services/closed-tab-history";
 import { registerCommand, type RegisteredCommand } from "@/services/command-registry";
 import { activeDocumentTabHost, type DocumentTabHost } from "@/services/document-tab-host";
 import { sidebarItemRoute, sidebarItemView, sidebarMainItems } from "@/services/sidebar-items";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { useWorkbenchStore } from "@/stores/workbench";
 import type { WorkspaceTab } from "@/types/workspace";
 
@@ -57,7 +55,6 @@ function documentTarget(): DocumentTabHost | undefined {
 }
 
 const SHOW_VIEW_COMMANDS = [
-  { id: "workbench:show-view.source-control", item: "source-control" },
   { id: "workbench:show-view.terminal", item: "terminal" },
   { id: "workbench:show-view.plugins", item: "plugins" },
 ] as const;
@@ -66,7 +63,6 @@ export function useWorkbenchTabCommands(options: WorkbenchTabCommandOptions): vo
   const { t } = useVueI18n();
   const router = useRouter();
   const workbench = useWorkbenchStore();
-  const project = useLocalProjectStore();
 
   const workbenchTabIds = () => workbench.workspaceTabs.map((tab) => tab.id);
 
@@ -113,17 +109,6 @@ export function useWorkbenchTabCommands(options: WorkbenchTabCommandOptions): vo
       (tab) => !tab.pinned && !workbench.poppedOutTabLabels[tab.id],
     );
     if (!closing.length) return;
-    if (project.dirtyCount > 0 && closing.some((tab) => tab.view === "projects")) {
-      try {
-        await ElMessageBox.confirm(
-          t("keybindings.workbench.closeAllDirty", { count: project.dirtyCount }),
-          t("project.unsavedTitle"),
-          { type: "warning", confirmButtonText: t("keybindings.workbench.closeAllConfirm"), cancelButtonText: t("common.cancel") },
-        );
-      } catch {
-        return;
-      }
-    }
     recordClosedTabs(closing);
     for (const tab of closing) workbench.closeTab(tab.id);
     options.navigateTo(workbench.activeTab);
@@ -147,17 +132,6 @@ export function useWorkbenchTabCommands(options: WorkbenchTabCommandOptions): vo
       case "plugin-view": {
         const tab = workbench.openPluginView(entry.pluginId, entry.viewId, entry.title);
         if (tab) options.navigateTo(tab);
-        return;
-      }
-      case "document": {
-        const tab = workbench.openView("projects");
-        if (!tab) return;
-        options.navigateTo(tab);
-        await requestAiWorkspaceAction("projects", {
-          action: "open-file",
-          path: entry.path,
-          ...(entry.projectRoot ? { projectRoot: entry.projectRoot } : {}),
-        });
         return;
       }
     }

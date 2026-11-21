@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Check,
   CircleClose,
-  Compass,
   Close,
   CopyDocument,
   DArrowLeft,
@@ -35,7 +34,6 @@ import { hydrateSettingsSnapshot } from "@/services/settings-persistence";
 import { preloadWorkspaceView } from "@/router/workspace-views";
 import { copyText, invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
 import type { LocalShellType, LocalTerminalPaneOptions } from "@/domain/terminal/types";
-import { withWorkspaceCwd } from "@/domain/terminal/types";
 import { resolveTerminalLayoutTarget } from "@/domain/workspace/terminal-layout-scope";
 import { workspaceTabRoute } from "@/domain/workspace/tab-route";
 import { useWorkspaceStateScope } from "@/composables/use-workspace-state-scope";
@@ -48,9 +46,7 @@ import AppWorkspaceTabs from "@/components/ui/AppWorkspaceTabs.vue";
 import PluginMenuItems from "@/components/plugins/PluginMenuItems.vue";
 import { menuPassContext, tabHostContext } from "@/domain/plugins/menus";
 import NotificationCenterButton from "@/components/layout/NotificationCenterButton.vue";
-import BrowserLocalModeBadge from "@/components/layout/BrowserLocalModeBadge.vue";
 import { useAiAssistantShellStore } from "@/stores/ai-assistant-shell";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { recordClosedTabs } from "@/services/closed-tab-history";
 import { useWorkbenchTabCommands } from "@/composables/use-workbench-tab-commands";
 import { useWorkspaceManagement } from "@/composables/use-workspace-management";
@@ -80,7 +76,6 @@ const router = useRouter();
 const workbench = useWorkbenchStore();
 const terminalWorkspace = useTerminalWorkspaceStore();
 const assistant = useAiAssistantShellStore();
-const localProject = useLocalProjectStore();
 const workspaceStateScope = useWorkspaceStateScope();
 const workspaceStatePreferences = workspaceStateScope.preferences;
 const workspaceStateScopeId = workspaceStateScope.scopeId;
@@ -206,11 +201,6 @@ const {
   workspaceDialogVisible,
   workspaceEditingId,
   workspaceName,
-  workspaceWorktreeEnabled,
-  workspaceRepoPath,
-  workspaceBranch,
-  workspaceCreating,
-  pendingWorktreePath,
   workspaceDialogReady,
   preloadWorkspaceConversation,
   switchWorkspace,
@@ -218,7 +208,6 @@ const {
   openRenameWorkspace,
   saveWorkspaceRename,
   cancelWorkspaceRename,
-  chooseWorkspaceRepo,
   saveWorkspaceDialog,
   deleteWorkspace,
   permanentlyDeleteWorkspace,
@@ -284,7 +273,7 @@ function createTerminalTab(options: LocalTerminalPaneOptions, title?: string) {
   );
   terminalWorkspace.activateTab(
     tab.id,
-    withWorkspaceCwd(options, workbench.activeWorktreePath),
+    options,
     target.layoutId,
     target.fallbackLayoutId
   );
@@ -320,11 +309,6 @@ async function defaultAiCommand() {
   return typeof command === "string" && command.trim() ? command.trim() : "claude";
 }
 
-function openBrowser() {
-  const tab = workbench.openView("browser");
-  navigateToTab(tab);
-}
-
 // Plugin terminal profiles (contributes.terminalProfiles): the host resolves and
 // confirms the launch spec by reference before a pane is created; the pane stores
 // only the reference.
@@ -346,7 +330,7 @@ async function openTerminalProfile(key: string) {
     ElMessage.warning(t("pluginContrib.terminalProfiles.desktopOnly"));
     return;
   }
-  const workspaceFolder = workbench.activeWorktreePath || localProject.projectRoot || "";
+  const workspaceFolder = "";
   const target = { pluginId: profile.pluginId, profileId: profile.id, workspaceFolder };
   try {
     const launch = await ensureTerminalProfileConfirmed(target);
@@ -370,11 +354,6 @@ function handlePluginTaskOpen(event: Event) {
 }
 
 async function createTerminal(command: string) {
-  if (command === "browser") {
-    openBrowser();
-    return;
-  }
-
   if (command.startsWith(TERMINAL_PROFILE_MENU_PREFIX)) {
     await openTerminalProfile(command.slice(TERMINAL_PROFILE_MENU_PREFIX.length));
     return;
@@ -856,7 +835,6 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="app-window-actions">
-      <BrowserLocalModeBadge />
       <el-dropdown
         trigger="click"
         placement="bottom-end"
@@ -1039,16 +1017,6 @@ onBeforeUnmount(() => {
               </template>
 
               <li class="app-new-tab-menu__separator" role="separator" />
-              <li class="app-new-tab-menu__label">{{ t("tab.newMenu.browserGroup") }}</li>
-              <el-dropdown-item
-                class="app-new-tab-menu__item"
-                command="browser"
-                @pointerenter="warmWorkspaceView('browser')"
-              >
-                <el-icon><Compass /></el-icon><span>{{ t("tab.newMenu.browser") }}</span>
-              </el-dropdown-item>
-
-              <li class="app-new-tab-menu__separator" role="separator" />
               <li class="app-new-tab-menu__label">{{ t("tab.newMenu.aiGroup") }}</li>
               <el-dropdown-item
                 class="app-new-tab-menu__item"
@@ -1106,43 +1074,12 @@ onBeforeUnmount(() => {
       maxlength="40"
       :placeholder="t('tab.workspaceNamePlaceholder')"
     />
-    <el-checkbox v-model="workspaceWorktreeEnabled" class="workspace-worktree-toggle">
-      {{ t("tab.workspaceWorktree") }}
-    </el-checkbox>
-    <template v-if="workspaceWorktreeEnabled">
-      <p class="workspace-worktree-hint">{{ t("tab.workspaceWorktreeHint") }}</p>
-      <label class="workspace-worktree-field">
-        <span>{{ t("tab.workspaceRepo") }}</span>
-        <el-input
-          v-model="workspaceRepoPath"
-          size="small"
-          :placeholder="t('tab.workspaceRepoPlaceholder')"
-        >
-          <template #append>
-            <el-button :icon="FolderOpened" @click="chooseWorkspaceRepo" />
-          </template>
-        </el-input>
-      </label>
-      <label class="workspace-worktree-field">
-        <span>{{ t("tab.workspaceBranch") }}</span>
-        <el-input
-          v-model="workspaceBranch"
-          size="small"
-          maxlength="120"
-          :placeholder="t('tab.workspaceBranchPlaceholder')"
-        />
-      </label>
-      <p v-if="pendingWorktreePath" class="workspace-worktree-hint">
-        {{ t("tab.workspaceWorktreePath") }}: {{ pendingWorktreePath }}
-      </p>
-    </template>
     <template #footer
-      ><el-button :disabled="workspaceCreating" @click="workspaceDialogVisible = false">{{
+      ><el-button @click="workspaceDialogVisible = false">{{
         t("common.cancel")
       }}</el-button
       ><el-button
         type="primary"
-        :loading="workspaceCreating"
         :disabled="!workspaceDialogReady"
         @click="saveWorkspaceDialog"
         >{{ t("common.save") }}</el-button

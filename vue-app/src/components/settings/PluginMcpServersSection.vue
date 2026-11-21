@@ -20,17 +20,13 @@ import { useVueI18n } from "@/i18n/messages";
 import { ensurePluginMcpServerConfirmed, stopPluginMcpServer } from "@/services/plugin-mcp-server-service";
 import type { ProtocolStatus } from "@/services/settings-service";
 import { nativeErrorMessage } from "@/services/desktop-bridge";
-import { useLocalProjectStore } from "@/stores/local-project";
 import { usePluginMcpServersStore } from "@/stores/plugin-mcp-servers";
-import { useWorkbenchStore } from "@/stores/workbench";
 
 const props = defineProps<{ statuses: readonly ProtocolStatus[] }>();
 const emit = defineEmits<{ changed: [] }>();
 
 const { t, localeChain } = useVueI18n();
 const store = usePluginMcpServersStore();
-const localProject = useLocalProjectStore();
-const workbench = useWorkbenchStore();
 const busy = ref<string | null>(null);
 
 onMounted(() => void store.hydrate());
@@ -46,7 +42,7 @@ const entries = computed(() =>
 );
 
 function projectRoot() {
-  return localProject.projectRoot.trim() || workbench.activeWorktreePath?.trim() || "";
+  return "";
 }
 
 function status(server: PluginMcpServer) {

@@ -26,7 +26,7 @@ import type { MonacoMenuContext } from "@/services/monaco-menus";
 import { useVueI18n } from "@/i18n/messages";
 
 // Only the non-SQL query languages (JSON, plain text) use Monaco here: load it when one is shown.
-const MonacoTextEditor = defineAsyncComponent(() => import("@/components/projects/MonacoTextEditor.vue"));
+const MonacoTextEditor = defineAsyncComponent(() => import("@/components/ui/MonacoTextEditor.vue"));
 
 defineOptions({ name: "DatabaseQueryWorkspace" });
 

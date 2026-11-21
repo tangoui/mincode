@@ -17,7 +17,7 @@ const {
   renderMarkdownHtml,
 } = await import("../src/services/markdown-render.ts");
 const previewSource = await readFile(
-  new URL("../src/components/projects/MarkdownPreview.vue", import.meta.url),
+  new URL("../src/components/ui/MarkdownPreview.vue", import.meta.url),
   "utf8",
 );
 
