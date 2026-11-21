@@ -1,0 +1,30 @@
+{
+  "$comment": "Entry schema for contributes.dashboardWidgets (process plugins only, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_dashboard_widgets.go and dashboard_widget_data.go. A view widget embeds one of the plugin's contributes.views in the sandboxed plugin UI iframe (surface \"widget\", {{limits.liveFramesMax}} live frames at most, no file drop) and must not declare action or refreshSeconds. A data widget names one of the plugin's contributes.actions with risk read; the host calls it with the fixed payload {\"widget\": id} (timeout {{limits.timeoutMs}} ms, {{limits.concurrentPerPlugin}} concurrent calls per plugin) only while the card is visible, and accepts a result {items: [{label, value, severity?, hint?}] (at most {{limits.itemsMax}}), footnote?, updatedAt?} of at most {{limits.resultMaxBytes}} bytes, rendered as plain text. refreshSeconds is 0 (manual only) or {{limits.refreshMinSeconds}}-{{limits.refreshMaxSeconds}} (default {{limits.refreshDefaultSeconds}}). command is one of the plugin's own contributes.commands, run from the card's Open button through the normal command path. The host shows at most {{limits.hostCardsMax}} cards; users hide and reorder cards per workspace.",
+  "description": "Dashboard widgets: small cards on the dashboard that show a plugin view or read-only label/value data.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "title", "kind"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,31}$" },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "kind": { "enum": "{{lists.kinds}}" },
+      "view": { "type": "string", "minLength": 1, "description": "view widgets: one of this plugin's contributes.views ids." },
+      "action": { "type": "string", "minLength": 1, "description": "data widgets: one of this plugin's contributes.actions ids with risk read." },
+      "size": { "enum": "{{lists.sizes}}", "description": "Card height: small (180 px) or medium (280 px); defaults to small." },
+      "refreshSeconds": {
+        "type": "integer",
+        "description": "data widgets: 0 for manual refresh only, otherwise {{limits.refreshMinSeconds}}-{{limits.refreshMaxSeconds}}; refresh happens only while the card is visible."
+      },
+      "command": { "type": "string", "minLength": 1, "description": "One of this plugin's contributes.commands ids, offered as the card's Open button." }
+    },
+    "if": { "properties": { "kind": { "const": "view" } } },
+    "then": { "required": ["view"], "not": { "anyOf": [{ "required": ["action"] }, { "required": ["refreshSeconds"] }] } },
+    "else": { "required": ["action"], "not": { "required": ["view"] } },
+    "additionalProperties": false
+  }
+}

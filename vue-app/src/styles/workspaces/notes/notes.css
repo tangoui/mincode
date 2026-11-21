@@ -1,0 +1,766 @@
+/* 笔记工作区。CodeMirror 编辑器内部颜色由 NoteMarkdownEditor 的 EditorView.theme 从 --app-* token 取值。 */
+.note-markdown-editor {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--app-surface);
+}
+
+.note-markdown-editor .cm-editor {
+  height: 100%;
+}
+
+.note-preview {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--app-surface);
+}
+
+/* 预览不加载的外链图片显示为链接文字，用虚线下划线与普通链接区分。 */
+.note-preview__article .note-preview__blocked-image {
+  border-bottom: 1px dashed var(--app-text-muted);
+  color: var(--app-text-muted);
+  text-decoration: none;
+}
+
+.note-preview__article .note-preview__blocked-image[href]:hover {
+  border-bottom-color: var(--app-accent);
+  color: var(--app-accent);
+}
+
+.note-preview__article img {
+  max-width: 100%;
+}
+
+/* 笔记预览可能在窄抽屉里：内边距不随窗口宽度放大；
+   全局重置去掉了列表符号，这里加回（任务列表项除外）。 */
+.note-preview .note-preview__article {
+  padding: 16px 20px 32px;
+}
+
+.note-preview__article ul {
+  list-style: disc;
+}
+
+.note-preview__article ol {
+  list-style: decimal;
+}
+
+.note-preview__article li:has(> input[type="checkbox"]) {
+  list-style: none;
+}
+
+/* 共用编辑区（笔记页右栏与关联笔记抽屉）。编辑区本身是尺寸容器：窄于 640px 时分栏改为上下堆叠。 */
+.note-editor {
+  container: note-editor / inline-size;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.note-editor__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.note-editor__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.note-editor__title .el-input__inner {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.note-editor__icon-button.el-button {
+  flex: none;
+  margin-left: 0;
+}
+
+.note-editor__favorite.is-favorite.el-button {
+  color: var(--app-warning);
+}
+
+.note-editor__mode {
+  flex: none;
+}
+
+.note-editor__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.note-editor__meta .note-tag-picker {
+  flex: 1 1 220px;
+  min-width: 160px;
+  max-width: 420px;
+}
+
+.note-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.note-editor__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 抽屉较窄：格式按钮自动换行（不横向滚动，避免按钮被挤掉、露出原生滚动条）；
+   保存状态放不下时换到下一行靠右，失败与重试始终可见。 */
+.note-editor--compact .note-editor__tools {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.note-editor--compact .note-editor__status {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.note-editor .note-editor__tool.el-button {
+  flex: none;
+  min-width: 26px;
+  height: 26px;
+  margin-left: 0;
+  padding: 4px;
+}
+
+.note-editor__tool--bold.el-button {
+  font-weight: 700;
+}
+
+.note-editor__tool--italic.el-button {
+  font-style: italic;
+}
+
+.note-editor__tool--code.el-button,
+.note-editor__tool--codeBlock.el-button {
+  font-family: var(--app-font-mono);
+}
+
+.note-editor__status {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.note-editor__status-error {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--app-danger);
+  text-overflow: ellipsis;
+}
+
+.note-editor__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.note-editor__pane {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.note-editor__body--split .note-editor__pane--preview {
+  border-left: 1px solid var(--app-border);
+}
+
+@container note-editor (max-width: 640px) {
+  .note-editor__body--split {
+    flex-direction: column;
+  }
+
+  .note-editor__body--split .note-editor__pane--preview {
+    border-top: 1px solid var(--app-border);
+    border-left: none;
+    background: var(--app-sidebar);
+  }
+}
+
+/* 正文为空时预览区给出提示，避免上下排列时下半块看起来是空白。 */
+.note-editor__preview-empty {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.note-editor__state {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+}
+
+/* 笔记页：左栏（工具条、搜索、分段视图）+ 右栏编辑区。 */
+.notes-workspace {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.notes-workspace__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.notes-workspace__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.notes-workspace__sidebar-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.notes-workspace__error {
+  margin: 0;
+  color: var(--app-danger);
+  overflow-wrap: anywhere;
+}
+
+.notes-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--app-border);
+  background: var(--app-sidebar);
+}
+
+.notes-sidebar__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px 4px;
+}
+
+.notes-sidebar__toolbar .el-button {
+  margin: 0;
+  padding: 4px;
+}
+
+.notes-sidebar__search {
+  padding: 0 8px 6px;
+}
+
+.notes-sidebar__search .app-search-field {
+  width: 100%;
+}
+
+.notes-sidebar__segments {
+  margin: 0 8px 6px;
+}
+
+.notes-sidebar__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 4px 8px;
+}
+
+.notes-sidebar__state {
+  margin: 8px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.notes-sidebar__state--error {
+  color: var(--app-danger);
+  overflow-wrap: anywhere;
+}
+
+.notes-sidebar__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--app-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notes-sidebar__item:hover {
+  background: var(--app-hover);
+}
+
+.notes-sidebar__item:focus-visible {
+  outline: 2px solid var(--app-accent-ring);
+  outline-offset: -2px;
+}
+
+.notes-sidebar__item.is-active {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.notes-sidebar__item--nested {
+  padding-left: 16px;
+}
+
+.notes-sidebar__item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-sidebar__snippet {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.notes-sidebar__item mark {
+  border-radius: 2px;
+  background: var(--app-warning-soft);
+  color: inherit;
+}
+
+.notes-sidebar__groups {
+  border-top: 0;
+  --el-collapse-header-bg-color: transparent;
+  --el-collapse-content-bg-color: transparent;
+  --el-collapse-header-height: 30px;
+}
+
+.notes-sidebar__groups .el-collapse-item__content {
+  padding-bottom: 4px;
+}
+
+.notes-sidebar__group-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-sidebar__group-count,
+.notes-folder-tree__count {
+  margin-left: auto;
+  padding: 0 6px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.notes-sidebar__link-name {
+  overflow: hidden;
+  padding: 4px 8px 2px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-sidebar__link-scope {
+  color: var(--app-text-muted);
+}
+
+.notes-folder-tree__tree {
+  background: transparent;
+  --el-tree-node-hover-bg-color: var(--app-hover);
+}
+
+.notes-folder-tree__tree.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.notes-folder-tree__node {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-right: 4px;
+  font-size: 13px;
+}
+
+.notes-folder-tree__icon {
+  flex: none;
+  color: var(--app-text-muted);
+}
+
+.notes-folder-tree__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-folder-tree__danger.el-dropdown-menu__item:not(.is-disabled) {
+  color: var(--app-danger);
+}
+
+.notes-folder-tree__move-select {
+  width: 100%;
+}
+
+/* 导入跳过项列表（ElMessageBox 内容）。 */
+.notes-import-report__list {
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.notes-import-report__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--app-border-subtle);
+  font-size: 12px;
+}
+
+.notes-import-report__path {
+  font-family: var(--app-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.notes-import-report__reason,
+.notes-import-report__more {
+  color: var(--app-text-muted);
+}
+
+.notes-import-report__more {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+/* ---- 关联栏（编辑区）---- */
+
+.note-editor__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.note-editor__link {
+  max-width: 280px;
+}
+
+.note-editor__link .el-tag__content {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.note-editor__link-body {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  cursor: pointer;
+  border-radius: var(--app-radius-sm);
+}
+
+.note-editor__link-body:focus-visible {
+  outline: 2px solid var(--app-accent-ring);
+  outline-offset: 1px;
+}
+
+.note-editor__link.is-deleted .note-editor__link-body {
+  cursor: default;
+}
+
+.note-editor__link-icon {
+  flex: none;
+}
+
+.note-editor__link-name,
+.note-editor__link-suffix {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-editor__link-suffix {
+  flex: none;
+  color: var(--app-text-muted);
+}
+
+.note-editor__link.is-deleted .note-editor__link-name,
+.notes-sidebar__link-name.is-deleted .notes-sidebar__link-label {
+  text-decoration: line-through;
+}
+
+.note-editor__link-deleted,
+.notes-sidebar__link-deleted {
+  flex: none;
+  margin-left: 4px;
+  color: var(--app-danger);
+  font-size: 11px;
+}
+
+.note-editor__link-unknown,
+.notes-sidebar__link-unknown {
+  flex: none;
+  margin-left: 4px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+/* ---- 关联对象选择对话框 ---- */
+
+.note-link-dialog__search {
+  width: 100%;
+}
+
+.note-link-dialog__hint {
+  margin: 6px 0 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.note-link-dialog__scroll {
+  margin-top: 8px;
+}
+
+.note-link-dialog__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note-link-dialog__item {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 30px;
+  margin-right: 0;
+  padding: 2px 8px;
+  border-radius: var(--app-radius-sm);
+}
+
+.note-link-dialog__item:hover {
+  background: var(--app-hover);
+}
+
+.note-link-dialog__item .el-checkbox__label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.note-link-dialog__name,
+.note-link-dialog__detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-link-dialog__detail {
+  color: var(--app-text-muted);
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+}
+
+/* 各页面对象名称后的关联笔记角标（LinkedNotesBadge）。 */
+.linked-notes-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: 18px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--app-text-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.linked-notes-badge:hover {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.linked-notes-badge:focus-visible {
+  outline: 2px solid var(--app-accent-ring);
+  outline-offset: -2px;
+}
+
+.linked-notes-badge__icon {
+  font-size: 12px;
+}
+
+/* 关联笔记抽屉（LinkedNotesDrawer）：上方笔记列表，下方紧凑编辑区。 */
+.linked-notes-drawer .el-drawer__header {
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+/* 抽屉正文不滚动：列表固定高度，编辑区占剩余高度，避免整体超出后把标题顶出可视区。 */
+.linked-notes-drawer .el-drawer__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.linked-notes-drawer__header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.linked-notes-drawer__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linked-notes-drawer__action.el-button {
+  flex: none;
+  margin-left: 0;
+}
+
+.linked-notes-drawer__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.linked-notes-drawer__item-time {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.linked-notes-drawer__picker {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.linked-notes-drawer__picker-label {
+  flex: none;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.linked-notes-drawer__select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.linked-notes-drawer__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.linked-notes-drawer__option-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linked-notes-drawer__state {
+  flex: none;
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.linked-notes-drawer__state--error {
+  color: var(--app-danger);
+}
+
+.linked-notes-drawer__editor.note-editor {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+}

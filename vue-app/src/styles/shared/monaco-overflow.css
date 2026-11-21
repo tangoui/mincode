@@ -1,0 +1,51 @@
+/* Monaco 溢出浮层（悬停气泡、“找不到定义”消息窗、补全列表等）的窗口级宿主。
+   宿主铺满视口但不拦截点击，只有内部浮层本体可交互；
+   必须高于未授权水印和 Element 浮层，避免文字覆盖实底浮层造成背景透明的错觉。
+   body 带 UI 缩放 zoom 时，Monaco 按视口物理坐标给 fixed 浮层写 top/left，
+   会被 zoom 再放大一次导致补全列表等浮层错位跳位；与 el-popper 容器同款
+   方案，用反向缩放抵消 body zoom。 */
+.monaco-overflow-widgets-host {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  zoom: var(--app-ui-overlay-scale);
+  pointer-events: none;
+}
+
+/* 宿主带 monaco-editor 仅为恢复浮层组件的祖先选择器，不能继承编辑器整屏背景。 */
+.monaco-editor.monaco-overflow-widgets-host {
+  background-color: transparent;
+}
+
+.monaco-overflow-widgets-host * {
+  pointer-events: auto;
+}
+
+/* Monaco 只在 `.monaco-editor .monaco-hover` 这个后代选择器下给出背景色。浮层
+   挂到窗口级宿主后祖先链里没有 .monaco-editor，那条规则失配，只剩下无背景的
+   通用 `.monaco-hover`，于是水印和代码直接透过来。这里按同样的 vscode 变量补
+   一份，缺省时回落到应用自身的表面色。 */
+.monaco-overflow-widgets-host .monaco-hover {
+  border: 1px solid var(--vscode-editorHoverWidget-border, var(--app-border));
+  border-radius: 4px;
+  background-color: var(--vscode-editorHoverWidget-background, var(--app-surface));
+  color: var(--vscode-editorHoverWidget-foreground, var(--app-text));
+  box-shadow: 0 4px 16px rgb(0 0 0 / 14%);
+}
+
+/* Monaco 的默认右键菜单使用 .context-view，挂在编辑器容器下而非上面的窗口级宿主。
+   显式把菜单放到未授权水印和 Element 浮层之上，避免水印文字叠在菜单实底背景上造成“透明”错觉。 */
+.monaco-editor .context-view {
+  z-index: 10001;
+}
+
+/* editor.main.css 里 `.context-view.monaco-menu-container` 只设了 border:none /
+   overflow，没有背景色（VS Code 由 workbench 样式补齐）。独立集成必须自己给，
+   否则右键菜单是透明的，水印和代码会直接透上来。 */
+.context-view.monaco-menu-container {
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background-color: var(--app-surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 14%);
+  color: var(--app-text);
+}

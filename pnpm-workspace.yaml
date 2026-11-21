@@ -1,0 +1,11 @@
+packages:
+  - "vue-app"
+
+overrides:
+  brace-expansion: 5.0.9
+  dompurify: 3.4.13
+  nanoid: 3.3.18
+  postcss: 8.5.23
+
+patchedDependencies:
+  '@xterm/xterm@6.0.0': patches/@xterm__xterm@6.0.0.patch

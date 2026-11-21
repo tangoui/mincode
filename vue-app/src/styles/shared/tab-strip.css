@@ -1,0 +1,67 @@
+/* Keep the tab-strip base neutral; only individual tabs carry the selection color. */
+.app-top-tabs {
+  background: var(--app-surface);
+}
+
+.app-frame--unified-titlebar {
+  --app-top-tabs-height: calc(40px * var(--app-ui-overlay-scale));
+}
+
+.app-frame--unified-titlebar .app-top-tabs {
+  padding-left: calc(84px * var(--app-ui-overlay-scale));
+  --tango-drag: drag;
+}
+
+.app-frame--unified-titlebar .app-brand-mark {
+  display: none;
+}
+
+.app-frame--unified-titlebar .app-top-tabs__workspace-tabs,
+.app-frame--unified-titlebar .app-top-tabs__scroll > .el-dropdown,
+.app-frame--unified-titlebar .app-window-actions {
+  --tango-drag: no-drag;
+}
+
+.app-header-button.app-header-button--new-tab {
+  padding-inline: 8px;
+}
+
+.app-brand-mark img {
+  border-radius: var(--app-radius);
+}
+
+.app-top-tabs__workspace-tabs.el-tabs--card > .el-tabs__header .el-tabs__item.is-active,
+.app-activity-button.is-active {
+  background: var(--app-accent-soft);
+}
+
+.app-top-tabs__workspace-tabs.el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+  color: var(--app-accent);
+}
+
+/* A plugin view in immersive mode (stores/plugin-takeover.ts) fills the window; the host
+   keeps its own exit control, revealed on load, hover and keyboard focus. */
+.app-frame.is-plugin-immersive .app-top-tabs,
+.app-frame.is-plugin-immersive .app-activity-bar,
+.app-frame.is-plugin-immersive .app-status-bar {
+  display: none;
+}
+
+.app-frame--unified-titlebar.is-plugin-immersive {
+  padding-top: var(--app-top-tabs-height);
+}
+
+.app-plugin-immersive-exit {
+  position: fixed;
+  z-index: 3000;
+  top: 0;
+  left: 50%;
+  padding: 6px 12px 10px;
+  transform: translate(-50%, calc(-100% + 6px));
+  transition: transform 0.18s ease;
+}
+.app-plugin-immersive-exit.is-shown,
+.app-plugin-immersive-exit:hover,
+.app-plugin-immersive-exit:focus-within {
+  transform: translate(-50%, 0);
+}

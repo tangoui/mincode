@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Connections Ver="1.1">
+	<Connection ConnectionName="Old MySQL" ConnType="MYSQL" Host="old.example.test" Port="3306" UserName="root" Password="0EA71F51DD37BFB60CCBA219BE3A" SavePassword="true"/>
+</Connections>

@@ -1,0 +1,9 @@
+{
+  "name": "mincode-tango-web",
+  "private": true,
+  "packageManager": "pnpm@11.16.0",
+  "scripts": {
+    "dev": "GOFLAGS=-tags=nocoredrivers tan dev",
+    "package:desktop": "node tools/ci/package-desktop.mjs"
+  }
+}

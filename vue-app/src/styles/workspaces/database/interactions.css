@@ -1,0 +1,320 @@
+/* Database interaction completion: real explorer views, scripts/history and metadata dialogs. */
+.db-table-row small {
+  margin-left: auto;
+  color: var(--app-text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.db-side-section-header {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 10px;
+  color: var(--app-text-regular);
+  font-size: 12px;
+}
+
+.db-side-section-header :is(button, .el-button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 4px 6px;
+  color: var(--app-accent);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.db-side-section-header :is(button, .el-button):hover:not(:disabled) {
+  background: var(--app-accent-soft);
+}
+
+.db-side-section-header :is(button, .el-button):disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.db-side-empty {
+  padding: 32px 16px;
+  color: var(--app-text-muted);
+  text-align: center;
+  font-size: 12px;
+}
+
+.db-side-list-item,
+.db-saved-connection {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+  margin: 2px 3px;
+  border-radius: 5px;
+}
+
+.db-side-list-item:hover,
+.db-saved-connection:hover {
+  background: var(--app-accent-soft);
+}
+
+.db-side-list-item > :is(button, .el-button):first-child,
+.db-saved-connection > button:first-child {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 7px 8px;
+  color: var(--app-text-regular);
+  cursor: pointer;
+  text-align: left;
+}
+
+.db-side-list-item > .el-button:first-child > span {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.db-side-list-item__content,
+.db-saved-connection > button:first-child > span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.db-side-list-item strong,
+.db-saved-connection strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-side-list-item small,
+.db-saved-connection small {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.db-side-list-item > :is(button, .el-button):last-child,
+.db-saved-connection > button:not(:first-child) {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.db-side-list-item > :is(button, .el-button):last-child:hover,
+.db-saved-connection > button:not(:first-child):hover {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.db-history-item {
+  display: flex;
+  width: calc(100% - 6px);
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 3px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  padding: 7px 8px;
+  color: var(--app-text-regular);
+  cursor: pointer;
+  text-align: left;
+}
+
+.db-history-item:hover {
+  background: var(--app-accent-soft);
+}
+
+.db-history-item > span:first-child {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  margin-top: 4px;
+  border-radius: 50%;
+}
+
+.db-history-item > span:first-child.is-success {
+  background: var(--app-success);
+}
+
+.db-history-item > span:first-child.is-error {
+  background: var(--app-danger);
+}
+
+.db-history-item > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.db-history-item strong,
+.db-history-item small,
+.db-history-item em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-history-item strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.db-history-item small {
+  color: var(--app-text-muted);
+  font-size: 9px;
+}
+
+.db-history-item em {
+  color: var(--app-danger);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.db-diagnostic-button {
+  position: relative;
+}
+
+.db-diagnostic-button b {
+  display: inline-flex;
+  min-width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--app-danger);
+  color: var(--app-text-on-status);
+  font-size: 9px;
+}
+
+.db-details-drawer {
+  display: flex;
+  min-height: 420px;
+  height: 100%;
+  flex-direction: column;
+}
+
+.db-charset-form {
+  margin-top: 14px;
+}
+
+.db-charset-form .el-select {
+  width: 100%;
+}
+
+.db-ddl-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.db-details-tabs-shell {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.db-details-tabs-shell > .db-details-tabs {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.db-details-tabs > .el-tabs__content {
+  min-height: 0;
+  flex: 1;
+}
+
+.db-details-tabs .el-tab-pane {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.db-details-tabs .el-tab-pane > .el-table,
+.db-details-tabs .el-tab-pane > .db-ddl-code {
+  min-height: 0;
+  flex: 1;
+}
+
+.db-details-tabs-shell--has-action .el-tabs__nav-wrap {
+  padding-right: 112px;
+}
+
+.db-details-tabs__action {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+}
+
+.db-schema-sql-editor {
+  margin: 12px 0;
+}
+
+.db-schema-sql-editor .el-textarea__inner {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.55;
+}
+
+.db-schema-form-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.db-ddl-code {
+  position: relative;
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--app-code-border);
+  border-radius: 7px;
+  background: var(--app-code-surface);
+}
+
+.db-ddl-code__copy.el-button {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.db-ddl-code:hover .db-ddl-code__copy.el-button,
+.db-ddl-code:focus-within .db-ddl-code__copy.el-button,
+.db-ddl-code__copy.el-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+

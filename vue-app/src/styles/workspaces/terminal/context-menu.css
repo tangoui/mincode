@@ -1,0 +1,195 @@
+.terminal-context-menu.el-popper {
+  box-shadow: none;
+}
+
+.terminal-context-menu .terminal-context-menu__glyph {
+  display: inline-flex;
+  width: 15px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-muted);
+  font-size: 13px;
+}
+
+.terminal-context-menu .el-dropdown-menu__item:hover .terminal-context-menu__glyph,
+.terminal-context-menu .el-dropdown-menu__item:focus .terminal-context-menu__glyph {
+  color: var(--app-accent);
+}
+
+.terminal-paste-dialog__body {
+  display: grid;
+  gap: 12px;
+}
+
+.terminal-paste-dialog__summary {
+  margin: 0;
+  color: var(--app-text-regular);
+  font-size: 12px;
+}.terminal-paste-dialog .el-textarea__inner,
+.terminal-ai-dialog .el-textarea__inner {
+  font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.terminal-paste-dialog .el-textarea__inner {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-border-strong) transparent;
+}
+
+.terminal-paste-dialog .el-textarea__inner::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.terminal-paste-dialog .el-textarea__inner::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-paste-dialog .el-textarea__inner::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--app-border-strong);
+}
+
+.terminal-paste-dialog .el-textarea__inner::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text-muted);
+}
+
+.terminal-paste-dialog__option {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--app-border);
+  padding-top: 10px;
+}
+
+.terminal-paste-dialog__option > div {
+  display: grid;
+  gap: 3px;
+}.terminal-paste-dialog__option strong,
+.terminal-ai-dialog__action strong {
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.terminal-paste-dialog__option small {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.terminal-ai-dialog.el-dialog {
+  display: flex;
+  max-height: calc(100vh - 32px);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.terminal-ai-dialog .el-dialog__body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.terminal-ai-dialog__body {
+  display: grid;
+  gap: 14px;
+}
+
+.terminal-ai-dialog__actions {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.terminal-ai-dialog__action.el-button {
+  grid-column: span 3;
+  width: 100%;
+  height: auto;
+  min-height: 58px;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 10px 12px;
+  text-align: left;
+  white-space: normal;
+}
+
+.terminal-ai-dialog__action.el-button:nth-child(n + 5) {
+  grid-column: span 2;
+}
+
+.terminal-ai-dialog__action .el-icon {
+  flex: none;
+  color: var(--app-accent);
+  font-size: 16px;
+}
+
+.terminal-ai-dialog__action span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.terminal-ai-dialog__action small {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.terminal-ai-dialog__context {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--app-border);
+  padding-top: 12px;
+}
+
+.terminal-ai-dialog__context-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.terminal-ai-dialog__context-header span {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .terminal-ai-dialog__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal-ai-dialog__action.el-button,
+  .terminal-ai-dialog__action.el-button:nth-child(n + 5) {
+    grid-column: auto;
+  }
+}
+
+@media (max-height: 760px) {
+  .terminal-ai-dialog__body {
+    gap: 10px;
+  }
+
+  .terminal-ai-dialog__action.el-button {
+    min-height: 52px;
+    padding: 8px 10px;
+  }
+
+  .terminal-ai-dialog__context {
+    padding-top: 10px;
+  }
+}
+
+.terminal-context-menu .terminal-context-menu__shortcut {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--app-text-muted);
+  font-family: inherit;
+  font-size: 11px;
+}

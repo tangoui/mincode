@@ -1,0 +1,19 @@
+{
+  "$comment": "Entry schema for contributes.scmCommitMessage (process plugins only, manifest apiVersion 2, requires the workspace.read capability). Host validation lives in backend/plugin/contrib_scm_commit_message.go; the CLI mirrors it in tools/mincode-cli/data_providers.go. A plugin declares at most 1 provider (contract maxEntries). action must name one of this plugin's contributes.actions with risk 'read' that is not aiCallable. The provider adds a 'Plugin generate' button next to 'AI generate' in the Git commit box; the host calls the action only when the user clicks it and only fills the commit message draft (it never commits, and a draft the user edited meanwhile is not overwritten). Payload: {provider, repository: {name}, branch?, files: [{path, status, oldPath?}], omittedFiles, diff, truncated, filesTruncated, locale}. status is one of {{lists.statuses}}. The host reads the staged changes itself: files whose path or old path is a VCS directory or a sensitive file name (.env, id_rsa, ...) are left out together with their names and only counted in omittedFiles; at most {{limits.filesMax}} files (filesTruncated); diff is `git diff --cached` with external diff and textconv disabled, cut on a line boundary to {{limits.diffMaxBytes}} bytes and to what fits in min(action maxPayloadBytes, {{limits.payloadMaxBytes}}) bytes (truncated). The repository's absolute path, remotes, authors and the current draft are never sent. Expected result: {\"message\": string} (<= {{limits.resultMaxBytes}} bytes); line ends become LF, control and format characters are removed, surrounding blanks trimmed, at most {{limits.messageMaxRunes}} characters; an empty message is an error. Timeout {{limits.timeoutMs}} ms, {{limits.concurrentPerPlugin}} request in flight per plugin.",
+  "description": "Commit message provider: drafts a commit message from the staged changes when the user clicks the plugin button in the Git commit box.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "title", "action"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "action": { "type": "string", "minLength": 1, "description": "Id of one of this plugin's contributes.actions with risk 'read' that is not aiCallable." }
+    },
+    "additionalProperties": false
+  }
+}

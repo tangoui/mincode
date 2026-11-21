@@ -1,0 +1,50 @@
+{
+  "$comment": "Entry schema for contributes.terminalProfiles (process plugins that declare the shell capability, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_terminal_profiles.go (install) and terminal_profiles_launch.go (launch): command is exactly one of ${pluginRoot}/<relative> (resolved symlink-safely inside the plugin, a regular executable file), a bare program name found on the login PATH, or an absolute path without '..'; '${...}' in args, env values and cwd may only be ${workspaceFolder}, ${userHome} or ${pluginRoot}; env names on the contract denylist (case-insensitive, including the denied prefixes LD_, DYLD_, GIT_, BASH_FUNC_, NPM_CONFIG_, PIP_, MINCODE_) are rejected at install and again at launch; text must be single-line without control or bidirectional override characters. Every first launch and every launch after the resolved command, args, env, cwd or plugin executable changed needs an explicit user confirmation.",
+  "description": "Terminal profiles: named launchers in the terminal + menu that run a program in a new terminal pane after the user confirms the exact command line.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "title", "command"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,31}$" },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}", "description": "Menu and pane title; shown labelled as plugin-supplied." },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "icon": { "type": "string", "description": "One of the host view icons (same set as contributes.views icon)." },
+      "command": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": "{{limits.commandMaxLength}}",
+        "description": "${pluginRoot}/<relative path> (the executable's sha256 is part of the confirmed fingerprint), a bare program name such as \"python3\", or an absolute path. No shell runs in between: $VAR stays literal."
+      },
+      "args": {
+        "type": "array",
+        "maxItems": "{{limits.argsMax}}",
+        "items": { "type": "string", "maxLength": "{{limits.argMaxRunes}}" },
+        "description": "Arguments passed verbatim (after variable expansion); at most {{limits.argsTotalBytes}} bytes in total."
+      },
+      "env": {
+        "type": "object",
+        "maxProperties": "{{limits.envMax}}",
+        "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$", "not": { "enum": "{{lists.deniedEnvNames}}" } },
+        "additionalProperties": { "type": "string", "maxLength": "{{limits.envValueMaxRunes}}" },
+        "description": "Extra environment variables. Names that change program loading or shell startup (PATH, LD_*, DYLD_*, NODE_OPTIONS, PYTHONPATH, ...) are rejected."
+      },
+      "cwd": {
+        "type": "string",
+        "pattern": "^\\$\\{(workspaceFolder|userHome|pluginRoot)\\}(/[^/]+)*$",
+        "description": "Working directory: a variable optionally followed by a relative path. Defaults to ${workspaceFolder} (the user's home when no workspace folder is open)."
+      },
+      "platforms": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "enum": ["darwin", "linux", "windows"] },
+        "description": "Operating systems the profile is offered on; defaults to all. On Windows the executable must be an .exe or .com file."
+      }
+    },
+    "additionalProperties": false
+  }
+}

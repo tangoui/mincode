@@ -1,0 +1,293 @@
+/* Full-height roots that own their module-specific layout below. */
+.browser-workspace,
+.settings-workspace {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--app-surface);
+}
+.git-commit-box {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  padding: 10px;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+.git-inline-actions {
+  display: flex;
+  justify-content: space-between;
+}
+.diff-split {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 1fr 1fr;
+  background: var(--app-code-surface);
+  color: var(--app-code-text);
+}
+.diff-split pre {
+  min-width: 0;
+  margin: 0;
+  border-right: 1px solid var(--app-code-border);
+  padding: 12px;
+  font:
+    12px / 1.55 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+}
+.history-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 80px 1fr 120px;
+  gap: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 8px 12px;
+  text-align: left;
+}
+.history-row:hover {
+  background: var(--app-accent-soft);
+}
+.history-row small {
+  color: var(--app-text-muted);
+}
+.sftp-grid {
+  display: grid;
+  height: calc(100% - 38px);
+  grid-template-columns: 240px minmax(360px, 1fr) minmax(320px, 40%);
+}
+.sftp-pane {
+  min-width: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--app-border);
+}
+.sftp-pathbar {
+  display: flex;
+  height: 40px;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--app-border);
+}
+.sftp-files {
+}
+.sftp-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 24px minmax(0, 1fr) 100px 80px;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 7px 10px;
+  text-align: left;
+}
+.sftp-row:hover,
+.sftp-row.is-active {
+  background: var(--app-accent-soft);
+}
+.sftp-row small {
+  color: var(--app-text-muted);
+}
+.sftp-editor,
+.session-card > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+/* The SFTP textarea is a code-editor surface, not a form field. Keep it
+ * borderless even though generic Element Plus textarea states use inset borders. */
+#app .sftp-editor .el-textarea,
+#app .sftp-editor .el-textarea__inner {
+  height: 100% !important;
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: none !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+#app .sftp-editor .el-textarea__inner:hover,
+#app .sftp-editor .el-textarea__inner:focus {
+  box-shadow: none !important;
+}
+.sessions-list {
+  background: var(--app-surface);
+}
+.session-card,
+.plugin-card {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  background: transparent;
+  padding: 9px 10px;
+  text-align: left;
+}
+.session-card:hover,
+.session-card.is-active {
+  background: var(--app-accent-soft);
+}
+.session-card small,
+.plugin-card small {
+  overflow: hidden;
+  color: var(--app-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conversation-view {
+  min-height: 0;
+  flex: 1;
+  padding: 18px;
+}
+.conversation-message {
+  max-width: 88%;
+  margin: 0 0 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-muted);
+  padding: 10px 12px;
+}
+.conversation-message.is-user {
+  margin-left: auto;
+  background: var(--app-accent-soft);
+}
+.conversation-message pre {
+  margin: 4px 0 0;
+  font: 12px / 1.55 inherit;
+  white-space: pre-wrap;
+}
+.ai-main {
+  position: relative;
+}
+.ai-composer {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--app-border);
+}
+.mcp-form {
+  display: grid;
+  grid-template-columns: 1fr 110px 1fr auto;
+  gap: 8px;
+  padding: 12px;
+}
+.context-chip {
+  display: inline-flex;
+  margin: 3px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  padding: 4px 7px;
+  background: var(--app-muted);
+}
+.browser-workspace {
+  display: flex;
+  flex-direction: column;
+}
+.browser-toolbar {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--app-border);
+}
+.browser-viewport {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  background: var(--app-muted);
+}
+.browser-placeholder {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: var(--app-text-muted);
+}
+.browser-placeholder > .el-icon {
+  font-size: 48px;
+}
+.settings-workspace {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--app-border);
+  background: var(--app-muted);
+  padding: 10px;
+}
+.settings-title {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.settings-nav button {
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0 10px;
+  text-align: left;
+}
+.settings-nav button:hover,
+.settings-nav button.is-active {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+.settings-content {
+  padding: 28px 40px;
+}
+.settings-content h1 {
+  margin: 0 0 20px;
+  font-size: 22px;
+}
+.settings-card {
+  display: grid;
+  max-width: 760px;
+  gap: 0;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  overflow: hidden;
+}
+.settings-card > label {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--app-border);
+}
+.settings-card > pre {
+  margin: 0;
+  padding: 14px;
+  white-space: pre-wrap;
+}
+@media (max-width: 1150px) {
+  .sftp-grid {
+    grid-template-columns: 200px minmax(320px, 1fr);
+  }
+  .sftp-editor {
+    display: none;
+  }
+}

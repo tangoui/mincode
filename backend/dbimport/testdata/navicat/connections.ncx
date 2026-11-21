@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Connections Ver="1.5">
+	<Connection ConnectionName="Shop MySQL" ProjectUUID="" ConnType="MYSQL" Host="mysql.example.test" Port="3306" Database="shop" UserName="shop" Password="CA8E6B2DC3FD32E29FB710C902F30C7E" SavePassword="true" SSH="true" SSH_Host="jump.example.test" SSH_Port="22" SSH_UserName="ops" SSH_AuthenMethod="PASSWORD" SSH_Password="06A7F182BCC0BD445ECF1F134C394A17" SSH_SavePassword="true" SSL="false"/>
+	<Connection ConnectionName="Docs Mongo" ConnType="MONGODB" Host="mongo.example.test" Port="27018" UserName="reader" Password="01A2B5001A7A92B0AC80C6BA6D8936F4" SavePassword="true" SSH="false" SSL="true"/>
+	<Connection ConnectionName="Local SQLite" ConnType="SQLITE" DatabaseFileName="/tmp/fake/local.sqlite" SSH="false"/>
+	<Connection ConnectionName="Broken" ConnType="POSTGRESQL" Host="pg.example.test" Port="5432" UserName="u" Password="ZZZZ" SavePassword="true"/>
+	<Connection ConnectionName="Legacy DB2" ConnType="DB2" Host="db2.example.test" Port="50000"/>
+</Connections>

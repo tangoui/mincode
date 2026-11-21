@@ -1,0 +1,48 @@
+.app-workspace-content {
+  position: relative;
+}
+
+.app-workspace-route-progress {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  animation: app-workspace-route-progress-show 120ms 90ms forwards;
+}
+
+.app-workspace-route-progress::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34%;
+  background: var(--app-accent);
+  content: "";
+  animation: app-workspace-route-progress-move 720ms ease-in-out infinite;
+}
+
+@keyframes app-workspace-route-progress-show {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes app-workspace-route-progress-move {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(395%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-workspace-route-progress::before {
+    width: 100%;
+    animation: none;
+  }
+}

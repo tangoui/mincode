@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <style>
+      /* The entry document paints before the application theme tokens are loaded. */
+      :root:not([data-theme-kind]) {
+        color-scheme: light;
+        background: var(--app-surface, #fff);
+      }
+      :root[data-startup-dark]:not([data-theme-kind]) {
+        color-scheme: dark;
+        background: #20232b;
+      }
+    </style>
+    <script>
+      // Match the saved theme before the module graph loads; Vue takes over once mounted.
+      try {
+        const settings = JSON.parse(localStorage.getItem("app_settings_v2") || "null");
+        const theme = settings?.uiTheme;
+        const dark = theme === "system"
+          ? matchMedia("(prefers-color-scheme: dark)").matches
+          : ["dark", "graphite", "midnight", "arco-dark"].includes(theme)
+            || (typeof theme === "string" && theme.includes(".") && settings.uiThemeKind === "dark");
+        if (dark) document.documentElement.setAttribute("data-startup-dark", "");
+      } catch {
+        // Storage can be unavailable or malformed. The light default still paints.
+      }
+    </script>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>MinCode</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

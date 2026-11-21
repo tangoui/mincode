@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs><linearGradient id="background" x1="32" y1="0" x2="480" y2="512" gradientUnits="userSpaceOnUse"><stop stop-color="#5B8CFF"/><stop offset="1" stop-color="#2F5BE0"/></linearGradient><radialGradient id="glow" cx="140" cy="60" r="420" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF" stop-opacity="0.2"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient></defs>
+  <rect width="512" height="512" rx="112" fill="url(#background)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <path id="mincode-mark-chevron-top" d="M122.1 152.3L237.3 256.0" stroke="#C7D7FF" stroke-width="69.12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path id="mincode-mark-chevron-bottom" d="M237.3 256.0L122.1 359.7" stroke="#FFFFFF" stroke-width="69.12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path id="mincode-mark-cursor" d="M296.3 359.7H389.9" stroke="#67E8F9" stroke-width="69.12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

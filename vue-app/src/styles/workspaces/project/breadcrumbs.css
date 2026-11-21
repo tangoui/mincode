@@ -1,0 +1,85 @@
+/* Document tabs sit above a compact, interactive breadcrumb row (template order). */
+.project-document-tabs {
+  height: 30px;
+}
+
+.project-document-tabs__list.el-tabs {
+  --el-tabs-header-height: 30px;
+}
+
+.project-document-tabs__list.el-tabs--card > .el-tabs__header {
+  height: 30px;
+}
+
+.project-document-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item {
+  height: 30px;
+  line-height: 1;
+}
+
+.project-document-tabs__list .project-document-tab__name {
+  line-height: 16px;
+  padding-block: 1px;
+}
+
+.project-document-tabs__overflow.el-button {
+  height: 28px;
+}
+
+.project-editor-toolbar {
+  height: 28px;
+  gap: 4px;
+  padding: 1px 8px;
+}
+
+.project-editor-toolbar > :is(button, .el-button),
+.project-editor-toolbar > .el-popover__reference-wrapper > :is(button, .el-button) {
+  width: 22px;
+  height: 22px;
+}
+
+.project-editor-toolbar__path {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.project-editor-breadcrumb {
+  min-width: 0;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.project-editor-breadcrumb__content {
+  display: flex;
+  min-width: max-content;
+  align-items: center;
+}
+.project-editor-breadcrumb__content > :is(button, .el-button) {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.project-editor-breadcrumb__content > :is(button, .el-button):hover,
+.project-editor-breadcrumb > :is(button, .el-button):focus-visible {
+  color: var(--app-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.project-editor-breadcrumb__content > :is(button, .el-button).is-current {
+  color: var(--app-text-regular);
+  font-weight: 500;
+}
+
+.project-editor-breadcrumb > span {
+  flex: none;
+  margin: 0 5px;
+  color: var(--app-border-strong);
+}

@@ -1,0 +1,71 @@
+/* Database connection filters: compact Arco-style filter layout. */
+.db-search-row {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 8px;
+}
+
+.db-search-row .db-search-box {
+  flex: 1;
+}
+
+.db-connection-filter-panel {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 12px 6px;
+}
+
+.db-connection-filter-scopes {
+  --el-segmented-item-hover-color: var(--app-accent);
+  width: 100%;
+  font-size: 12px;
+}
+
+.db-connection-filter-scopes .el-segmented__group {
+  width: 100%;
+}
+
+.db-connection-filter-scopes .el-segmented__item {
+  flex: 1;
+  min-height: var(--el-component-size-small);
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.db-connection-filter-scopes .el-segmented__item-label {
+  font-size: 11px;
+  line-height: var(--el-component-size-small);
+}
+
+.db-connection-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.db-connection-filter-select {
+  width: 100%;
+}
+
+.db-connection-filter-select .el-select__wrapper {
+  min-height: var(--el-component-size-small);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  box-shadow: none;
+  font-size: 11px;
+}
+
+.db-connection-filter-select :is(.el-select__selected-item, .el-select__placeholder) {
+  font-size: 11px;
+}
+
+.db-connection-filter-select .el-select__wrapper:hover,
+.db-connection-filter-select.is-focus .el-select__wrapper {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 2px var(--app-accent-ring);
+}

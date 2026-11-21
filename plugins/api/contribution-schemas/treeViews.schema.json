@@ -1,0 +1,19 @@
+{
+  "$comment": "Entry schema for contributes.treeViews (process plugins only, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_tree_views.go and tree_view_invoke.go. action must name one of this plugin's contributes.actions with risk 'read'. Each view is a collapsible section of the project sidebar 'Views' tab. When the user expands the view or one of its collapsible items, the host calls the action through plugin_host_tree_view with {view, parent (item id or null), locale, project: {name, root? (only with workspace.read)}} (payload <= min(action maxPayloadBytes, {{limits.payloadMaxBytes}}) bytes, timeout {{limits.timeoutMs}} ms) and expects {\"items\": [{id, label, description?, tooltip?, icon?, collapsible?, target?}]} (<= {{limits.resultMaxBytes}} bytes, first {{limits.itemsMax}} items kept, invalid or duplicate items dropped, nesting stops at depth {{limits.depthMax}}). Text is plain. icon is one of {{lists.icons}}. target runs only when the user activates the item: {type: 'file', path, line?} (clean project-relative path, opened in the editor), {type: 'view', view, args?} (one of this plugin's views, <= {{limits.argsMaxProperties}} scalar args), {type: 'command', command, args?} (one of this plugin's action commands with effective risk 'read'; args only when the command declares inputSchema and valid against it) or {type: 'url', url} (absolute http(s) URL opened in the system browser). The plugin is activated only when the user opens the view.",
+  "description": "Tree views: collapsible sections in the project sidebar 'Views' tab whose items come from one of this plugin's read actions.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "title", "action"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "action": { "type": "string", "minLength": 1, "description": "Id of one of this plugin's contributes.actions with risk 'read'." }
+    },
+    "additionalProperties": false
+  }
+}

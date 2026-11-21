@@ -1,0 +1,45 @@
+{
+  "$comment": "Entry schema for contributes.aiContextProviders (process plugins, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_ai_context_providers.go and ai_context_invoke.go. action must name one of this plugin's contributes.actions with risk 'read' and must not be aiCallable. The host calls it through plugin_host_ai_context only after the user picks the @mention in the AI composer and presses Fetch, with {provider, argument?, locale} (<= {{limits.payloadMaxBytes}} bytes, argument a single line <= {{limits.argumentMaxRunes}} characters, timeout {{limits.timeoutMs}} ms), and expects {\"text\": string, \"title\"?: string, \"truncated\"?: boolean} (<= {{limits.resultMaxBytes}} bytes, valid UTF-8 without NUL; hidden, control and bidirectional characters are removed, text beyond {{limits.resultMaxChars}} characters is cut, title <= {{limits.resultTitleMaxRunes}} characters). The text is previewed read-only and becomes a labelled, untrusted attachment only when the user inserts it. Mentions must not be one of the host's reserved mentions ({{lists.reservedMentions}}) and must be unique within the plugin.",
+  "description": "AI context providers: let the user attach text fetched by one of this plugin's read actions to an AI message through an @mention.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "mention", "title", "description", "action"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+      "mention": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{1,23}$",
+        "not": { "enum": "{{lists.reservedMentions}}" },
+        "description": "What the user types after @ (2-24 lowercase letters, digits or hyphens)."
+      },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "description": { "type": "string", "minLength": 1, "maxLength": "{{limits.descriptionMaxRunes}}" },
+      "descriptionLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.descriptionMaxRunes}}" }
+      },
+      "action": { "type": "string", "minLength": 1, "description": "Id of one of this plugin's contributes.actions with risk 'read' and without aiCallable." },
+      "argument": {
+        "type": "object",
+        "properties": {
+          "required": { "type": "boolean" },
+          "placeholder": { "type": "string", "maxLength": "{{limits.placeholderMaxRunes}}" },
+          "placeholderLocalized": {
+            "type": "object",
+            "maxProperties": "{{limits.localesMax}}",
+            "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.placeholderMaxRunes}}" }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Optional single-line free-text argument the user types in the preview dialog."
+      }
+    },
+    "additionalProperties": false
+  }
+}

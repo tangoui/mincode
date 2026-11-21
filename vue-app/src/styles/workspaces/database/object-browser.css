@@ -1,0 +1,327 @@
+.db-object-browser {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  background: var(--app-surface);
+}
+
+/* The toolbar sizes against its own width (container db-object-toolbar), not
+ * the database pane: the details panel can narrow it while the pane stays
+ * wide. Controls wrap onto a second row instead of overflowing past the edge. */
+.db-object-browser__toolbar {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  container-name: db-object-toolbar;
+  container-type: inline-size;
+}
+
+.db-object-browser__toolbar > .db-object-browser__database.el-select {
+  width: 150px;
+  min-width: 0;
+  max-width: 150px;
+  flex: 0 1 150px;
+}
+
+.db-object-browser__database .el-select__wrapper {
+  min-height: 28px;
+  padding-inline: 9px 6px;
+}
+
+.db-object-browser__database .el-select__selected-item {
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* The search absorbs the free width and shrinks first; the remaining controls
+ * keep their natural size so their labels and counts are never clipped. */
+.db-object-browser__toolbar > .db-object-browser__search.el-input {
+  width: auto;
+  min-width: 160px;
+  max-width: 360px;
+  flex: 1 1 160px;
+}
+
+.db-object-browser__toolbar > .db-object-browser__filters.el-segmented {
+  width: max-content;
+  max-width: 100%;
+  flex: none;
+  --el-segmented-color: var(--app-text-muted);
+  --el-segmented-item-hover-color: var(--app-text);
+  --el-segmented-item-hover-bg-color: var(--app-hover);
+}
+
+.db-object-browser__toolbar > .db-object-browser__sort.el-select {
+  width: 118px;
+  min-width: 118px;
+  max-width: 118px;
+  flex: none;
+}
+
+.db-object-browser__toolbar > .el-button {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Narrow: the database picker and search fill the first row; a full-width
+ * break pushes filters, sort and refresh onto the second row. */
+@container db-object-toolbar (max-width: 560px) {
+  .db-object-browser__toolbar::after {
+    content: "";
+    order: 1;
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .db-object-browser__toolbar > .db-object-browser__database.el-select {
+    width: 120px;
+    max-width: 120px;
+    flex-basis: 120px;
+  }
+
+  .db-object-browser__toolbar > .db-object-browser__search.el-input {
+    min-width: 0;
+    max-width: none;
+    flex-basis: 0;
+  }
+
+  .db-object-browser__toolbar > .db-object-browser__filters.el-segmented,
+  .db-object-browser__toolbar > .db-object-browser__sort.el-select,
+  .db-object-browser__toolbar > .el-button {
+    order: 2;
+  }
+
+  .db-object-browser__filters .el-segmented__item-label {
+    padding: 0 6px;
+  }
+
+  /* The sort shrinks so filters, sort and refresh always share the second row. */
+  .db-object-browser__toolbar > .db-object-browser__sort.el-select {
+    width: auto;
+    min-width: 86px;
+    max-width: 118px;
+    flex: 0 1 118px;
+  }
+}
+
+.db-object-browser__split,
+.db-object-browser__list {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.db-object-browser__list {
+  height: 100%;
+  overflow: hidden;
+}
+
+.db-object-browser .el-table {
+  --el-table-header-bg-color: var(--app-surface-muted);
+  --el-table-row-hover-bg-color: var(--app-surface-hover);
+  --el-table-current-row-bg-color: var(--app-accent-soft);
+  color: var(--app-text);
+}
+
+.db-object-browser .el-table th.el-table__cell,
+.db-object-browser .el-table td.el-table__cell {
+  height: 36px;
+  padding: 0;
+}
+
+.db-object-browser .el-table th.el-table__cell {
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.db-object-browser .el-table td.el-table__cell {
+  font-size: 12px;
+}
+
+.db-object-browser__name {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.db-object-browser__name .el-icon {
+  color: var(--app-accent);
+  font-size: 15px;
+}
+
+.db-object-browser__name .el-icon.is-view {
+  color: var(--app-text-muted);
+}
+
+.db-object-browser__name strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-object-details {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  border-left: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.db-object-details__header {
+  display: flex;
+  min-width: 0;
+  height: 42px;
+  flex: 0 0 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.db-object-details__header > strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-object-details__header > div {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.db-object-details__tabs {
+  flex: 0 0 auto;
+}
+
+.db-object-details__tabs > .el-tabs__header {
+  margin: 0;
+}
+
+.db-object-details__tabs .el-tabs__item {
+  height: 38px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.db-object-details__tabs .el-tabs__item.is-active {
+  color: var(--app-text);
+}
+
+.db-object-details__tabs > .el-tabs__content {
+  display: none;
+}
+
+.db-object-details__body {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.db-object-details__warning {
+  flex: none;
+  border-radius: 0;
+}
+
+.db-object-details__ddl-editor,
+.db-object-details__empty-ddl {
+  min-height: 0;
+  flex: 1;
+}
+
+.db-object-details__empty-ddl {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.db-object-table {
+  width: 100%;
+  height: 100%;
+}
+
+.db-object-table__cell {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+}
+
+.db-object-table__cell.is-right {
+  justify-content: flex-end;
+}
+
+.db-object-table__cell .db-object-browser__name {
+  flex: 1;
+}
+
+.db-object-table .el-table-v2__root {
+  --el-table-border-color: var(--app-border);
+  --el-table-header-bg-color: var(--app-surface-muted);
+  --el-table-row-hover-bg-color: var(--app-surface-hover);
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.db-object-table .el-table-v2__header-cell {
+  color: var(--app-text-muted);
+  font-weight: 600;
+}
+
+.db-object-table .el-table-v2__row {
+  border-bottom-color: var(--app-border);
+  cursor: pointer;
+}
+
+.db-object-table .el-table-v2__row:hover {
+  background: var(--app-surface-hover);
+}
+
+.db-object-table .el-table-v2__row.is-current {
+  background: var(--app-accent-soft);
+}
+
+.db-object-table .el-table-v2__row-cell,
+.db-object-table .el-table-v2__header-cell {
+  padding: 0 10px;
+}
+
+.db-object-table__empty {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}

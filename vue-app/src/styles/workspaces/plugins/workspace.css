@@ -1,0 +1,1258 @@
+/* Plugin manager workspace layout and dense desktop controls. */
+.plugin-development-panel {
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+}
+.plugin-development-panel__content {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+.plugin-development-panel__header,
+.plugin-development-panel__toolbar,
+.plugin-development-panel__toolbar-actions,
+.plugin-development-panel__section-title,
+.plugin-development-panel__card-header,
+.plugin-development-panel__identity,
+.plugin-development-panel__status,
+.plugin-development-panel__actions {
+  display: flex;
+  align-items: center;
+}
+.plugin-development-panel__header {
+  justify-content: space-between;
+  gap: 16px;
+}
+.plugin-development-panel__header h2,
+.plugin-development-panel__section-title h3,
+.plugin-development-panel__header p,
+.plugin-development-panel__path {
+  margin: 0;
+}
+.plugin-development-panel__header h2 { font-size: 15px; }
+.plugin-development-panel__header p,
+.plugin-development-panel__path {
+  margin-top: 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+/* 插件描述最多两行，超出截断，保证网格卡片高度整齐。 */
+.plugin-development-panel__desc {
+  display: -webkit-box;
+  margin: 6px 0 0;
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.plugin-development-panel__section {
+  display: grid;
+  gap: 10px;
+}
+.plugin-development-panel__toolbar,
+.plugin-development-panel__card-header {
+  justify-content: space-between;
+  gap: 12px;
+}
+.plugin-development-panel__card-header {
+  flex-wrap: wrap;
+}
+.plugin-development-panel__toolbar-actions {
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.plugin-development-panel__toolbar-actions .el-radio-group {
+  flex-shrink: 0;
+}
+/* 状态筛选、搜索框与扫描按钮统一使用搜索框高度，保持同一排等高。 */
+.plugin-development-panel__toolbar-actions .el-radio-button__inner,
+.plugin-development-panel__toolbar-actions > .el-button {
+  display: inline-flex;
+  align-items: center;
+  height: var(--app-search-field-height, 28px);
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 12px;
+}
+.plugin-development-panel__toolbar-actions .app-search-field {
+  flex: 0 1 360px;
+  width: min(360px, 100%);
+}
+.plugin-development-panel__section-title,
+.plugin-development-panel__identity,
+.plugin-development-panel__status {
+  gap: 8px;
+  min-width: 0;
+}
+.plugin-development-panel__identity {
+  flex: 1 1 240px;
+  flex-wrap: wrap;
+}
+.plugin-development-panel__identity strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.plugin-development-panel__status {
+  flex-wrap: wrap;
+  flex: 0 1 auto;
+}
+.plugin-development-panel__section-title h3 { font-size: 13px; }
+.plugin-development-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 12px;
+}
+.plugin-development-panel__card {
+  min-width: 0;
+  border-color: var(--app-border);
+}
+.plugin-development-panel__card > .el-card__body {
+  display: flex;
+  min-width: 0;
+  min-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* 卡片拆成两个模块：左侧信息区 + 右侧操作栏，避免描述与按钮互相挤压。 */
+.plugin-development-panel__card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+.plugin-development-panel__card-info {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+.plugin-development-panel__card-info > .plugin-development-panel__path,
+.plugin-development-panel__card-info > .plugin-development-panel__desc,
+.plugin-development-panel__card-info > .plugin-development-panel__session-summary {
+  margin-top: 0;
+}
+.plugin-development-panel__card-side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.plugin-development-panel__card-side .plugin-development-panel__status {
+  justify-content: flex-end;
+}
+.plugin-development-panel__card-side .plugin-development-panel__actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+.plugin-development-panel__card-side .el-button {
+  width: 100%;
+  margin-left: 0;
+}
+.plugin-development-panel__session-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+  color: var(--app-text-regular);
+  font-size: 12px;
+}
+.plugin-development-panel__session-summary span:not(:last-child)::after {
+  padding-left: 12px;
+  color: var(--app-border-strong);
+  content: "·";
+}
+.plugin-development-panel__identity code,
+.plugin-development-panel__path,
+.plugin-development-panel__card code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plugin-development-panel__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+.plugin-development-panel__manifest {
+  margin-top: 10px;
+}
+.plugin-development-panel__manifest code {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plugin-development-panel__logs {
+  margin-top: 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-canvas);
+}
+.plugin-development-panel__logs summary {
+  padding: 8px 10px;
+  color: var(--app-text-regular);
+  cursor: pointer;
+}
+.plugin-development-panel__logs ol {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 10px 10px;
+  list-style: none;
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+}
+.plugin-development-panel__logs li {
+  display: grid;
+  grid-template-columns: 150px 44px minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  color: var(--app-text-regular);
+}
+.plugin-development-panel__logs time,
+.plugin-development-panel__logs strong { color: var(--app-text-muted); }
+.plugin-development-panel__logs span {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.plugin-development-panel__issues {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+@container (max-width: 680px) {
+  .plugin-development-panel__header,
+  .plugin-development-panel__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .plugin-development-panel__toolbar-actions {
+    justify-content: stretch;
+  }
+  .plugin-development-panel__toolbar-actions .app-search-field {
+    flex: 1;
+    width: auto;
+  }
+  .plugin-development-panel__logs li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+.app-plugin-toolbar {
+  min-width: 0;
+}
+.app-plugin-toolbar__row,
+.app-plugin-toolbar__query,
+.app-plugin-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.app-plugin-toolbar__row {
+  flex-wrap: wrap;
+}
+/* The search box also takes an install source; its preview button sits right after it. */
+.app-plugin-toolbar__query {
+  flex: 1 1 280px;
+}
+.app-plugin-toolbar__query > .app-search-field {
+  flex: 1;
+  width: auto;
+}
+.app-plugin-toolbar__actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+/* Element Plus loads its .el-select { width: 100% } on demand after this file, so the
+   width is pinned through its own variable as well as with a more specific selector. */
+.app-plugin-toolbar__actions > .app-plugin-toolbar__filter {
+  --el-select-width: 120px;
+  width: 120px;
+  flex: none;
+}
+/* Element Plus small controls are 24px; match the shared 28px search field. */
+.app-plugin-toolbar__filter .el-select__wrapper,
+.app-plugin-toolbar__install .el-button,
+.app-plugin-toolbar__query > .el-button {
+  min-height: var(--app-search-field-height, 28px);
+  height: var(--app-search-field-height, 28px);
+}
+.app-plugin-toolbar__query > .el-button {
+  flex-shrink: 0;
+  margin: 0;
+}
+.app-plugin-toolbar__install {
+  flex-shrink: 0;
+}
+.app-plugin-toolbar__install .el-icon {
+  margin-right: 4px;
+}
+.app-plugin-catalog {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 160px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 16px 16px;
+}
+.app-plugin-categories.el-menu { background: var(--app-surface); }
+.app-plugin-categories .el-menu-item {
+  height: 36px;
+  line-height: 36px;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.app-plugin-category-scroll,
+.plugin-manager-results {
+  min-width: 0;
+  min-height: 0;
+}
+.plugin-manager-results {
+  display: flex;
+  flex-direction: column;
+}
+.plugin-manager-host-warning { color: var(--app-warning); }
+.app-plugin-pagination {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-top: 12px;
+}
+.app-plugin-metadata { overflow-wrap: anywhere; }
+.app-plugin-metadata .el-descriptions__label {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.app-plugin-metadata .el-tag { margin: 2px; }
+.app-plugin-detail-drawer .el-descriptions + .el-descriptions,
+.app-plugin-detail-drawer .el-descriptions + .el-alert,
+.app-plugin-detail-drawer .el-alert + .el-alert {
+  margin-top: 12px;
+}
+.app-plugin-detail-drawer .el-drawer__footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.plugin-manager-workspace {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--app-surface);
+}
+.plugin-manager-meta__title,
+.plugin-manager-meta__identity,
+.plugin-manager-capabilities,
+.plugin-manager-actions,
+.plugin-manager-views__header,
+.plugin-manager-view-row,
+.plugin-manager-view-row__identity {
+  display: flex;
+  align-items: center;
+}
+.plugin-manager-meta small,
+.plugin-manager-meta p {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.plugin-manager-plugins-pane {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+.plugin-manager-catalog-content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.plugin-manager-catalog-alerts {
+  display: grid;
+  gap: 8px;
+  padding: 0 16px;
+}
+.plugin-manager-catalog-alerts:not(:empty) { padding-top: 12px; }
+.plugin-manager-scroll {
+  min-height: 0;
+  flex: 1;
+}
+.plugin-manager-scroll > .el-scrollbar__wrap > .el-scrollbar__view {
+  padding-right: 8px;
+}
+.app-plugin-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 8px;
+}
+.app-plugin-preview__summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--el-color-primary-light-9), var(--app-surface) 70%);
+}
+.app-plugin-preview__mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-light-3));
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+.app-plugin-preview__heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.app-plugin-preview__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.app-plugin-preview__title strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-plugin-preview__heading > code,
+.app-plugin-preview__source code,
+.app-plugin-preview__verified code {
+  font-family: var(--el-font-family-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12px;
+}
+.app-plugin-preview__heading > code {
+  color: var(--app-text-muted);
+}
+.app-plugin-preview__stats {
+  display: flex;
+  flex: none;
+  gap: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--app-border);
+}
+.app-plugin-preview__stats span {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.app-plugin-preview__stats strong {
+  color: var(--app-text);
+  font-size: 16px;
+  line-height: 1.3;
+}
+.app-plugin-preview__error-detail {
+  margin-top: 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  word-break: break-word;
+}
+.app-plugin-preview__verified {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-color-success-light-7);
+  border-radius: 10px;
+  background: var(--el-color-success-light-9);
+}
+.app-plugin-preview__verified-icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--el-color-success);
+  font-size: 18px;
+}
+.app-plugin-preview__verified > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.app-plugin-preview__verified strong {
+  color: var(--el-color-success);
+  font-size: 13px;
+  font-weight: 600;
+}
+.app-plugin-preview__verified code {
+  overflow: hidden;
+  color: var(--app-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-plugin-preview__verified span {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+.app-plugin-preview__source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  font-size: 12px;
+}
+.app-plugin-preview__source > span {
+  flex: none;
+  color: var(--app-text-muted);
+}
+.app-plugin-preview__source code {
+  overflow: hidden;
+  color: var(--app-text);
+  direction: rtl;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-plugin-preview__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px dashed var(--app-border);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.app-plugin-preview__notes > strong {
+  color: var(--app-text);
+  font-size: 13px;
+}
+.app-plugin-preview__notes p {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  color: var(--app-text-muted);
+}
+.app-plugin-preview__notes .el-icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--el-color-info);
+}
+.app-plugin-preview__notes p.is-warning .el-icon {
+  color: var(--el-color-warning);
+}
+.app-plugin-preview .app-plugin-metadata .el-descriptions__label {
+  width: 110px;
+}
+@media (max-width: 560px) {
+  .app-plugin-preview__summary {
+    flex-wrap: wrap;
+  }
+  .app-plugin-preview__stats {
+    width: 100%;
+    padding-left: 0;
+    border-left: none;
+  }
+  .app-plugin-preview__stats span {
+    align-items: flex-start;
+  }
+}
+.plugin-manager-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.plugin-manager-card {
+  overflow: hidden;
+  height: auto;
+  min-width: 0;
+  border-color: var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+.plugin-manager-card__body {
+  display: flex;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+}
+/* Cards grow with their content (height auto), so this box never scrolls: a plain block,
+   not an el-scrollbar, which would add a resize observer and thumbs to each of 24 cards per page. */
+.plugin-manager-card__scroll {
+  min-width: 0;
+  min-height: 0;
+  flex: none;
+  overflow: hidden;
+}
+.plugin-manager-card__content {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 6px;
+}
+.plugin-manager-card__heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.plugin-manager-primary-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-right: auto;
+}
+.plugin-manager-primary-actions > * {
+  flex: 0 0 auto;
+}
+.plugin-manager-primary-actions .el-button + .el-button {
+  margin-left: 0;
+}
+/* The scope picker is a button that opens the page's shared menu; fixed width keeps it on the switches' row. */
+.plugin-manager-primary-actions .plugin-manager-scope-select {
+  width: 112px;
+  flex: none;
+  justify-content: space-between;
+}
+.plugin-manager-primary-actions .plugin-manager-scope-select > span {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+}
+/* 工作区选择器弹性占据第一行剩余空间，避免单独换行。 */
+.plugin-manager-scope-workspaces {
+  flex: 1 1 140px;
+  width: auto;
+  min-width: 120px;
+  max-width: 100%;
+}
+.plugin-manager-meta {
+  min-width: 0;
+}
+.plugin-manager-meta__title,
+.plugin-manager-meta__identity,
+.plugin-manager-capabilities {
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.plugin-manager-meta__identity {
+  margin-top: 7px;
+}
+.plugin-manager-meta strong,
+.plugin-view-unavailable strong {
+  color: var(--app-text);
+  font-size: 13px;
+}
+.plugin-manager-meta code {
+  border-radius: 4px;
+  background: var(--app-canvas);
+  padding: 2px 5px;
+  color: var(--app-text-regular);
+  font-size: 10px;
+}
+.plugin-manager-meta p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 8px 0 0;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.plugin-manager-capabilities {
+  margin-top: 9px;
+}
+/* Capability and cloud-catalog tags: one tone per name (domain/plugins/capability-tone.ts),
+   mixed from the semantic tokens so every theme keeps readable contrast. Plain
+   tags derive their background and border from --el-tag-text-color. */
+.plugin-manager-capabilities .el-tag[data-tone="blue"] { --el-tag-text-color: var(--app-accent); }
+.plugin-manager-capabilities .el-tag[data-tone="teal"] { --el-tag-text-color: color-mix(in srgb, var(--app-accent) 45%, var(--app-success)); }
+.plugin-manager-capabilities .el-tag[data-tone="green"] { --el-tag-text-color: var(--app-success); }
+.plugin-manager-capabilities .el-tag[data-tone="olive"] { --el-tag-text-color: color-mix(in srgb, var(--app-success) 50%, var(--app-warning)); }
+.plugin-manager-capabilities .el-tag[data-tone="amber"] { --el-tag-text-color: var(--app-warning); }
+.plugin-manager-capabilities .el-tag[data-tone="orange"] { --el-tag-text-color: color-mix(in srgb, var(--app-warning) 55%, var(--app-danger)); }
+.plugin-manager-capabilities .el-tag[data-tone="red"] { --el-tag-text-color: var(--app-danger); }
+.plugin-manager-capabilities .el-tag[data-tone="violet"] { --el-tag-text-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-danger)); }
+.plugin-manager-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 4px;
+  margin-top: 10px;
+  border-top: 1px solid var(--app-border);
+  padding-top: 8px;
+}
+/* 次级操作固定为一行，窄卡片时允许横向滚动而非换行。 */
+.plugin-manager-schedules {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Wraps instead of scrolling: a hidden scrollbar with flex-end clipped the first
+ * actions (Details) off the left edge of a narrow card. */
+/* Details / upgrade / logs / data / uninstall line up on the left under the primary row. */
+.plugin-manager-secondary-actions {
+  display: flex;
+  flex: 1 1 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+/* Marketplace downloads and likes lead the secondary row, like the marketplace cards. */
+.plugin-manager-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 0 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.plugin-manager-stats > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+/* 下拉菜单挂载在 body 上，危险项样式需写成全局规则。 */
+.el-dropdown-menu__item.plugin-manager-danger-item {
+  color: var(--el-color-danger);
+}
+.el-dropdown-menu__item.plugin-manager-danger-item:not(.is-disabled):hover,
+.el-dropdown-menu__item.plugin-manager-danger-item:not(.is-disabled):focus {
+  color: var(--el-color-danger);
+  background-color: var(--el-color-danger-light-9);
+}
+.plugin-manager-actions .el-button + .el-button {
+  margin-left: 0;
+}
+.plugin-manager-alert {
+  margin: 0;
+}
+.plugin-manager-logs {
+  min-height: 120px;
+}
+.plugin-manager-runtime-empty {
+  display: grid;
+  min-height: 240px;
+  grid-column: 1 / -1;
+  place-items: center;
+}
+.plugin-manager-sections {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+.plugin-manager-tabs__refresh {
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.plugin-manager-tabs__refresh .el-button + .el-button {
+  margin-left: 0;
+}
+.plugin-manager-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.plugin-manager-tab-label__count {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.plugin-manager-tab-label__count.is-full {
+  color: var(--el-color-warning);
+}
+.plugin-manager-tabs {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.plugin-manager-tabs > .el-tabs__header {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+.plugin-manager-tabs > .el-tabs__header .el-tabs__nav-wrap::after {
+  display: none;
+}
+.plugin-manager-tabs > .el-tabs__content {
+  min-height: 0;
+  flex: 1;
+}
+.plugin-manager-tabs > .el-tabs__content > .el-tab-pane {
+  height: 100%;
+  min-height: 0;
+}
+.plugin-manager-capability-scroll {
+  height: 100%;
+  min-height: 0;
+  background: var(--app-canvas);
+}
+.plugin-manager-capability-scroll .el-scrollbar__wrap {
+  overflow-x: hidden;
+}
+.plugin-manager-capability-grid {
+  display: grid;
+  min-width: 0;
+  min-height: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  align-content: start;
+  gap: 12px;
+  padding: 12px;
+}
+.plugin-manager-capability-intro {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 2px 9px;
+}
+.plugin-manager-capability-intro strong {
+  color: var(--app-text);
+  font-size: 13px;
+}
+.plugin-manager-capability-intro span {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+.plugin-manager-capability-group {
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+.plugin-manager-capability-group h3 {
+  margin: 0;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-muted);
+  padding: 9px 11px;
+  color: var(--app-text);
+  font-size: 12px;
+}
+.plugin-manager-capability-group article {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 9px 11px;
+}
+.plugin-manager-capability-group article:last-child {
+  border-bottom: 0;
+}
+.plugin-manager-capability-group article > div {
+  min-width: 0;
+}
+.plugin-manager-capability-group strong {
+  display: block;
+  color: var(--app-text);
+  font-size: 11px;
+}
+.plugin-manager-capability-group p {
+  margin: 3px 0 0;
+  color: var(--app-text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+/* Services tab (PluginServicesCatalog.vue). */
+.plugin-services-catalog-scroll {
+  height: 100%;
+  min-height: 0;
+  background: var(--app-surface);
+}
+.plugin-services-catalog-scroll .el-scrollbar__wrap {
+  overflow-x: hidden;
+}
+.plugin-services-catalog {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 12px;
+  padding: 12px;
+}
+.plugin-services-catalog__intro {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 2px 9px;
+}
+.plugin-services-catalog__intro strong {
+  color: var(--app-text);
+  font-size: 13px;
+}
+.plugin-services-catalog__intro span {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+.plugin-services-catalog__group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+.plugin-services-catalog__header {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-muted);
+  padding: 7px 11px;
+}
+.plugin-services-catalog__header h3 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--app-text);
+  font-family: var(--app-font-mono);
+  font-size: 12px;
+}
+.plugin-services-catalog__default {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.plugin-services-catalog__default .el-select {
+  width: 200px;
+}
+.plugin-services-catalog__title {
+  display: block;
+  color: var(--app-text);
+  font-size: 12px;
+}
+.plugin-services-catalog__description {
+  display: block;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.plugin-services-catalog__provider {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+@container workbench (max-width: 860px) {
+  .plugin-manager-capability-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.plugin-view-workspace,
+.plugin-view-frame {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+/* App.vue keeps one host per workspace mounted over the workspace content;
+   hidden hosts keep their iframes in the document (no display: none). */
+.plugin-view-workspace {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--app-canvas);
+}
+.plugin-view-workspace.is-hidden,
+.plugin-view-workspace.is-hidden .plugin-view-workspace__pane {
+  visibility: hidden;
+  pointer-events: none;
+}
+/* A ready iframe sets visibility: visible, which would show through a hidden
+   ancestor; hidden hosts and inactive panes hide their frames explicitly. */
+.plugin-view-workspace.is-hidden .plugin-view-frame__iframe.is-ready,
+.plugin-view-workspace__pane:not(.is-active) .plugin-view-frame__iframe.is-ready {
+  visibility: hidden;
+}
+.plugin-view-workspace__pane {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.plugin-view-workspace__pane.is-active {
+  z-index: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.plugin-view-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app-surface);
+}
+.plugin-view-frame__notice {
+  flex: 0 0 auto;
+}
+.plugin-view-frame__iframe {
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  visibility: hidden;
+  background: var(--app-surface);
+}
+.plugin-view-frame__iframe.is-ready {
+  visibility: visible;
+}
+.plugin-view-frame__loading,
+.plugin-view-unavailable {
+  display: grid;
+  place-content: center;
+  place-items: center;
+  gap: 9px;
+  min-height: 240px;
+  padding: 24px;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+.plugin-view-frame__loading {
+  position: absolute;
+  inset: 0;
+  background: var(--app-surface);
+  font-size: 12px;
+}
+.plugin-view-unavailable__icon {
+  color: var(--app-warning);
+  font-size: 24px;
+}
+.plugin-view-unavailable p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.plugin-manager-trust-warning {
+  margin-bottom: 12px;
+}
+.plugin-manager-views {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid var(--app-border);
+  padding-top: 10px;
+}
+.plugin-manager-views__header {
+  justify-content: space-between;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.plugin-manager-view-row {
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-canvas);
+  padding: 7px 8px 7px 10px;
+}
+.plugin-manager-view-row__identity {
+  min-width: 0;
+  gap: 8px;
+}
+.plugin-manager-view-row__identity > span {
+  overflow: hidden;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plugin-manager-view-row__identity > code {
+  flex: 0 0 auto;
+}
+
+.plugin-manager-official {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-canvas);
+}
+.plugin-manager-official h3 { margin: 0 0 8px; }
+.plugin-manager-official p {
+  color: var(--app-text-muted);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.plugin-manager-catalog-header {
+  display: grid;
+  flex: 0 0 auto;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+.plugin-manager-catalog-header p,
+.plugin-manager-catalog-header > .el-alert {
+  grid-column: 1 / -1;
+}
+.plugin-manager-catalog-header p {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+@container workbench (max-width: 1100px) {
+  .plugin-manager-catalog-header {
+    grid-template-columns: 1fr;
+  }
+  .plugin-manager-catalog-header p,
+  .plugin-manager-catalog-header > .el-alert {
+    grid-column: 1;
+  }
+}
+
+/* Keep narrow cards compact without introducing native horizontal scrolling. */
+.plugin-manager-primary-actions .el-switch__label {
+  margin-left: 5px;
+}
+.plugin-manager-primary-actions .el-switch__label span {
+  font-size: 11px;
+}
+.plugin-manager-card .el-button {
+  height: 24px;
+  padding: 4px 7px;
+  font-size: 11px;
+}
+.plugin-manager-meta__identity code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+/* 标题行不换行：名称过长时省略，图标与状态标签保持在同一行。 */
+.plugin-manager-meta .plugin-manager-meta__title {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+.plugin-manager-card__heading .plugin-manager-meta__title {
+  flex: 1 1 auto;
+}
+.plugin-manager-meta__title > * {
+  flex: none;
+}
+.plugin-manager-meta__title strong {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plugin-manager-actions {
+  gap: 4px;
+}
+
+/* Covers are 2:1 artwork; a fixed height cropped their sides whenever a card was narrower than 480px.
+   The details drawer opens with the cover. */
+.plugin-manager-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  flex: none;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--app-canvas);
+}
+
+/* On a card the cover bleeds to the card edges above the title, like the marketplace cards;
+   the card's own rounded corners and overflow clip its top. 12px is the card body padding. */
+.plugin-manager-card__body > .plugin-manager-cover {
+  align-self: center;
+  width: calc(100% + 24px);
+  max-width: none;
+  margin: -12px -12px 12px;
+  border-radius: 0;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.plugin-manager-icon {
+  flex: none;
+  font-size: 20px;
+  color: var(--el-color-primary);
+}
+
+.plugin-uninstall-confirm p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+/* Install preview: full trust can only be turned on later, in the plugin manager. */
+.app-plugin-preview__trust-hint {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.app-plugin-preview__trust-hint .el-icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--el-color-info);
+}

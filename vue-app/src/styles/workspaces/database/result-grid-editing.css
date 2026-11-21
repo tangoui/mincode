@@ -1,0 +1,144 @@
+/* Database result-grid cell editing and context menus. */
+.db-grid-inline-editor {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.db-grid-inline-editor.el-input,
+.db-grid-inline-editor.el-date-editor {
+  --el-input-height: 100%;
+}
+
+.db-grid-inline-editor .el-input__wrapper {
+  height: 100%;
+  border-color: var(--app-accent) !important;
+  border-radius: 0;
+  padding: 0 10px;
+}
+
+.db-grid-inline-editor .el-input__inner {
+  color: inherit;
+  font: inherit;
+  font-style: normal;
+}
+
+.db-virtual-grid__cell.is-editing {
+  z-index: 4;
+  overflow: visible;
+  padding: 0;
+  background: var(--app-surface);
+}
+
+/* Staged (not yet submitted) grid changes: changed cells, inserted rows, deleted rows.
+   The pending bar is a warning-tinted pill with a filled submit button so unsaved edits stand out. */
+.db-data-toolbar .db-grid-pending {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  order: -1;
+  box-sizing: border-box;
+  height: 28px;
+  margin-right: 4px;
+  padding: 0 3px 0 10px;
+  border: 1px solid var(--app-warning-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-warning-soft);
+}
+
+.db-grid-pending__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.db-grid-pending__count::before {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--app-warning);
+  content: "";
+}
+
+/* Element Plus 给按钮的默认高度/内边距与相邻按钮的 margin-left 会把按钮撑满提示条，这里统一收紧。 */
+.db-data-toolbar .db-grid-pending :is(button, .el-button) {
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 10px;
+  border-radius: var(--app-radius-sm);
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.db-grid-pending__count {
+  margin-right: 4px;
+}
+
+.db-data-toolbar .db-grid-pending .db-grid-pending__discard {
+  color: var(--app-text-regular);
+}
+
+.db-data-toolbar .db-grid-pending .db-grid-pending__submit {
+  background: var(--app-accent);
+  color: var(--app-text-on-accent);
+}
+
+.db-data-toolbar .db-grid-pending .db-grid-pending__submit:hover:not(:disabled) {
+  background: var(--app-accent-hover);
+  color: var(--app-text-on-accent);
+}
+
+.db-data-toolbar .db-grid-pending .db-grid-pending__discard:hover:not(:disabled) {
+  background: var(--app-surface);
+  color: var(--app-danger);
+}
+
+.db-data-toolbar .db-grid-pending > .db-toolbar-divider {
+  display: none;
+}
+
+.db-grid-pending-mark {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--app-warning);
+}
+
+.is-pending-insert .db-grid-pending-mark {
+  background: var(--app-success);
+}
+
+.is-pending-delete .db-grid-pending-mark,
+.is-pending-failed .db-grid-pending-mark {
+  background: var(--app-danger);
+}
+
+.db-tablev2-grid__cell-content.is-pending-changed,
+.db-virtual-grid__cell.is-pending-changed {
+  background: var(--app-warning-soft);
+}
+
+.db-tablev2-grid .el-table-v2__row.is-pending-insert .el-table-v2__row-cell,
+.db-virtual-grid__record.is-pending-insert {
+  background: var(--app-success-soft);
+}
+
+.db-tablev2-grid .el-table-v2__row.is-pending-delete .db-tablev2-grid__cell-content:not(.db-tablev2-grid__actions),
+.db-virtual-grid__cell.is-pending-delete {
+  color: var(--app-text-muted);
+  text-decoration: line-through;
+}
+
+.db-tablev2-grid .el-table-v2__row.is-pending-failed .el-table-v2__row-cell,
+.db-virtual-grid__record.is-pending-failed {
+  background: var(--app-danger-soft);
+}

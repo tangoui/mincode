@@ -1,0 +1,100 @@
+{
+  "$comment": "Entry schema for contributes.databaseDrivers (API v2 process plugins that declare the database.driver capability). Host validation lives in backend/plugin/contrib_database_drivers.go (install) and database_drivers_proxy.go (connect); the wire protocol is docs/architecture/database-driver-protocol.md. Credentials (the password and token connection fields) cross to the plugin only as plugin.db.connect params, only for connections the user explicitly bound to this plugin driver (a host-stored credential-release grant, required in every approval mode, never exported or synced). Options never hold secrets. A driver is never a silent fallback for a built-in type or another plugin.",
+  "description": "Database drivers: connection types implemented by this plugin process over the plugin.db.* protocol, offered in the connection dialog.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "title", "category", "connection"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$", "description": "Driver id; the same id must be listed in the initialize databaseDrivers.drivers negotiation." },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "description": { "type": "string", "maxLength": "{{limits.descriptionMaxRunes}}" },
+      "descriptionLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.descriptionMaxRunes}}" },
+        "description": "Translated description per locale (for example zh)."
+      },
+      "icon": { "type": "string", "description": "Relative path of an SVG or PNG under assets/ or icons/ (sanitized by the host)." },
+      "category": { "enum": "{{lists.categories}}" },
+      "sqlDialect": { "enum": "{{lists.sqlDialects}}", "description": "Editor dialect for completion and formatting; defaults to generic." },
+      "replaces": { "enum": "{{lists.replaceableTypes}}", "description": "Built-in type this driver can take over after the user explicitly rebinds a connection; at most one driver per plugin replaces a type." },
+      "connection": {
+        "type": "object",
+        "required": ["fields"],
+        "properties": {
+          "fields": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": "{{lists.connectionFields}}" },
+            "description": "Connection dialog fields. password and token are secret: stored encrypted by the host and sent only in plugin.db.connect."
+          },
+          "required": { "type": "array", "uniqueItems": true, "items": { "enum": "{{lists.connectionFields}}" }, "description": "Subset of fields the user must fill in." },
+          "defaultPort": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "Requires the port field." },
+          "fileExtensions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": "{{limits.fileExtensionsMax}}",
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^\\.[a-z0-9]{1,16}$" },
+            "description": "File picker filter; requires the filePath field."
+          },
+          "options": {
+            "type": "object",
+            "maxProperties": "{{limits.optionsMax}}",
+            "propertyNames": { "pattern": "^[a-z][a-zA-Z0-9]{0,63}$", "not": { "enum": "{{lists.connectionFields}}" } },
+            "additionalProperties": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": { "enum": ["string", "integer", "number", "boolean"] },
+                "title": { "type": "string", "maxLength": "{{limits.titleMaxRunes}}" },
+                "titleLocalized": {
+                  "type": "object",
+                  "maxProperties": "{{limits.localesMax}}",
+                  "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+                },
+                "description": { "type": "string", "maxLength": "{{limits.descriptionMaxRunes}}" },
+                "descriptionLocalized": {
+                  "type": "object",
+                  "maxProperties": "{{limits.localesMax}}",
+                  "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.descriptionMaxRunes}}" },
+                  "description": "Translated hint per locale."
+                },
+                "default": { "description": "Must match type, bounds and enum." },
+                "enum": { "type": "array", "minItems": 1, "maxItems": "{{limits.enumMax}}", "uniqueItems": true, "description": "Not allowed for boolean options." },
+                "enumLabelsLocalized": {
+                  "type": "object",
+                  "maxProperties": "{{limits.localesMax}}",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+                  },
+                  "description": "Display labels of the enum values per locale: one label per enum value, in enum order. Requires enum."
+                },
+                "minimum": { "type": "number", "description": "integer and number options only." },
+                "maximum": { "type": "number", "description": "integer and number options only." },
+                "maxLength": { "type": "integer", "minimum": 1, "maximum": "{{limits.optionStringMaxLength}}", "description": "string options only." }
+              },
+              "additionalProperties": false,
+              "description": "Non-secret driver option. secret, pattern and format are rejected: credentials belong in the password or token field."
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "features": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": { "enum": "{{lists.features}}" },
+        "description": "Optional capabilities. rows.* needs metadata.columns and metadata.primaryKeys; destructive.* needs metadata.tables (destructive.dropDatabase / destructive.clearDatabase act on a whole database or schema). transaction.snapshotWrite runs host-built snapshot/write/read-back steps in one transaction (plugin.db.snapshotWrite). Adding a rows.*, destructive.* or transaction.snapshotWrite feature or a new driver re-requests the user's permission."
+      }
+    },
+    "additionalProperties": false
+  }
+}

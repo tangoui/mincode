@@ -1,0 +1,504 @@
+.app-command-palette.el-dialog {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+}
+
+.app-command-palette .el-dialog__header,
+.app-command-palette .el-dialog__body,
+.app-command-palette .el-dialog__footer {
+  padding: 0;
+}
+
+.app-command-palette__header,
+.app-command-palette__footer,
+.app-command-palette__modebar {
+  display: flex;
+  align-items: center;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.app-command-palette__header {
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-command-palette__header > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.app-command-palette__body {
+  display: flex;
+  height: min(540px, calc(100vh - 112px));
+  min-height: 0;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 10px;
+}
+
+.app-command-palette__body .app-search-field {
+  width: 100%;
+}
+
+.app-command-palette__scope-selector {
+  display: inline-flex;
+  max-width: 100%;
+  flex: 0 0 auto;
+  margin-bottom: 8px;
+  padding: 3px;
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+  background: var(--app-muted);
+  gap: 2px;
+}
+
+.app-command-palette__scope-selector button {
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--app-text-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.app-command-palette__scope-selector button:hover:not(:disabled),
+.app-command-palette__scope-selector button.is-selected {
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.app-command-palette__scope-selector button.is-selected {
+  border-color: var(--app-border);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--app-text) 12%, transparent);
+}
+
+.app-command-palette__scope-selector button:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+.app-command-palette__scope-selector button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+/* Shares the project-context row's box so switching projects never changes the
+   dialog height. */
+.app-command-palette__project-context,
+.app-command-palette__project-picker {
+  display: flex;
+  min-width: 0;
+  min-height: 18px;
+  flex: 0 0 18px;
+  align-items: baseline;
+  gap: 6px;
+  margin: -2px 2px 7px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.app-command-palette__project-picker {
+  overflow-x: auto;
+  align-items: center;
+  gap: 4px;
+  scrollbar-width: none;
+}
+
+.app-command-palette__project-picker::-webkit-scrollbar {
+  display: none;
+}
+
+.app-command-palette__project-picker button {
+  box-sizing: border-box;
+  height: 18px;
+  max-width: 160px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--app-text-muted);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-command-palette__project-picker button:hover {
+  color: var(--app-text);
+}
+
+/* Selection uses colour only; a weight change would reflow the row. */
+.app-command-palette__project-picker button.is-selected {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.app-command-palette__project-picker button:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+.app-command-palette__project-context span,
+.app-command-palette__project-context small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-command-palette__project-context span {
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.app-command-palette__modebar {
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+  padding: 0 2px;
+}
+
+.app-command-palette__modebar > div,
+.app-command-palette__footer,
+.app-command-palette__footer > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.app-command-palette kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-muted);
+  color: var(--app-text-muted);
+  font: inherit;
+  line-height: 1;
+}
+
+/* Plugin search prefixes (contributes.searchProviders): click inserts "prefix:". */
+.app-command-palette__prefixes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+}
+
+.app-command-palette__prefix {
+  min-height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.app-command-palette__prefix:hover,
+.app-command-palette__prefix:focus-visible {
+  border-color: var(--app-accent);
+  color: var(--app-text);
+  outline: none;
+}
+
+/* Without the mode bar this row always occupies the same box, empty or not: a
+   collapsing separator would shift the list on every keystroke. */
+.app-command-palette__search-status {
+  display: flex;
+  min-height: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 4px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+/* In the "all" scope the status replaces the mode hint inside the mode bar. */
+.app-command-palette__search-status.is-inline {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+  font-size: 11px;
+}
+
+/* Only a genuine search failure is coloured; short queries and missing projects
+   are guidance, not errors. */
+.app-command-palette__empty.is-error .el-empty__description {
+  color: var(--el-color-danger, #d03050);
+}
+
+.app-command-palette__search-meta {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.app-command-palette__results {
+  min-height: 0;
+  flex: 1 1 auto;
+  max-height: none;
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+  background: var(--app-surface);
+}
+
+.app-command-palette__group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.app-command-palette__group span {
+  font-weight: 600;
+}
+
+.app-command-palette__item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto minmax(28px, auto);
+  align-items: center;
+  width: 100%;
+  min-height: 46px;
+  padding: 5px 7px;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  background: transparent;
+  color: var(--app-text);
+  text-align: left;
+  cursor: pointer;
+  /* Keep keyboard scrolling clear of the sticky group heading. */
+  scroll-margin-top: 22px;
+}
+
+.app-command-palette__item.is-search-result {
+  min-height: 62px;
+}
+
+.app-command-palette__item:last-child {
+  border-bottom: 0;
+}
+
+.app-command-palette__item:hover,
+.app-command-palette__item:focus-visible,
+.app-command-palette__item.is-active {
+  outline: none;
+  background: var(--app-accent-soft);
+}
+
+.app-command-palette__item:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.app-command-palette__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+}
+
+.app-command-palette__item.is-active .app-command-palette__icon {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+}
+
+.app-command-palette__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-command-palette__copy strong,
+.app-command-palette__copy small,
+.app-command-palette__snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-command-palette__copy strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-command-palette__copy small,
+.app-command-palette__kind {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.app-command-palette__result-heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.app-command-palette__result-heading strong,
+.app-command-palette__result-heading small {
+  min-width: 0;
+}
+
+.app-command-palette__snippet {
+  display: block;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--app-muted) 78%, transparent);
+  color: var(--app-text-muted);
+  font-family: var(--app-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.app-command-palette__kind {
+  margin-left: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.app-command-palette__item > kbd {
+  justify-self: end;
+}
+
+.app-command-palette__keybinding {
+  white-space: nowrap;
+}
+
+.app-command-palette__empty,
+.app-command-palette__loading {
+  display: flex;
+  min-height: 148px;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.app-command-palette__loading {
+  gap: 8px;
+}
+
+.app-command-palette__spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  justify-self: center;
+  border: 2px solid var(--app-border);
+  border-top-color: var(--app-accent);
+  border-radius: 50%;
+  animation: app-command-palette-spin 0.8s linear infinite;
+}
+
+.app-command-palette__footer {
+  justify-content: flex-end;
+  min-height: 34px;
+  padding: 0 12px;
+  border-top: 1px solid var(--app-border);
+}
+
+@keyframes app-command-palette-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-command-palette__spinner {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-command-palette__modebar > div,
+  .app-command-palette__kind {
+    display: none;
+  }
+
+  .app-command-palette__item {
+    grid-template-columns: 28px minmax(0, 1fr) minmax(28px, auto);
+  }
+
+  .app-command-palette__result-heading {
+    display: block;
+  }
+
+  .app-command-palette__project-context small,
+  .app-command-palette__search-meta {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-command-palette__scope-selector {
+    display: flex;
+    width: 100%;
+  }
+
+  .app-command-palette__scope-selector button {
+    flex: 1;
+  }
+
+  .app-command-palette__footer span:first-child {
+    display: none;
+  }
+}
+
+.settings-shortcut-select {
+  width: min(180px, 100%);
+}
+
+.settings-shortcut-select .el-select__wrapper {
+  min-height: var(--app-search-field-height);
+  border: 1px solid var(--app-input-border);
+  background: var(--app-input-bg);
+  box-shadow: none;
+}
+
+.settings-shortcut-select .el-select__wrapper:hover {
+  border-color: var(--app-input-border-hover);
+}
+
+.settings-shortcut-select .el-select__wrapper.is-focused {
+  border-color: var(--app-input-border-focus);
+  box-shadow: 0 0 0 2px var(--app-input-focus-ring);
+}

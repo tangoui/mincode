@@ -1,0 +1,209 @@
+/* Workspace responsiveness ---------------------------------------------------
+ * Keep the desktop shell fluid when the window is resized. Feature breakpoints
+ * are tied to the content canvas (not the full browser window), so the same
+ * layout adapts correctly with the activity rail and in pop-out windows. */
+html,
+body,
+#app,
+.app-frame,
+.app-workspace-shell {
+  min-width: 0;
+}
+
+.app-workspace-content {
+  container-name: workbench;
+  container-type: inline-size;
+}
+
+@container workbench (min-width: 1680px) {
+  .db-explorer {
+    width: clamp(322px, 20vw, 420px);
+  }
+
+  .sessions-navigator {
+    width: clamp(286px, 18vw, 420px);
+  }
+
+  .sftp-content--editing .sftp-file-pane--remote {
+    width: clamp(360px, 22vw, 440px);
+  }
+
+  .git-changes-pane {
+    width: clamp(240px, 16vw, 320px);
+    min-width: clamp(240px, 16vw, 320px);
+  }
+}
+
+@container workbench (max-width: 1120px) {
+  .db-explorer {
+    width: 260px;
+    min-width: 220px;
+  }
+
+  .project-sidebar,
+  .ssh-manager-sidebar {
+    min-width: 180px;
+    max-width: 48%;
+  }
+
+  .sessions-navigator {
+    width: 250px;
+    min-width: 210px;
+  }
+
+  .sftp-content--editing .sftp-file-pane--remote {
+    width: 280px;
+    min-width: 220px;
+  }
+
+  .git-changes-pane {
+    width: 220px;
+    min-width: 220px;
+  }
+
+  .http-main-workspace {
+    min-width: 0;
+  }
+
+  .settings-workspace {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+
+  .devtools-workspace {
+    grid-template-columns: 168px minmax(0, 1fr);
+  }
+}
+
+@container workbench (max-width: 820px) {
+  .db-explorer {
+    width: 220px;
+    min-width: 180px;
+  }
+
+  .project-sidebar,
+  .ssh-manager-sidebar {
+    min-width: 160px;
+    max-width: 44%;
+  }
+
+  .sessions-navigator {
+    width: 210px;
+    min-width: 180px;
+  }
+
+  .sftp-header {
+    height: auto;
+    min-height: 48px;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .sftp-header__connect {
+    margin-left: auto;
+  }
+
+  .sftp-header__identity small {
+    max-width: 180px;
+  }
+
+  .sftp-profile-select {
+    width: 170px;
+  }
+
+  .sftp-password {
+    width: 130px;
+  }
+
+  .sftp-content--editing .sftp-file-pane--remote {
+    width: 220px;
+    min-width: 180px;
+  }
+
+  .sftp-file-row {
+    grid-template-columns: 22px minmax(0, 1fr) 64px;
+  }
+
+  .sftp-file-row > :nth-child(3) {
+    display: none;
+  }
+
+  .git-toolbar__row {
+  }
+
+  .git-branch-select {
+    width: 154px;
+  }
+
+  .git-changes-pane {
+    width: 190px;
+    min-width: 190px;
+  }
+
+  .http-sidebar {
+    min-width: 130px;
+  }
+
+  .settings-workspace {
+    grid-template-columns: 154px minmax(0, 1fr);
+  }
+
+  .settings-content {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .devtools-workspace {
+    grid-template-columns: 144px minmax(0, 1fr);
+  }
+
+  .devtools-tool,
+  .plugin-manager-workspace > main {
+    padding: 14px;
+  }
+
+  .plugin-manager-card__body > section > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@container workbench (max-width: 640px) {
+  .db-explorer {
+    width: 180px;
+    min-width: 150px;
+  }
+
+  .project-sidebar,
+  .ssh-manager-sidebar {
+    min-width: 140px;
+  }
+
+  .sessions-navigator {
+    width: 180px;
+    min-width: 150px;
+  }
+
+  .sftp-content--editing .sftp-file-pane--remote {
+    width: 180px;
+    min-width: 150px;
+  }
+
+  .git-changes-pane {
+    width: 168px;
+    min-width: 168px;
+  }
+
+  .settings-workspace {
+    grid-template-columns: 136px minmax(0, 1fr);
+  }
+
+  .devtools-workspace {
+    grid-template-columns: 128px minmax(0, 1fr);
+  }
+
+  .settings-content,
+  .devtools-tool,
+  .plugin-manager-workspace > main {
+    padding: 12px;
+  }
+}

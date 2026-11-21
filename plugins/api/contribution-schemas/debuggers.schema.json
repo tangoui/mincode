@@ -1,0 +1,287 @@
+{
+  "$comment": "Entry schema for contributes.debuggers (process plugins that declare the shell capability, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_debuggers.go (install) and debuggers_launch.go (prepare/confirm/start). type is unique across installed plugins. adapter.kind is one of {{lists.adapterKinds}}; for stdio and tcp the host starts every adapter process itself, after the user confirms the exact final command line (fingerprint: plugin id, version, file hashes and command line) in every approval mode, and stops it when the session ends or the plugin is disabled, uninstalled, reloaded or upgraded. A jdtls adapter starts no process: command must be a jdtls command this plugin declares in contributes.jdtlsBundles (no args or env); after the same confirmation (fingerprint: plugin id, version, jar hashes, command) the host runs it in the built-in Java language service, which must have the plugin's confirmed jars loaded, and connects to the loopback port it returns. adapter.command follows the languageServers rules (bare program name or ${pluginRoot}/<relative>) and may also be ${resolved.<name>}, which must resolve to an existing regular executable. For tcp adapters the host picks a loopback port, substitutes ${port} in args and connects within {{limits.tcpConnectTimeoutMs}} ms. env names on the contract denylist are rejected at install and at launch. resolveAction, entryPointsAction, checkAction and settingsAction name this plugin's own read-risk, non-aiCallable actions; resolve must have no side effects, runs at most {{limits.resolveTimeoutMs}} ms and returns at most {{limits.resolveResultMaxBytes}} bytes; entry points time out after {{limits.entryPointsTimeoutMs}} ms and are capped at {{limits.entryPointsMax}}; check times out after {{limits.checkTimeoutMs}} ms; settings (exceptionTypes) after {{limits.settingsTimeoutMs}} ms. A start sends at most {{limits.functionBreakpointsMax}} function and {{limits.dataBreakpointsMax}} data breakpoints, only to adapters that declare supportsFunctionBreakpoints / supportsDataBreakpoints. DAP frames are capped at {{limits.messageMaxBytes}} bytes, stderr at {{limits.stderrMaxBytes}} bytes, and a plugin runs at most {{limits.sessionsPerPlugin}} sessions. AI tools cannot list or start debug sessions.",
+  "description": "Debuggers: Debug Adapter Protocol adapters for editor languages, started by the host after the user confirms the exact command line.",
+  "entry": {
+    "type": "object",
+    "required": [
+      "type",
+      "title",
+      "languages",
+      "adapter",
+      "resolveAction"
+    ],
+    "properties": {
+      "type": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,31}$",
+        "description": "Debugger type id that run configurations refer to; unique across installed plugins."
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": "{{limits.titleMaxRunes}}"
+      },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "{{limits.titleMaxRunes}}"
+        }
+      },
+      "languages": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": "{{limits.languagesMax}}",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]{0,31}$"
+        },
+        "description": "Editor language ids (built-in or contributes.languages ids)."
+      },
+      "adapter": {
+        "type": "object",
+        "required": [
+          "kind",
+          "command"
+        ],
+        "properties": {
+          "kind": {
+            "enum": "{{lists.adapterKinds}}"
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": "{{limits.commandMaxLength}}",
+            "description": "A bare program name, ${pluginRoot}/<relative path> or ${resolved.<name>}. No shell runs in between: $VAR stays literal. For kind jdtls: a jdtls command declared in this plugin's contributes.jdtlsBundles."
+          },
+          "args": {
+            "type": "array",
+            "maxItems": "{{limits.argsMax}}",
+            "items": {
+              "type": "string",
+              "maxLength": "{{limits.argMaxRunes}}"
+            },
+            "description": "At most {{limits.argsTotalBytes}} bytes in total. May use ${pluginRoot}, ${projectRoot} and ${resolved.<name>}; a tcp adapter must pass ${port} (stdio adapters may not use it); a jdtls adapter takes no args or env."
+          },
+          "env": {
+            "type": "object",
+            "maxProperties": "{{limits.envMax}}",
+            "propertyNames": {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+              "not": {
+                "enum": "{{lists.deniedEnvNames}}"
+              }
+            },
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": "{{limits.envValueMaxRunes}}"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "resolveAction": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Id of one of this plugin's contributes.actions with risk 'read' and aiCallable false; it must have no side effects."
+      },
+      "entryPointsAction": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Id of one of this plugin's contributes.actions with risk 'read' and aiCallable false."
+      },
+      "checkAction": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Id of one of this plugin's contributes.actions with risk 'read' and aiCallable false."
+      },
+      "settingsAction": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Id of one of this plugin's contributes.actions with risk 'read', aiCallable false and maxPayloadBytes of at least {{limits.settingsPayloadMinBytes}}. The host calls it with {type, project: {root}, exceptionTypes} before a session of this type is prepared and when the user changes the list while a session of the project runs; it must return {} within {{limits.settingsTimeoutMs}} ms. exceptionTypes is always sent, as [] when the list is empty, so the plugin clears its previous filter."
+      },
+      "exceptionTypes": {
+        "type": "object",
+        "properties": {
+          "placeholder": {
+            "type": "string",
+            "maxLength": "{{limits.placeholderMaxRunes}}"
+          },
+          "placeholderLocalized": {
+            "type": "object",
+            "maxProperties": "{{limits.localesMax}}",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": "{{limits.placeholderMaxRunes}}"
+            }
+          },
+          "description": {
+            "type": "string",
+            "maxLength": "{{limits.descriptionMaxRunes}}"
+          },
+          "descriptionLocalized": {
+            "type": "object",
+            "maxProperties": "{{limits.localesMax}}",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": "{{limits.descriptionMaxRunes}}"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Declares the host's 'pause only on these exception types' list for this debugger type (saved per project); requires settingsAction. Texts are single-line plain text. The host keeps at most {{limits.exceptionTypesMax}} distinct items of at most {{limits.exceptionTypeMaxRunes}} characters, each a dotted identifier matching ^[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*)*$ after trimming."
+      },
+      "functionBreakpoints": {
+        "type": "object",
+        "properties": {
+          "placeholder": {
+            "type": "string",
+            "maxLength": "{{limits.placeholderMaxRunes}}"
+          },
+          "placeholderLocalized": {
+            "type": "object",
+            "maxProperties": "{{limits.localesMax}}",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": "{{limits.placeholderMaxRunes}}"
+            }
+          },
+          "description": {
+            "type": "string",
+            "maxLength": "{{limits.descriptionMaxRunes}}"
+          },
+          "descriptionLocalized": {
+            "type": "object",
+            "maxProperties": "{{limits.localesMax}}",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": "{{limits.descriptionMaxRunes}}"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Declares the host's method breakpoint input for this debugger type and its texts (placeholder: the name format the adapter accepts). Texts are single-line plain text. The breakpoints dialog shows the method breakpoint section only for debuggers that declare it; the saved names are sent (setFunctionBreakpoints, at most {{limits.functionBreakpointsMax}}) only to sessions whose adapter declares supportsFunctionBreakpoints. The host never parses the names."
+      },
+      "hotCodeReplace": {
+        "type": "object",
+        "required": [
+          "event",
+          "request"
+        ],
+        "properties": {
+          "event": {
+            "type": "string",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9]*$",
+            "maxLength": 64,
+            "description": "The adapter's custom DAP event that reports recompiled code."
+          },
+          "request": {
+            "type": "string",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9]*$",
+            "maxLength": 64,
+            "description": "The adapter's custom DAP request that applies the recompiled code."
+          },
+          "modeSetting": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){0,3}$",
+            "maxLength": 64,
+            "description": "The key of this plugin's own contributes.configuration property that holds the hot code replace mode: a global, non-secret string setting with enum exactly auto, manual, never. The host reads it when the adapter reports a build; without it the mode is auto."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Declares the adapter's hot code replace extension: a custom DAP event and request name, and optionally the setting that holds the mode. Neither name may be a DAP standard request or event name (compared case-insensitively). The host shows its apply-code-changes controls only for debuggers that declare it. The adapter must follow the host's hot code replace event protocol v1 as documented in plugin-development.md (debuggers, hotCodeReplace): the event body is {changeType, message?}, where changeType BUILD_COMPLETE means the build can be applied, WARNING and ERROR show message as it is, and other values are progress the host ignores; the request takes no arguments and answers {changedClasses?: string[], errorMessage?: string} (the replaced type names, or why nothing or not everything was replaced)."
+      },
+      "configurationSchema": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "launch": {
+            "type": "object"
+          },
+          "attach": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Form schema for launch and attach configurations; at most {{limits.schemaMaxBytes}} bytes."
+      },
+      "configurationSnippets": {
+        "type": "array",
+        "maxItems": "{{limits.snippetsMax}}",
+        "items": {
+          "type": "object",
+          "required": [
+            "label",
+            "request",
+            "body"
+          ],
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": "{{limits.titleMaxRunes}}"
+            },
+            "labelLocalized": {
+              "type": "object",
+              "maxProperties": "{{limits.localesMax}}",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": "{{limits.titleMaxRunes}}"
+              }
+            },
+            "request": {
+              "enum": [
+                "launch",
+                "attach"
+              ]
+            },
+            "body": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        },
+        "description": "Templates for new run configurations; at most {{limits.snippetMaxBytes}} bytes each."
+      },
+      "remote": {
+        "type": "object",
+        "required": [
+          "forward"
+        ],
+        "properties": {
+          "forward": {
+            "enum": "{{lists.remoteForwards}}"
+          },
+          "argsTemplate": {
+            "type": "string",
+            "maxLength": "{{limits.argMaxRunes}}",
+            "description": "Server-side arguments shown to the user to copy; never run by the host."
+          }
+        },
+        "additionalProperties": false
+      },
+      "platforms": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "enum": "{{lists.platforms}}"
+        }
+      }
+    },
+    "dependentRequired": {
+      "exceptionTypes": [
+        "settingsAction"
+      ]
+    },
+    "additionalProperties": false
+  }
+}

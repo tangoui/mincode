@@ -1,0 +1,310 @@
+/* Redis workspace: align the database browser with Arco Design's light theme.
+ * The application uses Element Plus for controls, so these are local visual
+ * tokens rather than a second component-library dependency. */
+.redis-workspace-panel {
+  grid-template-columns: minmax(340px, 36%) minmax(0, 1fr);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.redis-key-pane {
+  border-right-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.redis-key-toolbar {
+  min-height: 48px;
+  align-items: center;
+  gap: 8px;
+  border-bottom-color: var(--app-border);
+  padding: 8px 12px;
+}
+
+/* Element Plus gives bare selects `width: 100%`. Keep this database picker
+ * compact even when its component CSS is injected after workspace styles. */
+.redis-key-toolbar .redis-db-select {
+  width: 88px;
+  min-width: 88px;
+  max-width: 88px;
+  flex: 0 0 88px;
+}
+
+/* This popper is teleported by Element Plus, so it needs its own scoped class.
+ * Keep every Redis database label readable instead of inheriting the trigger's
+ * compact width and truncating "DB 0" to "D...". */
+.redis-db-select-popper.el-select__popper {
+  width: max-content !important;
+  min-width: 116px !important;
+}
+
+.redis-db-select-popper .el-select-dropdown__item {
+  min-width: 116px;
+  overflow: visible;
+  padding-right: 28px;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.redis-key-toolbar .el-select__wrapper {
+  min-height: 28px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  box-shadow: none;
+  color: var(--app-text-regular);
+}
+
+.redis-key-toolbar .el-select__wrapper:hover,
+.redis-key-toolbar .el-select.is-focus .el-select__wrapper {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 2px var(--app-accent-ring);
+}
+
+.redis-key-toolbar > button {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-color: var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  color: var(--app-text-regular);
+  cursor: pointer;
+}.redis-key-toolbar > button:hover,
+.redis-type-badge--list {
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.redis-key-summary {
+  padding: 12px 14px 8px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.redis-key-list {
+  min-height: 0;
+  flex: 1;
+  padding: 0 8px 8px;
+}
+
+.redis-key-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.redis-key-row {
+  position: relative;
+  display: grid;
+  height: 40px;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border-radius: 4px;
+  padding: 7px 10px;
+  color: var(--app-text-regular);
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  outline: none;
+}
+
+.redis-key-row::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: var(--app-canvas);
+  content: "";
+}
+
+.redis-key-row:hover,
+.redis-key-row:focus-visible {
+  background: var(--app-muted);
+}
+
+.redis-key-row.is-active {
+  background: var(--app-accent-soft);
+  color: var(--app-text);
+}
+
+.redis-key-row.is-active::before {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--app-accent);
+  content: "";
+}
+
+.redis-key-row.is-active::after {
+  background: transparent;
+}
+
+.redis-key-row__name {
+  overflow: hidden;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.redis-key-row.is-active .redis-key-row__name {
+  font-weight: 600;
+}
+
+.redis-key-row__ttl {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.redis-type-badge {
+  min-width: 54px;
+  border: 1px solid var(--app-accent-border);
+  border-radius: 3px;
+  background: var(--app-accent-soft);
+  padding: 2px 5px;
+  color: var(--app-accent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.redis-type-badge--hash {
+  border-color: var(--app-info-border);
+  background: var(--app-info-soft);
+  color: var(--app-info);
+}
+
+.redis-type-badge--set {
+  border-color: var(--app-success-border);
+  background: var(--app-success-soft);
+  color: var(--app-success);
+}
+
+.redis-type-badge--zset {
+  border-color: var(--app-warning-border);
+  background: var(--app-warning-soft);
+  color: var(--app-warning);
+}
+
+.redis-type-badge--stream {
+  border-color: color-mix(in srgb, var(--el-color-danger) 40%, var(--app-border));
+  background: color-mix(in srgb, var(--el-color-danger) 8%, var(--app-surface));
+  color: var(--el-color-danger);
+}
+
+.redis-load-more {
+  min-height: 38px;
+  border-top-color: var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.redis-load-more:hover {
+  background: var(--app-muted);
+}
+
+.redis-value-pane {
+  padding: 16px;
+  background: var(--app-surface);
+}
+
+.redis-value-pane > header {
+  min-height: 36px;
+  border-bottom: 1px solid var(--app-border);
+  padding-bottom: 12px;
+}
+
+.redis-value-pane > header strong {
+  color: var(--app-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.redis-value-pane .danger {
+  border-color: var(--app-danger-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  padding: 6px 10px;
+  color: var(--app-danger);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.redis-value-pane .danger:hover {
+  background: var(--app-danger-soft);
+}
+
+.redis-value-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.redis-format-json {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.redis-format-json:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 48%, var(--app-surface));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.redis-format-json:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.redis-meta-form {
+  gap: 20px;
+  padding: 16px 0;
+}
+
+.redis-meta-form label {
+  color: var(--app-text-regular);
+  font-size: 12px;
+}
+
+.redis-value-pane > .el-textarea .el-textarea__inner {
+  border-color: var(--app-border);
+  border-radius: 4px;
+  background: var(--app-muted);
+  color: var(--app-text);
+}
+
+.redis-value-pane > .el-textarea .el-textarea__inner:focus {
+  border-color: var(--app-accent);
+  background: var(--app-surface);
+}
+
+.redis-value-pane > footer {
+  border-top: 1px solid var(--app-border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+

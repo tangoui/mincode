@@ -1,0 +1,70 @@
+/* Terminal attention marker: a tab whose terminal finished or waits for the user. */
+.app-terminal-attention {
+  flex: none;
+  color: var(--app-warning);
+  font-size: 12px;
+  animation: app-terminal-attention-ring 0.9s ease-in-out 2;
+  transform-origin: 50% 10%;
+}
+.app-terminal-attention.is-urgent {
+  color: var(--app-danger);
+}
+@keyframes app-terminal-attention-ring {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(14deg); }
+  40% { transform: rotate(-12deg); }
+  60% { transform: rotate(8deg); }
+  80% { transform: rotate(-4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-terminal-attention {
+    animation: none;
+  }
+}
+
+/* Activity bar: dot on the terminal / sessions entry. */
+.app-activity-button__attention {
+  display: inline-flex;
+  line-height: 0;
+}
+.app-activity-button__attention .el-badge__content.is-dot {
+  top: 1px;
+  right: 1px;
+}
+
+/* Pane toolbar chip: which split finished or waits. Same 24px height as the toolbar buttons. */
+.terminal-pane-toolbar__actions .el-button.terminal-pane-attention {
+  width: auto;
+  min-width: 24px;
+  max-width: 280px;
+  flex: none;
+  border-color: var(--app-warning-border);
+  background: var(--app-warning-soft);
+  padding: 0 7px 0 6px;
+  color: var(--app-warning);
+  font-size: 11px;
+  font-weight: 500;
+}
+.terminal-pane-toolbar__actions .el-button.terminal-pane-attention.is-urgent {
+  border-color: var(--app-danger-border);
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+.terminal-pane-toolbar__actions .el-button.terminal-pane-attention > span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+.terminal-pane-attention .app-terminal-attention {
+  font-size: 11px;
+}
+.terminal-pane-attention__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A dimmed (inactive) pane toolbar comes to full strength while it carries the chip. */
+.terminal-pane:not(.is-active) .terminal-pane-toolbar:has(.terminal-pane-attention) {
+  opacity: 1;
+}

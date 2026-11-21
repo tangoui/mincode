@@ -1,0 +1,22 @@
+Servers\Local MySQL\Host<|||>1<|||>127.0.0.1
+Servers\Local MySQL\User<|||>1<|||>root
+Servers\Local MySQL\Password<|||>1<|||>69646E68306B686C676C30737A3
+Servers\Local MySQL\Port<|||>1<|||>3306
+Servers\Local MySQL\NetType<|||>3<|||>0
+Servers\Local MySQL\Databases<|||>1<|||>app;other
+Servers\Team<|||>3<|||>1
+Servers\Team\Folder<|||>3<|||>1
+Servers\Team\PG tunnel\Host<|||>1<|||>10.1.0.8
+Servers\Team\PG tunnel\Port<|||>1<|||>5432
+Servers\Team\PG tunnel\User<|||>1<|||>pgadmin
+Servers\Team\PG tunnel\NetType<|||>3<|||>9
+Servers\Team\PG tunnel\SSHtunnelHost<|||>1<|||>ssh.example.test
+Servers\Team\PG tunnel\SSHtunnelHostPort<|||>3<|||>2022
+Servers\Team\PG tunnel\SSHtunnelUser<|||>1<|||>jumper
+Servers\Team\PG tunnel\SSHtunnelPassword<|||>1<|||>6B66706A32797A73736A7132757C5
+Servers\Team\PG tunnel\WantSSL<|||>3<|||>1
+Servers\Files\Host<|||>1<|||>C:\fake\data.sqlite3
+Servers\Files\NetType<|||>3<|||>10
+Servers\Legacy IB\Host<|||>1<|||>ib.example.test
+Servers\Legacy IB\NetType<|||>3<|||>12
+Servers\Local MySQL\Comment<|||>1<|||>line one<{{{><}}}>line two

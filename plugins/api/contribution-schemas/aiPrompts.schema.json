@@ -1,0 +1,24 @@
+{
+  "$comment": "Entry schema for contributes.aiPrompts (declarative and process plugins). Host validation lives in backend/plugin/contrib_ai_prompts.go. Each entry has exactly one of template (prompt only) or path (a .md file in prompts/, skills/ or assets/). Text must be UTF-8 without control, bidirectional-override or zero-width characters; prompt templates may only use {{selection}}, {{file}} and {{language}}; a leading --- frontmatter block in a Markdown file is stripped and ignored (it cannot grant tools). Prompts expand into the AI input draft and are never sent automatically; skills are used only when the user names them with /skill.",
+  "description": "AI prompt templates and skills offered in the AI composer.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "kind", "title"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,47}$" },
+      "kind": { "enum": ["prompt", "skill"], "description": "prompt: template expanded into the input draft. skill: Markdown guidance used on explicit /skill (description required)." },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": { "type": "object", "maxProperties": "{{limits.localesMax}}", "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" } },
+      "description": { "type": "string", "maxLength": "{{limits.descriptionMaxRunes}}" },
+      "descriptionLocalized": { "type": "object", "maxProperties": "{{limits.localesMax}}", "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.descriptionMaxRunes}}" } },
+      "template": { "type": "string", "minLength": 1, "maxLength": "{{limits.templateMaxBytes}}", "description": "Inline prompt template (kind prompt only)." },
+      "path": {
+        "type": "string",
+        "pattern": "\\.md$",
+        "maxLength": "{{fileRef.maxPathLength}}",
+        "description": "Package-relative Markdown file, for example prompts/review.md or skills/sql-tuning.md."
+      }
+    },
+    "additionalProperties": false
+  }
+}

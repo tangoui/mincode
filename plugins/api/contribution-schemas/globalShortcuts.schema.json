@@ -1,0 +1,56 @@
+{
+  "$comment": "Entry schema for contributes.globalShortcuts (process plugins only, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_global_shortcuts.go; the CLI mirrors it in tools/mincode-cli/global_shortcuts.go. Each entry declares a system-wide shortcut that is off by default: the host registers it only after the user turns it on in Settings > Keyboard shortcuts, and the user may change the key there. key is a accelerator (modifiers CmdOrCtrl, Cmd/Command (= CmdOrCtrl), Ctrl, OptionOrAlt/Option/Alt, Shift, Super, joined by + to one key: a printable ASCII character, Plus, or a named key such as F1-F35, Space, Tab, Enter, Escape, Delete, Page Up), at most {{limits.keyMaxLength}} characters, with at least one modifier other than Shift and not a reserved system shortcut on any platform (lists.reservedAccelerators); a default key also must not be an application-standard combination such as CmdOrCtrl+C or CmdOrCtrl+S (lists.reservedDefaultAccelerators; any extra Shift or Alt makes it allowed), although the user may still pick one in the settings. run.type view opens one of the plugin's tab views (not a floating view) and focuses MinCode; run.type action calls one of the plugin's contributes.actions that is uiCallable and not dangerous, with the fixed JSON object payload (at most {{limits.payloadMaxBytes}} bytes, no trigger key) plus {\"trigger\": {\"type\": \"globalShortcut\", \"id\": id}}, so the action's maxPayloadBytes must leave {{limits.triggerReserveBytes}} bytes for it; run.type floating shows or hides one of the plugin's views that declares floating.",
+  "description": "Global shortcuts: system-wide keys the user can turn on to open a plugin view, toggle a floating view, or run a plugin action while MinCode is in the background.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "title", "key", "run"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9-]{1,32}$" },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": "{{limits.keyMaxLength}}",
+        "description": "Default accelerator, for example CmdOrCtrl+Shift+A. The user may change it."
+      },
+      "run": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["type", "view"],
+            "properties": {
+              "type": { "const": "view" },
+              "view": { "type": "string", "minLength": 1, "description": "One of this plugin's contributes.views ids without floating." }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["type", "action"],
+            "properties": {
+              "type": { "const": "action" },
+              "action": { "type": "string", "minLength": 1, "description": "One of this plugin's contributes.actions ids that is uiCallable and not dangerous." },
+              "payload": { "type": "object", "description": "Fixed JSON object sent with every trigger (compact JSON within limits.payloadMaxBytes of the contract) without a trigger key." }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["type", "view"],
+            "properties": {
+              "type": { "const": "floating" },
+              "view": { "type": "string", "minLength": 1, "description": "One of this plugin's contributes.views ids that declares floating." }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "additionalProperties": false
+  }
+}

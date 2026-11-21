@@ -1,0 +1,4 @@
+/* Project explorer context-menu sizing is applied to the shared Element Plus popper. */
+.project-context-menu .el-dropdown-menu {
+  max-height: calc(100vh - 24px);
+}

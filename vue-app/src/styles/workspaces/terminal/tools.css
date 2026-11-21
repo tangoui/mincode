@@ -1,0 +1,822 @@
+/* Terminal search, command bookmarks, and recording playback. */
+.terminal-pane-toolbar__actions .el-button.is-active {
+  border-color: color-mix(in srgb, var(--app-accent) 70%, var(--app-border));
+  background: color-mix(in srgb, var(--app-accent) 14%, var(--app-surface));
+  color: var(--app-accent);
+}
+
+.terminal-pane-toolbar__actions .el-button.is-recording {
+  border-color: color-mix(in srgb, var(--app-danger) 68%, var(--app-border));
+  background: color-mix(in srgb, var(--app-danger) 16%, var(--app-surface));
+  color: var(--app-danger);
+}
+
+.ssh-sftp-panel {
+  display: flex;
+  width: 360px;
+  min-width: 320px;
+  max-width: calc(100% - 48px);
+  min-height: 0;
+  flex: none;
+  flex-direction: column;
+  background: var(--app-surface);
+}
+
+.ssh-sftp-panel__header,
+.ssh-sftp-panel__pathbar,
+.ssh-sftp-panel__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.ssh-sftp-panel__header {
+  min-height: 44px;
+  justify-content: space-between;
+  padding: 6px 8px 6px 12px;
+}
+
+.ssh-sftp-panel__header > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ssh-sftp-panel__header-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}.ssh-sftp-panel__header strong,
+.terminal-bookmark-item__content strong {
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.ssh-sftp-panel__header small {
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-sftp-panel button {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}.ssh-sftp-panel button:hover:not(:disabled),
+.ssh-sftp-panel__row.is-active {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.ssh-sftp-panel button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 52%, transparent);
+  outline-offset: -1px;
+}
+
+.ssh-sftp-panel button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.ssh-sftp-panel__header-actions > .el-button,
+.ssh-sftp-panel__pathbar > .el-button {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+}
+
+.ssh-sftp-panel__pathbar {
+  gap: 4px;
+  padding: 5px 7px;
+}
+
+.ssh-sftp-panel__pathbar .el-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.ssh-sftp-panel__pathbar .el-input__wrapper {
+  min-height: 26px;
+  height: 26px;
+  font-size: 11px;
+}
+
+.ssh-sftp-panel__actions {
+  height: auto;
+  gap: 2px;
+  padding: 4px 7px;
+}
+
+.ssh-sftp-panel__actions-content {
+  display: flex;
+  min-width: max-content;
+  gap: 2px;
+}
+.ssh-sftp-panel__actions .el-button {
+  height: 26px;
+  flex: none;
+  margin-left: 0;
+  padding: 0 7px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.ssh-sftp-panel__list {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  padding: 4px;
+}
+
+.ssh-sftp-panel__editor {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app-bg);
+}
+
+.ssh-sftp-panel__editor-toolbar {
+  display: flex;
+  min-height: 32px;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 3px 6px 3px 9px;
+}
+
+.ssh-sftp-panel__editor-toolbar strong {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-sftp-panel__editor-toolbar button {
+  height: 24px;
+  flex: none;
+  padding: 0 7px;
+  font-size: 10px;
+}
+
+.ssh-sftp-panel__image-preview {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+.ssh-sftp-panel__image-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.ssh-sftp-panel__editor > .h-full {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0;
+}
+
+.ssh-sftp-panel__row {
+  display: grid;
+  width: 100%;
+  height: 28px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  text-align: left;
+}
+
+.ssh-sftp-panel__row span {
+  overflow: hidden;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-sftp-panel__row small {
+  color: var(--app-text-muted);
+  font-size: 9px;
+}
+
+.ssh-sftp-panel__state {
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 16px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.ssh-sftp-panel__state.is-error {
+  flex-direction: column;
+  color: var(--el-color-danger);
+}
+
+.ssh-sftp-panel__state button {
+  height: 26px;
+  padding: 0 10px;
+}
+
+.ssh-sftp-panel.is-maximized {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  flex: 1 1 100%;
+}
+
+.terminal-search-bar {
+  position: absolute;
+  z-index: 16;
+  top: 44px;
+  right: 8px;
+  display: flex;
+  width: min(324px, calc(100% - 16px));
+  min-width: 0;
+  height: 34px;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+  padding: 4px;
+  color: var(--app-text);
+  backdrop-filter: blur(14px);
+}
+
+.terminal-search-bar:focus-within {
+  border-color: color-mix(in srgb, var(--app-accent) 66%, var(--app-border));
+}
+
+.terminal-search-bar .el-input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.terminal-search-bar .el-input__wrapper {
+  min-height: 24px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  box-shadow: none;
+  background: var(--app-input-bg);
+  padding: 0 7px;
+}
+
+.terminal-search-bar .el-input.is-focus .el-input__wrapper {
+  border-color: color-mix(in srgb, var(--app-accent) 58%, transparent);
+  box-shadow: none;
+  background: var(--app-input-bg-focus);
+}
+
+.terminal-search-bar .el-input__inner {
+  color: var(--app-text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.terminal-search-bar .el-input__inner::placeholder {
+  color: var(--app-text-muted);
+}
+
+.terminal-search-bar .el-button,
+.terminal-bookmark-item__actions :is(button, .el-button) {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+
+.terminal-search-bar .el-button:hover,
+.terminal-bookmark-item__actions :is(button, .el-button):hover {
+  background: color-mix(in srgb, var(--app-accent) 14%, transparent);
+  color: var(--app-accent);
+}
+
+.terminal-search-bar__status {
+  max-width: 64px;
+  overflow: hidden;
+  padding: 0 3px;
+  color: var(--app-danger);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tools-dialog .el-dialog {
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  box-shadow: none;
+}
+
+.terminal-tools-dialog .el-dialog__header,
+.terminal-tools-dialog .el-dialog__footer {
+  border-color: var(--app-border);
+}
+
+.terminal-tools-dialog .el-dialog__title,
+.terminal-tools-dialog .el-dialog__headerbtn .el-dialog__close {
+  color: var(--app-text);
+}
+
+.terminal-bookmarks-dialog {
+  display: flex;
+  min-height: 280px;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.terminal-bookmarks-dialog__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-bookmarks-dialog__toolbar .el-input {
+  flex: 1;
+}
+
+.terminal-bookmarks-dialog__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  gap: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-bg) 60%, var(--app-surface));
+  padding: 10px;
+}
+
+.terminal-bookmarks-dialog__list {
+  min-height: 168px;
+  max-height: min(44vh, 420px);
+}
+
+.terminal-bookmark-item {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 74%, transparent);
+  padding: 8px 4px;
+}
+
+.terminal-bookmark-item:last-child {
+  border-bottom: 0;
+}
+.terminal-bookmark-item__content {
+  min-width: 0;
+  flex: 1;
+}.terminal-bookmark-item__content strong,
+.terminal-bookmark-item__content code,
+.terminal-playback-dialog__recordings [role="option"] > span:not(.terminal-playback-dialog__row-actions),
+.terminal-playback-dialog__recordings [role="option"] > small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal-bookmark-item__content code {
+  margin-top: 3px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.terminal-bookmark-item__actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+.terminal-bookmark-item__actions button.is-danger:hover {
+  color: var(--app-danger);
+}
+
+.terminal-playback-dialog {
+  display: grid;
+  /* A fixed height keeps the dialog inside the viewport: the recordings list and
+     the xterm scroll on their own instead of growing the page. */
+  height: min(520px, 62vh);
+  grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-bg);
+}
+
+.terminal-playback-dialog__recordings {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-surface) 75%, var(--app-bg));
+  padding: 6px;
+}
+
+.terminal-playback-dialog__search {
+  flex: none;
+}
+
+.terminal-playback-dialog__recordings .el-scrollbar {
+  min-height: 0;
+  flex: 1;
+}
+
+/* el-scrollbar wraps the entries in `.el-scrollbar__view`, so these must stay
+   descendant selectors: with `>` the active background, padding and the
+   `position: relative` anchor for the row actions silently stopped applying. */
+.terminal-playback-dialog__recordings [role="option"] {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 8px 54px 8px 9px;
+  color: var(--app-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.terminal-playback-dialog__recordings [role="option"].is-editing {
+  padding: 4px 6px;
+}
+
+.terminal-playback-dialog__recordings [role="option"]:hover,
+.terminal-playback-dialog__recordings [role="option"].is-active {
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+.terminal-playback-dialog__recordings [role="option"] > span:not(.terminal-playback-dialog__row-actions) {
+  font-size: 12px;
+}
+.terminal-playback-dialog__recordings [role="option"] > small {
+  margin-top: 3px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+.terminal-playback-dialog__row-actions {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  transform: translateY(-50%);
+}
+.terminal-playback-dialog__recordings .el-button {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--app-text-muted);
+  font-style: normal;
+}
+.terminal-playback-dialog__recordings .el-button:hover {
+  background: color-mix(in srgb, var(--app-danger) 12%, transparent);
+  color: var(--app-danger);
+}
+
+.terminal-playback-dialog__viewer {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+.terminal-playback-dialog__terminal {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  background: var(--app-surface);
+  padding: 8px;
+}
+.terminal-playback-dialog__terminal .xterm,
+.terminal-playback-dialog__terminal .xterm-screen {
+  height: 100%;
+}
+/* xterm sizes its screen to whole rows; fill the rest so its black viewport never shows. */
+.terminal-playback-dialog__terminal .xterm-scrollable-element {
+  min-height: 100%;
+}
+.terminal-playback-dialog__controls {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 9px;
+}
+.terminal-playback-dialog__controls > .el-button {
+  flex: none;
+  margin-left: 0;
+}
+.terminal-playback-dialog__speed {
+  width: 82px;
+  flex: 0 0 82px;
+}
+
+@media (max-width: 640px) {
+  .terminal-bookmarks-dialog__form {
+    grid-template-columns: 1fr;
+  }
+  .terminal-playback-dialog {
+    grid-template-columns: 1fr;
+    grid-template-rows: 150px minmax(280px, 1fr);
+  }
+  .terminal-playback-dialog__recordings {
+    border-right: 0;
+    border-bottom: 1px solid var(--app-border);
+  }
+}
+
+.ssh-port-forward-trigger {
+  display: flex;
+}
+
+.ssh-port-forward-popper {
+  padding: 0;
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.ssh-port-forward-menu {
+  min-width: 300px;
+  color: var(--app-text);
+}
+
+.ssh-port-forward-menu__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 9px 10px;
+}.ssh-port-forward-menu__header > div,
+.ssh-port-forward-menu__rule-main {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.ssh-port-forward-menu__header strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.ssh-port-forward-menu__header span,
+.ssh-port-forward-menu__label,
+.ssh-port-forward-menu__notice {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.ssh-port-forward-menu__error {
+  grid-column: 1 / -1;
+  color: var(--app-danger);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.ssh-port-forward-menu__header > button,
+.ssh-port-forward-menu__configure,
+.ssh-port-forward-menu__action {
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.ssh-port-forward-menu__header > button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+}
+
+.ssh-port-forward-menu__header > button:hover:not(:disabled),
+.ssh-port-forward-menu__configure:hover,
+.ssh-port-forward-menu__action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--app-accent) 54%, var(--app-border));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.ssh-port-forward-menu__header > button:disabled,
+.ssh-port-forward-menu__action:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ssh-port-forward-menu__empty,
+.ssh-port-forward-menu__notice {
+  margin: 0;
+  padding: 11px 10px;
+}
+
+.ssh-port-forward-menu__empty p {
+  margin: 0 0 8px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.ssh-port-forward-menu__configure,
+.ssh-port-forward-menu__action {
+  min-height: 24px;
+  padding: 3px 8px;
+  font-size: 10px;
+}
+
+.ssh-port-forward-menu__list {
+  display: grid;
+}
+
+.ssh-port-forward-menu__rule {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 8px;
+  row-gap: 4px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 8px 10px;
+}
+
+.ssh-port-forward-menu__rule:last-child {
+  border-bottom: 0;
+}
+
+.ssh-port-forward-menu__route {
+  overflow: hidden;
+  color: var(--app-text);
+  font-family: var(--app-font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-port-forward-menu__rule-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ssh-port-forward-menu__status {
+  display: inline-flex;
+  width: 52px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--app-muted);
+  padding: 0 6px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ssh-port-forward-menu__status.is-running {
+  background: color-mix(in srgb, var(--app-accent) 13%, var(--app-surface));
+  color: var(--app-accent);
+}
+
+.ssh-port-forward-menu__status.has-error {
+  background: color-mix(in srgb, var(--app-danger) 12%, var(--app-surface));
+  color: var(--app-danger);
+}
+
+.ssh-port-forward-toggle.has-error {
+  color: var(--app-danger);
+}
+
+.ssh-port-forward-menu__rule-actions > .el-button.ssh-port-forward-menu__action {
+  display: inline-flex;
+  width: 52px;
+  height: 24px;
+  min-width: 52px;
+  max-width: 52px;
+  min-height: 24px;
+  flex: 0 0 52px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0;
+  padding: 0 8px;
+  line-height: 1;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.ssh-port-forward-menu__rule-actions > .el-button.ssh-port-forward-menu__action > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.ssh-port-forward-menu__rule-actions > .el-button.ssh-port-forward-menu__action.is-retry:not(:disabled) {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--app-accent) 13%, var(--app-surface));
+  color: var(--app-accent);
+  font-weight: 600;
+}
+
+.ssh-port-forward-menu__rule-actions > .el-button.ssh-port-forward-menu__action.is-retry:hover:not(:disabled) {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--app-accent) 19%, var(--app-surface));
+}
+
+.ssh-port-forward-menu__action.is-loading {
+  cursor: wait;
+  opacity: 1;
+}
+
+.ssh-port-forward-menu__configure:focus-visible,
+.ssh-port-forward-menu__action:focus-visible,
+.ssh-port-forward-menu__header > button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 60%, transparent);
+  outline-offset: 1px;
+}
+
+/* The inline SSH connection form fills its container; give it a bounded body inside the terminal dialog. */
+.terminal-ssh-dialog .el-dialog__body {
+  display: flex;
+  flex-direction: column;
+  height: min(640px, calc(100vh - 220px));
+  min-height: 0;
+  padding: 0;
+}
+
+.terminal-ssh-dialog__saved {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.terminal-ssh-dialog__saved-label {
+  flex: none;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+}
+
+.terminal-ssh-dialog__saved-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.terminal-ssh-dialog__saved-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-ssh-dialog__saved-address {
+  float: right;
+  margin-left: 12px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+}

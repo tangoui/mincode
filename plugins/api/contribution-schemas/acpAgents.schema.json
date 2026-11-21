@@ -1,0 +1,85 @@
+{
+  "$comment": "Entry schema for contributes.acpAgents (process plugins that declare the shell capability, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_acp_agents.go (install). Each entry is an Agent Client Protocol (ACP) agent that the AI assistant can run as a conversation backend, next to the built-in and user-configured agents. command is a bare program name found on the login PATH or ${pluginRoot}/<relative> (absolute paths are rejected); '${...}' in args and env values may only be {{lists.variables}}; there is no cwd: the agent always runs in the project root of its conversation. The agent inherits the user's full environment like the built-in agents; env adds literal values (no ${env:VAR} expansion) and env names on the contract denylist are rejected at install and at launch. Like the built-in agents it receives the user's MCP connectors and browser tools. An agent starts only after the user confirms its exact command line (once per agent spec; ${projectRoot} stays unexpanded in the fingerprint) in every approval mode; the frontend and the AI only ever name it by plugin and agent id, never by command. Connections close when the plugin is disabled, uninstalled, reloaded or fails.",
+  "description": "ACP agents: Agent Client Protocol agents the AI assistant can run in the project root of a conversation after the user confirms the exact command line.",
+  "entry": {
+    "type": "object",
+    "required": [
+      "id",
+      "title",
+      "command"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": "{{limits.titleMaxRunes}}"
+      },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "{{limits.titleMaxRunes}}"
+        }
+      },
+      "description": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": "{{limits.descriptionMaxRunes}}"
+      },
+      "descriptionLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "{{limits.descriptionMaxRunes}}"
+        }
+      },
+      "command": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": "{{limits.commandMaxLength}}",
+        "description": "A bare program name such as \"npx\" or ${pluginRoot}/<relative path>. No shell runs in between: $VAR stays literal."
+      },
+      "args": {
+        "type": "array",
+        "maxItems": "{{limits.argsMax}}",
+        "items": {
+          "type": "string",
+          "maxLength": "{{limits.argMaxRunes}}"
+        },
+        "description": "At most {{limits.argsTotalBytes}} bytes in total."
+      },
+      "env": {
+        "type": "object",
+        "maxProperties": "{{limits.envMax}}",
+        "propertyNames": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+          "not": {
+            "enum": "{{lists.deniedEnvNames}}"
+          }
+        },
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": "{{limits.envValueMaxRunes}}"
+        }
+      },
+      "platforms": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "enum": "{{lists.platforms}}"
+        },
+        "description": "Platforms the agent works on; the agent is not listed on other platforms. Omit for all platforms."
+      }
+    },
+    "additionalProperties": false
+  }
+}

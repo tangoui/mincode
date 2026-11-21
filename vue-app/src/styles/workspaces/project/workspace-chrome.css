@@ -1,0 +1,701 @@
+/* Project workspace: compact information hierarchy with neutral layers. */
+.project-workspace {
+  background: var(--app-muted);
+}
+
+.project-sidebar {
+  border-right: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.project-sidebar-tabs {
+  background: var(--app-surface);
+}
+
+.project-sidebar-tabs__tab.is-active {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.project-explorer-toolbar {
+  container-type: inline-size;
+  height: 40px;
+  justify-content: flex-start;
+  /* 工具按钮统一小间距，避免按钮行视觉上过于分散 */
+  gap: 2px;
+  padding: 4px 10px;
+  background: var(--app-surface);
+}
+
+/* tooltip / dropdown 包装层不撑开布局，间距只由按钮本身决定 */
+.project-explorer-toolbar > .el-tooltip,
+.project-explorer-toolbar > .el-dropdown {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+.project-explorer-toolbar > button,
+.project-explorer-toolbar > .el-button,
+.project-explorer-toolbar > .el-tooltip > .el-button,
+.project-explorer-toolbar > .el-dropdown > button,
+.project-explorer-toolbar > .el-dropdown > .el-button,
+.project-git-header > button,
+.project-editor-toolbar > :is(button, .el-button),
+.project-editor-toolbar > .el-popover__reference-wrapper > :is(button, .el-button) {
+  width: 28px;
+  height: 28px;
+  /* 覆盖 Element Plus 相邻按钮默认 12px 左外边距，间距仅由容器 gap 控制 */
+  margin-left: 0;
+  border-color: transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-regular);
+}
+
+.project-explorer-toolbar > button:hover:not(:disabled),
+.project-explorer-toolbar > .el-button:hover:not(:disabled),
+.project-explorer-toolbar > .el-tooltip > .el-button:hover:not(:disabled),
+.project-explorer-toolbar > .el-dropdown > button:hover,
+.project-explorer-toolbar > .el-dropdown > .el-button:hover,
+.project-git-header > button:hover:not(:disabled),
+.project-editor-toolbar > button:hover:not(:disabled),
+.project-editor-toolbar > .el-popover__reference-wrapper > button:hover {
+  background: var(--app-canvas);
+  color: var(--app-accent);
+}
+
+/* Keep project search in one compact row, following MoonAdmin's inline search-form rhythm.
+ * A full-width checkbox on its own line read as a second large form field. */
+.project-search-controls {
+  --el-component-size: 28px;
+  padding: 7px 10px;
+  border-bottom-color: var(--app-border-subtle);
+}
+
+.project-search-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}.project-search-row > .el-input,
+.project-document-tabs__tabs-region {
+  min-width: 0;
+  flex: 1;
+}
+
+.project-search-controls .el-input__wrapper {
+  min-height: 28px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.project-search-controls .el-input__wrapper:hover {
+  border-color: var(--app-border-strong);
+}
+
+.project-search-controls .el-input__wrapper.is-focus {
+  border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-surface));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 8%, transparent);
+}
+
+.project-search-content-toggle.el-checkbox {
+  display: inline-flex;
+  height: 30px;
+  flex: none;
+  align-items: center;
+  margin: 0;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  padding: 0 8px;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  line-height: 1;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.project-search-content-toggle.el-checkbox:hover:not(.is-disabled) {
+  border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-surface));
+  background: color-mix(in srgb, var(--app-accent) 8%, var(--app-surface));
+}
+
+.project-search-content-toggle.el-checkbox.is-checked {
+  border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-surface));
+  background: var(--app-accent-soft);
+}
+
+.project-search-content-toggle .el-checkbox__input {
+  height: 14px;
+  line-height: 14px;
+}
+
+.project-search-content-toggle .el-checkbox__inner {
+  width: 14px;
+  height: 14px;
+  border-color: var(--app-border-strong);
+  border-radius: 3px;
+}
+
+.project-search-content-toggle .el-checkbox__label,
+.project-search-content-toggle.is-checked .el-checkbox__label {
+  padding-left: 5px;
+  color: inherit;
+  font-size: inherit;
+  line-height: 1;
+}
+
+.project-search-content-toggle.is-disabled {
+  background: var(--app-muted);
+}
+
+.project-explorer-scroll {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  padding: 0;
+}
+
+.project-file-section {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.project-tree-node--root {
+  min-width: 0;
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.project-tree-node--root > .el-icon {
+  color: var(--app-warning);
+  font-size: 16px;
+}
+
+.project-tree-node--root.is-active-project {
+  color: var(--app-text);
+}
+
+.project-tree-node--root.is-active-project > span {
+  font-weight: 650;
+}
+
+.project-root-menu {
+  min-width: 260px;
+  padding: 4px;
+}
+
+.project-root-menu__project {
+  display: flex;
+  min-width: 0;
+  height: auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+}
+
+.project-root-menu__project > .el-icon {
+  flex: none;
+  color: var(--app-warning);
+  font-size: 15px;
+}
+
+.project-root-menu__project > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.project-root-menu__project strong,
+.project-root-menu__project small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-root-menu__project strong {
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 500;
+}.project-root-menu__project small,
+.project-root-menu__action,
+.project-editor-toolbar__path {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.project-root-menu__project.is-current {
+  background: var(--app-accent-soft);
+}
+
+.project-root-menu__action {
+  height: 24px;
+  padding-left: 31px;
+}
+
+.project-root-menu__action.is-danger {
+  color: var(--app-danger);
+}
+
+.project-sidebar-empty--compact {
+  margin: 12px;
+  text-align: left;
+}
+
+/* Virtualized explorer tree (components/projects/ProjectVirtualTree.vue): only rows in
+ * view are rendered, absolutely positioned inside a list as tall as all visible rows. */
+/* el-scrollbar root; the wrap inside it scrolls (and takes focus), the view holds the rows. */
+.project-virtual-tree {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  color: var(--app-text-regular);
+}
+
+.project-virtual-tree > .el-scrollbar__wrap {
+  outline: none;
+}
+
+.project-virtual-tree__body {
+  padding: 0 8px;
+}
+
+.project-virtual-tree__list {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.project-virtual-tree__row {
+  position: absolute;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.project-virtual-tree__row:hover {
+  background: var(--app-muted);
+}
+
+.project-virtual-tree__row.is-current {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.project-virtual-tree > .el-scrollbar__wrap:focus-visible .project-virtual-tree__row.is-current {
+  outline: 1px solid var(--app-accent);
+  outline-offset: -1px;
+}
+
+.project-virtual-tree__content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  height: 100%;
+}
+
+.project-virtual-tree__caret {
+  flex: none;
+  box-sizing: content-box;
+  padding: 6px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+
+.project-virtual-tree__caret.is-expanded {
+  transform: rotate(90deg);
+}
+
+.project-virtual-tree__caret.is-leaf {
+  visibility: hidden;
+}
+
+/* Sticky folders: expanded ancestors pinned over the rows while their subtree scrolls. */
+.project-virtual-tree__sticky {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  height: 0;
+}
+
+/* Full height and square corners, so nothing scrolling underneath shows between pinned rows. */
+.project-virtual-tree__row.is-pinned {
+  border-radius: 0;
+  background-color: var(--app-surface);
+}
+
+.project-virtual-tree__row.is-pinned:hover {
+  background-color: var(--app-muted);
+}
+
+/* Pinned rows cover the list, so a translucent selection colour is layered over the surface. */
+.project-virtual-tree__row.is-pinned.is-current {
+  background: linear-gradient(var(--app-accent-soft), var(--app-accent-soft)), var(--app-surface);
+}
+
+.project-tree-node > .el-icon {
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
+
+.project-tree-node > .el-icon:has(.el-icon-folder-opened) {
+  color: var(--app-warning);
+}
+
+.project-tree-node--dotfile > span,
+.project-tree-node--dotfile > .el-icon {
+  color: var(--app-text-disabled);
+}
+
+.project-editor-pane {
+  background: var(--app-muted);
+}
+
+.project-editor-toolbar {
+  height: 36px;
+  border-bottom-color: var(--app-border);
+  background: var(--app-surface);
+  padding: 2px 8px;
+}
+
+.project-editor-toolbar > :is(button, .el-button),
+.project-editor-toolbar > .el-popover__reference-wrapper > :is(button, .el-button) {
+  width: 26px;
+  height: 26px;
+}
+
+.project-document-tabs {
+  display: flex;
+  height: 32px;
+  min-width: 0;
+  flex: none;
+  align-items: stretch;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-muted);
+  /* Keep the tab header flush with the full-height strip. */
+  padding: 0;
+}
+
+.project-document-tabs__list.el-tabs {
+  --el-tabs-header-height: 32px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.project-document-tabs__list.el-tabs--card > .el-tabs__header {
+  height: 32px;
+  margin: 0;
+  border-bottom: 0;
+}
+
+.project-document-tabs__list .el-tabs__nav-wrap {
+  padding: 0 6px 0 0;
+}
+
+.project-document-tabs__list .el-tabs__nav-wrap::after {
+  display: none;
+}
+
+.project-document-tabs__list .el-tabs__nav-prev,
+.project-document-tabs__list .el-tabs__nav-next {
+  top: 0;
+  display: flex;
+  height: var(--el-tabs-header-height);
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.project-document-tabs__list :is(.el-tabs__nav-prev, .el-tabs__nav-next) > .el-icon {
+  margin: 0;
+  color: inherit;
+}
+
+.project-document-tabs__list .el-tabs__nav-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.project-document-tabs__list .el-tabs__nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.project-document-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__nav {
+  min-width: max-content;
+  border: 0;
+}
+
+.project-document-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item {
+  display: inline-flex;
+  max-width: min(300px, 36cqi);
+  height: 26px;
+  align-items: center;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  padding: 0 8px 0 9px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 24px;
+}
+
+.project-document-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item:hover {
+  background: var(--app-surface);
+  color: var(--app-text);
+}.project-document-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item.is-active,
+.project-document-tabs__overflow.el-button:hover,
+.project-document-tabs__overflow.el-button:focus-visible {
+  background: var(--app-surface);
+  color: var(--app-accent);
+}
+
+.project-document-tabs__list .el-tabs__item:focus-visible {
+  outline: 0;
+  background: var(--app-surface);
+  color: var(--app-accent);
+}
+
+.project-document-tabs__list .el-tabs__item .is-icon-close {
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 3px;
+  color: var(--app-text-muted);
+}
+
+.project-document-tabs__list .el-tabs__item .is-icon-close:hover {
+  background: var(--app-muted);
+  color: var(--app-text);
+}
+
+.project-document-tab__label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}.project-document-tab__label > .el-icon,
+.project-document-tab__loading {
+  flex: none;
+  color: var(--app-text-muted);
+  font-size: 13px;
+}
+
+.project-document-tabs__list .el-tabs__item.is-active .project-document-tab__label > .el-icon {
+  color: var(--app-accent);
+}
+
+.project-document-tab__name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-document-tab__dirty {
+  flex: none;
+  margin: 0;
+  color: var(--app-danger);
+  font-size: 10px;
+  font-style: normal;
+}
+
+/* Plugin custom editor tab badge (contributes.customEditors). */
+.project-document-tab__label > .project-document-tab__plugin {
+  font-size: 11px;
+}
+
+.project-custom-editor-confirm p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.project-document-tabs__overflow-menu {
+  flex: none;
+}
+
+.project-document-tabs__overflow.el-button {
+  width: 30px;
+  height: 30px;
+  border-left: 1px solid var(--app-border);
+  border-radius: 0;
+  color: var(--app-text-muted);
+}
+
+.project-document-tabs__overflow-popper.el-popper {
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  padding: 0;
+}
+
+.project-document-tabs__overflow-popper .el-dropdown-menu {
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 16px));
+  margin: 0;
+  padding: 0;
+}
+
+.project-document-tabs__overflow-scroll .el-scrollbar__view {
+  padding: 4px;
+}
+
+.project-document-tabs__overflow-item {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  column-gap: 2px;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  color: var(--app-text-regular);
+}
+
+.project-document-tabs__overflow-item:hover,
+.project-document-tabs__overflow-item.is-active {
+  background: var(--el-dropdown-menuItem-hover-fill);
+}
+
+.project-document-tabs__overflow-item.is-active {
+  color: var(--app-accent);
+}
+
+.project-document-tabs__overflow-select.el-button {
+  display: flex;
+  min-width: 0;
+  height: 28px;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 6px;
+  overflow: hidden;
+  padding: 0 6px;
+  color: inherit;
+  text-align: left;
+}
+
+.project-document-tabs__overflow-select.el-button:hover,
+.project-document-tabs__overflow-select.el-button:focus-visible {
+  background: transparent;
+  color: var(--app-accent);
+}
+
+.project-document-tabs__overflow-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-document-tabs__overflow-select .project-file-icon {
+  font-size: 13px;
+}
+
+.project-document-tabs__overflow-dirty {
+  flex: none;
+  color: var(--app-danger);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.project-document-tabs__overflow-item > .project-document-tabs__overflow-close.el-button {
+  display: inline-flex;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  margin-left: 0;
+  padding: 0;
+  color: var(--app-text-muted);
+  opacity: 1;
+  visibility: visible;
+}
+
+.project-document-tabs__overflow-close-icon {
+  position: relative;
+  display: block;
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.project-document-tabs__overflow-close-icon::before,
+.project-document-tabs__overflow-close-icon::after {
+  position: absolute;
+  top: 1px;
+  left: 5.5px;
+  width: 1px;
+  height: 10px;
+  border-radius: 1px;
+  background: currentColor;
+  content: "";
+}
+
+.project-document-tabs__overflow-close-icon::before {
+  transform: rotate(45deg);
+}
+
+.project-document-tabs__overflow-close-icon::after {
+  transform: rotate(-45deg);
+}
+
+.project-document-tabs__overflow-item > .project-document-tabs__overflow-close.el-button:hover,
+.project-document-tabs__overflow-item > .project-document-tabs__overflow-close.el-button:focus-visible {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
+.project-editor-surface {
+  background: var(--app-surface);
+}
+
+.project-explorer-toolbar__spacer {
+  min-width: 0;
+  flex: 1;
+}
+
+.project-explorer-toolbar__git-group {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  border-left: 1px solid var(--app-border-subtle);
+  padding-left: 4px;
+}
+
+.project-explorer-toolbar__git-group > .el-button,
+.project-explorer-toolbar__git-group > .el-dropdown > .el-button {
+  width: 28px;
+  height: 28px;
+  margin-left: 0;
+  border-color: transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-regular);
+}
+
+.project-explorer-toolbar__git-group > .el-button:hover:not(:disabled),
+.project-explorer-toolbar__git-group > .el-dropdown > .el-button:hover:not(:disabled) {
+  background: var(--app-canvas);
+  color: var(--app-accent);
+}
+
+@container (max-width: 430px) {
+  .project-explorer-toolbar__git-quick {
+    display: none;
+  }
+}

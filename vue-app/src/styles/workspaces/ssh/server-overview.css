@@ -1,0 +1,244 @@
+/*
+ * SSH server overview page. The title row, search box, recent strip and grouped
+ * table come from styles/shared/connection-overview.css; this file adds the page
+ * frame, the "In use" load cards and the SSH table columns.
+ */
+.ssh-server-dashboard {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app-surface);
+  /* --app-muted equals the surface in white themes, so tracks and wells need their own visible fill. */
+  --ssh-overview-fill: color-mix(in srgb, var(--app-text) 6%, var(--app-surface));
+  /* status dot · name · user@host · first tag · last opened · action */
+  --connection-overview-row-columns: 12px minmax(96px, 1.1fr) minmax(0, 1.8fr) minmax(0, 0.7fr) minmax(72px, 0.7fr) 72px;
+  --connection-overview-row-columns-narrow: 12px minmax(0, 1fr) minmax(0, 1fr) 72px;
+}
+
+.ssh-server-overview__scroll {
+  min-height: 0;
+  flex: 1;
+}
+
+.ssh-server-overview__scroll > .el-scrollbar__wrap > .el-scrollbar__view {
+  padding: 18px 26px 28px;
+}
+
+/* Group filter and refresh sit at the right end of the "All hosts" heading. */
+.ssh-server-overview__filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ssh-server-overview__filters .el-select {
+  width: 150px;
+}
+
+.ssh-server-overview__filters > .el-button {
+  width: 24px;
+  padding: 0;
+}
+
+.ssh-server-overview__filters .el-button + .el-button,
+.ssh-server-overview__filters .el-select + .el-button {
+  margin-left: 0;
+}
+
+.ssh-server-overview__new-for-address.is-highlighted {
+  outline: 2px solid var(--app-accent-ring);
+  outline-offset: 2px;
+}
+
+/* "In use": one compact card per ready session, two per row. */
+.ssh-server-live__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ssh-server-live__card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 9px;
+  border: 1px solid var(--app-success-border);
+  border-radius: var(--connection-overview-radius);
+  padding: 11px 13px;
+  background: var(--app-success-soft);
+}
+
+.ssh-server-live__head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.ssh-server-live__head .connection-overview__name {
+  flex: none;
+  max-width: 45%;
+  color: var(--app-text);
+  font-size: 13px;
+}
+
+.ssh-server-live__head .connection-overview__mono {
+  min-width: 0;
+  flex: 1;
+}
+
+.ssh-server-live__since {
+  flex: none;
+  color: var(--app-success);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.ssh-server-live__bars {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ssh-server-live__bar {
+  --ssh-tone: var(--app-success);
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 6px;
+  color: var(--app-text-muted);
+  font-size: 11.5px;
+}
+
+.ssh-server-live__bar.is-idle {
+  --ssh-tone: var(--app-text-disabled);
+}
+
+.ssh-server-live__bar.is-warning {
+  --ssh-tone: var(--app-warning);
+}
+
+.ssh-server-live__bar.is-danger {
+  --ssh-tone: var(--app-danger);
+}
+
+.ssh-server-live__bar > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-server-live__bar > b {
+  color: var(--app-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.ssh-server-live__bar.is-warning > b,
+.ssh-server-live__bar.is-danger > b {
+  color: var(--ssh-tone);
+}
+
+.ssh-server-live__bar .el-progress {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.ssh-server-live__bar .el-progress-bar__outer {
+  background: var(--ssh-overview-fill);
+}
+
+.ssh-server-live__bar .el-progress-bar__inner {
+  background: var(--ssh-tone);
+}
+
+.ssh-server-live__foot {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  font-size: 12px;
+}
+
+.ssh-server-live__foot .el-button + .el-button {
+  margin-left: 0;
+}
+
+.ssh-server-live__note {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-server-live__note.is-error {
+  color: var(--app-danger);
+}
+
+/* "All hosts" table: each group wraps its header and rows, so restore the row divider between groups. */
+.ssh-server-hosts__group:not(:last-child) .connection-overview__row:last-child {
+  border-bottom: 1px solid var(--app-border);
+}
+
+.ssh-server-hosts__group:last-child > .connection-overview__group:last-child {
+  border-bottom: 0;
+}
+
+.ssh-server-hosts .connection-overview__dot.is-error {
+  background: var(--app-danger);
+}
+
+.ssh-server-hosts__tag {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: var(--ssh-overview-fill);
+  color: var(--app-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ssh-server-hosts__action.el-button {
+  justify-self: end;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 980px) {
+  .ssh-server-live__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .ssh-server-overview__scroll > .el-scrollbar__wrap > .el-scrollbar__view {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .ssh-server-overview__filters .el-select {
+    width: 120px;
+  }
+
+  .ssh-server-live__bars {
+    gap: 8px;
+  }
+
+  .ssh-server-live__head .connection-overview__mono {
+    display: none;
+  }
+}

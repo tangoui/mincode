@@ -1,0 +1,482 @@
+/* Redis workspace keeps the database page's resource/content split. */
+.redis-workspace-panel {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(280px, 32%) minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--app-surface);
+}
+.redis-key-pane {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--app-border);
+}
+.redis-key-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--app-border);
+}
+.redis-key-toolbar > button {
+  display: grid;
+  width: 30px;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+}
+.redis-key-search {
+  flex: 1;
+}
+
+.redis-key-summary {
+  padding: 7px 10px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.redis-key-list {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 0 6px 6px;
+}
+.redis-type-badge {
+  border-radius: 4px;
+  background: var(--app-accent-soft);
+  padding: 2px 5px;
+  color: var(--app-accent);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.redis-load-more {
+  border: 0;
+  border-top: 1px solid var(--app-border);
+  background: transparent;
+  padding: 8px;
+  color: var(--app-accent);
+}
+.redis-value-pane {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.redis-value-pending {
+  flex: 1;
+  min-height: 0;
+}
+
+.redis-value-pane > header,
+.redis-value-pane > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.redis-value-pane > header > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}.redis-value-pane > header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.redis-value-pane .danger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--app-danger-border);
+  border-radius: 5px;
+  background: transparent;
+  padding: 5px 9px;
+  color: var(--app-danger);
+}
+.redis-meta-form {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+}
+.redis-meta-form label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+.redis-binary-notice {
+  flex: none;
+  margin-bottom: 10px;
+}
+.redis-value-pane > .redis-value-scroll {
+  min-height: 0;
+  flex: 1;
+}
+.redis-value-scroll .el-scrollbar__wrap {
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.redis-value-scroll .el-scrollbar__view,
+.redis-value-editor {
+  min-height: 100%;
+}
+.redis-value-editor .el-textarea__inner {
+  overflow: hidden;
+  resize: none;
+  padding: 12px;
+  font:
+    12px/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+.redis-value-pane > footer {
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+.redis-dialog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.db-query-split {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+/* 结果网格与状态栏直接位于分割面板内；给 AutoResizer 一个可分配的网格高度。 */
+.db-query-split > .el-splitter > .el-splitter-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.db-query-split .db-sql-editor {
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  border-bottom: 0;
+}
+
+.db-query-split .db-sql-editor.is-expanded {
+  height: 100%;
+}
+
+.db-sql-editor {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 180px;
+  flex: 0 0 34%;
+  flex-direction: column;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-code-surface-strong);
+}
+
+.db-sql-editor > .monaco-text-editor,
+.db-sql-editor > .db-sql-code-editor {
+  min-height: 0;
+  flex: 1;
+}
+
+/* CodeMirror SQL 编辑器（SqlCodeEditor.vue）：编辑器本身占满，滚动在 .cm-scroller 内。 */
+.db-sql-code-editor {
+  overflow: hidden;
+}
+
+.db-sql-code-editor > .cm-editor {
+  height: 100%;
+}
+
+.db-sql-toolbar {
+  display: flex;
+  min-width: 0;
+  min-height: 36px;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 3px 8px;
+  scrollbar-width: thin;
+}
+
+.db-sql-toolbar .el-button {
+  flex: none;
+  margin-left: 0;
+}
+
+/* 「查询 + 下拉」分组不随工具栏收缩，否则窄窗口下两个按钮会折成上下两行。 */
+.db-sql-toolbar .el-button-group {
+  display: inline-flex;
+  flex: none;
+}
+
+/* Element Plus draws the split-button divider in translucent white for solid
+   primary groups; the toolbar uses the plain primary style, so match the
+   divider to the button border instead of letting it vanish. */
+.db-sql-toolbar .el-button-group .el-button--primary.is-plain {
+  --el-button-divide-border-color: var(--el-color-primary-light-5);
+}
+
+.db-sql-toolbar__divider {
+  width: 1px;
+  height: 18px;
+  flex: none;
+  margin: 0 4px;
+  background: var(--app-border);
+}
+
+.db-sql-toolbar__spacer {
+  min-width: 8px;
+  flex: 1;
+}
+
+.db-sql-toolbar__file {
+  display: none;
+}
+
+.db-vector-query-hint {
+  align-self: center;
+  max-width: 360px;
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-sql-history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 4px 6px;
+}
+
+.db-sql-history__item {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 7px 8px;
+  color: var(--app-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.db-sql-history__item:hover,
+.db-sql-history__item:focus-visible {
+  background: var(--app-hover);
+  outline: none;
+}
+
+.db-sql-history__query {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-sql-history__item small {
+  color: var(--app-text-muted);
+}
+.db-record-number {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.db-record-delete {
+  float: right;
+  cursor: pointer;
+  color: var(--app-text-muted);
+}
+.db-record-delete:hover {
+  color: var(--app-danger);
+}
+.db-record-grid th.is-primary-key:after {
+  content: " PK";
+  color: var(--app-warning);
+  font-size: 9px;
+}
+.db-row-dialog.el-dialog {
+  display: flex;
+  max-height: calc(100vh - 32px);
+  flex-direction: column;
+  overflow: hidden;
+}
+.db-row-dialog .el-dialog__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.db-row-dialog .el-dialog__footer {
+  flex: 0 0 auto;
+}
+.db-row-form-scroll {
+  min-height: 0;
+}
+.db-row-form-scroll .el-scrollbar__wrap {
+  overscroll-behavior: contain;
+}
+.db-row-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 14px;
+  padding: 2px 4px 8px;
+}
+.db-row-form .el-form-item {
+  min-width: 0;
+  margin-bottom: 12px;
+}
+.db-row-form .el-form-item__label {
+  width: 100%;
+  height: auto;
+  padding-bottom: 6px;
+  line-height: 1.2;
+}
+.db-row-form__field--wide {
+  grid-column: 1 / -1;
+}
+.db-row-form__label {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.db-row-form__label strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-row-form__meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+.db-row-form__meta .el-tag {
+  max-width: 130px;
+  height: 18px;
+  padding-inline: 5px;
+  font-size: 9px;
+}
+.db-row-form .el-input,
+.db-row-form .el-input-number,
+.db-row-form .el-date-editor,
+.db-row-form .el-time-picker,
+.db-row-form .el-switch {
+  width: 100%;
+}
+.db-row-form .el-switch {
+  justify-content: flex-start;
+}
+.db-row-form .el-textarea__inner {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.db-row-form .db-row-form__textarea--prose .el-textarea__inner {
+  font-family: inherit;
+  line-height: 1.5;
+}
+@media (max-width: 760px) {
+  .db-row-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .db-row-form__field--wide {
+    grid-column: auto;
+  }
+}
+.db-pagination .el-select {
+  vertical-align: middle;
+}
+
+.app-overflow-tab-item {
+  display: flex;
+  min-width: 250px;
+  min-height: 32px;
+  align-items: center;
+  gap: 2px;
+  border-radius: 5px;
+  padding: 2px 4px;
+}
+.app-overflow-tab-item:hover {
+  background: var(--el-dropdown-menuItem-hover-fill);
+}
+.app-overflow-tab-select.el-button {
+  display: flex;
+  min-width: 0;
+  height: 28px;
+  flex: 1;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 0 5px;
+  color: inherit;
+  text-align: left;
+}
+.app-overflow-tab-title {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-overflow-tab-rename {
+  min-width: 0;
+  flex: 1;
+}
+.app-overflow-tab-rename .el-input__wrapper {
+  min-height: 24px;
+  padding: 0 6px;
+}
+.app-overflow-tab-edit.el-button,
+.app-overflow-tab-close.el-button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--app-text-muted);
+}
+.app-overflow-tab-edit:hover {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+.app-overflow-tab-close:hover {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
+/* SQL 编辑器右键菜单（SqlEditorContextMenu.vue）：快捷键提示靠右。 */
+.db-sql-editor-menu .db-sql-editor-menu__shortcut {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--app-text-muted);
+  font-family: inherit;
+  font-size: 11px;
+}

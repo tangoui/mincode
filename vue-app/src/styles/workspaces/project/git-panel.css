@@ -1,0 +1,1189 @@
+/* Project source control uses the same quiet, compact hierarchy as the explorer. */
+.project-git-console {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.project-git-console__scroll {
+  min-height: 0;
+  flex: 1;
+}
+
+.project-git-console .git-context-card {
+  flex: none;
+  border-bottom: 1px solid var(--app-border);
+  padding: 5px 7px;
+}
+
+.project-git-console .git-file-name strong,
+.project-git-console .git-file-name small,
+.project-git-console .project-git-commit-files button > span,
+.project-git-console .project-git-commit-files strong,
+.project-git-console .project-git-commit-files small,
+.project-git-console--ide .git-change-group__toggle span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-git-console .git-command-bar .el-button {
+  width: 25px;
+  height: 25px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--app-text-muted);
+}
+
+.project-git-console .git-command-bar .el-button:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+.project-git-console .git-context-switchers {
+  display: grid;
+  gap: 4px;
+}
+
+.project-git-console .git-context-switcher {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+}.project-git-console .git-context-switcher > span,
+.project-git-console .git-branch-label,
+.project-git-console .git-commit-box__header > span {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.project-git-console .git-context-switcher .el-select {
+  min-width: 0;
+}
+
+.project-git-console .git-context-switcher .el-select__wrapper,
+.project-git-console .git-branch-select .el-select__wrapper {
+  min-height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--app-muted);
+  padding: 0 7px;
+  box-shadow: none;
+}
+
+.project-git-console .git-context-switcher .el-select__wrapper:hover,
+.project-git-console .git-branch-select .el-select__wrapper:hover {
+  background: var(--app-hover);
+}
+
+.project-git-console .git-context-switcher .el-select__selected-item,
+.project-git-console .git-context-switcher .el-select__placeholder,
+.project-git-console .git-branch-select .el-select__selected-item,
+.project-git-console .git-branch-select .el-select__placeholder {
+  font-size: 11px;
+}
+
+/* 多仓库列表：与变更分组同一套折叠头 + 行高，视觉上像同一棵树的两段。 */
+.project-git-console .git-repository-list {
+  display: flex;
+  min-height: 0;
+  flex: none;
+  flex-direction: column;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 4px 3px;
+}
+
+.project-git-console .git-repository-list__toggle {
+  display: inline-flex;
+  height: 28px;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0 7px;
+  color: var(--app-text-regular);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-git-console .git-repository-list__toggle:hover {
+  background: var(--app-hover);
+}
+
+.project-git-console .git-repository-list__toggle b {
+  margin-left: 2px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.project-git-console .git-repository-list__scroll {
+  min-height: 0;
+}
+
+/* 限高约 5.5 行：仓库再多也不能把下方的变更列表和提交框挤没。
+   限高必须落在 wrap 上，滚动条才会真正出现（根元素只会裁切内容）。 */
+.project-git-console .git-repository-list__scroll .el-scrollbar__wrap {
+  max-height: 160px;
+  overflow-x: hidden;
+}
+
+.project-git-console .git-repository-row {
+  display: grid;
+  width: calc(100% - 4px);
+  min-height: 27px;
+  align-items: center;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto auto;
+  margin: 0 2px;
+  border-radius: 4px;
+  /* 左内边距 = 折叠头的 7px + 箭头 1em + 4px 间距，仓库名才会落在"存储库"标题下面，
+     而不是比自己的分组头还靠左，贴着面板边缘。 */
+  padding: 0 5px 0 20px;
+  color: var(--app-text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.project-git-console .git-repository-row:hover,
+.project-git-console .git-repository-row.is-active {
+  background: var(--app-hover);
+}
+
+.project-git-console .git-repository-row.is-active .git-repository-row__name {
+  font-weight: 600;
+}
+
+.project-git-console .git-repository-row__name,
+.project-git-console .git-repository-row__branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-git-console .git-repository-row__branch {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.project-git-console .git-repository-row__sync {
+  flex: none;
+  color: var(--app-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.project-git-console .git-repository-row__changes {
+  flex: none;
+  min-width: 15px;
+  border-radius: 8px;
+  background: var(--app-muted);
+  padding: 0 5px;
+  color: var(--app-text-regular);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.project-git-console .git-command-bar {
+  display: flex;
+  height: 35px;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 5px 0 9px;
+}
+
+.project-git-console .git-command-bar__branch {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+}
+
+.project-git-console .git-branch-mark {
+  flex: none;
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
+
+.project-git-console .git-branch-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-git-console .git-branch-select {
+  min-width: 0;
+  flex: 1;
+}
+
+.project-git-console .git-branch-select .el-select__wrapper {
+  background: transparent;
+  padding-right: 4px;
+  /* 与切换器 wrapper 的 7px 一致，分支名的文字起点才能与上方对齐 */
+  padding-left: 7px;
+}
+
+.project-git-console .git-command-bar__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+}
+
+.project-git-console .git-command-bar__actions .el-dropdown {
+  display: inline-flex;
+}
+
+.project-git-console .git-stash-current--compact {
+  display: flex;
+  min-width: 0;
+  min-height: 30px;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 8px 0 10px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.project-git-console .git-stash-current--compact > .el-icon {
+  flex: none;
+}
+
+.project-git-console .git-stash-current--compact > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--app-text-regular);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-git-console .git-stash-current--compact > b {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.project-git-console .git-stash-current--compact > :is(button, .el-button) {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 2px 3px;
+  color: var(--app-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.project-git-console .git-stash-current--compact > :is(button, .el-button):hover {
+  color: var(--app-text);
+}
+
+.project-git-console .git-stash-current--compact > .git-stash-drop {
+  width: 20px;
+  color: var(--app-text-muted);
+}
+
+.project-git-console .git-stash-current--compact > .git-stash-drop:hover {
+  color: var(--app-danger);
+}
+
+.project-git-console .git-change-tabs {
+  display: flex;
+  height: 35px;
+  min-height: 35px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 7px;
+}
+
+.project-git-console .git-change-tabs .el-segmented {
+  width: min(340px, calc(100% - 34px));
+  font-size: 11px;
+}
+
+.project-git-console .git-change-tabs__actions {
+  display: flex;
+  min-width: 26px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.project-git-console .git-change-tabs__actions > .el-button {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  color: var(--app-text-muted);
+}
+
+.project-git-console .git-change-tabs__actions > .el-button:hover {
+  color: var(--app-text);
+}
+
+.project-git-console .git-change-total {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--app-muted);
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.project-git-console .git-change-scroll {
+  padding: 4px 0 8px;
+}
+
+.project-git-console .git-change-group {
+  border: 0;
+  padding: 0 4px;
+}
+
+.project-git-console .git-change-group__header {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 4px;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.project-git-console .git-change-group__header:hover {
+  background: var(--app-hover);
+}
+
+.project-git-console .git-change-group.is-empty .git-change-group__header {
+  color: var(--app-text-muted);
+  font-weight: 500;
+}
+
+.project-git-console .git-change-group__toggle {
+  display: inline-flex;
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0 6px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-git-console .git-change-group__actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding-right: 5px;
+}
+
+.project-git-console .git-change-group__actions b {
+  min-width: 18px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.project-git-console .git-change-group__actions :is(button, .el-button) {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}.project-git-console .git-change-group__actions :is(button, .el-button):hover:not(:disabled),
+.project-git-console .git-change-group__actions :is(button, .el-button):focus-visible,
+.project-git-console .git-file-action.el-button:hover {
+  background: var(--app-surface);
+  color: var(--app-accent);
+}.project-git-console .git-change-group__actions :is(button, .el-button):focus-visible,
+.project-git-console .git-commit-box__header > :is(button, .el-button):focus-visible,
+.project-git-console .git-commit-box__header > .el-dropdown > .el-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 45%, transparent);
+  outline-offset: 1px;
+}
+
+/* 分组级放弃/删除是破坏性操作，hover 用危险色而不是主题色。 */
+.project-git-console .git-change-group__actions .git-group-discard:hover:not(:disabled),
+.project-git-console .git-change-group__actions .git-group-discard:focus-visible {
+  color: var(--app-danger);
+}
+
+.project-git-console .git-change-group__actions :is(button, .el-button):disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.project-git-console .git-file-row {
+  display: grid;
+  width: calc(100% - 4px);
+  grid-template-columns: 15px minmax(0, 1fr) auto auto;
+  min-height: 29px;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0 5px 0 7px;
+  color: var(--app-text);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-git-console .git-file-row:hover,
+.project-git-console .git-file-row.is-active {
+  background: var(--app-hover);
+}
+
+.project-git-console .git-file-status {
+  color: var(--app-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.project-git-console .git-file-status--staged {
+  color: var(--app-success);
+}
+
+.project-git-console .git-file-status--unstaged {
+  color: var(--app-warning);
+}
+
+.project-git-console .git-file-name {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 5px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.project-git-console .git-file-name strong {
+  flex: none;
+  max-width: 66%;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.project-git-console .git-file-row.is-deleted .git-file-name strong,
+.project-git-console .git-file-row.is-deleted .git-file-name small {
+  text-decoration: line-through;
+}.project-git-console .git-file-name small,
+.project-git-console .project-git-commit-detail > header small,
+.project-git-console .project-git-commit-detail > header > span,
+.project-git-console .project-git-commit-files small {
+  color: var(--app-text-muted);
+  font-size: 9px;
+}
+
+.project-git-console .git-file-action.el-button {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 3px;
+  margin: 0;
+  padding: 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+}
+
+.project-git-console .git-file-action-placeholder {
+  width: 18px;
+  height: 18px;
+}
+
+.project-git-console .git-file-row:hover .git-file-action.el-button,
+.project-git-console .git-file-row.is-active .git-file-action.el-button {
+  opacity: 1;
+}
+
+.project-git-console .git-file-action--danger.el-button:hover {
+  color: var(--app-danger);
+}
+
+.project-git-console .project-git-history-pane {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.project-git-console .project-git-history-pane > .app-git-history {
+  min-height: 120px;
+  flex: 1 1 58%;
+}
+
+.project-git-console .project-git-commit-detail {
+  display: flex;
+  min-height: 112px;
+  max-height: 42%;
+  flex: 0 1 42%;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.project-git-console .project-git-commit-detail > header {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.project-git-console .project-git-commit-detail > header > div {
+  min-width: 0;
+}
+
+.project-git-console .project-git-commit-detail > header strong,
+.project-git-console .project-git-commit-detail > header small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-git-console .project-git-commit-detail > header strong {
+  color: var(--app-text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.project-git-console .project-git-commit-detail > header > span {
+  flex: none;
+}
+
+.project-git-console .project-git-commit-files {
+  min-height: 0;
+}
+
+.project-git-console .project-git-commit-files .el-scrollbar__view {
+  min-width: 0;
+}
+
+.project-git-console .project-git-commit-file {
+  display: grid;
+  width: 100%;
+  min-height: 30px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 65%, transparent);
+  background: transparent;
+  padding: 4px 9px;
+  color: var(--app-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-git-console .project-git-commit-file:hover,
+.project-git-console .project-git-commit-file.is-active {
+  background: var(--app-hover);
+}
+
+.project-git-console .project-git-commit-files b {
+  color: var(--app-warning);
+  font:
+    700 10px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  white-space: nowrap;
+}
+
+.project-git-console .project-git-commit-files button > span {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.project-git-console .project-git-commit-files strong {
+  flex: none;
+  max-width: 64%;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.project-git-console .project-git-commit-empty {
+  padding: 18px 10px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+.project-git-console .git-clean-state {
+  display: flex;
+  min-height: 110px;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 14px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.project-git-console .git-commit-box--original {
+  flex: none;
+  margin: 0;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 7px;
+}
+
+.project-git-console .git-commit-box__header {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+/* The amend checkbox stays left; the AI and plugin generate buttons sit together on the right. */
+.project-git-console .git-commit-box__header > .el-checkbox {
+  margin-right: auto;
+}
+
+.project-git-console .git-commit-box__header .el-button + .el-dropdown,
+.project-git-console .git-commit-box__header .el-button + .el-button {
+  margin-left: 0;
+}
+
+.project-git-console .git-commit-box__header > :is(button, .el-button),
+.project-git-console .git-commit-box__header > .el-dropdown > .el-button {
+  display: inline-flex;
+  height: 18px;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0 6px;
+  color: var(--app-accent);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.project-git-console .git-commit-box__header > :is(button, .el-button):hover:not(:disabled),
+.project-git-console .git-commit-box__header > .el-dropdown > .el-button:hover:not(:disabled),
+.project-git-console .git-commit-box__header > :is(button, .el-button):focus-visible,
+.project-git-console .git-commit-box__header > .el-dropdown > .el-button:focus-visible {
+  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
+}
+
+.project-git-console .git-commit-box__header > :is(button, .el-button):disabled,
+.project-git-console .git-commit-box__header > .el-dropdown > .el-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.project-git-console .git-commit-box__header .is-generating {
+  animation: project-git-ai-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes project-git-ai-pulse {
+  to {
+    opacity: 0.35;
+  }
+}
+
+/* The Element Plus scrollbar owns the border and scrolling; the textarea grows with its content. */
+.project-git-console .git-commit-message-scroll {
+  box-sizing: border-box;
+  border: 1px solid var(--app-input-border);
+  border-radius: 5px;
+  background: var(--app-input-bg);
+}
+
+.project-git-console .git-commit-message-scroll:hover {
+  border-color: var(--app-input-border-hover);
+}
+
+.project-git-console .git-commit-message-scroll:focus-within {
+  border-color: var(--app-input-border-focus);
+}
+
+.project-git-console .git-commit-message-scroll .el-scrollbar__wrap {
+  overscroll-behavior: contain;
+}
+
+.project-git-console .git-commit-box--original .el-textarea__inner {
+  min-height: 48px !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 5px;
+  background: transparent !important;
+  padding: 6px 7px;
+  box-shadow: none !important;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.project-git-console .git-commit-submit-row {
+  display: flex;
+  min-height: 28px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.project-git-console .git-commit-submit-row > span {
+  min-width: 0;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.project-git-console .git-commit-submit-row__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.project-git-console .git-commit-submit-row .el-button {
+  min-width: 0;
+  height: 26px;
+  margin: 0;
+  border-radius: 4px;
+  padding: 0 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.project-git-console .git-source-empty {
+  display: flex;
+  min-height: 180px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 7px;
+  padding: 20px;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+.project-git-console .git-source-empty > .el-icon {
+  color: var(--app-text-muted);
+}
+
+.project-git-console .git-source-empty strong {
+  color: var(--app-text-regular);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.project-git-console .git-source-empty span {
+  max-width: 220px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.project-git-actions-popper .el-dropdown-menu__item {
+  gap: 7px;
+  min-height: 30px;
+  font-size: 11px;
+}
+
+.project-git-actions-popper .el-dropdown-menu__item .el-icon {
+  color: var(--app-text-muted);
+}
+
+.project-git-actions-popper .el-dropdown-menu__item.is-danger:not(.is-disabled) {
+  color: var(--app-danger);
+}
+
+.project-git-actions-popper .el-dropdown-menu__item.is-danger:not(.is-disabled) .el-icon {
+  color: var(--app-danger);
+}
+
+/* The standalone Git workspace shares this compact source-control surface. */
+.git-source-pane.project-git-console {
+  background: var(--app-surface);
+}
+
+/* PhpStorm-inspired hierarchy for real source-control data. Scoped to the Git panel only. */
+.project-git-console--ide {
+  background: var(--app-surface);
+}
+
+.project-git-console--ide .git-context-card {
+  padding: 7px 9px 6px;
+  border-bottom-color: var(--app-border);
+}
+
+.project-git-console--ide .git-command-bar--ide {
+  height: 35px;
+  flex-wrap: nowrap;
+  gap: 4px;
+  /* 与上方 git-context-card 的 7px 左内边距一致，分支标签列才能和“工程/仓库”标签对齐 */
+  padding: 3px 6px 3px 7px;
+  background: var(--app-surface);
+}
+
+.project-git-console--ide .git-command-bar__branch {
+  width: 50%;
+  min-width: 0;
+  flex: 0 0 50%;
+}
+
+.project-git-console--ide .git-branch-select .el-select__wrapper {
+  min-height: 24px;
+  background: transparent;
+}
+
+.project-git-console--ide .git-command-bar__actions {
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  gap: 0;
+  margin-left: 0;
+}
+
+.project-git-console--ide .git-command-bar .el-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+}
+
+.project-git-console--ide .git-command-bar .el-button.is-disabled {
+  opacity: 0.38;
+}
+
+.project-git-console--ide .git-command-bar__divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--app-border);
+}
+
+.project-git-console--ide .git-change-tabs--ide {
+  height: 33px;
+  padding: 0 8px;
+  background: var(--app-muted);
+}
+
+.project-git-console--ide .git-change-tabs .el-segmented {
+  width: min(340px, calc(100% - 34px));
+}
+
+.project-git-console--ide .git-change-tabs .el-segmented__item {
+  min-height: 23px;
+  border-radius: 3px;
+}
+
+.project-git-console--ide .git-change-total {
+  background: var(--app-surface);
+}
+
+.project-git-console--ide .project-git-management-pane {
+  padding: 8px;
+}
+
+.project-git-console--ide .project-git-management-pane .el-scrollbar__view {
+  min-height: 100%;
+}
+
+.project-git-console--ide .project-git-management-pane .git-inspector {
+  min-height: 0;
+}
+
+.project-git-console--ide .git-change-scroll {
+  padding: 5px 4px 8px;
+}
+
+.project-git-console--ide .git-change-group {
+  padding: 0;
+}
+
+.project-git-console--ide .git-change-group__header {
+  height: 30px;
+  gap: 2px;
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
+.project-git-console--ide .git-change-group__header:hover {
+  background: var(--app-hover);
+}
+
+.project-git-console--ide .git-change-group__checkbox,
+.project-git-console--ide .git-file-row__checkbox {
+  flex: none;
+  margin-right: 0;
+}
+
+.project-git-console--ide .git-change-group__checkbox .el-checkbox__label,
+.project-git-console--ide .git-file-row__checkbox .el-checkbox__label {
+  display: none;
+}
+
+.project-git-console--ide .git-change-group__checkbox .el-checkbox__inner,
+.project-git-console--ide .git-file-row__checkbox .el-checkbox__inner {
+  width: 15px;
+  height: 15px;
+  border-color: var(--app-border-strong, var(--app-border));
+  background: var(--app-surface);
+}
+
+.project-git-console--ide
+  .git-change-group__checkbox
+  .el-checkbox__input.is-checked
+  .el-checkbox__inner,
+.project-git-console--ide
+  .git-file-row__checkbox
+  .el-checkbox__input.is-checked
+  .el-checkbox__inner {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+}
+
+.project-git-console--ide .git-change-group__toggle {
+  gap: 5px;
+  padding: 0 2px;
+}
+
+.project-git-console--ide .git-change-group__toggle b {
+  margin-left: 2px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.project-git-console--ide .git-change-group__actions {
+  padding-right: 0;
+}
+
+.project-git-console--ide .git-file-row {
+  width: 100%;
+  grid-template-columns: 16px 15px minmax(0, 1fr) auto auto;
+  min-height: 31px;
+  gap: 5px;
+  margin: 0;
+  padding: 0 4px 0 20px;
+  border-radius: 3px;
+}
+
+.project-git-console--ide .git-file-row:hover,
+.project-git-console--ide .git-file-row.is-active {
+  background: var(--app-accent-soft);
+}
+
+.project-git-console--ide .git-file-status {
+  text-align: center;
+}
+
+.project-git-console--ide .git-file-name {
+  gap: 6px;
+}
+
+.project-git-console--ide .git-file-name strong {
+  max-width: 58%;
+  font-weight: 550;
+}
+
+.project-git-console--ide .git-file-name small {
+  font-size: 9px;
+}
+
+.project-git-console--ide .git-file-action {
+  width: 17px;
+  height: 17px;
+}
+
+.project-git-console--ide .git-clean-state {
+  min-height: 150px;
+}
+
+.project-git-console--ide .git-commit-box--ide {
+  padding: 6px 8px;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-muted);
+}
+
+.project-git-console--ide .git-commit-box__header {
+  height: 18px;
+  min-height: 18px;
+  margin-bottom: 2px;
+}
+
+.project-git-console--ide .git-commit-box__header .el-checkbox {
+  height: 18px;
+  min-width: 0;
+  color: var(--app-text);
+  font-size: 10px;
+}
+
+.project-git-console--ide .git-commit-box__header .el-checkbox__label {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-git-console--ide .git-commit-message-scroll:focus-within {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 1px var(--app-accent-soft);
+}
+
+.project-git-console--ide .git-commit-box--original .el-textarea__inner {
+  min-height: 74px !important;
+  padding: 7px 8px;
+  color: var(--app-text);
+}
+
+.project-git-console--ide .git-commit-submit-row {
+  min-height: 24px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.project-git-console--ide .git-commit-submit-row .el-button {
+  height: 24px;
+  padding: 0 9px;
+}
+
+.project-git-console--ide .git-commit-submit-row .el-button:not(.el-button--primary) {
+  border-color: var(--app-border-strong, var(--app-border));
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.project-git-console--ide
+  .git-commit-submit-row
+  .el-button:not(.el-button--primary):hover:not(.is-disabled) {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+}
+
+@container workbench (max-width: 350px) {
+  .project-git-console--ide .git-command-bar__divider {
+    display: none;
+  }
+
+  .project-git-console--ide .git-file-row {
+    padding-left: 9px;
+  }
+
+  .project-git-console--ide .git-file-name small {
+    display: none;
+  }
+}
+
+/* Keep the commit editor out of the change list's way until explicitly opened. */
+.project-git-console .project-git-commit-collapse {
+  flex: none;
+  border-top: 1px solid var(--app-border);
+  border-bottom: 0;
+}
+
+.project-git-commit-collapse .el-collapse-item__header {
+  height: 30px;
+  /* Element Plus also sets min-height; height alone cannot shrink the row. */
+  min-height: 30px;
+  padding: 0 10px;
+  border-bottom: 0;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.project-git-commit-collapse .el-collapse-item__header:hover {
+  background: var(--app-hover);
+}
+
+.project-git-commit-collapse .el-collapse-item__wrap {
+  border-bottom: 0;
+  background: var(--app-surface);
+}
+
+.project-git-commit-collapse .el-collapse-item__content {
+  padding-bottom: 0;
+}
+
+.project-git-commit-collapse__title {
+  font-weight: 600;
+}
+
+.project-git-commit-collapse__count {
+  margin-left: 8px;
+  color: var(--app-text-muted);
+}
+
+.project-git-console .project-git-commit-collapse .git-commit-box--original {
+  border-top: 0;
+}
+
+/* Amend + AI generate share the collapse title row instead of taking their own line. */
+.project-git-commit-collapse .el-collapse-item__title {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+}
+
+.project-git-console .project-git-commit-collapse .project-git-commit-collapse__actions {
+  min-width: 0;
+  flex: 1;
+  margin: 0 6px 0 12px;
+}

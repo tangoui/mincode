@@ -1,0 +1,149 @@
+.db-er-dialog .el-dialog__body {
+  padding-top: 8px;
+}
+
+.db-er-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  margin-bottom: 10px;
+}
+
+.db-er-toolbar .app-search-field {
+  width: 240px;
+}
+
+.db-er-toolbar > span {
+  color: var(--app-text-muted);
+  font-size: 12px;
+  margin-right: auto;
+}
+
+.db-er-toolbar__zoom {
+  min-width: 58px;
+}
+
+.db-er-viewport {
+  height: min(660px, 66vh);
+  margin-top: 10px;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: 6px;
+  background:
+    linear-gradient(var(--app-border-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--app-border-subtle) 1px, transparent 1px), var(--app-surface-sunken);
+  background-size: 24px 24px;
+}
+
+/* 加载时只保留转圈，不要 v-loading 默认的灰色遮罩，避免盖住网格画布底色。 */
+.db-er-viewport .el-loading-mask {
+  background: transparent;
+}
+
+.db-er-stage {
+  position: relative;
+}
+
+.db-er-canvas {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: 0 0;
+  transition: transform 120ms ease;
+}
+
+.db-er-edges {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.db-er-edges path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--app-accent) 56%, var(--app-border));
+  stroke-width: 1.5;
+}
+
+.db-er-edges marker path {
+  fill: var(--app-accent);
+  stroke: none;
+}
+
+.db-er-table {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  color: var(--app-text);
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  cursor: default;
+}
+
+.db-er-table:hover,
+.db-er-table:focus-visible {
+  border-color: var(--app-accent);
+  outline: none;
+}
+
+.db-er-table:focus-visible {
+  box-shadow: 0 0 0 2px var(--app-accent-ring);
+}
+
+.db-er-table > strong {
+  flex: 0 0 38px;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  overflow: hidden;
+  color: var(--app-text-strong);
+  background: var(--app-surface-raised);
+  border-bottom: 1px solid var(--app-border-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-er-column {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(72px, auto);
+  align-items: center;
+  gap: 5px;
+  min-height: 25px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--app-border-subtle);
+  font-size: 12px;
+}
+
+.db-er-column b {
+  color: var(--app-accent);
+  font-size: 10px;
+}
+
+.db-er-column > span,
+.db-er-column small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-er-column small {
+  color: var(--app-text-muted);
+}
+
+.db-er-table__more {
+  position: absolute;
+  right: 10px;
+  bottom: 2px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.db-er-hint {
+  float: left;
+  line-height: 28px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}

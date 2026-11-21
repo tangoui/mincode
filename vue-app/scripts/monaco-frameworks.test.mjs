@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { existsSync } from 'node:fs';
+import { setEditorFrameworks, setFrameworkRoots } from '../src/services/editor-framework-registry.ts';
+const url = new URL('../src/services/monaco-frameworks.ts', import.meta.url);
+const runtime = existsSync(url) ? await import(url.href) : {};
+test('Monaco 接入匹配项目的补全悬停并清理 provider', () => {
+  assert.equal(typeof runtime.attachMonacoFrameworks, 'function');
+  const framework = { id: 'demo', languages: ['typescript'], match: { all: [{ file: 'pages.json' }], any: [], exclude: [] }, completions: [{ label: 'demo.request', insertText: 'request', context: 'demo.', detail: 'request(options)', documentation: '请求' }] };
+  setEditorFrameworks([{ pluginId: 'demo', framework }]);
+  setFrameworkRoots([{ root: '/repo', pluginId: 'demo', framework }], ['/repo']);
+  let completion, hover, disposed = 0;
+  const monaco = { languages: { CompletionItemKind: { Function: 1 }, registerCompletionItemProvider(language, provider) { completion = provider; return { dispose() { disposed++; } }; }, registerHoverProvider(language, provider) { hover = provider; return { dispose() { disposed++; } }; } } };
+  const cleanup = runtime.attachMonacoFrameworks(monaco, [{ pluginId: 'demo', framework }]);
+  const model = { uri: { scheme: 'file', path: '/repo/a.ts' }, getLineContent: () => 'demo.re', getLanguageId: () => 'typescript' };
+  assert.equal(completion.provideCompletionItems(model, { lineNumber: 1, column: 8 }).suggestions[0].insertText, 'request');
+  model.getLineContent = () => 'demo.request';
+  assert.ok(hover.provideHover(model, { lineNumber: 1, column: 8 }).contents.length);
+  model.uri.path = '/other/a.ts';
+  assert.deepEqual(completion.provideCompletionItems(model, { lineNumber: 1, column: 8 }).suggestions, []);
+  cleanup();
+  assert.equal(disposed, 2);
+  setEditorFrameworks([]);
+});
+test('同一文件命中多条框架规则时补全按 label 和 insertText 去重', () => {
+  const item = { label: 'demo.request', insertText: 'request', context: 'demo.', detail: 'request(options)', documentation: '请求' };
+  const rule = (id) => ({ id, languages: ['typescript'], match: { all: [{ file: 'pages.json' }], any: [], exclude: [] }, completions: [item] });
+  const registrations = [{ pluginId: 'demo', framework: rule('a') }, { pluginId: 'demo', framework: rule('b') }];
+  setEditorFrameworks(registrations);
+  setFrameworkRoots([{ root: '/repo', ...registrations[0] }, { root: '/repo/src', ...registrations[1] }], ['/repo']);
+  let completion;
+  const monaco = { languages: { CompletionItemKind: { Function: 1 }, registerCompletionItemProvider(_language, provider) { completion = provider; return { dispose() {} }; }, registerHoverProvider() { return { dispose() {} }; } } };
+  const cleanup = runtime.attachMonacoFrameworks(monaco, registrations);
+  const model = { uri: { scheme: 'file', path: '/repo/src/a.ts' }, getLineContent: () => 'demo.re', getLanguageId: () => 'typescript' };
+  assert.equal(completion.provideCompletionItems(model, { lineNumber: 1, column: 8 }).suggestions.length, 1);
+  cleanup();
+  setEditorFrameworks([]);
+});

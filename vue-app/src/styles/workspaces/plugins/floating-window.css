@@ -1,0 +1,67 @@
+/* views[].floating windows: a transparent, host-owned drag region around one plugin view. */
+
+/* Dragging or double-clicking must never select the embedded page: the macOS
+   selection highlight would tint the whole transparent window. */
+html.app-floating-window,
+html.app-floating-window * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+html.app-floating-window .plugin-floating-window {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  cursor: grab;
+  --tango-drag: drag;
+}
+
+.plugin-floating-window .plugin-view-frame--floating,
+.plugin-floating-window .plugin-view-frame--floating .plugin-view-frame__iframe,
+.plugin-floating-window .plugin-view-frame--floating .plugin-view-frame__loading {
+  background: transparent;
+}
+
+/* The page draws; the window drags. */
+.plugin-floating-window .plugin-view-frame--floating .plugin-view-frame__iframe {
+  pointer-events: none;
+}
+
+.plugin-floating-window .plugin-view-frame--floating .plugin-view-frame__loading span {
+  display: none;
+}
+
+.plugin-floating-window .plugin-view-frame--floating .plugin-view-unavailable {
+  min-height: 0;
+  height: 100%;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background: var(--app-surface);
+  cursor: default;
+  --tango-drag: no-drag;
+}
+
+.plugin-floating-window__hide.el-button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  --tango-drag: no-drag;
+}
+
+.plugin-floating-window:hover .plugin-floating-window__hide.el-button,
+.plugin-floating-window__hide.el-button:focus-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plugin-floating-window__hide.el-button {
+    transition: none;
+  }
+}

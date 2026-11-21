@@ -1,0 +1,333 @@
+/* Git and SFTP workspace refinement -----------------------------------------
+ * These two full-screen tools are available from the activity rail. Keep their
+ * controls compact, use only the shared theme tokens, and make file operations
+ * read like one coherent workspace instead of a collection of separate cards. */
+.git-workspace,
+.sftp-workspace {
+  --el-color-primary: var(--app-accent);
+  --el-color-primary-light-9: var(--app-accent-soft);
+  --el-fill-color-blank: var(--app-surface);
+  --el-fill-color-light: var(--app-muted);
+  --el-border-color: var(--app-border);
+  --el-border-color-light: var(--app-border);
+  --el-text-color-primary: var(--app-text);
+  --el-text-color-regular: var(--app-text-regular);
+  --el-text-color-secondary: var(--app-text-muted);
+}
+
+.git-workspace {
+  grid-template-columns: clamp(296px, 27vw, 352px) minmax(0, 1fr);
+  background: var(--app-canvas);
+}
+
+.git-source-pane {
+  border-right-color: var(--app-border);
+  background: var(--app-sidebar);
+}
+
+.git-source-tabs {
+  padding: 0 10px;
+  border-bottom-color: var(--app-border);
+}
+
+.git-source-tabs > button {
+  height: 44px;
+  gap: 6px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.git-source-tabs > button:hover {
+  background: transparent;
+  color: var(--app-text);
+}
+
+.git-source-tabs > button.is-active {
+  color: var(--app-accent);
+}
+
+.git-source-tabs > button.is-active::after {
+  height: 2px;
+  background: var(--app-accent);
+}
+
+.git-source-tabs__branch,
+.git-branch-mark {
+  display: inline-grid;
+  place-items: center;
+  color: currentColor;
+  font-size: 15px;
+}.git-source-tabs b,
+.git-stash-summary b,
+.git-change-group__header b {
+  min-width: 18px;
+  height: 18px;
+  background: var(--app-muted);
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.git-source-selectors {
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom-color: var(--app-border);
+}.git-source-field > span,
+.git-source-path code {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.git-source-field .el-select__wrapper,
+.git-branch-select .el-select__wrapper {
+  min-height: 32px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 4px;
+  background: var(--app-surface);
+  box-shadow: none;
+}
+
+.git-source-field .el-select__wrapper:hover,
+.git-branch-select .el-select__wrapper:hover {
+  border-color: var(--app-accent);
+}
+
+.git-source-link {
+  margin-top: -3px;
+  color: var(--app-accent);
+  font-size: 11px;
+}
+
+.git-source-path {
+  height: 42px;
+  gap: 7px;
+  padding: 0 10px 0 12px;
+  border-bottom-color: var(--app-border);
+  color: var(--app-text-muted);
+}
+
+.git-source-path > .el-icon {
+  color: var(--app-text-muted);
+  font-size: 17px;
+}
+
+.git-source-path .el-button {
+  color: var(--app-accent);
+}
+
+.git-branch-row,
+.git-action-row {
+  height: 44px;
+  padding: 0 10px 0 12px;
+  border-bottom-color: var(--app-border);
+}
+
+.git-branch-row {
+  gap: 3px;
+}
+
+.git-branch-row .el-button,
+.git-action-row .el-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  color: var(--app-text-muted);
+}.git-branch-row .el-button:hover,
+.git-action-row .el-button:hover:not(:disabled),
+.git-file-action:hover {
+  background: var(--app-hover);
+  color: var(--app-accent);
+}
+
+.git-action-row {
+  gap: 2px;
+  justify-content: space-between;
+}
+
+.git-action-row .el-button:nth-child(n) {
+  color: var(--app-text-muted);
+}
+
+.git-action-row .el-button:nth-child(1),
+.git-action-row .el-button:nth-child(2) {
+  color: var(--app-accent);
+}
+
+.git-action-row .el-button:nth-child(8) {
+  color: var(--el-color-danger);
+}
+
+.git-stash-summary,
+.git-stash-current {
+  padding: 0 12px;
+  border-bottom-color: var(--app-border);
+}
+
+.git-stash-summary {
+  height: 32px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.git-stash-summary button,
+.git-stash-current button {
+  color: var(--app-accent);
+  font-size: 11px;
+}
+
+.git-stash-current {
+  min-height: 32px;
+  background: color-mix(in srgb, var(--app-accent) 5%, var(--app-sidebar));
+}
+
+.git-change-tabs {
+  height: 42px;
+  padding: 6px 10px;
+  border-bottom-color: var(--app-border);
+}
+
+.git-change-tabs .el-segmented {
+  width: 100%;
+  border-radius: 4px;
+}
+
+.git-change-scroll,
+.git-resource-list {
+  padding: 6px 0 10px;
+  background: var(--app-sidebar);
+}
+
+.git-change-group {
+  margin-bottom: 4px;
+}
+
+.git-change-group__header {
+  min-height: 30px;
+  padding: 0 12px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.git-change-group__header:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+.git-file-row {
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: transparent;
+}
+
+.git-file-row:hover,
+.git-file-row.is-active {
+  border-left-color: var(--app-accent);
+  background: var(--app-accent-soft);
+}
+
+.git-file-status {
+  font-size: 10px;
+}
+
+.git-file-name {
+  color: var(--app-text-regular);
+  font-size: 11px;
+}
+
+.git-file-action {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: var(--app-text-muted);
+}
+
+.git-file-action--danger:hover {
+  background: color-mix(in srgb, var(--el-color-danger) 10%, var(--app-surface));
+  color: var(--el-color-danger);
+}
+
+.git-clean-state,
+.git-source-empty,
+.git-detail-empty {
+  color: var(--app-text-muted);
+}
+
+.git-detail-pane {
+  background: var(--app-canvas);
+}
+
+.git-detail-empty {
+  gap: 8px;
+}
+
+.git-detail-empty > .el-icon {
+  color: var(--app-accent);
+}
+
+.git-diff-header {
+  min-height: 42px;
+  padding: 0 14px;
+  border-bottom-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.git-diff-grid {
+  gap: 0;
+  background: var(--app-border);
+}
+
+.git-diff-grid pre {
+  background: var(--app-surface);
+}
+
+.git-commit-box--original {
+  margin: 8px 10px 10px;
+  border-color: var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+}
+
+.git-commit-detail,
+.git-inspector-row,
+.git-remote-card,
+.git-changelog {
+  border-color: var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+}
+
+.git-inspector-row:hover,
+.git-commit-file:hover {
+  background: var(--app-hover);
+}
+
+.git-inspector-row > button:hover,
+.git-inspector-row > button.is-current {
+  color: var(--app-accent);
+}
+
+.sftp-workspace {
+  background: var(--app-surface);
+}
+
+.sftp-header {
+  height: 48px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-bottom-color: var(--app-border);
+  background: var(--app-sidebar);
+}
+
+.sftp-header__icon {
+  border-color: var(--app-border);
+  border-radius: 4px;
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.sftp-header__identity strong {
+  color: var(--app-text);
+}
+

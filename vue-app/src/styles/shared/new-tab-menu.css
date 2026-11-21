@@ -1,0 +1,105 @@
+/* Top-bar new-tab menu for terminal, browser, and AI entries. */
+.app-new-tab-dropdown.el-popper {
+  border: 1px solid var(--app-border-strong) !important;
+  border-radius: 6px;
+  background: var(--app-surface) !important;
+  box-shadow: none !important;
+}
+
+.app-new-tab-dropdown.el-popper .el-dropdown-menu,
+.app-new-tab-dropdown.el-popper .el-popper__arrow::before {
+  background: var(--app-surface) !important;
+}
+
+/* Element Plus draws the arrow separately, so its border must use the same
+ * semantic token as the menu frame instead of the default light palette. */
+.app-new-tab-dropdown.el-popper .el-popper__arrow::before {
+  border-color: var(--app-border-strong) !important;
+}
+
+.app-new-tab-dropdown.el-popper[data-popper-placement^="top"] .el-popper__arrow::before {
+  border-top-color: transparent !important;
+  border-left-color: transparent !important;
+}
+
+.app-new-tab-dropdown.el-popper[data-popper-placement^="bottom"] .el-popper__arrow::before {
+  border-right-color: transparent !important;
+  border-bottom-color: transparent !important;
+}
+
+.app-new-tab-dropdown.el-popper[data-popper-placement^="left"] .el-popper__arrow::before {
+  border-bottom-color: transparent !important;
+  border-left-color: transparent !important;
+}
+
+.app-new-tab-dropdown.el-popper[data-popper-placement^="right"] .el-popper__arrow::before {
+  border-top-color: transparent !important;
+  border-right-color: transparent !important;
+}
+
+.app-new-tab-menu.el-dropdown-menu {
+  min-width: 200px;
+  padding: 0;
+}
+
+.app-new-tab-menu__scroll {
+  max-height: min(420px, 70vh);
+}
+
+.app-new-tab-menu__scroll .el-scrollbar__view {
+  padding: 5px 0;
+}
+
+.app-new-tab-menu__label {
+  padding: 5px 10px 2px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  list-style: none;
+}
+
+.app-new-tab-menu__separator {
+  height: 1px;
+  margin: 5px 10px;
+  background: var(--app-border);
+  list-style: none;
+}
+
+.app-new-tab-menu__item.el-dropdown-menu__item {
+  display: flex;
+  min-width: 0;
+  min-height: 29px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  color: var(--app-text);
+  font-size: 12px;
+  line-height: 29px;
+}
+
+.app-new-tab-menu__item.el-dropdown-menu__item .el-icon {
+  display: inline-flex;
+  width: 16px;
+  min-width: 16px;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-muted);
+  font-size: 13px;
+}
+
+.app-new-tab-menu__command-icon {
+  font-size: 14px;
+  transition: color 120ms ease, transform 120ms ease;
+}
+
+.app-new-tab-menu__item.el-dropdown-menu__item:hover {
+  background: var(--app-canvas);
+  color: var(--app-text);
+}
+
+.app-new-tab-menu__item.el-dropdown-menu__item:hover .app-new-tab-menu__command-icon {
+  color: var(--app-accent);
+  transform: translateX(1px);
+}
+

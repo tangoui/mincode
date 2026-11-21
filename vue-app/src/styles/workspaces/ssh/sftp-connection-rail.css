@@ -1,0 +1,214 @@
+/* Hallmark · compact connection rail: secondary fields read as one tool,
+ * while the SFTP connect action remains the single visual anchor. */
+.sftp-header__connect {
+  gap: 7px;
+}
+
+.sftp-connect-fields {
+  display: flex;
+  width: 320px;
+  height: 28px;
+  min-width: 0;
+  flex: 0 1 320px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--app-surface) 94%, var(--app-muted));
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.sftp-connect-fields:hover {
+  border-color: var(--app-border-strong);
+  background: var(--app-surface);
+}
+
+.sftp-connect-fields:focus-within {
+  border-color: var(--app-accent);
+  background: var(--app-surface);
+}
+
+.sftp-connect-fields__divider {
+  width: 1px;
+  height: 16px;
+  flex: none;
+  background: var(--app-border);
+}
+
+.sftp-profile-select {
+  width: 178px;
+  flex: 1.25 1 178px;
+}
+
+.sftp-connect-fields .sftp-password {
+  display: flex;
+  width: 142px;
+  flex: 1 1 142px;
+}
+
+.sftp-connect-fields .el-select__wrapper,
+.sftp-connect-fields .el-input__wrapper {
+  min-height: 26px !important;
+  height: 26px;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.sftp-connect-fields .el-select__wrapper:hover,
+.sftp-connect-fields .el-input__wrapper:hover,
+.sftp-connect-fields .el-select__wrapper.is-focused,
+.sftp-connect-fields .el-input.is-focus .el-input__wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.sftp-connect-fields .el-select__prefix,
+.sftp-connect-fields .el-input__prefix {
+  color: var(--app-text-muted);
+}
+
+.sftp-connect-fields .el-select__selected-item,
+.sftp-connect-fields .el-input__inner {
+  font-size: 12px;
+}
+
+.sftp-connect-button.el-button,
+.sftp-disconnect-button.el-button {
+  height: 28px;
+  min-height: 28px;
+  margin-left: 0;
+  border-radius: 5px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sftp-connect-button.el-button {
+  min-width: 106px;
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+}
+
+.sftp-connect-button.el-button:hover,
+.sftp-connect-button.el-button:focus-visible {
+  border-color: var(--el-color-primary-dark-2);
+  background: var(--el-color-primary-dark-2);
+}
+
+.sftp-disconnect-button.el-button {
+  border-color: var(--app-border-strong);
+  background: transparent;
+  color: var(--app-text-regular);
+}
+
+.sftp-content {
+  background: var(--app-canvas);
+}
+
+.sftp-file-pane,
+.sftp-editor-pane {
+  background: var(--app-surface);
+}
+
+.sftp-pane-title {
+  background: var(--app-sidebar);
+  color: var(--app-text-muted);
+}
+
+.sftp-pathbar {
+  border-bottom-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.sftp-file-row {
+  grid-template-columns: 22px minmax(0, 1fr) 96px 64px;
+  border-bottom-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.sftp-file-row:hover,
+.sftp-file-row.is-active {
+  background: var(--app-accent-soft);
+}
+
+.sftp-file-row__icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--app-accent);
+  font-size: 15px;
+}
+
+.sftp-file-row b {
+  color: var(--app-text-regular);
+}
+
+.sftp-editor-tabs {
+  gap: 0;
+  border-bottom-color: var(--app-border);
+  background: var(--app-sidebar);
+}
+
+.sftp-editor-tabs > button {
+  border-radius: 0;
+}
+
+/* The selected editor tab is focused after opening a file; do not render the
+ * global blue keyboard ring as a stray vertical line at the tab edge. */
+.sftp-editor-tabs > button:focus-visible {
+  outline: none;
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.sftp-editor-tabs > button.is-active {
+  border-color: var(--app-accent);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.sftp-editor-actions {
+  gap: 4px;
+}
+
+.sftp-editor-actions button:first-child:not(:disabled) {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: var(--app-text-on-accent);
+}
+
+@media (max-width: 860px) {
+  .git-workspace {
+    grid-template-columns: minmax(250px, 40vw) minmax(0, 1fr);
+  }
+
+  .git-action-row {
+    padding: 0 6px;
+  }
+
+  .sftp-header {
+    height: auto;
+    min-height: 48px;
+    flex-wrap: wrap;
+    padding-block: 8px;
+  }
+
+  .sftp-header__connect {
+    width: 100%;
+  }
+
+  .sftp-connect-fields {
+    width: auto;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .sftp-profile-select,
+  .sftp-password {
+    width: auto;
+    min-width: 0;
+    flex: 1;
+  }
+}
+

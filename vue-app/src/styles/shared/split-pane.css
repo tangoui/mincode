@@ -1,0 +1,156 @@
+.app-split-pane {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-split-group {
+  flex: 1 1 0;
+}
+
+.app-split-pane > .el-splitter {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-split-pane .el-splitter-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-split-pane .el-splitter-bar {
+  z-index: 4;
+  background: var(--app-border);
+}
+
+/* 终端分屏（AppSplitGroup）的默认 2px 细线在同色终端背景上几乎不可见，
+   加宽为浅色沟槽，让每个分屏面板有明确的边界感；其他拆分器保持细线。 */
+.app-split-group .el-splitter-bar {
+  background: var(--app-canvas);
+}
+.app-split-group.app-split-pane--horizontal .el-splitter-bar {
+  width: 6px;
+}
+.app-split-group.app-split-pane--vertical .el-splitter-bar {
+  height: 6px;
+}
+
+/* Element Plus 给拖动条写了内联尺寸：0 宽分隔条上居中一块 16px 的拖动区，
+   向两侧面板各伸进 8px，正好盖住面板贴边的 el-scrollbar（距边缘 2–8px），
+   于是滚动条上显示左右拖动光标、拖动时改的是宽度而不是滚动。把拖动区收窄到
+   4px（每侧 2px，停在滚动条外侧的空隙里）；终端分屏的 6px 沟槽保持与沟槽同宽。
+   内联样式只能用 !important 覆盖。 */
+.app-split-pane .el-splitter-bar__dragger-horizontal {
+  width: 4px !important;
+}
+.app-split-pane .el-splitter-bar__dragger-vertical {
+  height: 4px !important;
+}
+.app-split-group.app-split-pane--horizontal .el-splitter-bar__dragger-horizontal {
+  width: 6px !important;
+}
+.app-split-group.app-split-pane--vertical .el-splitter-bar__dragger-vertical {
+  height: 6px !important;
+}
+
+/* 分屏内的每个终端面板自身也要有轮廓，否则面板外侧与容器背景融为一体。 */
+.app-split-group .terminal-pane {
+  border: 1px solid var(--app-border);
+}
+.app-split-group .terminal-pane.is-active {
+  border-color: color-mix(in srgb, var(--app-accent) 45%, var(--app-border));
+}
+
+.app-split-pane .el-splitter-bar__dragger::before,
+.app-split-pane .el-splitter-bar__dragger::after {
+  background: var(--app-border-strong);
+}
+
+.app-split-pane .el-splitter-bar__dragger:hover::before,
+.app-split-pane .el-splitter-bar__dragger:focus-visible::before,
+.app-split-pane .el-splitter-bar__dragger-active::before,
+.app-split-pane .el-splitter-bar__dragger-active::after {
+  background: var(--app-accent);
+}
+
+.app-split-pane .el-splitter-bar__dragger:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: -2px;
+}
+
+/* Use Element Plus Splitter's native collapsible control and keep it keyboard-visible. */
+.app-split-pane .el-splitter-bar__collapse-icon {
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  opacity: 1;
+}
+
+.app-split-pane .el-splitter-bar__collapse-icon:hover,
+.app-split-pane .el-splitter-bar__collapse-icon:focus-visible {
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.app-split-pane .el-splitter-bar__collapse-icon:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+.app-split-pane .el-splitter-bar__horizontal-collapse-icon-start {
+  left: -16px;
+}
+
+.app-split-pane .el-splitter-bar__horizontal-collapse-icon-end {
+  left: 16px;
+}
+
+.app-split-pane .el-splitter-bar__vertical-collapse-icon-start {
+  top: -16px;
+}
+
+.app-split-pane .el-splitter-bar__vertical-collapse-icon-end {
+  top: 16px;
+}
+
+/* 状态只作用于当前 split pane 的直属分隔条；避免外层禁用/折叠时误伤嵌套面板。 */
+.app-split-pane.is-collapsed > .el-splitter > .el-splitter-bar .el-splitter-bar__dragger {
+  display: none;
+}
+
+.app-split-pane.is-collapsed:not(.is-collapsible) > .el-splitter > .el-splitter-bar,
+.app-split-pane.is-resize-disabled:not(.is-collapsible) > .el-splitter > .el-splitter-bar {
+  display: none;
+}
+
+/* Splitter panels own sizing. Feature roots should fill their assigned panel. */
+.app-split-pane .db-explorer,
+.app-split-pane .project-sidebar,
+.app-split-pane .project-editor-pane,
+.app-split-pane .ssh-manager-sidebar,
+.app-split-pane .sessions-navigator,
+.app-split-pane .sessions-conversation,
+.app-split-pane .http-sidebar,
+.app-split-pane .ssh-sftp-panel {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.terminal-sftp-splitter {
+  flex: 1 1 0;
+}
+
+.terminal-sftp-splitter .terminal-pane-host,
+.terminal-sftp-splitter .ssh-sftp-panel {
+  width: 100%;
+  height: 100%;
+}

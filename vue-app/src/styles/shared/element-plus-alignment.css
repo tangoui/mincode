@@ -1,0 +1,155 @@
+/* Element Plus alignment */
+.el-menu-item {
+  height: 34px;
+  margin: 2px 0;
+  border-radius: var(--app-radius);
+  font-size: 13px;
+}
+
+.el-tabs--card > .el-tabs__header {
+  margin: 0;
+  border-bottom: 0;
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__nav {
+  border: 0;
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item {
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--app-control-radius) var(--app-control-radius) 0 0;
+  color: var(--el-text-color-secondary);
+  line-height: 32px;
+}
+
+.el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+  border-color: var(--app-border);
+  background: var(--app-accent-soft);
+  color: var(--el-text-color-primary);
+}
+
+/* 仅“纯标签头”用法隐藏内容区（如 AppWorkspaceTabs 只把 el-tabs 当标签栏）；
+ * 全局隐藏 .el-tabs__content 会把表结构弹窗等正常标签页内容一并隐藏，禁止恢复。 */
+.app-workspace-tabs > .el-tabs__content {
+  display: none;
+}
+
+.el-card,
+.el-tag,
+.el-button,
+.el-tabs__item {
+  box-shadow: none !important;
+}
+
+.db-connection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 3px;
+}
+
+.db-connection-list__title {
+  padding: 4px 8px 7px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.db-connection-empty {
+  padding: 22px 12px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.db-saved-connection {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 7px;
+  color: var(--app-text-regular);
+  cursor: default;
+}
+
+.db-saved-connection:hover {
+  border-color: var(--app-border);
+  background: var(--app-hover);
+}
+
+.db-saved-connection > .el-icon {
+  flex: none;
+  color: var(--app-warning);
+}
+
+.db-saved-connection > span {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.db-saved-connection strong,
+.db-saved-connection small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-saved-connection strong {
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.db-saved-connection small {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.db-saved-connection button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.db-saved-connection__connect {
+  color: var(--app-accent);
+  font-size: 11px;
+}
+
+.db-saved-connection__icon {
+  display: flex;
+  width: 23px;
+  height: 23px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px !important;
+  color: var(--app-text-muted);
+}
+
+.db-saved-connection__icon:hover {
+  background: var(--app-accent-soft) !important;
+  color: var(--app-accent);
+}
+
+.db-saved-connection__icon.is-danger:hover {
+  background: var(--app-danger-soft) !important;
+  color: var(--app-danger);
+}
+
+.db-no-session,
+.db-result-empty {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  place-items: center;
+}
+

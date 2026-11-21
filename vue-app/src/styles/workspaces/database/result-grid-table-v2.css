@@ -1,0 +1,171 @@
+/* el-table-v2 版横向结果网格：行虚拟化由组件承担，列向用垫片列做窗口化。 */
+.db-tablev2-grid {
+  --el-table-header-bg-color: var(--app-canvas);
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  background: var(--app-surface);
+}
+
+.db-tablev2-grid__resizer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.db-tablev2-grid .el-table-v2__header {
+  background: var(--app-canvas);
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.db-tablev2-grid .el-table-v2__header-row {
+  border-bottom-color: var(--app-border-strong);
+}
+
+.db-tablev2-grid .el-table-v2__header-cell,
+.db-tablev2-grid .el-table-v2__row-cell {
+  border-right: 1px solid var(--app-border);
+  padding: 0;
+}
+
+.db-tablev2-grid .el-table-v2__row {
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.db-tablev2-grid .el-table-v2__row.is-striped .el-table-v2__row-cell {
+  background: var(--app-muted);
+}
+
+.db-tablev2-grid .el-table-v2__row:hover .el-table-v2__row-cell {
+  background: var(--app-hover);
+}
+
+.db-tablev2-grid .el-table-v2__row.is-selected .el-table-v2__row-cell {
+  background: var(--app-accent-soft);
+}
+
+.db-tablev2-grid__header-content,
+.db-tablev2-grid__cell-content {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-tablev2-grid__header-content {
+  overflow: visible;
+}
+
+.db-tablev2-grid__index,
+.db-tablev2-grid__index--header {
+  justify-content: center;
+  gap: 5px;
+  color: var(--app-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.db-tablev2-grid__header-content.is-resizing {
+  z-index: 9;
+}
+
+.db-tablev2-grid__header-content.is-drop-target {
+  background: linear-gradient(90deg, var(--app-accent) 0 3px, var(--app-accent-soft) 3px);
+  box-shadow: inset 0 0 0 1px var(--app-accent);
+}
+
+.db-tablev2-grid__header-content.is-dragging {
+  opacity: 0.45;
+  background: var(--app-accent-soft);
+}
+
+.db-tablev2-grid__header-content:hover .db-field-drag-handle {
+  color: var(--app-accent);
+  background: var(--app-accent-soft);
+}
+
+.db-tablev2-grid__cell-content.is-null {
+  color: var(--app-text-muted);
+  font-style: italic;
+}
+
+.db-tablev2-grid__cell-content.is-editing {
+  z-index: 4;
+  overflow: visible;
+  padding: 0;
+  background: var(--app-surface);
+}
+
+.db-tablev2-grid__actions,
+.db-tablev2-grid__actions-header {
+  justify-content: center;
+  gap: 4px;
+  padding: 0 6px;
+}
+
+/* 操作列宽只有 72px：按钮压到 26px 紧凑规格并抵掉 redis-workspace.css 全局 .db-record-delete 的 float:right，避免两按钮被撑到单元格两端 */
+.db-tablev2-grid__actions .el-button {
+  width: 26px;
+  min-height: 26px;
+  margin: 0;
+  padding: 0;
+  float: none;
+}
+
+.db-tablev2-grid__actions-header {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.db-tablev2-grid__resize-handle {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.db-tablev2-grid__resize-handle::after {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 1px;
+  height: 100%;
+  background: transparent;
+  content: "";
+}
+
+.db-tablev2-grid__resize-handle:hover::after,
+.db-tablev2-grid__resize-handle:focus-visible::after {
+  width: 2px;
+  background: var(--app-accent);
+}
+
+.db-tablev2-grid__resize-handle:focus-visible {
+  outline: none;
+}
+
+.db-tablev2-grid__pk {
+  flex: none;
+  margin-left: 4px;
+  border-radius: 3px;
+  background: var(--app-warning-soft);
+  padding: 1px 4px;
+  color: var(--app-warning);
+  font-size: 9px;
+  font-weight: 700;
+}

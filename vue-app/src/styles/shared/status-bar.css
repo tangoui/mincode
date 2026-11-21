@@ -1,0 +1,102 @@
+/* 插件状态栏（contributes.statusBar，components/layout/AppStatusBar.vue）：
+   主窗口底部 22px 紧凑条带，仅在有可见条目时渲染。条目是 Element Plus 文本按钮，
+   只显示纯文本与宿主图标；严重级别通过 --app-* 语义 token 与图标/文字提示同时表达，
+   不单靠颜色。el-button 的内边距/高度需要贴合 22px 条带，因此在本文件内收紧。 */
+.app-status-bar {
+  --app-status-bar-height: 22px;
+
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  height: var(--app-status-bar-height);
+  padding: 0 6px;
+  overflow: hidden;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  font-size: var(--app-ui-font-size-extra-small);
+  user-select: none;
+}
+
+.app-status-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-status-bar__group--right {
+  justify-content: flex-end;
+}
+
+.app-status-bar .app-status-bar__item.el-button {
+  flex: none;
+  max-width: 280px;
+  height: calc(var(--app-status-bar-height) - 4px);
+  margin: 0;
+  padding: 0 6px;
+  border-radius: 3px;
+  color: var(--app-text-muted);
+  font-size: inherit;
+  font-weight: 400;
+}
+
+.app-status-bar .app-status-bar__item.el-button > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app-status-bar .app-status-bar__item.el-button:hover,
+.app-status-bar .app-status-bar__item.el-button:focus-visible {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+.app-status-bar .app-status-bar__item.el-button:focus-visible {
+  outline: 2px solid var(--app-accent-ring);
+  outline-offset: -2px;
+}
+
+.app-status-bar .app-status-bar__item.el-button:active {
+  background: var(--app-surface-hover);
+}
+
+.app-status-bar .app-status-bar__item.is-static.el-button {
+  cursor: default;
+}
+
+.app-status-bar .app-status-bar__item.is-static.el-button:hover {
+  background: transparent;
+  color: var(--app-text-muted);
+}
+
+.app-status-bar .app-status-bar__item.is-warning.el-button {
+  color: var(--app-warning);
+}
+
+.app-status-bar .app-status-bar__item.is-error.el-button {
+  color: var(--app-danger);
+}
+
+.app-status-bar__icon {
+  flex: none;
+  font-size: 12px;
+}
+
+.app-status-bar__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-status-bar__tooltip {
+  max-width: 320px;
+  white-space: pre-line;
+}

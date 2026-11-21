@@ -1,0 +1,290 @@
+/* Top tab context menus and workspace switcher */
+.app-top-tabs__scroll > .el-dropdown {
+  display: flex;
+  flex: none;
+}
+.app-workspace-tab.is-pinned {
+  padding-left: 9px;
+}
+.app-workspace-tab__pin {
+  flex: none;
+  color: var(--app-accent);
+  font-size: 11px;
+}
+.app-tab-context-popper .el-dropdown-menu {
+  min-width: 218px;
+  padding: 6px;
+}
+.app-tab-context-popper .el-dropdown-menu__item {
+  min-height: 30px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+.app-tabs-overflow-popper .app-tabs-overflow-menu {
+  min-width: 258px;
+  padding: 0;
+}
+
+.app-tabs-overflow-menu__scroll {
+  max-height: min(420px, 70vh);
+}
+
+.app-tabs-overflow-menu__scroll .el-scrollbar__view {
+  padding: 4px;
+}
+.app-header-selector {
+  max-width: 174px;
+}
+.app-header-selector__name {
+  min-width: 0;
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-workspace-switcher-popper .el-dropdown-menu {
+  width: 272px;
+  padding: 0;
+}
+.app-workspace-menu__scroll {
+  max-height: min(420px, 70vh);
+}
+.app-workspace-menu__scroll .el-scrollbar__view {
+  padding: 6px;
+}
+.app-workspace-menu__item {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 3px;
+  border-radius: 6px;
+  padding: 3px 5px;
+}
+
+.app-workspace-menu__item:hover {
+  background: var(--el-dropdown-menuItem-hover-fill);
+}
+.app-workspace-menu__select.el-button {
+  display: flex;
+  min-width: 0;
+  height: 36px;
+  flex: 1;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 5px;
+  color: inherit;
+  text-align: left;
+}
+.app-workspace-menu__select .el-icon {
+  flex: none;
+  color: var(--app-accent);
+}
+/* Element Plus wraps button slots in an unclassed span. Keep that wrapper horizontal,
+   then use the explicit copy class for the two-line workspace label. */
+.app-workspace-menu__select > span {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}.app-workspace-menu__copy,
+.app-workspace-menu__deleted-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.app-workspace-menu__select strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-workspace-menu__rename {
+  min-width: 0;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-workspace-menu__rename .el-input__wrapper {
+  min-height: 24px;
+  padding: 0 6px;
+}.app-workspace-menu__select small,
+.app-workspace-menu__deleted-copy small {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+.app-workspace-menu__action.el-button {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+  color: var(--app-text-muted);
+}
+.app-workspace-menu__action:hover {
+  background: var(--app-muted);
+  color: var(--app-accent);
+}.app-workspace-menu__action.is-danger {
+  color: var(--app-danger);
+}
+.app-workspace-menu__action.is-danger:hover,
+.app-context-menu__popper .el-dropdown-menu__item.is-danger:not(.is-disabled):focus,
+.app-context-menu__popper .el-dropdown-menu__item.is-danger:not(.is-disabled):hover {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+.app-workspace-menu__create {
+  margin-top: 6px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding: 3px;
+}
+.app-workspace-menu__create .el-button {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 8px;
+  color: var(--app-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.app-workspace-menu__create .el-button > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-workspace-menu__create .el-button:hover {
+  background: var(--app-accent-soft);
+}
+
+.app-workspace-menu__section-label {
+  margin-top: 6px;
+  border-top: 1px solid var(--app-border-subtle);
+  padding: 8px 8px 3px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.app-workspace-menu__item--deleted {
+  padding-left: 10px;
+}
+.app-workspace-menu__deleted-copy strong {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-workspace-menu__restore.el-button {
+  height: 26px;
+  flex: none;
+  gap: 4px;
+  padding: 0 7px;
+  color: var(--app-accent);
+  font-size: 11px;
+}
+.app-workspace-menu__restore.el-button:hover {
+  background: var(--app-accent-soft);
+}
+
+/* Mouse-position context menus share Element Plus focus, keyboard and popper behavior. */
+.app-context-menu__anchor {
+  position: fixed;
+  z-index: -1;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.app-context-menu__virtual-child {
+  display: none;
+}
+
+.app-context-menu__popper.el-popper {
+  --el-dropdown-menu-box-shadow: none;
+  border-color: var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.app-context-menu__popper .el-scrollbar__wrap {
+  max-height: inherit;
+}
+
+.app-context-menu__popper .el-dropdown-menu {
+  min-width: 0;
+  padding: 4px;
+  background: var(--app-surface);
+}
+
+.app-context-menu__popper .el-dropdown-menu__item {
+  min-height: 30px;
+  gap: 8px;
+  border-radius: 4px;
+  padding: 0 8px;
+  color: var(--app-text-regular);
+  font-size: 12px;
+  line-height: 30px;
+}
+
+.app-context-menu__popper .el-dropdown-menu__item .el-icon {
+  width: 15px;
+  flex: none;
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
+
+.app-context-menu__popper .el-dropdown-menu__item:not(.is-disabled):focus,
+.app-context-menu__popper .el-dropdown-menu__item:not(.is-disabled):hover {
+  background: var(--app-muted);
+  color: var(--app-text);
+}
+
+.app-context-menu__popper .el-dropdown-menu__item:not(.is-disabled):focus .el-icon,
+.app-context-menu__popper .el-dropdown-menu__item:not(.is-disabled):hover .el-icon {
+  color: var(--app-accent);
+}
+
+.app-context-menu__popper .el-dropdown-menu__item.is-divided {
+  margin-top: 5px;
+  border-top-color: var(--app-border);
+}
+
+.app-context-menu__popper .el-dropdown-menu__item.is-danger,
+.app-context-menu__popper .el-dropdown-menu__item.is-danger .el-icon {
+  color: var(--app-danger);
+}
+
+.workspace-worktree-toggle {
+  margin-top: 12px;
+}
+
+.workspace-worktree-field {
+  display: block;
+  margin-top: 10px;
+}
+
+.workspace-worktree-field > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.workspace-worktree-hint {
+  margin: 8px 0 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  word-break: break-all;
+}

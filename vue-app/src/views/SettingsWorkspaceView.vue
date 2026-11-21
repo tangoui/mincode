@@ -1,0 +1,4110 @@
+<script setup lang="ts">
+import "@/styles/workspaces/settings/workspace.css";
+import "@/styles/workspaces/settings/dialog.css";
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import MinCodeMark from "@/assets/brand/mincode-mark.svg";
+import AiConversationSidebarPosition from "@/components/ai/AiConversationSidebarPosition.vue";
+import SettingsNavigation from "@/components/settings/SettingsNavigation.vue";
+import GeneralSettingsPanel from "@/components/settings/GeneralSettingsPanel.vue";
+import TerminalSettingsPanel from "@/components/settings/TerminalSettingsPanel.vue";
+import CloudCompanionPanel from "@/components/settings/CloudCompanionPanel.vue";
+import ExternalMcpPanel from "@/components/settings/ExternalMcpPanel.vue";
+import EnvironmentPackDialog from "@/components/settings/EnvironmentPackDialog.vue";
+import DataStorageUsagePanel from "@/components/settings/DataStorageUsagePanel.vue";
+import ConfigSyncDialog from "@/components/settings/ConfigSyncDialog.vue";
+import AppHintIcon from "@/components/ui/AppHintIcon.vue";
+import {
+  ArrowDown,
+  ArrowRight,
+  Check,
+  CircleCheck,
+  Close,
+  CopyDocument,
+  DataAnalysis,
+  DataBoard,
+  Delete,
+  Document,
+  Download,
+  EditPen,
+  FullScreen,
+  Lock,
+  Postcard,
+  Connection,
+  Grid,
+  MagicStick,
+  Monitor,
+  Plus,
+  Reading,
+  Refresh,
+  ScaleToOriginal,
+  Setting,
+  TopRight,
+  Warning,
+} from "@element-plus/icons-vue";
+import { useVueI18n, type MessageKey } from "@/i18n/messages";
+import { DEFAULT_TERMINAL_SCROLLBACK } from "@/services/terminal-preferences";
+import { settingsNavigationRequest } from "@/services/settings-navigation";
+import { useCommandPaletteStore } from "@/stores/command-palette";
+import {
+  canInvoke,
+  chooseNativeFile,
+  chooseNativeSaveFile,
+  isBrowserLocalMode,
+  isDesktopRuntime,
+  nativeErrorMessage,
+} from "@/services/desktop-bridge";
+import { notifyApp } from "@/services/notifications";
+import { openSystemBrowser } from "@/services/web-automation-service";
+import {
+  chooseSettingsDirectory,
+  chooseSettingsJsonFile,
+  chooseSettingsMarkdownFile,
+  connectMcpServer,
+  disconnectMcpServer,
+  downloadAndOpenUpdate,
+  fetchAiModels,
+  findSettingsSkillFiles,
+  testAiConnection,
+  getAppVersion,
+  getAutostartEnabled,
+  getUserHomeDirectory,
+  loadProtocolStatuses,
+  readSettingsTextFile,
+  setAutostart,
+  setMinimizeToTray,
+  type ProtocolStatus as McpStatus,
+  type UpdateInfo,
+} from "@/services/settings-service";
+import {
+  aiSkillSource,
+  createManualAiSkill,
+  describeMcpServersForReview,
+  findMcpPathPlaceholder,
+  getBuiltinMcpCatalog,
+  hasAiSkillNamed,
+  keepSyncMetadata,
+  loadMcpRegistryEntry,
+  loadSkillRegistryEntry,
+  mergeMcpServersById,
+  normalizeDocumentationUrl,
+  normalizeStoredMcpServer,
+  parseAiSkillMarkdown,
+  parseMcpConfig,
+  parseEditableMcpConfig,
+  resolveMcpPathPlaceholder,
+  serializeEditableMcpConfig,
+  searchMcpRegistry,
+  searchSkillRegistry,
+  withoutSyncMetadata,
+  type AiSkillSource,
+  type RegistryEntry,
+  type StoredAiSkill,
+  type StoredMcpServer,
+} from "@/domain/ai/settings-integrations";
+import { usePluginAiCatalogsStore } from "@/stores/plugin-ai-catalogs";
+import { usePluginAiProvidersStore } from "@/stores/plugin-ai-providers";
+import { aiProviderText, type PluginAiProvider } from "@/domain/plugins/ai-providers";
+import {
+  PLUGIN_PROVIDER_VALUE_PREFIX,
+  aiProviderSelectOptions,
+  aiProviderSelectValue,
+  fillAiProviderPlaceholder,
+  pluginProviderProfilePatch,
+  unresolvedBaseUrlPlaceholders,
+  type AiProfileSource,
+  type AiProviderSelectOption,
+} from "@/domain/ai/plugin-provider-profile";
+import { confirmPluginRegistryInstall } from "@/services/settings-plugin-catalog-review";
+import { resolvePluginRegistryEntry, searchPluginAiCatalogs } from "@/services/plugin-ai-catalog-service";
+import { normalizeAiApiFormat, type AiApiFormat } from "@/domain/ai/api-format";
+import { isMcpAuthRequired, mcpAuthErrorCode } from "@/domain/ai/mcp-auth";
+import { normalizeAnthropicAuth, type AiAnthropicAuth } from "@/domain/ai/anthropic-auth";
+import {
+  applicableAiRules,
+  type AiRuleDefinition,
+  type AiRuleScope,
+} from "@/domain/ai/rules";
+import { DEFAULT_EDITOR_PREFERENCES } from "@/domain/projects/types";
+import {
+    AI_REASONING_EFFORT_CHOICES,
+  removeAiProfileModel,
+  withoutRetiredAiModels,
+  type AiReasoningEffortChoice,
+} from "@/domain/ai/model-selection";
+import type { ConfigSyncSnapshot } from "@/domain/settings/config-sync";
+import type { QuotaLimits } from "@/domain/workspace/quota";
+import {
+  DEFAULT_AI_MAX_LOOPS,
+  MAX_AI_MAX_LOOPS,
+  MIN_AI_MAX_LOOPS,
+  normalizeAiMaxLoops,
+} from "@/domain/ai/agent-loop-limit";
+import { validateAiProviderAuth } from "@/domain/ai/provider-auth";
+import { ACP_BUILTIN_AGENTS, acpBuiltinAgentCommandLine, parseAcpAdapterId } from "@/domain/ai/acp-agents";
+import { entryAvatarInitial, entryAvatarTone, type EntryAvatarTone } from "@/domain/settings/entry-avatar";
+import { pluginAcpAgents, pluginAcpAgentsReady } from "@/services/contributions/acp-agents-state";
+import {
+  DEFAULT_AI_APPROVAL_MODE,
+  normalizeAiApprovalMode,
+  type AiApprovalMode,
+} from "@/domain/ai/approval-policy";
+import type { GlobalToolAuthorization } from "@/domain/ai/tool-authorization";
+import {
+  aiApprovalMode,
+  hydrateAiApprovalMode,
+  saveAiApprovalMode,
+} from "@/services/ai-approval-policy";
+import {
+  clearGlobalToolAuthorizations,
+  globalToolAuthorizations,
+  loadGlobalToolAuthorizations,
+  revokeGlobalToolAuthorization,
+} from "@/services/tool-authorization-persistence";
+import {
+  applyConfigImport,
+  buildConfigExport,
+  importConfigPluginData,
+  parseConfigImport,
+  readConfigImportFile,
+  writeConfigExportWithPluginData,
+  type ParsedConfigImport,
+  type PluginDataImportResult,
+} from "@/services/config-portability";
+import {
+  APP_LOCK_AUTO_LOCK_CHOICES,
+  APP_LOCK_MAX_PASSCODE_LENGTH,
+  APP_LOCK_MIN_PASSCODE_LENGTH,
+  validateAppLockPasscode,
+  type AppLockPasscodeIssue,
+} from "@/domain/security/app-lock";
+import { useAppLockStore } from "@/stores/app-lock";
+import { useAppUpdateStore } from "@/stores/app-update";
+import AppUpdateNotes from "@/components/settings/AppUpdateNotes.vue";
+import {
+  confirmSecretExport,
+  confirmSecretImport,
+} from "@/composables/use-secret-export-confirm";
+import { usePluginSettingsAvailability } from "@/composables/use-plugin-settings-availability";
+import {
+  applyConfigSyncSnapshot as applyPersistedConfigSyncSnapshot,
+  createConfigSyncSnapshot,
+} from "@/services/config-sync-persistence";
+import {
+  hydrateSettingsSnapshot,
+  persistSettingsSnapshot,
+  readSettingsSnapshot,
+  SETTINGS_STORAGE_KEY,
+} from "@/services/settings-persistence";
+import {
+  aiSettingsExternalRevision,
+  externallySyncedSettingsLists,
+  registerSettingsFlush,
+} from "@/services/ai-external-sync";
+import { saveTextFileToDisk } from "@/services/file-download";
+import {
+  DEFAULT_WORKSPACE_CACHE_LIMIT,
+  normalizeWorkspaceCacheLimit,
+} from "@/domain/workspace/state-scope";
+import { DEFAULT_PLUGIN_VIEW_WARM_LIMIT, normalizePluginViewWarmLimit } from "@/domain/plugin-ui/warm-pool";
+import {
+  DEFAULT_RUNTIME_PERFORMANCE_SETTINGS,
+  resolveRuntimePerformanceSettings,
+  type RuntimePerformanceSettings,
+} from "@/domain/performance/runtime-limits";
+import {
+  createDefaultSidebarVisibility,
+  loadSidebarVisibility,
+  normalizeSidebarVisibility,
+  saveSidebarVisibility,
+  SIDEBAR_VISIBILITY_KEY,
+  type SidebarItemId,
+  type SidebarVisibility,
+} from "@/services/sidebar-preferences";
+import {
+  DEFAULT_FILE_ICON_THEME,
+  normalizeFileIconTheme,
+  normalizeUiLocale,
+  normalizeUiLocalePlugin,
+} from "@/domain/plugins/contribution-settings";
+import { isPluginSettingsCategoryListed } from "@/domain/plugins/configuration-refresh";
+import { applyFileIconThemePreference } from "@/services/contributions/file-icons";
+import { localePackSelectionFromSettings, localePackState, setLocalePackSelection } from "@/services/locale-pack-loader";
+import { applyTerminalColorScheme } from "@/services/terminal-theme";
+import { applyEditorThemePreference } from "@/services/editor-theme";
+import { EDITOR_THEME_FOLLOW, normalizeEditorThemePreference } from "@/domain/themes/editor-theme-id";
+import { normalizeCustomEditorTheme, type CustomEditorTheme } from "@/domain/themes/editor-theme-data";
+import {
+  applyUiAppearance,
+  legacyFontSizeToUiScale,
+  normalizeUiFontFamily,
+  normalizeUiScale,
+  type UiFontFamily,
+} from "@/services/ui-appearance";
+import { applyUiTheme, readStoredUiTheme, type UiTheme, type UiThemeKind } from "@/services/ui-theme";
+import { cloudStatus, fetchFrameworkPlans, fetchMemberQuota, redeemMemberCode, type CloudStatus, type FrameworkPlan, type MemberQuotaResult } from "@/services/cloud-companion-service";
+import { useWorkbenchStore } from "@/stores/workbench";
+import { useWorkspaceStatePreferencesStore } from "@/stores/workspace-state-preferences";
+import { useAiAssistantStore, type AiAssistantPlacement } from "@/stores/ai-assistant";
+import { useQuotaStore } from "@/stores/quota";
+import {
+  useAiConversationPreferencesStore,
+  type AiConversationScopeMode,
+} from "@/stores/ai-conversation-preferences";
+
+// Monaco is several MB; load it only when one of the JSON/Skill editor dialogs opens.
+const MonacoTextEditor = defineAsyncComponent(() => import("@/components/projects/MonacoTextEditor.vue"));
+// The keybinding table (resolver, presets, recorder) loads only when the shortcuts page opens.
+const KeybindingSettingsPanel = defineAsyncComponent(() => import("@/components/settings/KeybindingSettingsPanel.vue"));
+// Plugin settings (contributes.configuration) load only when the plugins page opens.
+const PluginSettingsPanel = defineAsyncComponent(() => import("@/components/settings/PluginSettingsPanel.vue"));
+const DatabaseSafetySettingsSection = defineAsyncComponent(() => import("@/components/settings/DatabaseSafetySettingsSection.vue"));
+// Plugin-contributed AI prompts and skills (contributes.aiPrompts).
+const AiMarketDiscoverBanner = defineAsyncComponent(() => import("@/components/settings/AiMarketDiscoverBanner.vue"));
+const PluginAiPromptsSection = defineAsyncComponent(() => import("@/components/settings/PluginAiPromptsSection.vue"));
+const PluginMcpServersSection = defineAsyncComponent(() => import("@/components/settings/PluginMcpServersSection.vue"));
+// Plugin-contributed ACP agents (contributes.acpAgents) load only when a plugin offers one or one is selected.
+const PluginAcpAgentsGroup = defineAsyncComponent(() => import("@/components/settings/PluginAcpAgentsGroup.vue"));
+const McpServerAuthControls = defineAsyncComponent(() => import("@/components/settings/McpServerAuthControls.vue"));
+
+type Category =
+  | "general"
+  | "terminal"
+  | "shortcuts"
+  | "ai"
+  | "pro"
+  | "cloud"
+  | "external-mcp"
+  | "plugins"
+  | "database"
+  | "security"
+  | "data"
+  | "about";
+type AiTab = "connection" | "permissions" | "mcp" | "skills" | "rules" | "local-agent";
+type AiRegistrySubTab = "installed" | "discover";
+
+const builtinMcpTemplates = getBuiltinMcpCatalog();
+
+type AiProvider =
+  | "openai"
+  | "anthropic"
+  | "ollama"
+  | "deepseek"
+  | "gemini"
+  | "openrouter"
+  | "groq"
+  | "siliconflow"
+  | "qwen"
+  | "zhipu"
+  | "kimi"
+  | "doubao"
+  | "custom"
+  /** A preset from a plugin (contributes.aiProviders); `source` names it. */
+  | "plugin";
+
+interface AiProfile {
+  id: string;
+  name: string;
+  provider: AiProvider;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  apiFormat: AiApiFormat;
+  /** Credential header used when apiFormat is "anthropic". */
+  anthropicAuth: AiAnthropicAuth;
+  commonModels: string[];
+  /** Explicit retry chain used only when an AI request fails before output. */
+  failoverEnabled: boolean;
+  failoverModels: string[];
+  /** Empty means subagents inherit the parent assistant model. */
+  subagentModel: string;
+  reasoningEffort: "default" | AiReasoningEffortChoice;
+  contextWindow: number;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  openaiStreamUsage: "auto" | "always" | "never";
+  /** Set when the profile was made from a plugin preset; kept when the plugin is gone. */
+  source?: AiProfileSource;
+  /** Models that cannot take tool definitions; requests to them carry no tools. */
+  noToolModels: string[];
+}
+
+interface AiProviderPreset {
+  value: AiProvider;
+  label: string;
+  baseUrl: string;
+  model: string;
+  apiFormat: AiProfile["apiFormat"];
+  commonModels: string[];
+  contextWindow: number;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+}
+type McpServer = StoredMcpServer;
+type AiSkill = StoredAiSkill;
+interface AcpAgent {
+  id: string;
+  name: string;
+  command: string;
+  args: string;
+}
+interface AiRule extends AiRuleDefinition {
+  id: string;
+  title: string;
+  content: string;
+  enabled: boolean;
+}
+interface VueSettings extends RuntimePerformanceSettings {
+  locale: "zh" | "en";
+  minimizeToTray: boolean;
+  autostart: boolean;
+  globalShortcutEnabled: boolean;
+  uiTheme: UiTheme;
+  /** Kind of the selected plugin theme; the fallback when its plugin is missing on this machine. */
+  uiThemeKind?: UiThemeKind;
+  uiScale: number;
+  uiFontFamily: UiFontFamily;
+  shellType: string;
+  terminalFontFamily: string;
+  scrollback: number;
+  cursorBlink: boolean;
+  webgl: boolean;
+  predictiveEcho: "auto" | "always" | "off";
+  terminalAttention: boolean;
+  terminalAttentionSystemNotify: boolean;
+  wireTransport: "auto" | "binary" | "json";
+  adaptiveRender: "auto" | "quality" | "performance";
+  cursorStyle: "block" | "underline" | "bar";
+  terminalColorScheme: string;
+  aiCommand: string;
+  aiMaxLoops: number;
+  activeAiProfileId: string;
+  aiProfiles: AiProfile[];
+  mcpServers: McpServer[];
+  aiSkills: AiSkill[];
+  aiRules: AiRule[];
+  acpAdapterId: string;
+  acpInjectRules: boolean;
+  acpAgents: AcpAgent[];
+  workspaceCacheLimit: number;
+  /** Closed plugin view tabs kept warm for a fast reopen (0 disables). */
+  /** Renamed from pluginViewWarmLimit when the default became 0; the old saved default no longer applies. */
+  pluginViewWarmFrames: number;
+  /** Contributed UI locale tag (localizations point); undefined uses `locale`. */
+  uiLocale?: string;
+  /** Plugin that provides `uiLocale`. */
+  uiLocalePlugin?: string;
+  /** "mincode" or a contributed file icon theme ID (fileIcons point). */
+  fileIconTheme: string;
+  /** "follow", "custom" or a contributed editor theme ID (editorThemes point). */
+  editorColorTheme: string;
+  /** Colors of the "custom" editor theme. */
+  editorCustomTheme: CustomEditorTheme;
+}
+
+const props = defineProps<{ modelValue: boolean; initialCategory?: Category; initialPluginId?: string }>();
+const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
+const fullscreen = ref(false);
+const importInput = ref<HTMLInputElement>();
+const exportPluginData = ref(true);
+const environmentPackOpen = ref(false);
+const configSyncOpen = ref(false);
+const { t, locale, setLocale, intlLocale } = useVueI18n();
+const commandPalette = useCommandPaletteStore();
+const aiAssistant = useAiAssistantStore();
+const aiConversationPreferences = useAiConversationPreferencesStore();
+void aiConversationPreferences.hydrate();
+void commandPalette.hydrate();
+const cloudAccount = ref<CloudStatus>();
+const proLoading = ref(false);
+const proError = ref("");
+const memberQuota = ref<MemberQuotaResult>();
+const quotaLoading = ref(false);
+const publicPlans = ref<FrameworkPlan[]>([]);
+const plansLoading = ref(false);
+const plansError = ref("");
+const redemptionCode = ref("");
+const redeeming = ref(false);
+let proRequestRevision = 0;
+let quotaExpiryTimer: ReturnType<typeof setTimeout> | undefined;
+function clearQuotaExpiryTimer() {
+  if (quotaExpiryTimer) clearTimeout(quotaExpiryTimer);
+  quotaExpiryTimer = undefined;
+}
+const workbench = useWorkbenchStore();
+const workspaceStatePreferences = useWorkspaceStatePreferencesStore();
+void workspaceStatePreferences.hydrate();
+const active = ref<Category>("general");
+const cloudTab = ref<"account" | "pro">("account");
+const pluginSettings = usePluginSettingsAvailability();
+function selectCategory(category: Category) {
+  if (category === "pro") {
+    cloudTab.value = "pro";
+    active.value = "cloud";
+  } else {
+    if (category === "cloud") cloudTab.value = "account";
+    active.value = category;
+  }
+}
+const aiTab = ref<AiTab>("connection");
+const approvalMode = ref<AiApprovalMode>(DEFAULT_AI_APPROVAL_MODE);
+const approvalSaving = ref(false);
+const authorizationUpdating = ref(false);
+const version = ref("—");
+const platform = ref(navigator.platform || "Web");
+
+const appUpdate = useAppUpdateStore();
+void appUpdate.hydrate();
+const updateInfo = computed<UpdateInfo | undefined>(() => appUpdate.info);
+const updateChecking = computed(() => appUpdate.checking);
+const updateDownloading = ref(false);
+const updateError = ref("");
+const mcpStatuses = ref<McpStatus[]>([]);
+/** Connectors whose last connect from this page failed with [MCP_AUTH_REQUIRED]. */
+const mcpAuthRequiredIds = ref<ReadonlySet<string>>(new Set());
+const acpStatuses = ref<McpStatus[]>([]);
+const mcpSubTab = ref<AiRegistrySubTab>("installed");
+const skillSubTab = ref<AiRegistrySubTab>("installed");
+const mcpAdvanced = ref(false);
+const aiAdvanced = ref(false);
+const mcpJsonEditorOpen = ref(false);
+const mcpJsonText = ref("");
+const mcpSearch = ref("");
+const mcpSearchResults = ref<RegistryEntry[]>([]);
+const mcpSearching = ref(false);
+const installingMcpId = ref<string>();
+const skillSearch = ref("");
+const skillSearchResults = ref<RegistryEntry[]>([]);
+const skillSearching = ref(false);
+const installingSkillId = ref<string>();
+const pluginAiCatalogs = usePluginAiCatalogsStore();
+const pluginAiProviders = usePluginAiProvidersStore();
+let mcpSearchController: AbortController | undefined;
+let skillSearchController: AbortController | undefined;
+function catalogEntryAvailable(entry: RegistryEntry) {
+  if (entry.source !== "plugin") return true;
+  const origin = entry.plugin;
+  return origin && pluginAiCatalogs.catalogs.some((catalog) =>
+    catalog.pluginId === origin.pluginId && catalog.id === origin.catalogId &&
+    catalog.kind === origin.kind && (catalog.fingerprint ?? "") === (origin.fingerprint ?? "")
+  );
+}
+watch(() => pluginAiCatalogs.catalogs, () => {
+  mcpSearchResults.value = mcpSearchResults.value.filter(catalogEntryAvailable);
+  skillSearchResults.value = skillSearchResults.value.filter(catalogEntryAvailable);
+}, { flush: "sync" });
+const skillEditorOpen = ref(false);
+const skillEditorText = ref("");
+const editingSkillId = ref<string>();
+const skillEditorSaving = ref(false);
+const ruleScope = ref<AiRuleScope>("global");
+const ruleWorkspaceId = ref(workbench.activeWorkspaceId);
+async function setAiConversationScopeMode(value: AiConversationScopeMode) {
+  await aiConversationPreferences.setScopeMode(value);
+}
+
+const ruleScopeOptions = computed(() => [
+  { label: t("settings.rules.global"), value: "global" },
+  { label: t("settings.rules.workspace"), value: "workspace" },
+]);
+// 连接器/技能面板把「已安装」与「可发现」拆成内部子 tab，避免已安装列表
+// 和注册表搜索结果混在一屏里难以区分。
+const installedSubTabOptions = computed(() => [
+  { label: t("settings.ai.subtabInstalled"), value: "installed" },
+  { label: t("settings.ai.subtabDiscover"), value: "discover" },
+]);
+const REGISTRY_SOURCE_LABELS: Record<RegistryEntry["source"], MessageKey> = {
+  builtin: "settings.registry.source.builtin",
+  git: "settings.registry.source.git",
+  registry: "settings.registry.source.registry",
+  plugin: "settings.registry.source.plugin",
+};
+function registrySourceText(entry: RegistryEntry) {
+  return entry.plugin
+    ? t("settings.registry.source.pluginNamed", { name: entry.plugin.pluginName })
+    : t(REGISTRY_SOURCE_LABELS[entry.source]);
+}
+const SKILL_SOURCE_LABELS: Record<AiSkillSource, MessageKey> = {
+  manual: "settings.skills.sourceManual",
+  local: "settings.skills.sourceLocal",
+  registry: "settings.skills.sourceRegistry",
+};
+const ruleWorkspaceOptions = computed(() =>
+  workbench.workspaces.map((workspace) => ({
+    label: workspace.name,
+    value: workspace.id,
+  })),
+);
+function availableRuleWorkspaceId(workspaceId?: string) {
+  if (workspaceId && workbench.workspaces.some((workspace) => workspace.id === workspaceId)) {
+    return workspaceId;
+  }
+  if (workbench.workspaces.some((workspace) => workspace.id === ruleWorkspaceId.value)) {
+    return ruleWorkspaceId.value;
+  }
+  return workbench.activeWorkspaceId || workbench.workspaces[0]?.id || "";
+}
+async function refreshProAccount() {
+  const revision = ++proRequestRevision;
+  clearQuotaExpiryTimer();
+  cloudAccount.value = undefined;
+  memberQuota.value = undefined;
+  proError.value = "";
+  quotaLoading.value = false;
+  publicPlans.value = [];
+  plansError.value = "";
+  plansLoading.value = false;
+  if (!isDesktopRuntime()) return;
+  plansLoading.value = true;
+  void fetchFrameworkPlans().then((items) => {
+    if (revision === proRequestRevision) publicPlans.value = items;
+  }).catch((error: unknown) => {
+    if (revision === proRequestRevision) plansError.value = nativeErrorMessage(error);
+  }).finally(() => {
+    if (revision === proRequestRevision) plansLoading.value = false;
+  });
+  proLoading.value = true;
+  try {
+    const status = await cloudStatus();
+    if (revision !== proRequestRevision) return;
+    cloudAccount.value = status;
+    if (!status.signedIn || !status.accountId) return;
+    quotaLoading.value = true;
+    try {
+      const result = await fetchMemberQuota(status.accountId);
+      if (revision === proRequestRevision && result.snapshot?.accountId !== undefined && result.snapshot.accountId !== status.accountId) {
+        memberQuota.value = { status: "failed", message: t("settings.pro.accountChanged") };
+      } else if (revision === proRequestRevision) {
+        memberQuota.value = result;
+        if (result.status === "verified" && result.snapshot) {
+          const remaining = result.snapshot.snapshotExpiresAt * 1000 - Date.now();
+          if (remaining <= 0) memberQuota.value = { status: "expired" };
+          else quotaExpiryTimer = setTimeout(() => {
+            if (revision === proRequestRevision) memberQuota.value = { status: "expired" };
+          }, remaining);
+        }
+      }
+    } catch (error) {
+      if (revision === proRequestRevision) memberQuota.value = { status: "failed", message: nativeErrorMessage(error) };
+    } finally {
+      if (revision === proRequestRevision) quotaLoading.value = false;
+    }
+  } catch (error) {
+    if (revision === proRequestRevision) proError.value = nativeErrorMessage(error);
+  } finally {
+    if (revision === proRequestRevision) proLoading.value = false;
+  }
+}
+
+async function redeemCode() {
+  if (!isDesktopRuntime() || !cloudAccount.value?.signedIn || !cloudAccount.value.accountId || redeeming.value) return;
+  if (!/^[A-Z0-9-]{16,128}$/.test(redemptionCode.value)) {
+    ElMessage.warning(t("settings.pro.codeInvalid"));
+    return;
+  }
+  redeeming.value = true;
+  try {
+    await redeemMemberCode(redemptionCode.value, cloudAccount.value.accountId);
+    redemptionCode.value = "";
+    ElMessage.success(t("settings.pro.redeemSubmitted"));
+    void refreshProAccount();
+    void useQuotaStore().refresh();
+  } catch (error) {
+    ElMessage.error(t("settings.pro.redeemFailed", { message: nativeErrorMessage(error) }));
+  } finally {
+    redeeming.value = false;
+  }
+}
+const verifiedProPlan = computed(() =>
+  memberQuota.value?.status === "verified" && memberQuota.value.snapshot?.accountId === cloudAccount.value?.accountId
+    ? memberQuota.value.snapshot
+    : undefined,
+);
+function planLimitItems(limits: QuotaLimits) {
+  return [
+    { key: "devices", label: t("settings.cloud.limitDevices"), value: limits.max_devices },
+    { key: "workspaces", label: t("settings.cloud.limitWorkspaces"), value: limits.max_active_workspaces },
+    { key: "windows", label: t("settings.cloud.limitWindows"), value: limits.max_windows_per_workspace },
+    { key: "plugins", label: t("settings.cloud.limitPlugins"), value: limits.max_enabled_plugins ?? 0, forbidden: limits.plugins_disabled === true },
+  ].map((item) => ({
+    ...item,
+    text: "forbidden" in item && item.forbidden ? t("settings.cloud.pluginsNotAllowed") : item.value === 0 ? t("settings.pro.noLimit") : String(item.value),
+  }));
+}
+function formatPlanPrice(minor: number, currency: string) {
+  const formatter = new Intl.NumberFormat(intlLocale.value, {
+    style: "currency",
+    currency,
+  });
+  const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
+  return formatter.format(minor / 10 ** fractionDigits);
+}
+function planDiscount(plan: FrameworkPlan) {
+  const original = plan.original_price_minor;
+  if (!original || plan.price_minor <= 0 || original <= plan.price_minor) return "";
+  const ratio = plan.price_minor / original;
+  return t("settings.pro.planDiscount", { tenths: Math.round(ratio * 100) / 10, percent: Math.round((1 - ratio) * 100) });
+}
+function formatUpdateDate(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(intlLocale.value, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+function formatUpdateSize(value?: number) {
+  if (value === undefined) return "—";
+  if (value < 1024) return `${value} B`;
+  const units = ["KB", "MB", "GB"];
+  let size = value / 1024;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(size >= 100 ? 0 : size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+}
+
+const ruleEditorOpen = ref(false);
+const editingRuleId = ref<string>();
+const manualModel = ref("");
+const fetchingModels = ref(false);
+const testingAiConnection = ref(false);
+/** Browser-local mode: AI keys stay in this tab (sessionStorage) and requests go straight to the provider. */
+const browserLocalMode = isBrowserLocalMode();
+const ruleDraft = reactive({
+  title: "",
+  content: "",
+});
+const newAgent = reactive({ name: "", command: "", args: "" });
+const newMcp = reactive<McpServer>({
+  id: "",
+  transport: "stdio",
+  command: "",
+  args: "",
+  url: "",
+  docsUrl: "",
+  enabled: true,
+  env: {},
+  headers: {},
+});
+
+const aiApiFormatOptions: Array<{ value: AiApiFormat; label: MessageKey }> = [
+  { value: "openai", label: "settings.ai.apiFormat.openai" },
+  { value: "openai-responses", label: "settings.ai.apiFormat.responses" },
+  { value: "anthropic", label: "settings.ai.apiFormat.anthropic" },
+];
+
+const providerPresets: AiProviderPreset[] = [
+  {
+    value: "openai",
+    label: "OpenAI",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-6-astra",
+    apiFormat: "openai-responses",
+    commonModels: ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"],
+    contextWindow: 1050000,
+    maxInputTokens: 922000,
+    maxOutputTokens: 128000,
+  },
+  {
+    value: "anthropic",
+    label: "Anthropic",
+    baseUrl: "https://api.anthropic.com/v1",
+    model: "claude-opus-5-5",
+    apiFormat: "anthropic",
+    commonModels: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-1"],
+    contextWindow: 1000000,
+    maxInputTokens: 872000,
+    maxOutputTokens: 128000,
+  },
+  {
+    value: "ollama",
+    label: "Ollama",
+    baseUrl: "http://127.0.0.1:11434/v1",
+    model: "qwen3.8:27b",
+    apiFormat: "openai",
+    commonModels: ["qwen3.8:27b", "gemma4:e4b", "gpt-oss:20b"],
+    contextWindow: 32768,
+    maxInputTokens: 28672,
+    maxOutputTokens: 4096,
+  },
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com/v1",
+    model: "deepseek-flash",
+    apiFormat: "openai",
+    commonModels: ["deepseek-flash", "deepseek-v4-pro"],
+    contextWindow: 1000000,
+    maxInputTokens: 900000,
+    maxOutputTokens: 65536,
+  },
+  {
+    value: "gemini",
+    label: "Google Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    model: "gemini-3.8-flash",
+    apiFormat: "openai",
+    commonModels: ["gemini-3.8-flash", "gemini-4-argon", "gemini-3.5-flash-lite"],
+    contextWindow: 1048576,
+    maxInputTokens: 1000000,
+    maxOutputTokens: 65536,
+  },
+  {
+    value: "openrouter",
+    label: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    model: "anthropic/claude-sonnet-5.5",
+    apiFormat: "openai",
+    commonModels: ["anthropic/claude-sonnet-5.5", "openai/gpt-6.1-sol", "google/gemini-3.8-flash"],
+    contextWindow: 1000000,
+    maxInputTokens: 872000,
+    maxOutputTokens: 128000,
+  },
+  {
+    value: "groq",
+    label: "Groq",
+    baseUrl: "https://api.groq.com/openai/v1",
+    model: "openai/gpt-oss-120b",
+    apiFormat: "openai",
+    commonModels: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"],
+    contextWindow: 131072,
+    maxInputTokens: 114688,
+    maxOutputTokens: 16384,
+  },
+  {
+    value: "siliconflow",
+    label: "硅基流动",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    model: "deepseek-ai/DeepSeek-V4.1-Flash",
+    apiFormat: "openai",
+    commonModels: ["deepseek-ai/DeepSeek-V4.1-Flash", "deepseek-ai/DeepSeek-V4-Pro", "Qwen/Qwen3.8-27B"],
+    contextWindow: 1000000,
+    maxInputTokens: 900000,
+    maxOutputTokens: 65536,
+  },
+  {
+    value: "qwen",
+    label: "通义千问",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model: "qwen3.8-max",
+    apiFormat: "openai",
+    commonModels: ["qwen3.8-max", "qwen3.7-plus", "qwen3.8-flash"],
+    contextWindow: 1000000,
+    maxInputTokens: 950000,
+    maxOutputTokens: 32768,
+  },
+  {
+    value: "zhipu",
+    label: "智谱 GLM",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    model: "glm-5.3",
+    apiFormat: "openai",
+    commonModels: ["glm-5.3", "glm-5-turbo"],
+    contextWindow: 1000000,
+    maxInputTokens: 872000,
+    maxOutputTokens: 128000,
+  },
+  {
+    value: "kimi",
+    label: "Kimi",
+    baseUrl: "https://api.moonshot.cn/v1",
+    model: "kimi-k3",
+    apiFormat: "openai",
+    commonModels: ["kimi-k3", "kimi-k2.7-code", "kimi-k2.6"],
+    contextWindow: 1048576,
+    maxInputTokens: 917504,
+    maxOutputTokens: 131072,
+  },
+  {
+    value: "doubao",
+    label: "豆包",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    model: "doubao-seed-2-1-pro-260915",
+    apiFormat: "openai",
+    commonModels: ["doubao-seed-2-1-pro-260915", "doubao-seed-2-1-lite-260915", "doubao-seed-evolving"],
+    contextWindow: 256000,
+    maxInputTokens: 240000,
+    maxOutputTokens: 16384,
+  },
+  {
+    value: "custom",
+    label: "",
+    baseUrl: "",
+    model: "",
+    apiFormat: "openai",
+    commonModels: [],
+    contextWindow: 128000,
+    maxInputTokens: 120000,
+    maxOutputTokens: 8192,
+  },
+];
+
+const defaultProviderPreset = providerPresets[0]!;
+const defaultProfile: AiProfile = {
+  id: "default",
+  name: "Default",
+  provider: defaultProviderPreset.value,
+  baseUrl: defaultProviderPreset.baseUrl,
+  apiKey: "",
+  model: defaultProviderPreset.model,
+  apiFormat: defaultProviderPreset.apiFormat,
+  anthropicAuth: "x-api-key",
+  commonModels: [...defaultProviderPreset.commonModels],
+  failoverEnabled: false,
+  failoverModels: [],
+  subagentModel: "",
+  reasoningEffort: "default",
+  contextWindow: defaultProviderPreset.contextWindow,
+  maxInputTokens: defaultProviderPreset.maxInputTokens,
+  maxOutputTokens: defaultProviderPreset.maxOutputTokens,
+  openaiStreamUsage: "auto",
+  noToolModels: [],
+};
+const defaults: VueSettings = {
+  locale: "zh",
+  minimizeToTray: true,
+  autostart: false,
+  globalShortcutEnabled: false,
+  uiTheme: readStoredUiTheme(),
+  uiScale: 100,
+  uiFontFamily: "system",
+  shellType: "system",
+  terminalFontFamily: "Menlo, Monaco, monospace",
+  scrollback: DEFAULT_TERMINAL_SCROLLBACK,
+  cursorBlink: true,
+  webgl: true,
+  predictiveEcho: "auto",
+  terminalAttention: true,
+  terminalAttentionSystemNotify: true,
+  wireTransport: "auto",
+  adaptiveRender: "auto",
+  cursorStyle: "block",
+  terminalColorScheme: "default",
+  aiCommand: "claude",
+  aiMaxLoops: DEFAULT_AI_MAX_LOOPS,
+  activeAiProfileId: defaultProfile.id,
+  aiProfiles: [defaultProfile],
+  mcpServers: [],
+  aiSkills: [],
+  aiRules: [],
+  acpAdapterId: "claude-code",
+  acpInjectRules: true,
+  acpAgents: [],
+  workspaceCacheLimit: DEFAULT_WORKSPACE_CACHE_LIMIT,
+  pluginViewWarmFrames: DEFAULT_PLUGIN_VIEW_WARM_LIMIT,
+  fileIconTheme: DEFAULT_FILE_ICON_THEME,
+  editorColorTheme: EDITOR_THEME_FOLLOW,
+  editorCustomTheme: normalizeCustomEditorTheme(undefined),
+  ...DEFAULT_RUNTIME_PERFORMANCE_SETTINGS,
+};
+
+function createId(prefix: string) {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+/** Models that replace a saved profile's retired ones: its provider preset, else the default preset. */
+/** Keeps a plugin preset source only on plugin profiles. */
+function normalizeAiProfileSource(provider: unknown, source: unknown): AiProfileSource | undefined {
+  if (provider !== "plugin" || typeof source !== "object" || source === null) return undefined;
+  const { pluginId, providerId } = source as Record<string, unknown>;
+  return typeof pluginId === "string" && typeof providerId === "string" ? { pluginId, providerId } : undefined;
+}
+function retiredModelReplacement(provider: unknown) {
+  const preset = providerPresets.find((item) => item.value === provider);
+  return preset?.model ? preset : defaultProviderPreset;
+}
+function normalizeSettings(raw: Partial<VueSettings> & { fontSize?: unknown }): VueSettings {
+  const { fontSize: legacyFontSize, ...settingsWithoutLegacyFontSize } = raw;
+  return {
+    ...defaults,
+    ...settingsWithoutLegacyFontSize,
+    uiScale: normalizeUiScale(
+      raw.uiScale === undefined ? legacyFontSizeToUiScale(legacyFontSize) : raw.uiScale
+    ),
+    uiFontFamily: normalizeUiFontFamily(raw.uiFontFamily),
+    aiMaxLoops: normalizeAiMaxLoops(raw.aiMaxLoops),
+    aiProfiles:
+      Array.isArray(raw.aiProfiles) && raw.aiProfiles.length
+        ? raw.aiProfiles.map((profile) => withoutRetiredAiModels({
+            ...defaultProfile,
+            ...profile,
+            apiFormat: normalizeAiApiFormat(profile.apiFormat, defaultProfile.apiFormat),
+            anthropicAuth: normalizeAnthropicAuth(profile.anthropicAuth),
+            openaiStreamUsage: ["auto", "always", "never"].includes(profile.openaiStreamUsage)
+              ? profile.openaiStreamUsage
+              : "auto",
+            commonModels: Array.isArray(profile.commonModels)
+              ? profile.commonModels.filter((model): model is string => typeof model === "string" && Boolean(model.trim()))
+              : [profile.model || defaultProfile.model],
+            failoverEnabled: profile.failoverEnabled === true,
+            subagentModel:
+              typeof profile.subagentModel === "string" ? profile.subagentModel.trim() : "",
+            failoverModels: Array.isArray(profile.failoverModels)
+              ? profile.failoverModels
+                .filter((model): model is string => typeof model === "string" && Boolean(model.trim()))
+                .map((model) => model.trim())
+              : [],
+            source: normalizeAiProfileSource(profile.provider, profile.source),
+            noToolModels: Array.isArray(profile.noToolModels)
+              ? profile.noToolModels.filter((model): model is string => typeof model === "string" && Boolean(model.trim()))
+              : [],
+          }, retiredModelReplacement(profile.provider)))
+        : [{ ...defaultProfile, commonModels: [...defaultProfile.commonModels] }],
+    mcpServers: Array.isArray(raw.mcpServers)
+      ? raw.mcpServers.map(normalizeStoredMcpServer)
+      : [],
+    aiSkills: Array.isArray(raw.aiSkills)
+      ? raw.aiSkills
+          .map((skill) =>
+            typeof skill === "string"
+              ? {
+                  id: createId("skill"),
+                  name: skill,
+                  content: skill,
+                  description: "",
+                  docsUrl: "",
+                  enabled: true,
+                }
+              : {
+                  ...skill,
+                  docsUrl: normalizeDocumentationUrl(skill?.docsUrl),
+                }
+          )
+          .filter((skill) => Boolean(skill) && typeof skill === "object")
+      : [],
+    aiRules: Array.isArray(raw.aiRules) ? raw.aiRules : [],
+    acpAgents: Array.isArray(raw.acpAgents) ? raw.acpAgents : [],
+    workspaceCacheLimit: normalizeWorkspaceCacheLimit(raw.workspaceCacheLimit),
+    pluginViewWarmFrames: normalizePluginViewWarmLimit(raw.pluginViewWarmFrames),
+    uiLocale: normalizeUiLocale(raw.uiLocale),
+    uiLocalePlugin: normalizeUiLocalePlugin(raw.uiLocalePlugin),
+    fileIconTheme: normalizeFileIconTheme(raw.fileIconTheme),
+    editorColorTheme: normalizeEditorThemePreference(raw.editorColorTheme),
+    editorCustomTheme: normalizeCustomEditorTheme(raw.editorCustomTheme),
+    ...resolveRuntimePerformanceSettings(raw),
+  };
+}
+function loadSettings(): VueSettings {
+  try {
+    return normalizeSettings(
+      readSettingsSnapshot<Partial<VueSettings> & Record<string, unknown>>()
+    );
+  } catch {
+    return structuredClone(defaults);
+  }
+}
+const settings = reactive<VueSettings>(loadSettings());
+const visibleAiRules = computed(() =>
+  applicableAiRules(settings.aiRules, availableRuleWorkspaceId(), ruleScope.value)
+);
+function ruleScopeChipLabel(rule: AiRule) {
+  if (rule.scope !== "workspace") return t("settings.rules.global");
+  return (
+    ruleWorkspaceOptions.value.find((workspace) => workspace.value === rule.workspaceId)?.label ??
+    t("settings.rules.workspace")
+  );
+}
+const settingsHydrated = ref(false);
+const sidebarVisibility = ref<SidebarVisibility>(createDefaultSidebarVisibility());
+async function createCurrentConfigSyncSnapshot(): Promise<ConfigSyncSnapshot> {
+  await Promise.all([
+    // Strict: pushing must not upload a settings snapshot that failed to persist.
+    persistSettingsSnapshot({ ...settings, locale: locale.value }, { strict: true }),
+    saveSidebarVisibility(sidebarVisibility.value),
+    workspaceStatePreferences.flushPersistence(),
+  ]);
+  return createConfigSyncSnapshot();
+}
+const activeProfile = computed(
+  () =>
+    settings.aiProfiles.find((profile) => profile.id === settings.activeAiProfileId) ??
+    settings.aiProfiles[0]
+);
+const categoryList: Array<{ id: Category; label: MessageKey; icon: typeof Setting }> = [
+  { id: "general", label: "settings.cat.general", icon: Setting },
+  { id: "terminal", label: "settings.cat.terminal", icon: Monitor },
+  { id: "shortcuts", label: "settings.cat.shortcuts", icon: Document },
+  { id: "ai", label: "settings.cat.ai", icon: MagicStick },
+  { id: "cloud", label: "settings.cat.cloud", icon: Connection },
+  { id: "external-mcp", label: "settings.externalMcp.title", icon: Connection },
+  { id: "plugins", label: "pluginContrib.configuration.category", icon: Grid },
+  { id: "database", label: "settings.cat.database", icon: DataAnalysis },
+  { id: "security", label: "settings.cat.security", icon: Lock },
+  { id: "data", label: "settings.cat.data", icon: DataBoard },
+  { id: "about", label: "settings.cat.about", icon: Postcard },
+];
+const categories = computed(() =>
+  categoryList
+    .filter((item) => item.id !== "plugins" || isPluginSettingsCategoryListed(pluginSettings.availability.value, active.value === "plugins"))
+    .map((item) => (item.id === "about" && appUpdate.pendingVersion ? { ...item, badge: true } : item))
+);
+async function skipUpdateVersion(version: string) {
+  await appUpdate.skipVersion(version);
+  ElMessage.success(t("settings.update.skipped", { version }));
+}
+// 用穷尽的 Record 而不是拼接键名：新增档位时这里会直接编译失败，而不是运行期落到缺失的文案。
+const REASONING_EFFORT_LABELS: Record<AiReasoningEffortChoice, MessageKey> = {
+  low: "settings.ai.reasoningLow",
+  medium: "settings.ai.reasoningMedium",
+  high: "settings.ai.reasoningHigh",
+  xhigh: "settings.ai.reasoningXHigh",
+  max: "settings.ai.reasoningMax",
+  ultra: "settings.ai.reasoningUltra",
+};
+const reasoningEffortOptions = computed(() =>
+  AI_REASONING_EFFORT_CHOICES.map((effort) => ({
+    value: effort,
+    label: t(REASONING_EFFORT_LABELS[effort]),
+  }))
+);
+const aiTabs: Array<{ id: AiTab; label: MessageKey }> = [
+  { id: "connection", label: "settings.ai.connection" },
+  { id: "permissions", label: "settings.ai.permissions" },
+  { id: "mcp", label: "settings.ai.mcp" },
+  { id: "skills", label: "settings.ai.skills" },
+  { id: "rules", label: "settings.ai.rules" },
+  { id: "local-agent", label: "settings.ai.localAgent" },
+];
+function close() {
+  emit("update:modelValue", false);
+}
+// 关闭设置时退出全屏，下次打开恢复默认悬浮尺寸。
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (!open) fullscreen.value = false;
+  }
+);
+let persistTimer: ReturnType<typeof setTimeout> | undefined;
+
+function persist() {
+  if (!settingsHydrated.value) return;
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = undefined;
+  void persistSettingsSnapshot({ ...settings, locale: locale.value });
+}
+function schedulePersist() {
+  if (!settingsHydrated.value) return;
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(persist, 300);
+}
+async function hydrateSettings() {
+  const storedSidebarVisibility = await loadSidebarVisibility();
+  sidebarVisibility.value = storedSidebarVisibility;
+  let stored: unknown;
+  try {
+    let storedApprovalMode: Awaited<ReturnType<typeof hydrateAiApprovalMode>>;
+    [stored, storedApprovalMode] = await Promise.all([
+      hydrateSettingsSnapshot(),
+      hydrateAiApprovalMode(),
+      loadGlobalToolAuthorizations(),
+    ]);
+    if (stored && typeof stored === "object" && !Array.isArray(stored))
+      Object.assign(settings, normalizeSettings(stored as Partial<VueSettings>));
+    approvalMode.value = storedApprovalMode;
+  } catch {
+    settingsHydrated.value = true;
+    ElMessage.error(t("settings.ai.credentialsLoadFailed"));
+    return;
+  }
+  settings.locale = locale.value;
+  setLocalePackSelection(localePackSelectionFromSettings(settings));
+  // Let the deep settings watcher see the hydration writes while persistence is still off.
+  await nextTick();
+  settingsHydrated.value = true;
+  const next = { ...settings };
+  if (JSON.stringify(stored) !== JSON.stringify(next)) await persistSettingsSnapshot(next);
+}
+let hydration: Promise<void> | undefined;
+function ensureHydrated() {
+  hydration ??= hydrateSettings();
+  return hydration;
+}
+async function applyConfigSyncSnapshot(snapshot: ConfigSyncSnapshot) {
+  const applied = await applyPersistedConfigSyncSnapshot(snapshot);
+  const appliedSettings = applied.persistedValues[SETTINGS_STORAGE_KEY];
+  if (appliedSettings && typeof appliedSettings === "object" && !Array.isArray(appliedSettings)) {
+    const normalized = normalizeSettings(appliedSettings as Partial<VueSettings>);
+    Object.assign(settings, normalized);
+    setLocale(normalized.locale);
+  }
+
+  if (SIDEBAR_VISIBILITY_KEY in applied.persistedValues) {
+    const nextSidebarVisibility = normalizeSidebarVisibility(
+      applied.persistedValues[SIDEBAR_VISIBILITY_KEY]
+    );
+    sidebarVisibility.value = nextSidebarVisibility;
+    await saveSidebarVisibility(nextSidebarVisibility);
+  }
+}
+
+async function updateWorkspaceStateIsolation(enabled: boolean) {
+  await workspaceStatePreferences.setIsolationEnabled(enabled, workbench.activeWorkspaceId);
+}
+async function updateSidebarVisibility(id: SidebarItemId, visible: boolean) {
+  const next = { ...sidebarVisibility.value, [id]: visible };
+  sidebarVisibility.value = next;
+  await saveSidebarVisibility(next);
+}
+watch(settings, schedulePersist, { deep: true });
+watch(locale, schedulePersist);
+// A plugin sync (services/ai-external-sync.ts) first saves this page's pending
+// edits so it merges them, then publishes the AI lists it wrote. Take those
+// lists (not the snapshot, which a save of ours during the sync may have
+// overwritten) and save at once, keeping any other edits. Before hydration
+// there is nothing to replace: hydrateSettings reads the new snapshot.
+async function flushPendingPersist() {
+  await nextTick();
+  if (!settingsHydrated.value || !persistTimer) return;
+  clearTimeout(persistTimer);
+  persistTimer = undefined;
+  await persistSettingsSnapshot({ ...settings, locale: locale.value });
+}
+onBeforeUnmount(registerSettingsFlush(flushPendingPersist));
+watch(aiSettingsExternalRevision, () => {
+  const lists = externallySyncedSettingsLists();
+  if (!settingsHydrated.value || !lists) return;
+  const external = normalizeSettings(lists as unknown as Partial<VueSettings>);
+  settings.aiProfiles = external.aiProfiles;
+  settings.mcpServers = external.mcpServers;
+  settings.aiSkills = external.aiSkills;
+  persist();
+});
+// Language pack selection: settings (hydration, config sync) drive the
+// runtime; the language row changes the runtime selection, stored here.
+watch(() => [settings.uiLocale, settings.uiLocalePlugin], () => {
+  if (settingsHydrated.value) setLocalePackSelection(localePackSelectionFromSettings(settings));
+});
+watch(localePackState.selection, (selection) => {
+  if (!settingsHydrated.value) return;
+  settings.uiLocale = selection?.tag;
+  settings.uiLocalePlugin = selection?.pluginId;
+});
+watch(aiApprovalMode, (mode) => {
+  approvalMode.value = mode;
+}, { immediate: true });
+watch(() => settings.uiTheme, (theme) => applyUiTheme(theme, settings.uiThemeKind), { immediate: true });
+watch(
+  [() => settings.uiScale, () => settings.uiFontFamily],
+  ([uiScale, uiFontFamily]) => applyUiAppearance({ uiScale, uiFontFamily }),
+  { immediate: true }
+);
+watch(() => settings.terminalColorScheme, applyTerminalColorScheme);
+watch(() => settings.fileIconTheme, applyFileIconThemePreference, { immediate: true });
+watch(
+  [() => settings.editorColorTheme, () => settings.editorCustomTheme],
+  ([theme, custom]) => applyEditorThemePreference(theme, custom),
+  { deep: true }
+);
+watch(
+  () => settings.minimizeToTray,
+  (value) => {
+    if (isDesktopRuntime()) void setMinimizeToTray(value);
+  }
+);
+watch(
+  () => settings.autostart,
+  (value) => {
+    if (isDesktopRuntime()) void setAutostart(value);
+  }
+);
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) {
+      if (props.initialCategory) selectCategory(props.initialCategory);
+      // A Plugins page left open last time is not reopened once it is no longer listed.
+      else if (active.value === "plugins" && !isPluginSettingsCategoryListed(pluginSettings.availability.value, false)) selectCategory("general");
+      void pluginSettings.refresh();
+      void ensureHydrated().catch(() => undefined).then(init);
+    }
+  },
+  { immediate: true }
+);
+watch(
+  () => props.initialCategory,
+  (category) => {
+    if (props.modelValue && category) selectCategory(category);
+  }
+);
+// The plugin to focus on the plugins page; re-requests while open refocus it.
+const pluginSettingsTarget = ref(props.initialPluginId);
+watch(
+  () => props.initialPluginId,
+  (pluginId) => {
+    pluginSettingsTarget.value = pluginId;
+  }
+);
+watch(settingsNavigationRequest, (request) => {
+  if (!props.modelValue || !request.category) return;
+  selectCategory(request.category);
+  if (request.category === "plugins") pluginSettingsTarget.value = request.pluginId;
+});
+watch([() => props.modelValue, active, cloudTab], ([open, category, tab]) => {
+  if (open && category === "cloud" && tab === "pro") void refreshProAccount();
+  else {
+    ++proRequestRevision;
+    clearQuotaExpiryTimer();
+    cloudAccount.value = undefined;
+    memberQuota.value = undefined;
+    publicPlans.value = [];
+    plansError.value = "";
+    plansLoading.value = false;
+    proLoading.value = false;
+    quotaLoading.value = false;
+    redemptionCode.value = "";
+  }
+});
+watch(aiTab, (tab) => {
+  if (tab === "skills" && !skillSearchResults.value.length && !skillSearching.value) {
+    void searchSkills();
+  }
+});
+
+async function init() {
+  if (settings.locale !== locale.value) setLocale(settings.locale);
+
+  if (!isDesktopRuntime()) return;
+  version.value = await getAppVersion().catch(() => "—");
+  settings.autostart = await getAutostartEnabled().catch(() => settings.autostart);
+  await loadProtocolStatus();
+}
+async function loadProtocolStatus() {
+  if (!isDesktopRuntime()) return;
+  const [mcp, acp] = await loadProtocolStatuses();
+  mcpStatuses.value = mcp;
+  acpStatuses.value = acp;
+}
+function configuredProfileModels(profile: AiProfile) {
+  return [...new Set([profile.model, ...profile.commonModels]
+    .filter((model): model is string => typeof model === "string")
+    .map((model) => model.trim())
+    .filter(Boolean))];
+}
+function fallbackModelOptions(profile: AiProfile) {
+  return configuredProfileModels(profile);
+}
+
+function addAiProfile() {
+  const profile: AiProfile = {
+    ...defaultProfile,
+    commonModels: [...defaultProfile.commonModels],
+    failoverModels: [...defaultProfile.failoverModels],
+    noToolModels: [],
+    id: createId("profile"),
+    name: `Profile ${settings.aiProfiles.length + 1}`,
+  };
+  settings.aiProfiles.push(profile);
+  settings.activeAiProfileId = profile.id;
+}
+function selectAiProfile(id: string) {
+  settings.activeAiProfileId = id;
+}
+function profileProviderLabel(profile: AiProfile) {
+  if (profile.provider === "custom") return t("settings.ai.custom");
+  if (profile.provider === "plugin") {
+    const provider = pluginProviderFor(profile);
+    return provider ? aiProviderText(provider.label, provider.labelLocalized, locale.value) : profile.name;
+  }
+  return (
+    providerPresets.find((item) => item.value === profile.provider)?.label ?? profile.provider
+  );
+}
+function profileSubtitle(profile: AiProfile) {
+  return profile.model || profile.baseUrl || profileProviderLabel(profile);
+}
+/** 紧凑档案卡只有一行副标题：模型与服务商合并显示。 */
+function profileCompactSubtitle(profile: AiProfile) {
+  const provider = profileProviderLabel(profile);
+  const primary = profileSubtitle(profile);
+  return primary === provider ? provider : `${primary} · ${provider}`;
+}
+function duplicateAiProfile(source: AiProfile) {
+  const profile = {
+    ...withoutSyncMetadata(source),
+    commonModels: [...source.commonModels],
+    failoverModels: [...source.failoverModels],
+    noToolModels: [...source.noToolModels],
+    ...(source.source ? { source: { ...source.source } } : {}),
+    id: createId("profile"),
+    name: `${source.name} Copy`,
+  };
+  settings.aiProfiles.push(profile);
+  settings.activeAiProfileId = profile.id;
+}
+function deleteAiProfile(profile: AiProfile) {
+  if (settings.aiProfiles.length <= 1) return;
+  const index = settings.aiProfiles.findIndex((item) => item.id === profile.id);
+  if (index < 0) return;
+  settings.aiProfiles.splice(index, 1);
+  if (settings.activeAiProfileId === profile.id) {
+    settings.activeAiProfileId = settings.aiProfiles[Math.max(0, index - 1)]!.id;
+  }
+}
+function pluginProviderFor(profile: AiProfile | undefined): PluginAiProvider | undefined {
+  if (profile?.provider !== "plugin" || !profile.source) return undefined;
+  const providerId = profile.source.providerId;
+  return pluginAiProviders.providers.find((provider) => provider.id === providerId);
+}
+const activePluginProvider = computed(() => pluginProviderFor(activeProfile.value));
+const providerOptions = computed(() =>
+  activeProfile.value
+    ? aiProviderSelectOptions(providerPresets.map((preset) => preset.value), pluginAiProviders.providers, activeProfile.value)
+    : []);
+const providerSelection = computed(() => (activeProfile.value ? aiProviderSelectValue(activeProfile.value) : ""));
+function providerOptionLabel(option: AiProviderSelectOption) {
+  if (option.provider) return aiProviderText(option.provider.label, option.provider.labelLocalized, locale.value);
+  if (option.kind === "orphan") return t("settings.ai.pluginProvider.unavailableOption");
+  if (option.value === "custom") return t("settings.ai.custom");
+  return providerPresets.find((preset) => preset.value === option.value)?.label ?? option.value;
+}
+function selectProvider(value: string) {
+  const profile = activeProfile.value;
+  if (!profile) return;
+  if (value.startsWith(PLUGIN_PROVIDER_VALUE_PREFIX)) {
+    const provider = pluginAiProviders.providers.find((item) => `${PLUGIN_PROVIDER_VALUE_PREFIX}${item.id}` === value);
+    if (provider) Object.assign(profile, pluginProviderProfilePatch(provider));
+    return;
+  }
+  profile.provider = value as AiProvider;
+  delete profile.source;
+  profile.noToolModels = [];
+  applyProviderPreset(profile.provider);
+}
+const pluginProviderNotes = computed(() => {
+  const provider = activePluginProvider.value;
+  if (!provider) return undefined;
+  return {
+    quota: aiProviderText(provider.quotaNote, provider.quotaNoteLocalized, locale.value),
+    caveat: aiProviderText(provider.caveat, provider.caveatLocalized, locale.value),
+    verifiedMonth: provider.verifiedAt.slice(0, 7),
+  };
+});
+const unresolvedPlaceholders = computed(() => unresolvedBaseUrlPlaceholders(activeProfile.value?.baseUrl ?? ""));
+const placeholderDrafts = reactive<Record<string, string>>({});
+function placeholderLabel(name: string) {
+  const placeholder = activePluginProvider.value?.placeholders.find((item) => item.name === name);
+  return placeholder ? aiProviderText(placeholder.label, placeholder.labelLocalized, locale.value) : name;
+}
+function applyPlaceholder(name: string) {
+  const profile = activeProfile.value;
+  const value = (placeholderDrafts[name] ?? "").trim();
+  if (!profile || !value) return;
+  const filled = fillAiProviderPlaceholder(profile.baseUrl, name, value);
+  if (!filled) return ElMessage.warning(t("settings.ai.pluginProvider.placeholderInvalid"));
+  profile.baseUrl = filled;
+  delete placeholderDrafts[name];
+}
+function modelOptionLabel(model: string) {
+  const tags = [];
+  if (activePluginProvider.value?.models.some((item) => item.id === model && item.free)) tags.push(t("settings.ai.pluginProvider.free"));
+  if (activeProfile.value?.noToolModels.includes(model)) tags.push(t("settings.ai.pluginProvider.chatOnly"));
+  return tags.length ? `${model} · ${tags.join(" · ")}` : model;
+}
+function applyProviderPreset(provider: AiProvider) {
+  if (!activeProfile.value) return;
+  const preset = providerPresets.find((item) => item.value === provider);
+  if (!preset || provider === "custom") return;
+  Object.assign(activeProfile.value, {
+    baseUrl: preset.baseUrl,
+    apiKey: "",
+    model: preset.model,
+    apiFormat: preset.apiFormat,
+    commonModels: [...preset.commonModels],
+    failoverEnabled: false,
+    failoverModels: [],
+    subagentModel: "",
+    contextWindow: preset.contextWindow,
+    maxInputTokens: preset.maxInputTokens,
+    maxOutputTokens: preset.maxOutputTokens,
+  });
+}
+/** Preset models of the active profile's provider that are not in its list yet. */
+const addableCommonModels = computed(() => {
+  const profile = activeProfile.value;
+  const preset = profile && providerPresets.find((item) => item.value === profile.provider);
+  const models = preset?.commonModels ?? activePluginProvider.value?.models.map((model) => model.id) ?? [];
+  return profile ? models.filter((model) => !profile.commonModels.includes(model)) : [];
+});
+function addCommonModel(value?: string) {
+  if (!activeProfile.value) return;
+  const model = (value ?? manualModel.value).trim();
+  if (!model || activeProfile.value.commonModels.includes(model)) return;
+  activeProfile.value.commonModels.push(model);
+  manualModel.value = "";
+}
+function removeCommonModel(model: string) {
+  const profile = activeProfile.value;
+  if (!profile) return;
+  const next = removeAiProfileModel(profile, model);
+  if (!next) {
+    ElMessage.warning(t("settings.ai.testMissingModel"));
+    return;
+  }
+  profile.model = next.model;
+  profile.commonModels = next.commonModels;
+  profile.failoverModels = next.failoverModels;
+  if (profile.subagentModel === model) profile.subagentModel = "";
+}
+function activeAiAuthIsValid(profile: AiProfile) {
+  const auth = validateAiProviderAuth(profile);
+  if (auth.valid) return true;
+  ElMessage.warning(t(auth.reason === "unresolved_base_url" ? "ai.unresolvedBaseUrl" : "settings.ai.missingApiKey"));
+  return false;
+}
+
+async function fetchAvailableModels() {
+  const profile = activeProfile.value;
+  if (!profile) return;
+  if (!profile.baseUrl.trim()) {
+    ElMessage.warning(t("settings.ai.fetchModelsMissingBaseUrl"));
+    return;
+  }
+  if (!activeAiAuthIsValid(profile)) return;
+  if (!canInvoke("ai_list_models")) {
+    ElMessage.warning(t("settings.ai.fetchModelsDesktopOnly"));
+    return;
+  }
+
+  fetchingModels.value = true;
+  try {
+    const models = await fetchAiModels({
+      baseUrl: profile.baseUrl,
+      apiKey: profile.apiKey,
+      apiFormat: profile.apiFormat,
+      anthropicAuth: profile.anthropicAuth,
+    });
+    if (!models.length) {
+      ElMessage.warning(t("settings.ai.fetchModelsEmpty"));
+      return;
+    }
+
+    profile.commonModels = models;
+    if (!models.includes(profile.model)) {
+      profile.model = models[0]!;
+    }
+    profile.failoverModels = profile.failoverModels.filter((model) => models.includes(model));
+    if (profile.subagentModel && !models.includes(profile.subagentModel)) {
+      profile.subagentModel = "";
+    }
+    ElMessage.success(t("settings.ai.fetchModelsSuccess", { count: models.length }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ElMessage.error(t("settings.ai.fetchModelsFailed", { message }));
+  } finally {
+    fetchingModels.value = false;
+  }
+}
+
+async function testActiveAiConnection() {
+  const profile = activeProfile.value;
+  if (!profile) return;
+  if (!profile.baseUrl.trim()) {
+    ElMessage.warning(t("settings.ai.fetchModelsMissingBaseUrl"));
+    return;
+  }
+  if (!profile.model.trim()) {
+    ElMessage.warning(t("settings.ai.testMissingModel"));
+    return;
+  }
+  if (!activeAiAuthIsValid(profile)) return;
+  if (!canInvoke("ai_test_connection")) {
+    ElMessage.warning(t("settings.ai.fetchModelsDesktopOnly"));
+    return;
+  }
+
+  testingAiConnection.value = true;
+  try {
+    await testAiConnection({
+      baseUrl: profile.baseUrl,
+      apiKey: profile.apiKey,
+      apiFormat: profile.apiFormat,
+      anthropicAuth: profile.anthropicAuth,
+      model: profile.model,
+    });
+    ElMessage.success(t("settings.ai.connected"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ElMessage.error(t("settings.ai.testFailed", { message }));
+  } finally {
+    testingAiConnection.value = false;
+  }
+}
+
+async function saveAiSettings() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = undefined;
+  try {
+    await persistSettingsSnapshot({ ...settings, locale: locale.value }, { strict: true });
+    ElMessage.success(t("settings.ai.saved"));
+  } catch (error) {
+    ElMessage.error(t("settings.ai.saveFailed", { message: nativeErrorMessage(error) }));
+  }
+}
+async function updateApprovalMode(value: unknown) {
+  const mode = normalizeAiApprovalMode(value);
+  if (approvalSaving.value || mode === aiApprovalMode.value) return;
+  approvalSaving.value = true;
+  try {
+    await saveAiApprovalMode(mode);
+    approvalMode.value = mode;
+    ElMessage.success(t("settings.ai.permissionsSaved"));
+  } catch (error) {
+    approvalMode.value = aiApprovalMode.value;
+    ElMessage.error(t("settings.ai.permissionsSaveFailed", { message: String(error) }));
+  } finally {
+    approvalSaving.value = false;
+  }
+}
+function authorizationKey(authorization: GlobalToolAuthorization) {
+  return `${authorization.toolName}:${authorization.resourceId}:${authorization.parameterFingerprint}:${authorization.risk}`;
+}
+function authorizationRiskLabel(risk: GlobalToolAuthorization["risk"]) {
+  if (risk === "network") return t("ai.agentic.risk.network");
+  if (risk === "write") return t("ai.agentic.risk.write");
+  return t("ai.agentic.risk.read");
+}
+function authorizationRiskTone(risk: GlobalToolAuthorization["risk"]): EntryAvatarTone {
+  if (risk === "network") return "warning";
+  if (risk === "write") return "danger";
+  return "success";
+}
+async function removeGlobalAuthorization(authorization: GlobalToolAuthorization) {
+  if (authorizationUpdating.value) return;
+  authorizationUpdating.value = true;
+  try {
+    await revokeGlobalToolAuthorization(authorization);
+    ElMessage.success(t("settings.ai.authorizationRevoked"));
+  } catch (error) {
+    ElMessage.error(t("settings.ai.authorizationUpdateFailed", { message: String(error) }));
+  } finally {
+    authorizationUpdating.value = false;
+  }
+}
+async function clearAllGlobalAuthorizations() {
+  if (authorizationUpdating.value) return;
+  authorizationUpdating.value = true;
+  try {
+    await clearGlobalToolAuthorizations();
+    ElMessage.success(t("settings.ai.authorizationsCleared"));
+  } catch (error) {
+    ElMessage.error(t("settings.ai.authorizationUpdateFailed", { message: String(error) }));
+  } finally {
+    authorizationUpdating.value = false;
+  }
+}
+function mergeMcpServers(servers: McpServer[]) {
+  const existingIds = new Set(settings.mcpServers.map((server) => server.id));
+  settings.mcpServers = mergeMcpServersById(settings.mcpServers, servers);
+  return servers.filter((server) => !existingIds.has(server.id)).length;
+}
+async function readSelectedText(path: string) {
+  return readSettingsTextFile(path);
+}
+function openMcpJsonEditor() {
+  mcpJsonText.value = serializeEditableMcpConfig(settings.mcpServers);
+  mcpJsonEditorOpen.value = true;
+}
+function formatMcpJson() {
+  try {
+    mcpJsonText.value = JSON.stringify(JSON.parse(mcpJsonText.value), null, 2);
+  } catch (error) {
+    ElMessage.error(t("settings.mcp.jsonInvalid", { message: nativeErrorMessage(error) }));
+  }
+}
+async function saveMcpJson() {
+  let servers: McpServer[];
+  try {
+    // The JSON holds only editable fields; the sync source of each connector is kept by id.
+    servers = keepSyncMetadata(parseEditableMcpConfig(mcpJsonText.value), settings.mcpServers);
+  } catch (error) {
+    ElMessage.error(t("settings.mcp.jsonInvalid", { message: nativeErrorMessage(error) }));
+    return;
+  }
+
+  const previousServers = settings.mcpServers;
+  settings.mcpServers = servers;
+  mcpJsonText.value = serializeEditableMcpConfig(servers);
+  await nextTick();
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = undefined;
+  try {
+    await persistSettingsSnapshot({ ...settings, locale: locale.value }, { strict: true });
+    ElMessage.success(t("settings.mcp.jsonSaved"));
+    mcpJsonEditorOpen.value = false;
+  } catch (error) {
+    settings.mcpServers = previousServers;
+    await nextTick();
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = undefined;
+    ElMessage.error(t("settings.mcp.jsonSaveFailed", { message: nativeErrorMessage(error) }));
+  }
+}
+
+async function importCursorMcp() {
+  if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
+  try {
+    const home = await getUserHomeDirectory();
+    const servers = parseMcpConfig(await readSelectedText(`${home}/.cursor/mcp.json`));
+    ElMessage.success(t("settings.mcp.imported", { count: mergeMcpServers(servers) }));
+  } catch (error) {
+    ElMessage.error(t("settings.mcp.importFailed", { message: String(error) }));
+  }
+}
+async function importMcpFile() {
+  if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
+  try {
+    const path = await chooseSettingsJsonFile(t("settings.mcp.chooseJson"));
+    if (!path) return;
+    const servers = parseMcpConfig(await readSelectedText(path));
+    ElMessage.success(t("settings.mcp.imported", { count: mergeMcpServers(servers) }));
+  } catch (error) {
+    ElMessage.error(t("settings.mcp.importFailed", { message: String(error) }));
+  }
+}
+async function searchMcpServers() {
+  mcpSearchController?.abort();
+  const controller = new AbortController();
+  mcpSearchController = controller;
+  mcpSearching.value = true;
+  try {
+    const results = await searchMcpRegistry(mcpSearch.value, (query) =>
+      searchPluginAiCatalogs("mcp", query, locale.value, controller.signal)
+    );
+    if (controller.signal.aborted) return;
+    mcpSearchResults.value = results.filter(catalogEntryAvailable);
+    if (!mcpSearchResults.value.length) ElMessage.info(t("settings.registry.empty"));
+  } catch (error) {
+    if (!controller.signal.aborted) ElMessage.error(t("settings.registry.searchFailed", { message: String(error) }));
+  } finally {
+    if (!controller.signal.aborted) mcpSearching.value = false;
+  }
+}
+async function installMcpEntry(entry: RegistryEntry) {
+  installingMcpId.value = entry.id;
+  try {
+    const servers = await loadMcpRegistryEntry(await resolvePluginRegistryEntry(entry, locale.value));
+    if (!(await confirmPluginRegistryInstall(entry, describeMcpServersForReview(servers), t))) return;
+    const configured: McpServer[] = [];
+    for (const server of servers) {
+      const placeholder = findMcpPathPlaceholder(server);
+      if (!placeholder) {
+        configured.push(server);
+        continue;
+      }
+      const selected = await chooseSettingsDirectory(
+        t(placeholder === "<repository_path>" ? "settings.mcp.chooseRepository" : "settings.mcp.chooseDirectory")
+      );
+      if (!selected) return;
+      configured.push(resolveMcpPathPlaceholder(server, selected));
+    }
+    const added = mergeMcpServers(configured);
+    ElMessage.success(t("settings.mcp.imported", { count: added }));
+  } catch (error) {
+    ElMessage.error(t("settings.registry.installFailed", { message: String(error) }));
+  } finally {
+    installingMcpId.value = undefined;
+  }
+}
+function openSkillEditor(skill: AiSkill) {
+  editingSkillId.value = skill.id;
+  skillEditorText.value = skill.content;
+  skillEditorOpen.value = true;
+}
+function openNewSkillEditor() {
+  editingSkillId.value = undefined;
+  skillEditorText.value = t("settings.skills.template");
+  skillEditorOpen.value = true;
+}
+/** Writes the skill list immediately; `rollback` restores it when the write fails. */
+async function persistSkillChange(rollback: () => void) {
+  await nextTick();
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = undefined;
+  try {
+    await persistSettingsSnapshot({ ...settings, locale: locale.value }, { strict: true });
+    return true;
+  } catch (error) {
+    rollback();
+    ElMessage.error(t("settings.skills.saveFailed", { message: nativeErrorMessage(error) }));
+    return false;
+  }
+}
+async function saveSkillEditor() {
+  if (skillEditorSaving.value) return;
+  if (!editingSkillId.value) return createSkillFromEditor();
+  const index = settings.aiSkills.findIndex((skill) => skill.id === editingSkillId.value);
+  if (index < 0) return;
+
+  const original = settings.aiSkills[index]!;
+  let parsed: AiSkill;
+  try {
+    parsed = parseAiSkillMarkdown(
+      skillEditorText.value,
+      original.sourcePath || `skill:${original.id}`,
+      original.name
+    );
+  } catch (error) {
+    ElMessage.error(t("settings.skills.saveFailed", { message: nativeErrorMessage(error) }));
+    return;
+  }
+  if (parsed.name !== original.name && hasAiSkillNamed(settings.aiSkills, parsed.name, original.id)) {
+    ElMessage.warning(t("settings.skills.nameExists", { name: parsed.name }));
+    return;
+  }
+
+  const updated: AiSkill = {
+    ...original,
+    name: parsed.name,
+    description: parsed.description,
+    content: parsed.content,
+  };
+  skillEditorSaving.value = true;
+  settings.aiSkills.splice(index, 1, updated);
+  try {
+    if (!(await persistSkillChange(() => settings.aiSkills.splice(index, 1, original)))) return;
+    skillEditorText.value = updated.content;
+    skillEditorOpen.value = false;
+    ElMessage.success(t("settings.skills.saved", { name: updated.name }));
+  } finally {
+    skillEditorSaving.value = false;
+  }
+}
+async function createSkillFromEditor() {
+  let skill: AiSkill;
+  try {
+    skill = createManualAiSkill(skillEditorText.value, createId("skill"));
+  } catch (error) {
+    if (error instanceof Error && error.message === "skill_name_required") {
+      ElMessage.warning(t("settings.skills.nameRequired"));
+    } else {
+      ElMessage.error(t("settings.skills.saveFailed", { message: nativeErrorMessage(error) }));
+    }
+    return;
+  }
+  if (hasAiSkillNamed(settings.aiSkills, skill.name)) {
+    ElMessage.warning(t("settings.skills.nameExists", { name: skill.name }));
+    return;
+  }
+
+  skillEditorSaving.value = true;
+  settings.aiSkills.push(skill);
+  try {
+    const removeCreated = () => {
+      const index = settings.aiSkills.findIndex((item) => item.id === skill.id);
+      if (index >= 0) settings.aiSkills.splice(index, 1);
+    };
+    if (!(await persistSkillChange(removeCreated))) return;
+    skillEditorOpen.value = false;
+    ElMessage.success(t("settings.skills.created", { name: skill.name }));
+  } finally {
+    skillEditorSaving.value = false;
+  }
+}
+async function importSkill(fromDirectory = false) {
+  if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
+  try {
+    const selected = fromDirectory
+      ? await chooseSettingsDirectory(t("settings.skills.importFolder"))
+      : await chooseSettingsMarkdownFile(t("settings.skills.importFile"));
+    if (!selected) return;
+    const paths = fromDirectory ? await findSettingsSkillFiles(selected) : [selected];
+    if (!paths.length) throw new Error("skill_file_not_found");
+
+    const imported: AiSkill[] = [];
+    for (const path of paths) {
+      imported.push(parseAiSkillMarkdown(await readSelectedText(path), path));
+    }
+    for (const skill of imported) {
+      const index = settings.aiSkills.findIndex(
+        (item) => item.id === skill.id || item.sourcePath === skill.sourcePath
+      );
+      if (index >= 0) settings.aiSkills.splice(index, 1, skill);
+      else settings.aiSkills.push(skill);
+    }
+    ElMessage.success(
+      imported.length === 1
+        ? t("settings.skills.imported", { name: imported[0]!.name })
+        : t("settings.skills.importedCount", { count: imported.length })
+    );
+  } catch (error) {
+    ElMessage.error(t("settings.skills.importFailed", { message: String(error) }));
+  }
+}
+async function searchSkills() {
+  skillSearchController?.abort();
+  const controller = new AbortController();
+  skillSearchController = controller;
+  skillSearching.value = true;
+  try {
+    const results = await searchSkillRegistry(skillSearch.value, (query) =>
+      searchPluginAiCatalogs("skill", query, locale.value, controller.signal)
+    );
+    if (controller.signal.aborted) return;
+    skillSearchResults.value = results.filter(catalogEntryAvailable);
+    if (!skillSearchResults.value.length) ElMessage.info(t("settings.registry.empty"));
+  } catch (error) {
+    if (!controller.signal.aborted) ElMessage.error(t("settings.registry.searchFailed", { message: String(error) }));
+  } finally {
+    if (!controller.signal.aborted) skillSearching.value = false;
+  }
+}
+async function installSkillEntry(entry: RegistryEntry) {
+  installingSkillId.value = entry.id;
+  try {
+    const skill = await loadSkillRegistryEntry(await resolvePluginRegistryEntry(entry, locale.value));
+    const summary = [skill.name, skill.description].filter(Boolean).join("\n");
+    if (!(await confirmPluginRegistryInstall(entry, summary, t))) return;
+    const index = settings.aiSkills.findIndex(
+      (item) => item.id === skill.id || item.sourcePath === skill.sourcePath
+    );
+    if (index >= 0) settings.aiSkills.splice(index, 1, skill);
+    else settings.aiSkills.push(skill);
+    ElMessage.success(t("settings.skills.imported", { name: skill.name }));
+  } catch (error) {
+    ElMessage.error(t("settings.registry.installFailed", { message: String(error) }));
+  } finally {
+    installingSkillId.value = undefined;
+  }
+}
+async function openDocumentation(url: string) {
+  const safeUrl = normalizeDocumentationUrl(url);
+  if (!safeUrl) return ElMessage.warning(t("settings.documentation.invalid"));
+  try {
+    if (isDesktopRuntime()) await openSystemBrowser(safeUrl);
+    else window.open(safeUrl, "_blank", "noopener,noreferrer");
+  } catch (error) {
+    ElMessage.error(t("settings.documentation.openFailed", { message: String(error) }));
+  }
+}
+function addMcpServer() {
+  if (!newMcp.id.trim()) return ElMessage.warning(t("settings.mcp.idRequired"));
+  const docsUrl = normalizeDocumentationUrl(newMcp.docsUrl);
+  if (newMcp.docsUrl?.trim() && !docsUrl) {
+    return ElMessage.warning(t("settings.documentation.invalid"));
+  }
+  settings.mcpServers = mergeMcpServersById(settings.mcpServers, [
+    { ...newMcp, id: newMcp.id.trim(), docsUrl },
+  ]);
+  Object.assign(newMcp, {
+    id: "",
+    transport: "stdio",
+    command: "",
+    args: "",
+    url: "",
+    docsUrl: "",
+    enabled: true,
+    env: {},
+    headers: {},
+  });
+}
+async function connectMcp(server: McpServer) {
+  if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
+  try {
+    await connectMcpServer(server);
+    setMcpAuthRequired(server.id, false);
+    await loadProtocolStatus();
+    ElMessage.success(t("settings.mcp.connected"));
+  } catch (error) {
+    // A refused sign-in is authoritative even when a stored token reads as signed in.
+    if (isMcpAuthRequired(error)) {
+      setMcpAuthRequired(server.id, true);
+      ElMessage.warning(t("settings.mcp.auth.connectNeedsSignIn", { name: server.id }));
+    } else if (mcpAuthErrorCode(error) === "MCP_AUTH_NETWORK") {
+      ElMessage.error(t("settings.mcp.auth.error.network"));
+    } else {
+      ElMessage.error(String(error));
+    }
+  }
+}
+function setMcpAuthRequired(id: string, required: boolean) {
+  if (mcpAuthRequiredIds.value.has(id) === required) return;
+  const next = new Set(mcpAuthRequiredIds.value);
+  if (required) next.add(id);
+  else next.delete(id);
+  mcpAuthRequiredIds.value = next;
+}
+function mcpNeedsSignIn(server: McpServer) {
+  return server.transport === "http" && mcpAuthRequiredIds.value.has(server.id);
+}
+/** Remote connectors marked for host sign-in, or one a connect found needs it. */
+function showMcpAuth(server: McpServer) {
+  return server.transport === "http" && (server.auth === "oauth" || mcpNeedsSignIn(server));
+}
+function onMcpSignedIn(server: McpServer) {
+  // Signing in to a connector that was not marked (its server asked for a
+  // sign-in) marks it, so connecting sends the host token.
+  if (server.auth !== "oauth") server.auth = "oauth";
+  setMcpAuthRequired(server.id, false);
+}
+async function onMcpSignedOut(server: McpServer) {
+  // A live connection still holds the old token; signing out ends it too.
+  if (mcpStatus(server.id)?.state === "connected") await disconnectMcp(server);
+}
+function mcpStatusText(server: McpServer) {
+  if (mcpNeedsSignIn(server)) return t("settings.mcp.auth.needsSignIn");
+  const status = mcpStatus(server.id);
+  return status?.error || status?.state || t("settings.mcp.notConnected");
+}
+async function disconnectMcp(server: McpServer) {
+  if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
+  try {
+    await disconnectMcpServer(server.id);
+    await loadProtocolStatus();
+  } catch (error) {
+    ElMessage.error(String(error));
+  }
+}
+async function removeMcpServer(server: McpServer) {
+  if (mcpStatus(server.id)?.state === "connected") await disconnectMcp(server);
+  const index = settings.mcpServers.indexOf(server);
+  if (index >= 0) settings.mcpServers.splice(index, 1);
+}
+function mcpStatus(id: string) {
+  return mcpStatuses.value.find((item) => item.id === id);
+}
+function resetRuleDraft() {
+  editingRuleId.value = undefined;
+  ruleDraft.title = "";
+  ruleDraft.content = "";
+}
+function openNewRuleEditor() {
+  resetRuleDraft();
+  ruleEditorOpen.value = true;
+}
+function openRuleEditor(rule: AiRule) {
+  editingRuleId.value = rule.id;
+  ruleDraft.title = rule.title;
+  ruleDraft.content = rule.content;
+  ruleEditorOpen.value = true;
+}
+function closeRuleEditor() {
+  ruleEditorOpen.value = false;
+  resetRuleDraft();
+}
+function saveRule() {
+  const title = ruleDraft.title.trim();
+  const content = ruleDraft.content.trim();
+  if (!title || !content) return;
+  // 规则作用域由顶部筛选器决定，编辑器内不再重复提供作用域控件。
+  const workspaceId = ruleScope.value === "workspace" ? availableRuleWorkspaceId() : undefined;
+  if (ruleScope.value === "workspace" && !workspaceId) return;
+
+  if (editingRuleId.value) {
+    const rule = settings.aiRules.find((item) => item.id === editingRuleId.value);
+    if (!rule) {
+      closeRuleEditor();
+      return;
+    }
+    rule.title = title;
+    rule.content = content;
+    rule.scope = ruleScope.value;
+    rule.workspaceId = workspaceId;
+  } else {
+    settings.aiRules.unshift({
+      id: createId("rule"),
+      title,
+      content,
+      enabled: true,
+      scope: ruleScope.value,
+      workspaceId,
+    });
+  }
+  closeRuleEditor();
+}
+function removeRule(rule: AiRule) {
+  const index = settings.aiRules.indexOf(rule);
+  if (index >= 0) settings.aiRules.splice(index, 1);
+  if (editingRuleId.value === rule.id) closeRuleEditor();
+}
+function addAgent() {
+  if (!newAgent.name.trim() || !newAgent.command.trim()) return;
+  const agent = {
+    id: createId("agent"),
+    name: newAgent.name.trim(),
+    command: newAgent.command.trim(),
+    args: newAgent.args.trim(),
+  };
+  settings.acpAgents.push(agent);
+  settings.acpAdapterId = `custom:${agent.id}`;
+  Object.assign(newAgent, { name: "", command: "", args: "" });
+}
+function removeAgent(agent: AcpAgent) {
+  settings.acpAgents.splice(settings.acpAgents.indexOf(agent), 1);
+  if (settings.acpAdapterId === `custom:${agent.id}`) {
+    settings.acpAdapterId = ACP_BUILTIN_AGENTS[0]!.id;
+  }
+}
+function selectAcpAdapter(id: string) {
+  settings.acpAdapterId = id;
+}
+const showPluginAcpAgents = computed(
+  () =>
+    pluginAcpAgents.value.length > 0 ||
+    (pluginAcpAgentsReady.value && parseAcpAdapterId(settings.acpAdapterId).kind === "plugin"),
+);
+async function checkUpdate() {
+  if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
+  updateError.value = "";
+  try {
+    const result = await appUpdate.checkNow();
+    const title = result.available
+      ? t("settings.update.available", { version: result.version })
+      : t("settings.update.latest");
+    ElMessage.success(title);
+    notifyApp({ source: "update", level: "success", title });
+  } catch (error) {
+    const message = nativeErrorMessage(error);
+    updateError.value = message;
+    ElMessage.error(t("settings.update.failed", { message }));
+    notifyApp({
+      source: "update",
+      level: "error",
+      title: t("notifications.update.checkFailed"),
+      message,
+    });
+  }
+}
+async function downloadUpdate() {
+  if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
+  if (!updateInfo.value?.available) return;
+  updateDownloading.value = true;
+  updateError.value = "";
+  try {
+    const result = await downloadAndOpenUpdate();
+    const title = t("settings.update.opened", { file: result.fileName });
+    ElMessage.success(title);
+    notifyApp({ source: "update", level: "success", title });
+  } catch (error) {
+    const message = nativeErrorMessage(error);
+    updateError.value = message;
+    ElMessage.error(t("settings.update.downloadFailed", { message }));
+    notifyApp({
+      source: "update",
+      level: "error",
+      title: t("notifications.update.downloadFailed"),
+      message,
+    });
+  } finally {
+    updateDownloading.value = false;
+  }
+}
+
+async function resetDefaults() {
+  try {
+    await ElMessageBox.confirm(t("settings.resetHint"), t("settings.resetDefaults"), {
+      type: "warning",
+      confirmButtonText: t("settings.resetConfirm"),
+      cancelButtonText: t("common.cancel"),
+    });
+  } catch {
+    return;
+  }
+  Object.assign(settings, structuredClone(defaults), { locale: locale.value });
+  sidebarVisibility.value = createDefaultSidebarVisibility();
+  try {
+    await Promise.all([
+      saveSidebarVisibility(sidebarVisibility.value),
+      saveAiApprovalMode(DEFAULT_AI_APPROVAL_MODE),
+      clearGlobalToolAuthorizations(),
+    ]);
+  } catch (error) {
+    // Approval mode / grants keep their persisted values; show them, not the defaults.
+    approvalMode.value = aiApprovalMode.value;
+    ElMessage.error(t("settings.resetFailed", { message: nativeErrorMessage(error) }));
+    return;
+  }
+  approvalMode.value = DEFAULT_AI_APPROVAL_MODE;
+  active.value = "general";
+}
+const appLock = useAppLockStore();
+const lockPasscodeDialogOpen = ref(false);
+const lockCurrentPasscode = ref("");
+const lockNewPasscode = ref("");
+const lockConfirmPasscode = ref("");
+const lockBusy = ref(false);
+const autoLockOptions = computed(() =>
+  APP_LOCK_AUTO_LOCK_CHOICES.map((minutes) => ({
+    value: minutes,
+    label: minutes
+      ? t("settings.security.autoLockMinutes", { minutes })
+      : t("settings.security.autoLockOff"),
+  }))
+);
+
+function lockPasscodeIssueMessage(issue: AppLockPasscodeIssue) {
+  if (issue === "too-short") {
+    return t("settings.security.passcodeTooShort", { min: APP_LOCK_MIN_PASSCODE_LENGTH });
+  }
+  if (issue === "too-long") {
+    return t("settings.security.passcodeTooLong", { max: APP_LOCK_MAX_PASSCODE_LENGTH });
+  }
+  if (issue === "mismatch") return t("settings.security.passcodeMismatch");
+  return t("settings.security.passcodeEmpty");
+}
+
+function openLockPasscodeDialog() {
+  lockCurrentPasscode.value = "";
+  lockNewPasscode.value = "";
+  lockConfirmPasscode.value = "";
+  lockPasscodeDialogOpen.value = true;
+}
+
+async function submitLockPasscode() {
+  const issue = validateAppLockPasscode(lockNewPasscode.value, lockConfirmPasscode.value);
+  if (issue) return ElMessage.warning(lockPasscodeIssueMessage(issue));
+  lockBusy.value = true;
+  try {
+    if (appLock.configured) {
+      const changed = await appLock.changePasscode(lockCurrentPasscode.value, lockNewPasscode.value);
+      if (!changed) return ElMessage.error(t("settings.security.passcodeWrong"));
+      ElMessage.success(t("settings.security.passcodeUpdated"));
+    } else {
+      await appLock.enable(lockNewPasscode.value);
+      ElMessage.success(t("settings.security.enabled"));
+    }
+    lockPasscodeDialogOpen.value = false;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  } finally {
+    lockBusy.value = false;
+  }
+}
+
+async function disableAppLock() {
+  let current: string;
+  try {
+    const prompt = await ElMessageBox.prompt(
+      t("settings.security.disableHint"),
+      t("settings.security.disable"),
+      {
+        inputType: "password",
+        confirmButtonText: t("common.confirm"),
+        cancelButtonText: t("common.cancel"),
+      }
+    );
+    current = prompt.value ?? "";
+  } catch {
+    // 用户取消输入口令。
+    return;
+  }
+  const removed = await appLock.disable(current);
+  if (!removed) return ElMessage.error(t("settings.security.passcodeWrong"));
+  ElMessage.success(t("settings.security.disabled"));
+}
+
+async function exportConfig() {
+  const choice = await confirmSecretExport();
+  if (!choice) return;
+  const includeSecrets = choice === "with-secrets";
+  try {
+    const payload = await buildConfigExport({ includeSecrets });
+    const filename = `mincode-config-${payload.exportedAt.slice(0, 10)}.json`;
+    const filters = [{ DisplayName: "JSON", Pattern: "*.json" }];
+    let plugins: Awaited<ReturnType<typeof writeConfigExportWithPluginData>> = [];
+    if (exportPluginData.value && isDesktopRuntime()) {
+      const path = await chooseNativeSaveFile(t("settings.data.export"), filename, filters);
+      if (!path) return;
+      plugins = await writeConfigExportWithPluginData(path, payload);
+    } else {
+      const saved = await saveTextFileToDisk({
+        title: t("settings.data.export"),
+        filename,
+        content: JSON.stringify(payload, null, 2),
+        filters,
+        browserMimeType: "application/json",
+      });
+      if (saved === false) return;
+    }
+    ElMessage.success(
+      t(includeSecrets
+        ? "security.secretExport.doneWithSecrets"
+        : "security.secretExport.doneWithoutSecrets")
+    );
+    if (plugins.length) {
+      ElMessage.success(t("settings.data.pluginDataExported", {
+        count: plugins.length,
+        files: plugins.reduce((total, plugin) => total + plugin.files, 0),
+      }));
+    }
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : String(cause));
+  }
+}
+// 桌面端按路径由后端读取文件，插件文件（可能很大）不经过前端；浏览器预览只导入应用配置。
+async function startImportConfig() {
+  if (!isDesktopRuntime()) {
+    importInput.value?.click();
+    return;
+  }
+  try {
+    const path = await chooseNativeFile(t("settings.data.import"), [
+      { DisplayName: "JSON", Pattern: "*.json" },
+    ]);
+    if (!path) return;
+    const { config, plugins } = await readConfigImportFile(path);
+    const parsed = parseConfigImport(config, t("settings.data.importInvalid"), {
+      allowEmpty: plugins.length > 0,
+    });
+    if (parsed.includesSecrets && !(await confirmSecretImport())) return;
+    if (plugins.length) {
+      try {
+        await ElMessageBox.confirm(
+          t("settings.data.pluginDataImportConfirm", {
+            count: plugins.length,
+            files: plugins.reduce((total, plugin) => total + plugin.files, 0),
+          }),
+          t("settings.data.import"),
+          { type: "warning", confirmButtonText: t("common.import"), cancelButtonText: t("common.cancel") }
+        );
+      } catch {
+        return;
+      }
+    }
+    // 插件数据的校验更严格，先导入它，失败时应用配置还没有被改动。
+    const pluginResult = plugins.length ? await importConfigPluginData(path) : undefined;
+    await applyConfigImport(parsed);
+    reportConfigImport(parsed, pluginResult);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  }
+}
+async function importConfig(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const parsed = parseConfigImport(
+      JSON.parse(await file.text()) as unknown,
+      t("settings.data.importInvalid")
+    );
+    if (parsed.includesSecrets && !(await confirmSecretImport())) return;
+    await applyConfigImport(parsed);
+    reportConfigImport(parsed);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  } finally {
+    input.value = "";
+  }
+}
+function reportConfigImport(parsed: ParsedConfigImport, pluginResult?: PluginDataImportResult) {
+  if (Object.keys(parsed.values).length) ElMessage.success(t("settings.data.imported"));
+  if (pluginResult?.imported.length) {
+    ElMessage.success(
+      pluginResult.notInstalled.length
+        ? t("settings.data.pluginDataImportedPartly", {
+            count: pluginResult.imported.length,
+            missing: pluginResult.notInstalled.length,
+          })
+        : t("settings.data.pluginDataImported", { count: pluginResult.imported.length })
+    );
+  }
+  if (parsed.skippedKeys.length) {
+    ElMessage.warning(t("settings.data.importSkipped", { count: parsed.skippedKeys.length }));
+  }
+}
+async function clearAiHistory() {
+  try {
+    await ElMessageBox.confirm(
+      t("settings.data.aiHistoryClearConfirm"),
+      t("settings.data.aiHistory"),
+      { type: "warning" }
+    );
+    await aiAssistant.clearConversationHistory();
+    ElMessage.success(t("settings.data.cleared"));
+  } catch (error) {
+    if (error === "cancel" || error === "close") return;
+    const message = error instanceof Error && error.message === "ai_conversation_running"
+      ? t("settings.data.aiHistoryRunning")
+      : error instanceof Error ? error.message : String(error);
+    ElMessage.error(message);
+  }
+}
+
+onMounted(() => void ensureHydrated());
+onBeforeUnmount(() => {
+  mcpSearchController?.abort();
+  skillSearchController?.abort();
+  ++proRequestRevision;
+  clearQuotaExpiryTimer();
+  if (persistTimer) persist();
+});
+</script>
+
+<template>
+  <el-dialog
+    :model-value="modelValue"
+    class="settings-dialog"
+    :width="fullscreen ? '100%' : 'min(826px, calc(100vw - 48px))'"
+    :fullscreen="fullscreen"
+    append-to-body
+    :show-close="false"
+    :close-on-click-modal="true"
+    :destroy-on-close="false"
+    @update:model-value="emit('update:modelValue', $event)"
+  >
+    <template #header>
+      <header class="settings-dialog__header">
+        <div class="settings-dialog__brand">
+          <span class="settings-dialog__logo"><img :src="MinCodeMark" alt="" /></span>
+          <h2>{{ t("settings.title") }}</h2>
+        </div>
+        <div class="settings-dialog__header-actions">
+          <el-button
+            text
+            native-type="button"
+            class="settings-dialog__fullscreen"
+            :icon="fullscreen ? ScaleToOriginal : FullScreen"
+            :aria-label="t(fullscreen ? 'settings.exitFullscreen' : 'settings.enterFullscreen')"
+            :title="t(fullscreen ? 'settings.exitFullscreen' : 'settings.enterFullscreen')"
+            :aria-pressed="fullscreen"
+            @click="fullscreen = !fullscreen"
+          />
+          <el-button
+            text
+            native-type="button"
+            class="settings-dialog__close"
+            :icon="Close"
+            :aria-label="t('common.close')"
+            @click="close"
+          />
+        </div>
+      </header>
+    </template>
+
+    <div class="settings-dialog__shell">
+      <SettingsNavigation
+        :model-value="active"
+        :items="categories"
+        @update:model-value="selectCategory($event as Category)"
+        @reset="resetDefaults"
+      />
+
+      <el-scrollbar class="settings-dialog__content">
+        <main class="settings-dialog__content-inner">
+        <GeneralSettingsPanel
+          v-if="active === 'general'"
+          :settings="settings"
+          :locale="locale"
+          :sidebar-visibility="sidebarVisibility"
+          :workspace-state-isolation-enabled="workspaceStatePreferences.isolationEnabled"
+          @change="Object.assign(settings, $event)"
+          @change-locale="setLocale"
+          @change-sidebar-visibility="updateSidebarVisibility"
+          @change-workspace-state-isolation="updateWorkspaceStateIsolation"
+        />
+
+        <TerminalSettingsPanel
+          v-else-if="active === 'terminal'"
+          :settings="settings"
+          @change="Object.assign(settings, $event)"
+        />
+
+        <ExternalMcpPanel v-else-if="active === 'external-mcp'" />
+
+        <PluginSettingsPanel
+          v-else-if="active === 'plugins'"
+          :initial-plugin-id="pluginSettingsTarget"
+          :active="modelValue"
+          @navigate="close()"
+        />
+
+        <KeybindingSettingsPanel
+          v-else-if="active === 'shortcuts'"
+          :global-shortcut-enabled="settings.globalShortcutEnabled"
+          @navigate="close()"
+        />
+
+        <section v-else-if="active === 'ai'" class="settings-flat-page settings-ai-page">
+          <el-segmented
+            v-model="aiTab"
+            class="settings-ai-tabs"
+            :options="aiTabs.map((item) => ({ label: t(item.label), value: item.id }))"
+          />
+
+          <div v-if="aiTab === 'connection' && activeProfile" class="settings-ai-panel">
+            <section class="settings-ai-card settings-ai-interface-card">
+              <strong>{{ t("settings.ai.interface") }}</strong>
+              <div class="settings-ai-interface-row">
+                <span class="app-inline-label"
+                  >{{ t("settings.ai.conversationScope")
+                  }}<AppHintIcon :text="t('settings.ai.conversationScopeHint')"
+                /></span>
+                <el-segmented
+                  class="settings-ai-scope-tabs"
+                  :model-value="aiConversationPreferences.scopeMode"
+                  :options="[
+                    { label: t('settings.ai.conversationScopeWorkspace'), value: 'workspace' },
+                    { label: t('settings.ai.conversationScopeGlobal'), value: 'global' },
+                  ]"
+                  :aria-label="t('settings.ai.conversationScope')"
+                  @update:model-value="setAiConversationScopeMode($event as AiConversationScopeMode)"
+                />
+              </div>
+              <div class="settings-ai-interface-row">
+                <span class="app-inline-label"
+                  >{{ t("settings.ai.placement")
+                  }}<AppHintIcon :text="t('settings.ai.placementHint')"
+                /></span>
+                <el-segmented
+                  class="settings-ai-scope-tabs"
+                  :model-value="aiAssistant.placement"
+                  :options="[
+                    { label: t('settings.ai.placementDrawer'), value: 'drawer' },
+                    { label: t('settings.ai.placementTab'), value: 'tab' },
+                  ]"
+                  :aria-label="t('settings.ai.placement')"
+                  @update:model-value="aiAssistant.setPlacement($event as AiAssistantPlacement)"
+                />
+              </div>
+              <div v-if="aiAssistant.placement === 'tab'" class="settings-ai-interface-row">
+                <span class="app-inline-label"
+                  >{{ t("settings.ai.sidebarPosition")
+                  }}<AppHintIcon :text="t('settings.ai.sidebarPositionHint')"
+                /></span>
+                <AiConversationSidebarPosition />
+              </div>
+            </section>
+            <!-- 左侧档案列表、右侧当前档案的连接表单；窄窗口上下排列。 -->
+            <div class="settings-ai-profile-layout">
+              <aside class="settings-ai-card settings-ai-profiles">
+                <header class="settings-ai-profiles__header">
+                  <div>
+                    <span class="app-inline-label">
+                      <strong>{{ t("settings.ai.profile") }}</strong>
+                      <AppHintIcon :text="t('settings.ai.profileOriginalHint')" />
+                    </span>
+                    <small>{{ t("settings.ai.profileHint") }}</small>
+                  </div>
+                  <el-button size="small" :icon="Plus" @click="addAiProfile">
+                    {{ t("settings.ai.createProfile") }}
+                  </el-button>
+                </header>
+                <div
+                  class="settings-ai-card-grid"
+                  role="radiogroup"
+                  :aria-label="t('settings.ai.profile')"
+                >
+                  <article
+                    v-for="profile in settings.aiProfiles"
+                    :key="profile.id"
+                    class="settings-ai-entry-card settings-ai-entry-card--selectable settings-ai-entry-card--compact"
+                    :class="{ 'is-active': profile.id === settings.activeAiProfileId }"
+                    role="radio"
+                    :aria-checked="profile.id === settings.activeAiProfileId"
+                    tabindex="0"
+                    @click="selectAiProfile(profile.id)"
+                    @keydown.enter.prevent="selectAiProfile(profile.id)"
+                    @keydown.space.prevent="selectAiProfile(profile.id)"
+                  >
+                    <header class="settings-ai-entry-card__head">
+                      <span
+                        class="settings-ai-entry-card__avatar"
+                        :data-tone="entryAvatarTone(profile.name)"
+                        aria-hidden="true"
+                        >{{ entryAvatarInitial(profile.name) }}</span
+                      >
+                      <div class="settings-ai-entry-card__title">
+                        <strong :title="profile.name"
+                          ><span>{{ profile.name }}</span
+                          ><el-icon
+                            v-if="profile.id === settings.activeAiProfileId"
+                            class="settings-ai-entry-card__check"
+                            aria-hidden="true"
+                            ><Check /></el-icon
+                        ></strong>
+                        <small :title="profileCompactSubtitle(profile)">{{
+                          profileCompactSubtitle(profile)
+                        }}</small>
+                      </div>
+                      <div class="settings-ai-entry-card__actions" @click.stop @keydown.stop>
+                        <el-button
+                          text
+                          size="small"
+                          :icon="CopyDocument"
+                          :title="t('settings.ai.duplicateProfile')"
+                          :aria-label="t('settings.ai.duplicateProfile')"
+                          @click="duplicateAiProfile(profile)"
+                        />
+                        <el-popconfirm
+                          :title="t('settings.ai.deleteProfile')"
+                          @confirm="deleteAiProfile(profile)"
+                        >
+                          <template #reference>
+                            <el-button
+                              text
+                              size="small"
+                              :icon="Delete"
+                              :disabled="settings.aiProfiles.length <= 1"
+                              :title="t('settings.ai.deleteProfile')"
+                              :aria-label="t('settings.ai.deleteProfile')"
+                              @click.stop
+                            />
+                          </template>
+                        </el-popconfirm>
+                      </div>
+                    </header>
+                  </article>
+                </div>
+              </aside>
+              <div class="settings-ai-profile-detail">
+                <section class="settings-ai-card settings-ai-form-card">
+                  <div class="settings-ai-field-row"
+                    ><span>{{ t("settings.ai.profileName") }}</span
+                    ><el-input
+                      v-model="activeProfile.name"
+                      :placeholder="t('settings.ai.profileNamePlaceholder')"
+                  /></div>
+                  <div class="settings-ai-field-row"
+                    ><span>{{ t("settings.ai.provider") }}</span
+                    ><el-select :model-value="providerSelection" filterable @update:model-value="selectProvider"
+                      ><el-option
+                        v-for="option in providerOptions"
+                        :key="option.value"
+                        :value="option.value"
+                        :label="providerOptionLabel(option)"
+                        :disabled="option.kind === 'orphan'"
+                        ><span v-if="option.provider" class="settings-ai-provider-option"
+                          ><span class="settings-ai-provider-option__name">{{ providerOptionLabel(option) }}</span
+                          ><el-tag
+                            size="small"
+                            :type="option.provider.tier === 'free' ? 'success' : 'warning'"
+                            disable-transitions
+                            >{{ t(`settings.ai.pluginProvider.tier.${option.provider.tier}`) }}</el-tag
+                          ><small>{{ option.provider.pluginName }} · {{ option.provider.host }}</small></span
+                        ><template v-else>{{ providerOptionLabel(option) }}</template></el-option
+                      ></el-select
+                  ></div>
+                  <div class="settings-ai-field-row settings-ai-protocol-field">
+                    <span class="settings-ai-field-label app-inline-label">
+                      <b>{{ t("settings.ai.apiFormat") }}</b>
+                      <AppHintIcon :text="t('settings.ai.apiFormatHint')" />
+                    </span>
+                    <el-select v-model="activeProfile.apiFormat">
+                      <el-option
+                        v-for="format in aiApiFormatOptions"
+                        :key="format.value"
+                        :value="format.value"
+                        :label="t(format.label)"
+                      />
+                    </el-select>
+                  </div>
+                  <div v-if="activeProfile.apiFormat === 'anthropic'" class="settings-ai-field-row settings-ai-protocol-field">
+                    <span class="settings-ai-field-label app-inline-label">
+                      <b>{{ t("settings.ai.anthropicAuth") }}</b>
+                      <AppHintIcon :text="t('settings.ai.anthropicAuthHint')" />
+                    </span>
+                    <el-radio-group v-model="activeProfile.anthropicAuth">
+                      <el-radio-button value="x-api-key">x-api-key</el-radio-button>
+                      <el-radio-button value="bearer">Bearer</el-radio-button>
+                    </el-radio-group>
+                  </div>
+                  <div v-if="activeProfile.apiFormat === 'openai'" class="settings-ai-field-row settings-ai-protocol-field">
+                    <span class="settings-ai-field-label app-inline-label">
+                      <b>{{ t("settings.ai.streamUsage") }}</b>
+                      <AppHintIcon :text="t('settings.ai.streamUsageHint')" />
+                    </span>
+                    <el-select v-model="activeProfile.openaiStreamUsage">
+                      <el-option value="auto" :label="t('settings.ai.streamUsage.auto')" />
+                      <el-option value="always" :label="t('settings.ai.streamUsage.always')" />
+                      <el-option value="never" :label="t('settings.ai.streamUsage.never')" />
+                    </el-select>
+                  </div>
+                  <div class="settings-ai-field-row"
+                    ><span>Base URL</span
+                    ><el-input v-model="activeProfile.baseUrl" placeholder="https://api.openai.com/v1"
+                  /></div>
+                  <div
+                    v-for="name in unresolvedPlaceholders"
+                    :key="name"
+                    class="settings-ai-field-row settings-ai-protocol-field"
+                  >
+                    <span class="settings-ai-field-label">
+                      <b>{{ placeholderLabel(name) }}</b>
+                      <small>{{ t("settings.ai.pluginProvider.placeholderHint", { name }) }}</small>
+                    </span>
+                    <el-input
+                      v-model="placeholderDrafts[name]"
+                      :aria-label="placeholderLabel(name)"
+                      @change="applyPlaceholder(name)"
+                    ><template #append
+                      ><el-button @click="applyPlaceholder(name)">{{ t("settings.ai.pluginProvider.placeholderApply") }}</el-button></template
+                    ></el-input>
+                  </div>
+                  <div class="settings-ai-field-row"
+                    ><span>API Key</span
+                    ><el-input v-model="activeProfile.apiKey" show-password placeholder="sk-..."
+                  /></div>
+                  <el-alert
+                    v-if="browserLocalMode"
+                    class="settings-ai-browser-note"
+                    type="info"
+                    :closable="false"
+                    show-icon
+                    :title="t('settings.ai.browserKeyNote')"
+                  />
+                  <div v-if="activePluginProvider && pluginProviderNotes" class="settings-ai-field-row settings-ai-protocol-field">
+                    <span>{{ t("settings.ai.pluginProvider.about") }}</span>
+                    <div class="settings-ai-plugin-provider">
+                      <p>{{ t("settings.ai.pluginProvider.source", { plugin: activePluginProvider.pluginName, host: activePluginProvider.host }) }}</p>
+                      <p v-if="pluginProviderNotes.quota">{{ pluginProviderNotes.quota }}</p>
+                      <el-alert
+                        v-if="pluginProviderNotes.caveat"
+                        type="warning"
+                        :closable="false"
+                        show-icon
+                        :title="pluginProviderNotes.caveat"
+                      />
+                      <p v-if="activePluginProvider.region !== 'cn'">
+                        {{ t(`settings.ai.pluginProvider.region.${activePluginProvider.region}`) }}
+                      </p>
+                      <div class="settings-ai-plugin-provider__footer">
+                        <el-button size="small" :icon="TopRight" @click="openDocumentation(activePluginProvider.signupUrl)">{{
+                          t("settings.ai.pluginProvider.signup")
+                        }}</el-button>
+                        <small>{{ t("settings.ai.pluginProvider.verifiedAt", { date: pluginProviderNotes.verifiedMonth }) }}</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else-if="activeProfile.provider === 'plugin'" class="settings-ai-field-row settings-ai-protocol-field">
+                    <span>{{ t("settings.ai.pluginProvider.about") }}</span>
+                    <p class="settings-ai-plugin-provider">{{ t("settings.ai.pluginProvider.unavailable") }}</p>
+                  </div>
+                  <div class="settings-ai-field-row settings-ai-model-field"
+                    ><span class="settings-ai-field-heading"
+                      ><b>{{ t("settings.ai.model") }}</b
+                      ><el-button
+                        text
+                        :icon="Refresh"
+                        :loading="fetchingModels"
+                        :disabled="fetchingModels"
+                        @click="fetchAvailableModels"
+                        >{{ t("settings.ai.fetchModels") }}</el-button
+                      ></span
+                    ><el-select v-model="activeProfile.model" filterable allow-create
+                      ><el-option
+                        v-for="model in activeProfile.commonModels"
+                        :key="model"
+                        :value="model"
+                        :label="modelOptionLabel(model)" /></el-select
+                  ></div>
+                  <div class="settings-ai-field-row">
+                    <span class="settings-ai-field-label app-inline-label">
+                      <b>{{ t("settings.ai.reasoning") }}</b>
+                      <AppHintIcon :text="t('settings.ai.reasoningHint')" />
+                    </span>
+                    <el-select v-model="activeProfile.reasoningEffort">
+                      <el-option value="default" :label="t('settings.ai.reasoningDefault')" />
+                      <el-option
+                        v-for="option in reasoningEffortOptions"
+                        :key="option.value"
+                        :value="option.value"
+                        :label="option.label"
+                      />
+                    </el-select>
+                  </div>
+                </section>
+
+                <div class="settings-ai-advanced-toggle">
+                  <el-button
+                    text
+                    :icon="aiAdvanced ? ArrowDown : ArrowRight"
+                    :aria-expanded="aiAdvanced"
+                    @click="aiAdvanced = !aiAdvanced"
+                    >{{ t("settings.ai.advanced") }}</el-button
+                  >
+                  <small>{{ t("settings.ai.advancedHint") }}</small>
+                </div>
+                <template v-if="aiAdvanced">
+                  <section class="settings-ai-card settings-ai-form-card">
+                    <div class="settings-ai-field-row">
+                      <span class="settings-ai-field-label app-inline-label">
+                        <b>{{ t("settings.ai.subagentModel") }}</b>
+                        <AppHintIcon :text="t('settings.ai.subagentModelHint')" />
+                      </span>
+                      <el-select
+                        v-model="activeProfile.subagentModel"
+                        clearable
+                        filterable
+                        :placeholder="t('settings.ai.subagentModelInherit')"
+                      >
+                        <el-option
+                          v-for="model in configuredProfileModels(activeProfile)"
+                          :key="model"
+                          :value="model"
+                          :label="model"
+                        />
+                      </el-select>
+                    </div>
+                    <div class="settings-ai-field-row">
+                      <span class="settings-ai-field-label app-inline-label">
+                        <b>{{ t("settings.ai.maxLoops") }}</b>
+                        <AppHintIcon :text="t('settings.ai.maxLoopsHint')" />
+                      </span>
+                      <el-input-number
+                        v-model="settings.aiMaxLoops"
+                        :min="MIN_AI_MAX_LOOPS"
+                        :max="MAX_AI_MAX_LOOPS"
+                        :step="10"
+                        :controls="false"
+                      />
+                    </div>
+                  </section>
+                  <section class="settings-ai-card settings-ai-common-models">
+                    <header>
+                      <span class="app-inline-label">
+                        <strong>{{ t("settings.ai.commonModels") }}</strong>
+                        <AppHintIcon :text="t('settings.ai.commonModelsHint')" />
+                      </span>
+                    </header>
+                    <div class="settings-ai-model-tags">
+                      <span v-for="model in activeProfile.commonModels" :key="model"
+                        >{{ model
+      }}<button
+                          type="button"
+                          class="settings-ai-model-tag-close"
+                          :aria-label="t('common.delete')"
+                          @click="removeCommonModel(model)"
+                        >
+                          <el-icon><Close /></el-icon>
+                        </button></span
+                      >
+                    </div>
+                    <div class="settings-ai-add-model">
+                      <el-select
+                        :model-value="''"
+                        :placeholder="t('settings.ai.addFromList')"
+                        @change="addCommonModel"
+                        ><el-option
+                          v-for="model in addableCommonModels"
+                          :key="model"
+                          :value="model"
+                          :label="model" /></el-select
+                      ><el-input
+                        v-model="manualModel"
+                        :placeholder="t('settings.ai.manualModel')"
+                        @keyup.enter="addCommonModel()"
+                        ><template #append><el-button :icon="Plus" @click="addCommonModel()" /></template
+                      ></el-input>
+                    </div>
+                  </section>
+
+                  <section class="settings-ai-card settings-ai-failover-card">
+                    <header>
+                      <div>
+                        <span class="app-inline-label">
+                          <strong>{{ t("settings.ai.failoverEnabled") }}</strong>
+                          <AppHintIcon :text="t('settings.ai.failoverEnabledHint')" />
+                        </span>
+                      </div>
+                      <el-switch
+                        v-model="activeProfile.failoverEnabled"
+                        :disabled="fallbackModelOptions(activeProfile).length < 2"
+                        :aria-label="t('settings.ai.failoverEnabled')"
+                      />
+                    </header>
+                    <div class="settings-ai-failover-row">
+                      <span>{{ t("settings.ai.failoverModels") }}</span>
+                      <el-select
+                        v-model="activeProfile.failoverModels"
+                        multiple
+                        filterable
+                        clearable
+                        :disabled="!activeProfile.failoverEnabled || fallbackModelOptions(activeProfile).length < 2"
+                        :placeholder="t('settings.ai.failoverModelsHint')"
+                      >
+                        <el-option
+                          v-for="model in fallbackModelOptions(activeProfile)"
+                          :key="model"
+                          :value="model"
+                          :label="model"
+                        />
+                      </el-select>
+                    </div>
+                    <small v-if="fallbackModelOptions(activeProfile).length < 2" class="settings-ai-failover-card__notice">
+                      {{ t("settings.ai.failoverNeedModels") }}
+                    </small>
+                  </section>
+
+                  <section class="settings-ai-card settings-ai-token-card">
+                    <header>
+                      <span class="app-inline-label">
+                        <strong>{{ t("settings.ai.tokenLimits") }}</strong>
+                        <AppHintIcon :text="t('settings.ai.tokenLimitsHint')" />
+                      </span>
+                    </header>
+                    <div class="settings-ai-token-grid">
+                      <div class="settings-ai-token-field">
+                        <span class="app-inline-label"
+                          >{{ t("settings.ai.contextWindow")
+                          }}<AppHintIcon :text="t('settings.ai.contextWindowHint')" /></span
+                        >
+                        <el-input-number
+                          v-model="activeProfile.contextWindow"
+                          :min="1024"
+                          :max="10000000"
+                          :step="1024"
+                          :controls="false"
+                        />
+                      </div>
+                      <div class="settings-ai-token-field">
+                        <span class="app-inline-label"
+                          >{{ t("settings.ai.maxInputTokens")
+                          }}<AppHintIcon :text="t('settings.ai.maxInputTokensHint')" /></span
+                        >
+                        <el-input-number
+                          v-model="activeProfile.maxInputTokens"
+                          :min="1024"
+                          :max="10000000"
+                          :step="1024"
+                          :controls="false"
+                        />
+                      </div>
+                      <div class="settings-ai-token-field">
+                        <span class="app-inline-label"
+                          >{{ t("settings.ai.maxOutputTokens")
+                          }}<AppHintIcon :text="t('settings.ai.maxOutputTokensHint')" /></span
+                        >
+                        <el-input-number
+                          v-model="activeProfile.maxOutputTokens"
+                          :min="1"
+                          :max="1000000"
+                          :step="1024"
+                          :controls="false"
+                        />
+                      </div>
+                    </div>
+                  </section>
+                </template>
+                <div class="settings-ai-save">
+                  <el-button
+                    :loading="testingAiConnection"
+                    :disabled="testingAiConnection"
+                    @click="testActiveAiConnection"
+                  >{{ t("settings.ai.test") }}</el-button>
+                  <el-button type="primary" @click="saveAiSettings">{{ t("common.save") }}</el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="aiTab === 'permissions'" class="settings-ai-panel">
+            <section class="settings-ai-card settings-ai-permissions-intro">
+              <div>
+                <strong>{{ t("settings.ai.permissionsTitle") }}</strong>
+                <small>{{ t("settings.ai.permissionsHint") }}</small>
+              </div>
+              <el-tag effect="plain" type="warning">{{ t("settings.ai.dangerousAlwaysAsk") }}</el-tag>
+            </section>
+
+            <el-radio-group
+              v-model="approvalMode"
+              class="settings-ai-approval-modes"
+              :disabled="approvalSaving"
+              @change="updateApprovalMode"
+            >
+              <el-radio value="ask" class="settings-ai-approval-mode">
+                <span class="settings-ai-approval-mode__icon"><Lock /></span>
+                <span class="settings-ai-approval-mode__content">
+                  <strong>{{ t("ai.approvalMode.ask") }}</strong>
+                  <small>{{ t("ai.approvalMode.askHint") }}</small>
+                  <em>{{ t("settings.ai.permissionsAskDetail") }}</em>
+                </span>
+              </el-radio>
+              <el-radio value="agent" class="settings-ai-approval-mode">
+                <span class="settings-ai-approval-mode__icon"><CircleCheck /></span>
+                <span class="settings-ai-approval-mode__content">
+                  <strong>{{ t("ai.approvalMode.agent") }}</strong>
+                  <small>{{ t("ai.approvalMode.agentHint") }}</small>
+                  <em>{{ t("settings.ai.permissionsAgentDetail") }}</em>
+                </span>
+              </el-radio>
+              <el-radio value="full-access" class="settings-ai-approval-mode is-danger">
+                <span class="settings-ai-approval-mode__icon"><Warning /></span>
+                <span class="settings-ai-approval-mode__content">
+                  <strong>{{ t("ai.approvalMode.fullAccess") }}</strong>
+                  <small>{{ t("ai.approvalMode.fullAccessHint") }}</small>
+                  <em>{{ t("settings.ai.permissionsFullDetail") }}</em>
+                </span>
+              </el-radio>
+              <el-radio value="plan" class="settings-ai-approval-mode">
+                <span class="settings-ai-approval-mode__icon"><Reading /></span>
+                <span class="settings-ai-approval-mode__content">
+                  <strong>{{ t("ai.approvalMode.plan") }}</strong>
+                  <small>{{ t("ai.approvalMode.planHint") }}</small>
+                </span>
+              </el-radio>
+            </el-radio-group>
+
+            <section class="settings-ai-card settings-ai-authorizations">
+              <header class="settings-ai-authorizations__header">
+                <div>
+                  <strong>{{ t("settings.ai.globalAuthorizations") }}</strong>
+                  <small>{{ t("settings.ai.globalAuthorizationsHint") }}</small>
+                </div>
+                <el-popconfirm
+                  v-if="globalToolAuthorizations.length"
+                  :title="t('settings.ai.clearAuthorizationsConfirm')"
+                  @confirm="clearAllGlobalAuthorizations"
+                >
+                  <template #reference>
+                    <el-button
+                      size="small"
+                      :disabled="authorizationUpdating"
+                    >{{ t("settings.ai.clearAuthorizations") }}</el-button>
+                  </template>
+                </el-popconfirm>
+              </header>
+              <el-empty
+                v-if="!globalToolAuthorizations.length"
+                :image-size="48"
+                :description="t('settings.ai.noGlobalAuthorizations')"
+              />
+              <div v-else class="settings-ai-card-grid">
+                <article
+                  v-for="authorization in globalToolAuthorizations"
+                  :key="authorizationKey(authorization)"
+                  class="settings-ai-entry-card"
+                >
+                  <header class="settings-ai-entry-card__head">
+                    <span
+                      class="settings-ai-entry-card__avatar"
+                      :data-tone="entryAvatarTone(authorization.toolName)"
+                      aria-hidden="true"
+                      >{{ entryAvatarInitial(authorization.toolName) }}</span
+                    >
+                    <div class="settings-ai-entry-card__title">
+                      <strong :title="authorization.toolName">{{ authorization.toolName }}</strong>
+                      <small :title="authorization.resourceId">{{ authorization.resourceId }}</small>
+                    </div>
+                  </header>
+                  <p class="settings-ai-entry-card__desc">
+                    <code>{{ authorization.parameterFingerprint.slice(0, 12) }}</code>
+                  </p>
+                  <footer class="settings-ai-entry-card__foot">
+                    <span
+                      class="settings-ai-entry-card__chip"
+                      :data-tone="authorizationRiskTone(authorization.risk)"
+                      >{{ authorizationRiskLabel(authorization.risk) }}</span
+                    >
+                    <div class="settings-ai-entry-card__actions">
+                      <el-popconfirm
+                        :title="t('settings.ai.revokeAuthorizationConfirm')"
+                        @confirm="removeGlobalAuthorization(authorization)"
+                      >
+                        <template #reference>
+                          <el-button
+                            text
+                            :icon="Delete"
+                            :disabled="authorizationUpdating"
+                            :title="t('settings.ai.revokeAuthorization')"
+                            :aria-label="t('settings.ai.revokeAuthorization')"
+                          />
+                        </template>
+                      </el-popconfirm>
+                    </div>
+                  </footer>
+                </article>
+              </div>
+            </section>
+          </div>
+
+          <div v-else-if="aiTab === 'mcp'" class="settings-ai-panel">
+            <el-segmented
+              v-model="mcpSubTab"
+              class="settings-ai-scope-tabs"
+              :options="installedSubTabOptions"
+              :aria-label="t('settings.mcp.capability')"
+            />
+            <template v-if="mcpSubTab === 'installed'">
+              <section class="settings-ai-installed">
+                <div class="settings-ai-installed__title">
+                  <strong>{{ t("settings.mcp.installed") }}</strong>
+                  <div class="settings-ai-installed__tools">
+                    <el-button
+                      text
+                      size="small"
+                      :icon="EditPen"
+                      @click="openMcpJsonEditor"
+                      >{{ t("settings.mcp.editJson") }}</el-button
+                    >
+                    <span>{{ settings.mcpServers.length }}</span>
+                  </div>
+                </div>
+                <div v-if="!settings.mcpServers.length" class="settings-ai-empty">
+                  {{ t("settings.mcp.installedEmpty") }}
+                </div>
+                <div v-else class="settings-ai-card-grid">
+                  <article
+                    v-for="server in settings.mcpServers"
+                    :key="server.id"
+                    class="settings-ai-entry-card"
+                  >
+                    <header class="settings-ai-entry-card__head">
+                      <span
+                        class="settings-ai-entry-card__avatar"
+                        :data-tone="entryAvatarTone(server.id)"
+                        aria-hidden="true"
+                        >{{ entryAvatarInitial(server.id) }}</span
+                      >
+                      <div class="settings-ai-entry-card__title">
+                        <strong :title="server.id">{{ server.id }}</strong>
+                        <small :title="server.transport === 'http' ? server.url : server.command">{{
+                          server.transport === "http" ? server.url : server.command
+                        }}</small>
+                      </div>
+                      <el-switch v-model="server.enabled" size="small" />
+                    </header>
+                    <p class="settings-ai-entry-card__status">
+                      <i :class="{ 'is-online': mcpStatus(server.id)?.state === 'connected' }" />
+                      <span>{{ mcpStatusText(server) }}</span>
+                    </p>
+                    <McpServerAuthControls
+                      v-if="showMcpAuth(server)"
+                      :server="server"
+                      :auth-required="mcpNeedsSignIn(server)"
+                      @signed-in="onMcpSignedIn(server)"
+                      @signed-out="onMcpSignedOut(server)"
+                    />
+                    <footer class="settings-ai-entry-card__foot">
+                      <span class="settings-ai-entry-card__chip">{{
+                        server.transport === "http" ? "HTTP" : "stdio"
+                      }}</span>
+                      <div class="settings-ai-entry-card__actions">
+                        <el-button
+                          v-if="server.docsUrl"
+                          text
+                          size="small"
+                          :icon="TopRight"
+                          :title="t('settings.documentation')"
+                          :aria-label="t('settings.documentation')"
+                          @click="openDocumentation(server.docsUrl)"
+                        />
+                        <el-button size="small" @click="connectMcp(server)">{{
+                          t("settings.mcp.connect")
+                        }}</el-button>
+                        <el-button
+                          v-if="mcpStatus(server.id)?.state === 'connected'"
+                          size="small"
+                          @click="disconnectMcp(server)"
+                          >{{ t("settings.mcp.disconnect") }}</el-button
+                        >
+                        <el-button
+                          text
+                          :icon="Delete"
+                          :title="t('common.delete')"
+                          :aria-label="t('common.delete')"
+                          @click="removeMcpServer(server)"
+                        />
+                      </div>
+                    </footer>
+                  </article>
+                </div>
+              </section>
+              <PluginMcpServersSection :statuses="mcpStatuses" @changed="loadProtocolStatus" />
+              <el-button class="settings-ai-advanced-button" @click="mcpAdvanced = !mcpAdvanced">{{
+                t("settings.mcp.advanced")
+              }}</el-button>
+              <section v-if="mcpAdvanced" class="settings-ai-card settings-ai-advanced-form">
+                <div class="settings-ai-two-columns">
+                  <el-input v-model="newMcp.id" :placeholder="t('settings.mcp.serverId')" /><el-select
+                    v-model="newMcp.transport"
+                    ><el-option value="stdio" label="stdio" /><el-option value="http" label="HTTP"
+                  /></el-select>
+                </div>
+                <el-input
+                  v-if="newMcp.transport === 'stdio'"
+                  v-model="newMcp.command"
+                  :placeholder="t('settings.mcp.command')"
+                /><el-input v-else v-model="newMcp.url" placeholder="https://" />
+                <el-input
+                  v-model="newMcp.docsUrl"
+                  :placeholder="t('settings.documentationUrlPlaceholder')"
+                />
+                <div class="settings-ai-add-row">
+                  <el-input v-model="newMcp.args" :placeholder="t('settings.mcp.args')" /><el-button
+                    type="primary"
+                    :icon="Plus"
+                    @click="addMcpServer"
+                    >{{ t("common.add") }}</el-button
+                  >
+                </div>
+              </section>
+            </template>
+            <template v-else>
+              <AiMarketDiscoverBanner @navigate="close()" />
+              <section class="settings-ai-card settings-ai-intro-card">
+                <div>
+                  <span class="app-inline-label">
+                    <strong>{{ t("settings.mcp.capability") }}</strong>
+                    <AppHintIcon :text="t('settings.mcp.capabilityHint')" />
+                  </span>
+                </div>
+                <div>
+                  <el-button @click="importCursorMcp">{{ t("settings.mcp.readCursor") }}</el-button
+                  ><el-button @click="importMcpFile">{{ t("settings.mcp.chooseJson") }}</el-button>
+                </div>
+              </section>
+            <section class="settings-ai-card settings-ai-search-card">
+              <header>
+                <span class="app-inline-label">
+                  <strong>{{ t("settings.mcp.searchInstall") }}</strong>
+                  <AppHintIcon :text="t('settings.mcp.searchInstallHint')" />
+                </span>
+              </header>
+              <div class="settings-ai-search-line">
+                <el-input
+                  v-model="mcpSearch"
+                  :placeholder="t('settings.mcp.searchPlaceholder')"
+                  @keyup.enter="searchMcpServers"
+                /><el-button type="primary" :loading="mcpSearching" @click="searchMcpServers">{{
+                  t("common.search")
+                }}</el-button>
+              </div>
+              <div v-if="mcpSearchResults.length" class="settings-ai-card-grid">
+                <article
+                  v-for="entry in mcpSearchResults"
+                  :key="entry.id"
+                  class="settings-ai-entry-card"
+                >
+                  <header class="settings-ai-entry-card__head">
+                    <span
+                      class="settings-ai-entry-card__avatar"
+                      :data-tone="entryAvatarTone(entry.name)"
+                      aria-hidden="true"
+                      >{{ entryAvatarInitial(entry.name) }}</span
+                    >
+                    <div class="settings-ai-entry-card__title">
+                      <strong :title="entry.name">{{ entry.name }}</strong>
+                      <small :title="entry.id">{{ entry.id }}</small>
+                    </div>
+                  </header>
+                  <p class="settings-ai-entry-card__desc">{{ entry.description }}</p>
+                  <footer class="settings-ai-entry-card__foot">
+                    <span class="settings-ai-entry-card__chip">{{
+                      registrySourceText(entry)
+                    }}</span>
+                    <div class="settings-ai-entry-card__actions">
+                      <el-button
+                        v-if="entry.docsUrl"
+                        text
+                        size="small"
+                        :icon="TopRight"
+                        :title="t('settings.documentation')"
+                        :aria-label="t('settings.documentation')"
+                        @click="openDocumentation(entry.docsUrl)"
+                      />
+                      <el-button
+                        type="primary"
+                        size="small"
+                        :loading="installingMcpId === entry.id"
+                        @click="installMcpEntry(entry)"
+                        >{{ t("common.add") }}</el-button
+                      >
+                    </div>
+                  </footer>
+                </article>
+              </div>
+            </section>
+            <section class="settings-ai-card settings-ai-template-card">
+              <header>
+                <span class="app-inline-label">
+                  <strong>{{ t("settings.mcp.templates") }}</strong>
+                  <AppHintIcon :text="t('settings.mcp.templatesHint')" />
+                </span>
+              </header>
+              <div class="settings-ai-card-grid">
+                <article
+                  v-for="entry in builtinMcpTemplates"
+                  :key="entry.id"
+                  class="settings-ai-entry-card"
+                >
+                  <header class="settings-ai-entry-card__head">
+                    <span
+                      class="settings-ai-entry-card__avatar"
+                      :data-tone="entryAvatarTone(entry.name)"
+                      aria-hidden="true"
+                      >{{ entryAvatarInitial(entry.name) }}</span
+                    >
+                    <div class="settings-ai-entry-card__title">
+                      <strong :title="entry.name">{{ entry.name }}</strong>
+                      <small :title="entry.id">{{ entry.id }}</small>
+                    </div>
+                  </header>
+                  <p class="settings-ai-entry-card__desc">{{ entry.description }}</p>
+                  <footer class="settings-ai-entry-card__foot">
+                    <span class="settings-ai-entry-card__chip">{{
+                      registrySourceText(entry)
+                    }}</span>
+                    <div class="settings-ai-entry-card__actions">
+                      <el-button
+                        v-if="entry.docsUrl"
+                        text
+                        size="small"
+                        :icon="TopRight"
+                        :title="t('settings.documentation')"
+                        :aria-label="t('settings.documentation')"
+                        @click="openDocumentation(entry.docsUrl)"
+                      />
+                      <el-button
+                        type="primary"
+                        size="small"
+                        :loading="installingMcpId === entry.id"
+                        @click="installMcpEntry(entry)"
+                        >{{ t("common.add") }}</el-button
+                      >
+                    </div>
+                  </footer>
+                </article>
+              </div>
+            </section>
+            </template>
+          </div>
+
+          <div v-else-if="aiTab === 'skills'" class="settings-ai-panel">
+            <el-segmented
+              v-model="skillSubTab"
+              class="settings-ai-scope-tabs"
+              :options="installedSubTabOptions"
+              :aria-label="t('settings.ai.skills')"
+            />
+            <template v-if="skillSubTab === 'installed'">
+              <section class="settings-ai-installed">
+                <div class="settings-ai-installed__title">
+                  <strong>{{ t("settings.skills.installed") }}</strong>
+                  <div class="settings-ai-installed__tools">
+                    <el-button text size="small" :icon="Plus" @click="openNewSkillEditor">{{
+                      t("settings.skills.new")
+                    }}</el-button>
+                    <span>{{ settings.aiSkills.length }}</span>
+                  </div>
+                </div>
+                <div v-if="!settings.aiSkills.length" class="settings-ai-empty">
+                  {{ t("settings.skills.empty") }}
+                </div>
+                <div v-else class="settings-ai-card-grid">
+                  <article
+                    v-for="skill in settings.aiSkills"
+                    :key="skill.id"
+                    class="settings-ai-entry-card"
+                  >
+                    <header class="settings-ai-entry-card__head">
+                      <span
+                        class="settings-ai-entry-card__avatar"
+                        :data-tone="entryAvatarTone(skill.name)"
+                        aria-hidden="true"
+                        >{{ entryAvatarInitial(skill.name) }}</span
+                      >
+                      <div class="settings-ai-entry-card__title">
+                        <strong :title="skill.name">{{ skill.name }}</strong>
+                        <small :title="skill.sourcePath || 'SKILL.md'">{{
+                          skill.sourcePath || "SKILL.md"
+                        }}</small>
+                      </div>
+                      <el-switch v-model="skill.enabled" size="small" />
+                    </header>
+                    <p class="settings-ai-entry-card__desc">{{
+                      skill.description || t("settings.skills.noDescription")
+                    }}</p>
+                    <footer class="settings-ai-entry-card__foot">
+                      <span class="settings-ai-entry-card__chip">{{
+                        t(SKILL_SOURCE_LABELS[aiSkillSource(skill)])
+                      }}</span>
+                      <div class="settings-ai-entry-card__actions">
+                        <el-button
+                          v-if="skill.docsUrl"
+                          text
+                          size="small"
+                          :icon="TopRight"
+                          :title="t('settings.documentation')"
+                          :aria-label="t('settings.documentation')"
+                          @click="openDocumentation(skill.docsUrl)"
+                        />
+                        <el-button
+                          text
+                          size="small"
+                          :icon="EditPen"
+                          :title="t('settings.skills.edit')"
+                          :aria-label="t('settings.skills.edit')"
+                          @click="openSkillEditor(skill)"
+                        />
+                        <el-button
+                          text
+                          :icon="Delete"
+                          :title="t('common.delete')"
+                          :aria-label="t('common.delete')"
+                          @click="settings.aiSkills.splice(settings.aiSkills.indexOf(skill), 1)"
+                        />
+                      </div>
+                    </footer>
+                  </article>
+                </div>
+              </section>
+              <PluginAiPromptsSection />
+            </template>
+            <template v-else>
+              <AiMarketDiscoverBanner @navigate="close()" />
+              <section class="settings-ai-card settings-ai-skills-import">
+                <p>{{ t("settings.skills.importHint") }}</p>
+                <div>
+                  <el-button @click="importSkill()">{{ t("settings.skills.importFile") }}</el-button
+                  ><el-button @click="importSkill(true)">{{
+                    t("settings.skills.importFolder")
+                  }}</el-button>
+                </div>
+              </section>
+              <div class="settings-ai-search-line">
+                <el-input
+                  v-model="skillSearch"
+                  :placeholder="t('settings.skills.searchPlaceholder')"
+                  @keyup.enter="searchSkills"
+                /><el-button type="primary" :loading="skillSearching" @click="searchSkills">{{
+                  t("common.search")
+                }}</el-button>
+              </div>
+              <div v-if="skillSearchResults.length" class="settings-ai-card-grid">
+                <article
+                  v-for="entry in skillSearchResults"
+                  :key="entry.id"
+                  class="settings-ai-entry-card"
+                >
+                  <header class="settings-ai-entry-card__head">
+                    <span
+                      class="settings-ai-entry-card__avatar"
+                      :data-tone="entryAvatarTone(entry.name)"
+                      aria-hidden="true"
+                      >{{ entryAvatarInitial(entry.name) }}</span
+                    >
+                    <div class="settings-ai-entry-card__title">
+                      <strong :title="entry.name">{{ entry.name }}</strong>
+                      <small :title="entry.id">{{ entry.id }}</small>
+                    </div>
+                  </header>
+                  <p class="settings-ai-entry-card__desc">{{ entry.description }}</p>
+                  <footer class="settings-ai-entry-card__foot">
+                    <span class="settings-ai-entry-card__chip">{{
+                      registrySourceText(entry)
+                    }}</span>
+                    <div class="settings-ai-entry-card__actions">
+                      <el-button
+                        v-if="entry.docsUrl"
+                        text
+                        size="small"
+                        :icon="TopRight"
+                        :title="t('settings.documentation')"
+                        :aria-label="t('settings.documentation')"
+                        @click="openDocumentation(entry.docsUrl)"
+                      />
+                      <el-button
+                        type="primary"
+                        size="small"
+                        :loading="installingSkillId === entry.id"
+                        @click="installSkillEntry(entry)"
+                        >{{ t("common.add") }}</el-button
+                      >
+                    </div>
+                  </footer>
+                </article>
+              </div>
+              <div
+                v-else-if="!skillSearching"
+                class="settings-ai-empty settings-ai-empty--plain"
+              >
+                {{ t("settings.skills.importEmpty") }}
+              </div>
+            </template>
+          </div>
+
+          <div v-else-if="aiTab === 'rules'" class="settings-ai-panel">
+            <p class="settings-ai-description">{{ t("settings.rules.originalHint") }}</p>
+            <div class="settings-ai-rules-filters">
+              <el-segmented
+                v-model="ruleScope"
+                class="settings-ai-scope-tabs"
+                :options="ruleScopeOptions"
+                :aria-label="t('settings.rules.originalHint')"
+              />
+              <el-select
+                v-if="ruleScope === 'workspace'"
+                v-model="ruleWorkspaceId"
+                class="settings-ai-rule-workspace-select"
+                :placeholder="t('settings.rules.selectWorkspace')"
+                :aria-label="t('settings.rules.selectWorkspace')"
+              >
+                <el-option
+                  v-for="workspace in ruleWorkspaceOptions"
+                  :key="workspace.value"
+                  :label="workspace.label"
+                  :value="workspace.value"
+                />
+              </el-select>
+            </div>
+            <section class="settings-ai-rules-area">
+              <div class="settings-ai-rules-toolbar">
+                <strong class="settings-ai-rules-toolbar__title">{{
+                  ruleScope === "global"
+                    ? t("settings.rules.global")
+                    : ruleWorkspaceOptions.find((workspace) => workspace.value === ruleWorkspaceId)?.label
+                      || t("settings.rules.workspace")
+                }}</strong>
+                <el-button type="primary" :icon="Plus" @click="openNewRuleEditor">
+                  {{ t("settings.rules.new") }}
+                </el-button>
+              </div>
+              <div v-if="ruleEditorOpen" class="settings-ai-card settings-ai-rule-editor">
+                <strong class="settings-ai-rule-editor__title">{{
+                  editingRuleId ? t("settings.rules.edit") : t("settings.rules.new")
+                }}</strong>
+                <el-input v-model="ruleDraft.title" :placeholder="t('settings.rules.title')" />
+                <el-input
+                  v-model="ruleDraft.content"
+                  type="textarea"
+                  :rows="6"
+                  :placeholder="t('settings.rules.content')"
+                />
+                <div class="settings-ai-rule-editor__actions">
+                  <el-button @click="closeRuleEditor">{{ t("common.cancel") }}</el-button>
+                  <el-button
+                    type="primary"
+                    :disabled="!ruleDraft.title.trim() || !ruleDraft.content.trim()"
+                    @click="saveRule"
+                  >
+                    {{ t("common.save") }}
+                  </el-button>
+                </div>
+              </div>
+              <div
+                v-if="!visibleAiRules.length && !ruleEditorOpen"
+                class="settings-ai-empty settings-ai-empty--plain"
+              >
+                {{ t("settings.rules.originalEmpty") }}
+              </div>
+              <div v-else-if="visibleAiRules.length" class="settings-ai-card-grid">
+                <article
+                  v-for="rule in visibleAiRules"
+                  :key="rule.id"
+                  class="settings-ai-entry-card"
+                >
+                  <header class="settings-ai-entry-card__head">
+                    <span
+                      class="settings-ai-entry-card__avatar"
+                      :data-tone="entryAvatarTone(rule.title)"
+                      aria-hidden="true"
+                      >{{ entryAvatarInitial(rule.title) }}</span
+                    >
+                    <div class="settings-ai-entry-card__title">
+                      <strong :title="rule.title">{{ rule.title }}</strong>
+                      <small>{{ ruleScopeChipLabel(rule) }}</small>
+                    </div>
+                    <el-switch v-model="rule.enabled" size="small" :aria-label="rule.title" />
+                  </header>
+                  <p class="settings-ai-entry-card__desc">{{ rule.content }}</p>
+                  <footer class="settings-ai-entry-card__foot">
+                    <div class="settings-ai-entry-card__actions">
+                      <el-tooltip :content="t('common.edit')" placement="top">
+                        <el-button
+                          text
+                          :icon="EditPen"
+                          :aria-label="t('common.edit')"
+                          @click="openRuleEditor(rule)"
+                        />
+                      </el-tooltip>
+                      <el-tooltip :content="t('common.delete')" placement="top">
+                        <el-button
+                          text
+                          :icon="Delete"
+                          :aria-label="t('common.delete')"
+                          @click="removeRule(rule)"
+                        />
+                      </el-tooltip>
+                    </div>
+                  </footer>
+                </article>
+              </div>
+            </section>
+          </div>
+
+          <div v-else class="settings-ai-panel">
+            <section class="settings-ai-card settings-ai-agent-card">
+              <header>
+                <span class="app-inline-label">
+                  <strong>{{ t("settings.acp.originalTitle") }}</strong>
+                  <AppHintIcon :text="t('settings.acp.originalHint')" />
+                </span>
+              </header>
+              <div
+                class="settings-ai-card-grid"
+                role="radiogroup"
+                :aria-label="t('settings.acp.originalTitle')"
+              >
+                <article
+                  v-for="agent in ACP_BUILTIN_AGENTS"
+                  :key="agent.id"
+                  class="settings-ai-entry-card settings-ai-entry-card--selectable"
+                  :class="{ 'is-active': settings.acpAdapterId === agent.id }"
+                  role="radio"
+                  :aria-checked="settings.acpAdapterId === agent.id"
+                  tabindex="0"
+                  @click="selectAcpAdapter(agent.id)"
+                  @keydown.enter.prevent="selectAcpAdapter(agent.id)"
+                  @keydown.space.prevent="selectAcpAdapter(agent.id)"
+                >
+                  <header class="settings-ai-entry-card__head">
+                    <span
+                      class="settings-ai-entry-card__avatar"
+                      :data-tone="entryAvatarTone(agent.name)"
+                      aria-hidden="true"
+                      >{{ entryAvatarInitial(agent.name) }}</span
+                    >
+                    <div class="settings-ai-entry-card__title">
+                      <strong :title="agent.name">{{ agent.name }}</strong>
+                      <small :title="acpBuiltinAgentCommandLine(agent)">{{
+                        acpBuiltinAgentCommandLine(agent)
+                      }}</small>
+                    </div>
+                    <el-icon
+                      v-if="settings.acpAdapterId === agent.id"
+                      class="settings-ai-entry-card__check"
+                      aria-hidden="true"
+                      ><Check
+                    /></el-icon>
+                  </header>
+                  <footer class="settings-ai-entry-card__foot">
+                    <span class="settings-ai-entry-card__chip">{{
+                      t("settings.registry.source.builtin")
+                    }}</span>
+                  </footer>
+                </article>
+                <article
+                  v-for="agent in settings.acpAgents"
+                  :key="agent.id"
+                  class="settings-ai-entry-card settings-ai-entry-card--selectable"
+                  :class="{ 'is-active': settings.acpAdapterId === `custom:${agent.id}` }"
+                  role="radio"
+                  :aria-checked="settings.acpAdapterId === `custom:${agent.id}`"
+                  tabindex="0"
+                  @click="selectAcpAdapter(`custom:${agent.id}`)"
+                  @keydown.enter.prevent="selectAcpAdapter(`custom:${agent.id}`)"
+                  @keydown.space.prevent="selectAcpAdapter(`custom:${agent.id}`)"
+                >
+                  <header class="settings-ai-entry-card__head">
+                    <span
+                      class="settings-ai-entry-card__avatar"
+                      :data-tone="entryAvatarTone(agent.name)"
+                      aria-hidden="true"
+                      >{{ entryAvatarInitial(agent.name) }}</span
+                    >
+                    <div class="settings-ai-entry-card__title">
+                      <strong :title="agent.name">{{ agent.name }}</strong>
+                      <small :title="agent.command">{{ agent.command }}</small>
+                    </div>
+                    <el-icon
+                      v-if="settings.acpAdapterId === `custom:${agent.id}`"
+                      class="settings-ai-entry-card__check"
+                      aria-hidden="true"
+                      ><Check
+                    /></el-icon>
+                  </header>
+                  <p v-if="agent.args" class="settings-ai-entry-card__desc">{{ agent.args }}</p>
+                  <footer class="settings-ai-entry-card__foot">
+                    <span class="settings-ai-entry-card__chip">{{ t("settings.ai.custom") }}</span>
+                    <div class="settings-ai-entry-card__actions" @click.stop @keydown.stop>
+                      <el-button
+                        text
+                        :icon="Delete"
+                        :title="t('common.delete')"
+                        :aria-label="t('common.delete')"
+                        @click="removeAgent(agent)"
+                      />
+                    </div>
+                  </footer>
+                </article>
+              </div>
+              <PluginAcpAgentsGroup
+                v-if="showPluginAcpAgents"
+                :selected-id="settings.acpAdapterId"
+                @select="selectAcpAdapter"
+              />
+              <div class="settings-ai-agent-switch"
+                ><span class="app-inline-label"
+                  ><strong>{{ t("settings.acp.injectRules") }}</strong
+                  ><AppHintIcon :text="t('settings.acp.injectRulesHint')" /></span
+                ><el-switch v-model="settings.acpInjectRules" size="small"
+              /></div>
+            </section>
+            <section class="settings-ai-card settings-ai-custom-agent">
+              <strong>{{ t("settings.acp.customTitle") }}</strong>
+              <div class="settings-ai-two-columns">
+                <el-input
+                  v-model="newAgent.name"
+                  :placeholder="t('settings.acp.namePlaceholder')"
+                /><el-input
+                  v-model="newAgent.command"
+                  :placeholder="t('settings.acp.commandPlaceholder')"
+                />
+              </div>
+              <div class="settings-ai-add-row">
+                <el-input
+                  v-model="newAgent.args"
+                  :placeholder="t('settings.acp.argsPlaceholder')"
+                /><el-button type="primary" @click="addAgent">{{ t("common.add") }}</el-button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <div v-else-if="active === 'cloud'" class="settings-cloud-tabs">
+          <el-tabs v-model="cloudTab" :aria-label="t('settings.cat.cloud')">
+            <el-tab-pane name="account" :label="t('settings.cloud.title')" lazy>
+              <CloudCompanionPanel v-if="cloudTab === 'account'" />
+            </el-tab-pane>
+            <el-tab-pane name="pro" :label="t('settings.cat.pro')" lazy>
+              <section class="settings-flat-page settings-pro-page">
+                <el-alert v-if="!isDesktopRuntime()" type="warning" :closable="false" :title="t('settings.pro.desktopOnly')" />
+
+                <div class="settings-ai-card settings-pro-card">
+                  <div class="settings-pro-card-head">
+                    <div class="settings-pro-card-title">
+                      <strong>{{ t("settings.pro.currentPlan") }}</strong>
+                      <small v-if="cloudAccount?.signedIn">{{ cloudAccount.email || String(cloudAccount.accountId) }}</small>
+                    </div>
+                    <el-button size="small" :loading="proLoading || quotaLoading" :disabled="!isDesktopRuntime()" @click="refreshProAccount">
+                      {{ t("common.refresh") }}
+                    </el-button>
+                  </div>
+                  <el-alert v-if="proError" type="error" :closable="false" :title="t('settings.pro.accountFailed', { message: proError })" />
+                  <p v-else-if="proLoading && !cloudAccount" class="settings-page-note">{{ t("settings.pro.loading") }}</p>
+                  <p v-else-if="!cloudAccount?.signedIn" class="settings-page-note">{{ t("settings.pro.signInHint") }}</p>
+                  <template v-else>
+                    <template v-if="verifiedProPlan">
+                      <div class="settings-pro-plan-line">
+                        <el-tag :type="verifiedProPlan.plan === 'free' ? 'info' : 'success'" effect="light">
+                          {{ t(`settings.pro.cloudPlan.${verifiedProPlan.plan}`) }}
+                        </el-tag>
+                        <el-tag type="success" effect="plain" size="small">{{ t("settings.pro.verifiedBadge") }}</el-tag>
+                        <span>
+                          {{ verifiedProPlan.expiresAt
+                            ? t("settings.pro.expiresOn", { date: formatUpdateDate(new Date(verifiedProPlan.expiresAt * 1000).toISOString()) })
+                            : t("settings.pro.noExpiry") }}
+                        </span>
+                      </div>
+                      <div class="settings-pro-limits">
+                        <div v-for="item in planLimitItems(verifiedProPlan.limits)" :key="item.key" class="settings-pro-limit">
+                          <span>{{ item.label }}</span>
+                          <strong>{{ item.text }}</strong>
+                        </div>
+                      </div>
+                      <p class="settings-page-note settings-pro-footnote">{{ t("settings.pro.quotaDisplayOnly") }}</p>
+                    </template>
+                    <p v-else-if="quotaLoading" class="settings-page-note">{{ t("settings.pro.quotaLoading") }}</p>
+                    <el-alert v-else-if="memberQuota?.status === 'signed_out'" type="warning" :closable="false" :title="t('settings.pro.accountChanged')" />
+                    <el-alert v-else-if="memberQuota?.status === 'unconfigured'" type="warning" :closable="false" :title="t('settings.pro.entitlementPending')" />
+                    <el-alert v-else-if="memberQuota?.status === 'expired'" type="warning" :closable="false" :title="t('settings.pro.quotaExpired')" />
+                    <el-alert v-else-if="memberQuota?.status === 'failed'" type="error" :closable="false" :title="t('settings.pro.quotaFailed', { message: memberQuota.message || '—' })" />
+                  </template>
+                </div>
+
+                <div v-if="cloudAccount?.signedIn && memberQuota?.status !== 'signed_out'" class="settings-ai-card settings-pro-card settings-pro-redeem">
+                  <strong>{{ t("settings.pro.redemptionCode") }}</strong>
+                  <form class="settings-pro-redeem-row" @submit.prevent="redeemCode">
+                    <el-input v-model="redemptionCode" type="password" show-password autocomplete="off" :disabled="redeeming" :aria-label="t('settings.pro.redemptionCode')" :placeholder="t('settings.pro.codePlaceholder')" />
+                    <el-button type="primary" native-type="submit" :loading="redeeming" :disabled="!redemptionCode || proLoading">
+                      {{ t("settings.pro.redeem") }}
+                    </el-button>
+                  </form>
+                  <p class="settings-page-note">{{ t("settings.pro.cloudDescription") }}</p>
+                </div>
+
+                <div class="settings-pro-section-head">
+                  <strong>{{ t("settings.pro.publicPlans") }}</strong>
+                  <small>{{ t("settings.pro.publicPlansHint") }}</small>
+                </div>
+                <p v-if="plansLoading" class="settings-page-note">{{ t("settings.pro.plansLoading") }}</p>
+                <el-alert v-else-if="plansError" type="warning" :closable="false" :title="t('settings.pro.plansFailed', { message: plansError })" />
+                <p v-else-if="isDesktopRuntime() && !publicPlans.length" class="settings-page-note">{{ t("settings.pro.plansEmpty") }}</p>
+                <div v-else-if="publicPlans.length" class="settings-pro-public-plans">
+                  <div
+                    v-for="plan in publicPlans"
+                    :key="plan.plan"
+                    class="settings-ai-card settings-pro-public-plan"
+                    :class="{ 'is-current': verifiedProPlan?.plan === plan.plan }"
+                  >
+                    <div class="settings-pro-public-plan__head">
+                      <strong>{{ t(`settings.pro.cloudPlan.${plan.plan}`) }}</strong>
+                      <el-tag v-if="verifiedProPlan?.plan === plan.plan" size="small" type="primary" effect="light">{{ t("settings.pro.currentPlanBadge") }}</el-tag>
+                    </div>
+                    <div class="settings-pro-public-plan__price">
+                      <b>{{ formatPlanPrice(plan.price_minor, plan.currency) }}</b>
+                      <span>{{ plan.duration_days ? t("settings.pro.catalogDuration", { days: plan.duration_days }) : t("settings.pro.noExpiry") }}</span>
+                      <template v-if="planDiscount(plan)">
+                        <s class="settings-pro-public-plan__original">{{ formatPlanPrice(plan.original_price_minor!, plan.currency) }}</s>
+                        <el-tag size="small" type="danger" effect="light">{{ planDiscount(plan) }}</el-tag>
+                      </template>
+                    </div>
+                    <ul class="settings-pro-public-plan__limits">
+                      <li v-for="item in planLimitItems(plan.limits)" :key="item.key">
+                        <span>{{ item.label }}</span>
+                        <strong>{{ item.text }}</strong>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </section>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <DatabaseSafetySettingsSection v-else-if="active === 'database'" />
+
+        <section v-else-if="active === 'security'" class="settings-flat-page">
+          <div class="settings-section-label">{{ t("settings.security.lock") }}</div>
+          <el-alert
+            v-if="!appLock.available"
+            class="settings-inline-alert"
+            type="info"
+            show-icon
+            :closable="false"
+            :title="t('settings.security.desktopOnly')"
+          />
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.security.lock") }}</strong
+              ><AppHintIcon :text="t('settings.security.lockHint')" /></span
+            >
+            <div class="settings-lock-actions">
+              <el-button
+                :disabled="!appLock.available"
+                @click="openLockPasscodeDialog"
+              >
+                {{
+                  appLock.configured
+                    ? t("settings.security.changePasscode")
+                    : t("settings.security.setPasscode")
+                }}
+              </el-button>
+              <el-button
+                v-if="appLock.configured"
+                type="danger"
+                plain
+                @click="disableAppLock"
+              >
+                {{ t("settings.security.disable") }}
+              </el-button>
+            </div>
+          </div>
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.security.autoLock") }}</strong
+              ><AppHintIcon :text="t('settings.security.autoLockHint')" /></span
+            >
+            <el-select
+              :model-value="appLock.autoLockMinutes"
+              class="settings-inline-select"
+              :disabled="!appLock.configured"
+              @update:model-value="appLock.setAutoLockMinutes"
+            >
+              <el-option
+                v-for="option in autoLockOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+          </div>
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.security.lockOnLaunch") }}</strong
+              ><AppHintIcon :text="t('settings.security.lockOnLaunchHint')" /></span
+            >
+            <el-switch
+              :model-value="appLock.lockOnLaunch"
+              :disabled="!appLock.configured"
+              @update:model-value="appLock.setLockOnLaunch"
+            />
+          </div>
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.security.lockNow") }}</strong
+              ><AppHintIcon :text="t('settings.security.lockNowHint')" /></span
+            >
+            <el-button :disabled="!appLock.configured" @click="appLock.lock()">
+              {{ t("settings.security.lockNow") }}
+            </el-button>
+          </div>
+        </section>
+
+        <section v-else-if="active === 'data'" class="settings-flat-page">
+          <div class="settings-section-label">{{ t("settings.data.management") }}</div>
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.data.configSync") }}</strong
+              ><AppHintIcon :text="t('settings.data.configSyncHint')" /></span
+            ><el-button @click="configSyncOpen = true">{{
+              t("settings.data.configSyncOpen")
+            }}</el-button>
+          </div>
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.data.export") }}</strong
+              ><AppHintIcon :text="t('settings.data.exportHint')" /></span
+            ><div class="settings-data-row__actions">
+              <el-checkbox v-model="exportPluginData">{{
+                t("settings.data.includePluginData")
+              }}</el-checkbox
+              ><el-button @click="exportConfig">{{ t("common.export") }}</el-button>
+            </div>
+          </div>
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.data.import") }}</strong
+              ><AppHintIcon :text="t('settings.data.importHint')" /></span
+            ><el-button @click="startImportConfig">{{ t("common.import") }}</el-button
+            ><input
+              ref="importInput"
+              type="file"
+              accept="application/json"
+              hidden
+              @change="importConfig"
+            />
+          </div>
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.data.aiHistory") }}</strong
+              ><AppHintIcon :text="t('settings.data.aiHistoryHint')" /></span
+            ><el-button @click="clearAiHistory">{{ t("common.clear") }}</el-button>
+          </div>
+          <div class="settings-divider" />
+          <div class="settings-section-label">{{ t("settings.data.envPack") }}</div>
+          <div class="settings-data-row">
+            <span class="app-inline-label"
+              ><strong>{{ t("settings.data.exportEnv") }}</strong
+              ><AppHintIcon :text="t('settings.data.exportEnvHint')" /></span
+            ><el-button @click="environmentPackOpen = true">{{
+              t("settings.data.openEnv")
+            }}</el-button>
+          </div>
+          <div class="settings-divider" />
+          <DataStorageUsagePanel />
+        </section>
+
+        <section v-else class="settings-about">
+          <div class="settings-section-label">{{ t("settings.cat.about") }}</div>
+          <div class="settings-about__logo"><img :src="MinCodeMark" alt="" /></div>
+          <h2>MinCode</h2>
+          <p>{{ t("settings.about.tagline") }}</p>
+          <dl>
+            <div>
+              <dt>{{ t("settings.about.version") }}</dt>
+              <dd>{{ version }}</dd>
+            </div>
+            <div>
+              <dt>{{ t("settings.about.platform") }}</dt>
+              <dd>{{ platform }}</dd>
+            </div>
+          </dl>
+          <div class="settings-update-actions">
+            <el-button :icon="Refresh" :loading="updateChecking" @click="checkUpdate">
+              {{ updateChecking ? t("settings.update.checking") : t("settings.checkUpdate") }}
+            </el-button>
+            <el-switch
+              :model-value="appUpdate.autoCheck"
+              :active-text="t('settings.update.autoCheck')"
+              @update:model-value="appUpdate.setAutoCheck(Boolean($event))"
+            />
+            <span v-if="appUpdate.lastCheckedAt" class="settings-update-actions__meta">
+              {{ t("settings.update.lastChecked", { time: formatUpdateDate(new Date(appUpdate.lastCheckedAt).toISOString()) }) }}
+            </span>
+          </div>
+          <el-alert
+            v-if="updateError"
+            class="settings-update-alert"
+            type="error"
+            :closable="false"
+            :title="t('settings.update.failed', { message: updateError })"
+            show-icon
+          />
+          <section v-if="updateInfo" class="settings-update-card">
+            <header class="settings-update-card__header">
+              <div>
+                <strong>{{
+                  updateInfo.available
+                    ? t("settings.update.available", { version: updateInfo.version })
+                    : t("settings.update.latest")
+                }}</strong>
+                <p>{{
+                  updateInfo.available
+                    ? t("settings.update.availableHint")
+                    : updateInfo.version
+                      ? t("settings.update.latestHint")
+                      : t("settings.update.noReleaseHint")
+                }}</p>
+              </div>
+              <el-tag :type="updateInfo.available ? 'warning' : 'success'" effect="plain">
+                {{ updateInfo.available ? t("settings.update.newVersion") : t("settings.update.upToDate") }}
+              </el-tag>
+            </header>
+            <dl class="settings-update-card__meta">
+              <div>
+                <dt>{{ t("settings.update.currentVersion") }}</dt>
+                <dd>{{ updateInfo.currentVersion }}</dd>
+              </div>
+              <div>
+                <dt>{{ t("settings.update.latestVersion") }}</dt>
+                <dd>{{ updateInfo.version || t("settings.update.noRelease") }}</dd>
+              </div>
+              <div>
+                <dt>{{ t("settings.update.pubDate") }}</dt>
+                <dd>{{ formatUpdateDate(updateInfo.pubDate) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t("settings.update.packageSize") }}</dt>
+                <dd>{{ formatUpdateSize(updateInfo.downloadSize) }}</dd>
+              </div>
+            </dl>
+            <!-- Actions sit above the notes, which scroll on their own, so a long changelog never hides them. -->
+            <footer v-if="updateInfo.available" class="settings-update-card__footer">
+              <el-button
+                type="primary"
+                :icon="Download"
+                :loading="updateDownloading"
+                @click="downloadUpdate"
+              >
+                {{
+                  updateDownloading
+                    ? t("settings.update.downloading")
+                    : t("settings.update.downloadAndOpen")
+                }}
+              </el-button>
+              <el-button
+                v-if="appUpdate.skippedVersion !== updateInfo.version"
+                text
+                @click="skipUpdateVersion(updateInfo.version)"
+              >
+                {{ t("settings.update.skipVersion") }}
+              </el-button>
+              <el-button v-else text @click="appUpdate.clearSkippedVersion()">
+                {{ t("settings.update.unskipVersion") }}
+              </el-button>
+              <span>{{ t("settings.update.openedHint") }}</span>
+            </footer>
+            <div class="settings-update-card__notes">
+              <el-scrollbar max-height="360px">
+                <div class="settings-update-card__notes-body">
+                  <span>{{ t("settings.update.notes") }}</span>
+                  <AppUpdateNotes v-if="updateInfo.notes" :notes="updateInfo.notes" />
+                  <p v-else>{{ t("settings.update.noNotes") }}</p>
+                </div>
+              </el-scrollbar>
+            </div>
+          </section>
+        </section>
+        </main>
+      </el-scrollbar>
+    </div>
+  </el-dialog>
+  <el-dialog
+    v-model="mcpJsonEditorOpen"
+    append-to-body
+    class="settings-mcp-json-dialog"
+    width="min(920px, calc(100vw - 40px))"
+    :close-on-click-modal="false"
+    :title="t('settings.mcp.editJsonTitle')"
+  >
+    <p class="settings-mcp-json-dialog__hint">{{ t("settings.mcp.editJsonHint") }}</p>
+    <div class="settings-mcp-json-dialog__editor">
+      <MonacoTextEditor
+        v-if="mcpJsonEditorOpen"
+        v-model="mcpJsonText"
+        path="mcp.json"
+        :open-paths="['mcp.json']"
+        :preferences="DEFAULT_EDITOR_PREFERENCES"
+        @save="saveMcpJson"
+      />
+    </div>
+    <template #footer>
+      <el-button @click="mcpJsonEditorOpen = false">{{ t("common.cancel") }}</el-button>
+      <el-button @click="formatMcpJson">{{ t("settings.mcp.formatJson") }}</el-button>
+      <el-button type="primary" @click="saveMcpJson">{{ t("common.save") }}</el-button>
+    </template>
+  </el-dialog>
+  <el-dialog
+    v-model="skillEditorOpen"
+    append-to-body
+    class="settings-mcp-json-dialog settings-skill-editor-dialog"
+    width="min(920px, calc(100vw - 40px))"
+    :close-on-click-modal="false"
+    :title="editingSkillId ? t('settings.skills.editTitle') : t('settings.skills.new')"
+  >
+    <p class="settings-mcp-json-dialog__hint">{{
+      editingSkillId ? t("settings.skills.editHint") : t("settings.skills.newHint")
+    }}</p>
+    <div class="settings-mcp-json-dialog__editor">
+      <MonacoTextEditor
+        v-if="skillEditorOpen"
+        v-model="skillEditorText"
+        :path="settings.aiSkills.find((skill) => skill.id === editingSkillId)?.sourcePath || 'SKILL.md'"
+        :open-paths="[settings.aiSkills.find((skill) => skill.id === editingSkillId)?.sourcePath || 'SKILL.md']"
+        :preferences="DEFAULT_EDITOR_PREFERENCES"
+        @save="saveSkillEditor"
+      />
+    </div>
+    <template #footer>
+      <el-button :disabled="skillEditorSaving" @click="skillEditorOpen = false">{{
+        t("common.cancel")
+      }}</el-button>
+      <el-button type="primary" :loading="skillEditorSaving" @click="saveSkillEditor">{{
+        t("common.save")
+      }}</el-button>
+    </template>
+  </el-dialog>
+  <EnvironmentPackDialog v-model="environmentPackOpen" />
+  <ConfigSyncDialog
+    v-model="configSyncOpen"
+    :create-snapshot="createCurrentConfigSyncSnapshot"
+    :apply-snapshot="applyConfigSyncSnapshot"
+  />
+  <el-dialog
+    v-model="lockPasscodeDialogOpen"
+    append-to-body
+    width="min(420px, calc(100vw - 48px))"
+    :title="
+      appLock.configured
+        ? t('settings.security.changePasscode')
+        : t('settings.security.setPasscode')
+    "
+  >
+    <el-form label-position="top">
+      <el-form-item v-if="appLock.configured" :label="t('settings.security.currentPasscode')">
+        <el-input v-model="lockCurrentPasscode" type="password" show-password />
+      </el-form-item>
+      <el-form-item :label="t('settings.security.newPasscode')">
+        <el-input
+          v-model="lockNewPasscode"
+          type="password"
+          show-password
+          :maxlength="APP_LOCK_MAX_PASSCODE_LENGTH"
+        />
+      </el-form-item>
+      <el-form-item :label="t('settings.security.confirmPasscode')">
+        <el-input
+          v-model="lockConfirmPasscode"
+          type="password"
+          show-password
+          :maxlength="APP_LOCK_MAX_PASSCODE_LENGTH"
+          @keyup.enter="submitLockPasscode"
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="lockPasscodeDialogOpen = false">{{ t("common.cancel") }}</el-button>
+      <el-button type="primary" :loading="lockBusy" @click="submitLockPasscode">
+        {{ t("common.confirm") }}
+      </el-button>
+    </template>
+  </el-dialog>
+</template>

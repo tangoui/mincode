@@ -1,0 +1,125 @@
+/* Plugin full trust: card switch, toolbar list, warning and audit record.
+ * Loaded with the lazily imported PluginFullTrust* components only. */
+
+.plugin-full-trust__button.is-trusted {
+  color: var(--app-danger);
+}
+
+.plugin-full-trust__panel {
+  display: grid;
+  gap: 8px;
+}
+.plugin-full-trust__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.plugin-full-trust__text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.plugin-full-trust__text strong {
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 500;
+}
+.plugin-full-trust__text small,
+.plugin-full-trust__reason,
+.plugin-full-trust__legacy {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.plugin-full-trust__row .el-switch {
+  flex: none;
+  margin-top: 1px;
+}
+.plugin-full-trust__reason {
+  margin: 0;
+  color: var(--app-warning);
+}
+.plugin-full-trust__legacy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.plugin-full-trust__audit-link {
+  justify-self: start;
+}
+
+/* The single warning: paragraphs separated, wrapping long plugin names. */
+.plugin-full-trust__dialog {
+  max-width: min(520px, 92vw);
+}
+.plugin-full-trust__warning {
+  display: grid;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+/* Plugin-provided values (also <bdi>): their direction never reorders host text. */
+.plugin-full-trust__value {
+  unicode-bidi: isolate;
+}
+.plugin-full-trust__warning p {
+  margin: 0;
+  line-height: 1.6;
+}
+.plugin-full-trust__warning p:last-child {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+/* Toolbar list: one line per plugin, truncated instead of wrapping at 960px. */
+.plugin-full-trust-summary__button {
+  max-width: 160px;
+}
+.plugin-full-trust-summary {
+  display: grid;
+  gap: 4px;
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.plugin-full-trust-summary__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.plugin-full-trust-summary__text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.plugin-full-trust-summary__text strong,
+.plugin-full-trust-summary__text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plugin-full-trust-summary__text strong {
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 500;
+}
+.plugin-full-trust-summary__text small {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.plugin-full-trust-summary__item .el-button + .el-button {
+  margin-left: 0;
+}
+
+.plugin-full-trust-audit__body {
+  min-height: 120px;
+}
+
+/* Shown while the panel's first status read is in flight (trust state came from the plugin list). */
+.plugin-full-trust__panel.is-loading {
+  min-height: 64px;
+}

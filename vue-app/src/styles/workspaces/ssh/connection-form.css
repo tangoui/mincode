@@ -1,0 +1,584 @@
+.ssh-connection-form {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app-surface);
+  container-name: ssh-connection-form;
+  container-type: inline-size;
+}
+
+.ssh-connection-form__scroll {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+}
+
+.ssh-connection-form__scroll .el-scrollbar__wrap {
+  overscroll-behavior: contain;
+}
+
+.ssh-connection-form__body {
+  min-width: 0;
+  padding: 12px clamp(14px, 2vw, 20px) 16px;
+}
+
+.ssh-form-section {
+  width: 100%;
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.ssh-form-section--quick {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-muted) 48%, var(--app-surface));
+}
+
+.ssh-form-section--connection-fields {
+  padding-top: 2px;
+}
+
+.ssh-connection-tabs {
+  width: 100%;
+}
+
+.ssh-connection-tabs .el-tabs__header {
+  margin-bottom: 12px;
+}
+
+.ssh-connection-tabs .el-tabs__item {
+  height: 32px;
+  font-size: 12px;
+}
+
+.ssh-connection-tabs .el-tabs__nav-wrap::after {
+  height: 1px;
+  background: var(--app-border);
+}
+
+.ssh-quick-connect-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+}
+
+.ssh-form-label {
+  color: var(--app-text-regular);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ssh-quick-connect {
+  display: flex;
+  height: 34px;
+  min-width: 0;
+  align-items: center;
+  background: transparent;
+}
+
+/* Element Plus renders a prepend and an input wrapper as two adjacent controls.
+ * Give those pieces the only borders so the group remains one joined field. */
+.ssh-quick-connect .el-input-group__prepend {
+  box-sizing: border-box;
+  min-width: 48px;
+  height: 34px;
+  border: 1px solid var(--app-input-border);
+  border-right: 0;
+  border-radius: 7px 0 0 7px;
+  background: color-mix(in srgb, var(--app-accent) 7%, var(--app-muted));
+  padding: 0 12px;
+  color: var(--app-accent);
+  box-shadow: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.ssh-quick-connect .el-input__wrapper {
+  height: 34px;
+  border-radius: 0 7px 7px 0 !important;
+  box-shadow: none !important;
+}
+
+.ssh-quick-connect:hover .el-input-group__prepend {
+  border-color: var(--app-input-border-hover);
+  background: var(--app-input-bg-hover);
+}
+
+.ssh-quick-connect:focus-within .el-input-group__prepend {
+  border-color: var(--app-input-border-focus);
+  background: var(--app-input-bg-focus);
+}
+
+.ssh-quick-connect .el-input__inner {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.ssh-connection-form__close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.ssh-connection-form__close:hover {
+  border-color: var(--app-border);
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+.ssh-connection-form__close:focus-visible {
+  border-color: var(--app-accent);
+  outline: 2px solid var(--app-accent-soft);
+  outline-offset: 1px;
+}
+
+.ssh-connection-form__close .el-icon {
+  font-size: 15px;
+}
+
+.ssh-form-section__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ssh-form-section__heading > strong {
+  min-width: 0;
+  color: var(--app-text);
+  font-size: 12px;
+  line-height: 28px;
+}
+
+.ssh-jump-host-toggle {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  color: var(--app-text-regular);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ssh-jump-host-toggle > .el-switch {
+  flex: none;
+}
+
+.ssh-form-grid {
+  display: grid;
+  min-width: 0;
+  gap: 10px 14px;
+}
+
+.ssh-form-grid--two {
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.62fr);
+}
+
+.ssh-form-grid--three {
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 0.55fr) 100px;
+}
+
+.ssh-form-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ssh-form-field.is-required > span::after {
+  margin-left: 3px;
+  color: var(--app-danger);
+  content: "*";
+}
+
+.ssh-form-field--wide {
+  grid-column: 1 / -1;
+}
+
+.ssh-form-field .el-input-number,
+.ssh-form-field .el-input {
+  width: 100%;
+}
+
+.el-segmented.ssh-auth-switcher {
+  --el-segmented-color: var(--app-text-regular);
+  --el-segmented-item-hover-color: var(--app-accent);
+  --el-segmented-item-hover-bg-color: color-mix(in srgb, var(--app-accent) 7%, transparent);
+  --el-segmented-item-active-bg-color: var(--app-accent-soft);
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+}
+
+.ssh-auth-switcher .el-segmented__item {
+  min-height: 26px;
+  flex: none;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ssh-auth-switcher--compact {
+  margin-bottom: 10px;
+}
+
+.ssh-auth-fields {
+  margin-top: 10px;
+}
+
+.ssh-form-inline-hint,
+.ssh-forward-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  border-left: 2px solid var(--app-border-strong);
+  border-radius: 2px;
+  background: var(--app-muted);
+  padding: 7px 9px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.ssh-form-inset {
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: var(--app-muted);
+  padding: 10px;
+}
+
+.ssh-form-inset > .ssh-auth-switcher {
+  margin-top: 10px;
+}
+
+.ssh-form-inset > .ssh-form-inline-hint {
+  margin-top: 10px;
+}
+
+.ssh-form-add-rule {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  padding: 0 9px;
+  color: var(--app-text);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.ssh-form-add-rule:hover {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+}
+
+.ssh-forward-list {
+  display: flex;
+  container-type: inline-size;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ssh-forward-row {
+  display: grid;
+  grid-template-areas: "type bind arrow host target label delete";
+  grid-template-columns:
+    minmax(76px, 0.82fr) minmax(64px, 0.62fr) 16px minmax(96px, 1.42fr) minmax(64px, 0.62fr)
+    minmax(80px, 0.9fr) 28px;
+  align-items: end;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: var(--app-muted);
+  padding: 7px;
+}
+
+.ssh-forward-control {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ssh-forward-control > span {
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-forward-control > .el-input,
+.ssh-forward-control > .el-input-number,
+.ssh-forward-control > .el-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.ssh-forward-control--type {
+  grid-area: type;
+}
+
+.ssh-forward-control--bind {
+  grid-area: bind;
+}
+
+.ssh-forward-control--host {
+  grid-area: host;
+}
+
+.ssh-forward-control--target-port {
+  grid-area: target;
+}
+
+.ssh-forward-control--label {
+  grid-area: label;
+}
+
+.ssh-forward-row > button {
+  display: grid;
+  grid-area: delete;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.ssh-forward-row > button:hover {
+  border-color: color-mix(in srgb, var(--el-color-danger) 42%, var(--app-border));
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+.ssh-forward-arrow {
+  display: grid;
+  grid-area: arrow;
+  height: 28px;
+  place-items: center;
+  color: var(--app-text-muted);
+}
+
+.ssh-forward-arrow svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ssh-forward-dynamic-hint {
+  display: flex;
+  grid-area: host;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.ssh-connection-form__footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+}
+
+.ssh-connection-form__footer > div {
+  display: flex;
+  gap: 7px;
+}
+
+@container (max-width: 620px) {
+  .ssh-forward-row {
+    grid-template-areas:
+      "type bind delete"
+      "host target target"
+      "label label label";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
+  }
+
+  .ssh-forward-arrow {
+    display: none;
+  }
+}
+
+@container (max-width: 480px) {
+  .ssh-forward-row {
+    grid-template-areas:
+      "type delete"
+      "bind target"
+      "host host"
+      "label label";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@container ssh-connection-form (max-width: 760px) {
+  .ssh-form-grid--two,
+  .ssh-form-grid--three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container ssh-connection-form (max-width: 560px) {
+  .ssh-quick-connect-row {
+    grid-template-columns: minmax(0, 1fr) 28px;
+  }
+
+  .ssh-form-label {
+    grid-column: 1 / -1;
+  }
+
+  .ssh-form-section__heading--toggle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ssh-connection-form__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ssh-connection-form__footer > div {
+    justify-content: flex-end;
+  }
+}
+
+.ssh-agent-status {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+
+.ssh-agent-status > .ssh-form-inline-hint {
+  margin: 0;
+}
+
+.ssh-agent-status__card {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--app-border);
+  border-left: 2px solid var(--app-border-strong);
+  border-radius: 5px;
+  background: var(--app-muted);
+  padding: 8px 9px;
+}
+
+.ssh-agent-status__card.is-ready {
+  border-left-color: var(--app-success);
+}
+
+.ssh-agent-status__card.is-empty,
+.ssh-agent-status__card.is-unavailable {
+  border-left-color: var(--app-warning);
+}
+
+.ssh-agent-status__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ssh-agent-status__heading > strong {
+  color: var(--app-text);
+  font-size: 11px;
+}
+
+.ssh-agent-status__heading .el-button {
+  min-height: 24px;
+  margin: -3px -4px -3px 0;
+  padding: 0 4px;
+}
+
+.ssh-agent-status__heading .el-icon {
+  margin-right: 3px;
+}
+
+.ssh-agent-status__message,
+.ssh-agent-status__guidance {
+  margin: 0;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.ssh-agent-status__guidance {
+  color: var(--app-text-muted);
+}
+
+.ssh-agent-status__command,
+.ssh-agent-status__identities code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+}
+
+.ssh-agent-status__command {
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--app-border);
+  border-radius: 3px;
+  background: var(--app-surface);
+  padding: 3px 5px;
+  color: var(--app-text);
+}
+
+.ssh-agent-status__identities {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ssh-agent-status__identities li {
+  display: grid;
+  grid-template-columns: minmax(86px, auto) minmax(0, 1fr);
+  gap: 7px;
+  min-width: 0;
+  color: var(--app-text-muted);
+}
+
+.ssh-agent-status__identities code:first-child {
+  color: var(--app-text-regular);
+}

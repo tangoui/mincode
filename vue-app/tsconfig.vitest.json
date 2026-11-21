@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./.tmp/tsconfig.vitest.tsbuildinfo",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "allowJs": true,
+    "checkJs": false,
+    "paths": {
+      "@/*": ["./src/*"],
+      "marked": ["./node_modules/marked"],
+      "vue": ["./node_modules/vue"],
+      "element-plus": ["./node_modules/element-plus"],
+      "@element-plus/icons-vue": ["./node_modules/@element-plus/icons-vue"],
+      "@mincode/plugin-ui/*": ["./src/plugin-ui/*"],
+      "element-plus/es/locale/lang/*": ["./node_modules/element-plus/es/locale/lang/*"]
+    }
+  },
+  "include": ["src/env.d.ts", "tests/components/**/*.ts", "tests/browser-scripts/**/*.ts"]
+}

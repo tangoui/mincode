@@ -1,0 +1,154 @@
+/*
+ * SQL 安全网确认框（services/sql-safety-confirm.ts，customClass app-sql-safety-box）。
+ * MessageBox 默认 420px 放不下 SQL 语句与原因列表；Element Plus 只通过 --el-messagebox-width
+ * 暴露宽度，这里仅对该确认框放宽。
+ */
+.app-sql-safety-box {
+  --el-messagebox-width: min(560px, calc(100vw - 32px));
+}
+
+/* 操作记录抽屉（components/database/safety/SqlSafetyHistoryPanel.vue）。 */
+.db-safety-history {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.db-safety-history__toolbar {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+}
+
+.db-safety-history__toolbar .el-button {
+  gap: 4px;
+}
+
+.db-safety-history__table {
+  min-height: 0;
+  flex: 1;
+}
+
+.db-safety-history__detail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 8px 40px;
+  font-size: var(--app-ui-font-size-small);
+  color: var(--app-text-regular);
+}
+
+.db-safety-history__detail p {
+  margin: 0;
+}
+
+.db-safety-history__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0;
+}
+
+.db-safety-history__meta dt {
+  color: var(--app-text-muted);
+}
+
+.db-safety-history__meta dd {
+  margin: 0 12px 0 0;
+  word-break: break-all;
+}
+
+.db-safety-history__label {
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.db-safety-history__muted {
+  color: var(--app-text-muted);
+}
+
+.db-safety-history__sql {
+  border: 1px solid var(--app-code-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-code-surface);
+}
+
+.db-safety-history__sql pre {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--app-code-text);
+  font-family: var(--app-font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.db-safety-history__kind {
+  margin-right: 6px;
+  color: var(--app-text-muted);
+}
+
+.db-safety-history__statement {
+  font-family: var(--app-font-mono);
+}
+
+.db-safety-history__action {
+  display: inline-flex;
+}
+
+/* 撤回对话框（components/database/safety/SqlSafetyUndoDialog.vue）。 */
+.db-safety-undo {
+  display: flex;
+  min-width: 0;
+  min-height: 60px;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--app-ui-font-size-small);
+  color: var(--app-text-regular);
+}
+
+.db-safety-undo p {
+  margin: 0;
+}
+
+.db-safety-undo__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.db-safety-undo__summary strong {
+  color: var(--app-text);
+  word-break: break-all;
+}
+
+.db-safety-undo__muted {
+  color: var(--app-text-muted);
+}
+
+.db-safety-undo__mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.db-safety-undo__mode .el-radio {
+  height: auto;
+  min-height: 24px;
+  margin-right: 0;
+  white-space: normal;
+}
+
+.db-safety-undo__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.db-safety-undo__type {
+  font-weight: 600;
+  color: var(--app-text);
+}

@@ -1,0 +1,912 @@
+/* Database workspace */
+.db-workspace {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--app-surface);
+}
+
+.db-workspace.file-drop-target-active::before {
+  position: absolute;
+  z-index: 100;
+  inset: 12px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--app-accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+  color: var(--app-accent);
+  content: attr(data-file-drop-label);
+  font-size: 16px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.db-explorer {
+  display: flex;
+  width: 322px;
+  min-width: 260px;
+  max-width: 36vw;
+  flex-direction: column;
+  border-right: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.db-explorer__toolbar {
+  display: flex;
+  height: 41px;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 10px;
+}
+
+.db-square-action.el-button {
+  display: flex;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: var(--app-surface);
+  color: var(--app-info);
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+
+.db-square-action.el-button:hover {
+  background: var(--app-accent-soft);
+}
+
+.db-square-action.is-primary {
+  border-color: color-mix(in srgb, var(--app-accent) 35%, var(--app-surface));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.db-square-action.is-green {
+  color: var(--app-success);
+}
+
+.db-square-action.is-orange {
+  color: var(--app-warning);
+}
+
+.db-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--app-muted);
+}
+
+.db-search-box__filter {
+  color: var(--app-warning);
+}
+
+.db-explorer-tabs {
+  display: grid;
+  height: 34px;
+  flex: none;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: center;
+  margin: 0 10px 4px;
+  border-radius: 6px;
+  background: var(--app-muted);
+}
+
+.db-explorer-tabs :is(button, .el-button) {
+  display: flex;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.db-explorer-tabs :is(button, .el-button).is-active {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.db-tree-scroll {
+  min-height: 0;
+  flex: 1;
+}
+.db-tree-scroll .el-scrollbar__view {
+  padding: 0 7px 8px;
+}
+
+.db-tree-row,
+.db-tree-group-row,
+.db-table-row {
+  display: flex;
+  width: 100%;
+  height: 30px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0 8px;
+  color: var(--app-text-regular);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.db-tree-row {
+  font-weight: 500;
+}
+
+.db-tree-row:hover,
+.db-table-row:hover,
+.db-table-row.is-active {
+  background: var(--app-accent-soft);
+}
+
+.db-tree-chevron {
+  width: 11px;
+  color: var(--app-text-muted);
+}
+
+.db-database-icon {
+  color: var(--app-warning);
+}
+
+.db-table-filter {
+  display: flex;
+  height: 31px;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 7px 3px 30px;
+  border-radius: 4px;
+  background: var(--app-muted);
+  padding: 0 9px;
+  color: var(--app-text-muted);
+}
+
+.db-tree-group-row {
+  padding-left: 30px;
+  color: var(--app-text-muted);
+}
+
+.db-tree-group-row .el-icon,
+.db-table-row .el-icon {
+  color: var(--app-accent);
+}
+
+.db-table-row {
+  height: 29px;
+  padding-left: 47px;
+  cursor: pointer;
+}
+
+.db-main {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app-surface);
+}
+
+.db-connection-tabs {
+  display: flex;
+  height: 43px;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 14px;
+}
+
+.db-connection-tabs__label {
+  flex: none;
+  margin-right: 3px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.db-connection-tabs__list {
+  --el-tabs-header-height: 28px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.db-connection-tabs__list.el-tabs--card > .el-tabs__header {
+  height: 28px;
+  margin: 0;
+  border-bottom: 0;
+}
+
+.db-connection-tabs__list .el-tabs__nav-wrap::after {
+  display: none;
+}
+
+.db-connection-tabs__list .el-tabs__nav-prev,
+.db-connection-tabs__list .el-tabs__nav-next {
+  top: 0;
+  display: flex;
+  height: var(--el-tabs-header-height);
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.db-connection-tabs__list :is(.el-tabs__nav-prev, .el-tabs__nav-next) > .el-icon {
+  margin: 0;
+  color: inherit;
+}
+
+.db-connection-tabs__list .el-tabs__nav-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.db-connection-tabs__list .el-tabs__nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.db-connection-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__nav {
+  min-width: max-content;
+  border: 0;
+}
+
+.db-connection-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item {
+  display: inline-flex;
+  max-width: min(260px, 34cqi);
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  padding: 0 7px 0 9px;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  line-height: 28px;
+}
+
+.db-connection-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item:hover {
+  background: var(--app-muted);
+  color: var(--app-text);
+}
+
+.db-connection-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+  border: 0;
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.db-connection-tabs__list .el-tabs__item:focus-visible {
+  outline: 0;
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.db-connection-tab__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-connection-tabs__list .el-tabs__item b {
+  flex: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-success) 14%, var(--app-surface));
+  padding: 1px 5px;
+  color: var(--app-success);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.db-connection-tabs__list .el-tabs__item.is-closable {
+  --app-workspace-tabs-close-size: 16px;
+}
+
+.db-connection-tabs__list .el-tabs__item .is-icon-close {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-left: 2px;
+  border-radius: 4px;
+  color: var(--app-text-muted);
+}
+
+.db-connection-tabs__list .el-tabs__item .is-icon-close:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+.db-datasource-header {
+  display: flex;
+  height: 50px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 14px;
+}
+
+.db-datasource-title,
+.db-datasource-actions {
+  display: flex;
+  align-items: center;
+}
+
+.db-datasource-title {
+  gap: 8px;
+}
+
+.db-datasource-title .el-icon {
+  font-size: 18px;
+}
+
+.db-datasource-title strong {
+  font-size: 15px;
+}
+
+.db-datasource-title > span {
+  color: var(--app-text-muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.db-datasource-title i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--app-success);
+}
+
+.db-datasource-title small {
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.db-datasource-actions {
+  gap: 10px;
+}
+
+.db-datasource-actions :is(button, .el-button) {
+  border: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.db-datasource-actions :is(button, .el-button):first-child {
+  color: var(--app-accent);
+}
+
+.db-datasource-actions :is(button, .el-button):disabled {
+  color: var(--app-text-muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.db-datasource-actions
+  :is(
+    .db-datasource-actions__schema-sync,
+    .db-datasource-actions__backup,
+    .db-datasource-actions__safety-history
+  ) {
+  height: 28px;
+  gap: 5px;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  padding: 0 9px;
+  color: var(--app-accent);
+  font-size: 11px;
+}
+
+.db-schema-sync-dialog {
+  --el-dialog-padding-primary: 0;
+  max-width: calc(100vw - 48px);
+  overflow: hidden;
+}
+
+.db-schema-sync-dialog .el-dialog__header {
+  margin: 0;
+  border-bottom: 1px solid var(--app-border);
+  padding: 15px 20px;
+}
+
+.db-schema-sync-dialog .el-dialog__body {
+  padding: 0;
+}
+
+.db-schema-sync-dialog .el-dialog__footer {
+  border-top: 1px solid var(--app-border);
+  padding: 12px 20px;
+}
+
+.db-schema-sync-dialog--compact .el-dialog__header {
+  padding: 11px 16px;
+}
+
+.db-schema-sync-dialog--compact .el-dialog__footer {
+  padding: 9px 16px;
+}
+
+.db-schema-sync-dialog__header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.db-schema-sync-dialog__header strong {
+  font-size: 15px;
+}
+
+.db-schema-sync-dialog__header span,
+.db-schema-sync-plan__header span {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.db-schema-sync-dialog--compact .db-schema-sync-dialog__header {
+  gap: 2px;
+}
+
+.db-schema-sync-dialog--compact .db-schema-sync-dialog__header strong {
+  font-size: 14px;
+}
+
+.db-schema-sync-dialog--compact .db-schema-sync-dialog__header span {
+  font-size: 11px;
+}
+
+.db-schema-sync-dialog__body {
+  display: flex;
+  min-height: 430px;
+  max-height: 72vh;
+  flex-direction: column;
+  gap: 12px;
+}
+.db-schema-sync-dialog__body .el-scrollbar__view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.db-schema-sync-dialog--compact .db-schema-sync-dialog__body {
+  min-height: 0;
+  max-height: 360px;
+}
+
+.db-schema-sync-dialog--compact .db-schema-sync-dialog__body .el-scrollbar__view {
+  padding: 12px 16px;
+}
+
+.db-schema-sync-dialog--compact :is(.el-select, .el-button) {
+  --el-component-size: 30px;
+}
+
+.db-schema-sync-dialog--compact .el-alert {
+  padding: 7px 10px;
+}
+
+.db-schema-sync-selector {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+}
+
+.db-schema-sync-side {
+  --db-schema-sync-side-color: var(--app-accent);
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--db-schema-sync-side-color) 32%, var(--app-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--db-schema-sync-side-color) 5%, var(--app-surface));
+  padding: 12px 14px 14px;
+}
+
+.db-schema-sync-side--target {
+  --db-schema-sync-side-color: var(--app-success);
+}
+
+.db-schema-sync-dialog:not(.db-schema-sync-dialog--compact) .db-schema-sync-side {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.db-schema-sync-side__title {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+  color: var(--db-schema-sync-side-color);
+}
+
+.db-schema-sync-side__title strong {
+  font-size: 13px;
+}
+
+.db-schema-sync-side__badge {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--db-schema-sync-side-color) 15%, transparent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.db-schema-sync-selector__swap {
+  align-self: center;
+  justify-self: center;
+  color: var(--app-text-muted);
+}
+
+.db-schema-sync-summary,
+.db-schema-sync-plan__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.db-schema-sync-summary > span:last-child {
+  margin-left: auto;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.db-schema-sync-changes {
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}
+
+.db-schema-sync-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.db-schema-sync-plan__header {
+  justify-content: space-between;
+}
+
+.db-schema-sync-plan ol {
+  display: flex;
+  margin: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.db-schema-sync-plan li {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  padding: 10px 12px;
+}
+
+.db-schema-sync-plan li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.db-schema-sync-plan pre {
+  margin: 0;
+  color: var(--app-text-regular);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 窄窗口下带文字的数据源操作只留图标；文字隐藏后 title 仍作为按钮的可访问名称与提示。 */
+@media (max-width: 1100px) {
+  .db-datasource-actions
+    :is(
+      .db-datasource-actions__schema-sync,
+      .db-datasource-actions__backup,
+      .db-datasource-actions__safety-history
+    )
+    > span {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .db-schema-sync-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .db-schema-sync-selector__swap {
+    transform: rotate(90deg);
+  }
+}
+
+.db-object-tab__table-indicator {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--app-success);
+}
+
+.db-data-toolbar {
+  display: flex;
+  height: 34px;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 0 10px;
+}
+
+.db-data-toolbar :is(button, .el-button) {
+  display: inline-flex;
+  height: 26px;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.db-data-toolbar :is(button, .el-button):hover:not(:disabled) {
+  color: var(--app-accent);
+}
+
+.db-data-toolbar :is(button, .el-button):disabled {
+  color: var(--app-text-muted);
+  cursor: default;
+}
+
+.db-data-toolbar__spacer {
+  min-width: 10px;
+  flex: 1;
+}
+
+.db-diagnostic-button {
+  border: 1px solid var(--app-accent-border) !important;
+  border-radius: 5px !important;
+  padding: 0 8px !important;
+  color: var(--app-accent) !important;
+}
+
+.db-query-row {
+  display: flex;
+  height: 43px;
+  flex: none;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 13px;
+  color: var(--app-text-muted);
+}
+
+.db-query-button {
+  height: 26px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.db-filter-chip {
+  height: 26px;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 35%, var(--app-surface));
+  border-radius: 4px;
+  background: var(--app-accent-soft);
+  padding: 4px 8px;
+  color: var(--app-accent);
+  font-size: 11px;
+}
+
+.db-grid-scroll {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.db-record-grid {
+  width: 845px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: var(--app-text);
+  font-size: 11px;
+}
+
+.db-record-grid th,
+.db-record-grid td {
+  height: 39px;
+  overflow: hidden;
+  border-right: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+  padding: 0 11px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-record-grid thead th {
+  height: 36px;
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  font-weight: 500;
+}
+
+.db-record-grid thead th:not(:first-child) {
+  width: 148px;
+}
+
+.db-record-grid thead .el-icon {
+  margin-left: 7px;
+  color: var(--app-text-muted);
+  vertical-align: middle;
+}
+
+.db-record-grid input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0 11px 0 0;
+  vertical-align: middle;
+  accent-color: var(--app-accent);
+}
+
+.db-record-grid .db-field-column,
+.db-record-grid tbody th {
+  width: 225px;
+}
+
+.db-record-grid tbody th {
+  background: var(--app-surface);
+  padding-left: 43px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 650;
+}
+
+.db-record-grid td.is-null {
+  color: var(--app-text-muted);
+  font-style: italic;
+}
+
+.db-record-grid tbody tr:hover th,
+.db-record-grid tbody tr:hover td {
+  background: var(--app-hover);
+}
+
+.db-result-empty {
+  background: var(--app-surface);
+}
+
+.db-statusbar {
+  display: flex;
+  height: 35px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 0 12px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.db-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+/* 分页条全部按 EP 分页的紧凑规格：24px 图标/文本按钮、弱色文案、hover 提主色 */
+.db-pagination .el-button.is-text {
+  height: 24px;
+  min-width: 24px;
+  padding: 0 4px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.db-pagination .el-button.is-text:hover:not(.is-disabled) {
+  color: var(--app-accent);
+}
+
+.db-pagination .el-button.is-text .el-icon {
+  font-size: 12px;
+}
+
+/* el-input-number 默认 150px 宽，需提升特异性才能压到分页跳转框规格 */
+.db-pagination .db-pagination__jump-input.el-input-number {
+  width: 64px;
+}
+
+.db-pagination__jump-input .el-input__wrapper {
+  min-height: 24px;
+  padding: 0 6px;
+}
+
+/* Keep every table action reachable when the database pane, rather than the
+ * whole application window, becomes narrow.  The toolbar used to hide its
+ * overflowing tail, which made search and column controls disappear. */
+.db-main {
+  container-name: database-main;
+  container-type: inline-size;
+}
+
+@container database-main (max-width: 1160px) {
+  .db-data-toolbar {
+    height: auto;
+    min-height: 34px;
+    flex-wrap: wrap;
+    align-content: center;
+    column-gap: 10px;
+    row-gap: 3px;
+    overflow: visible;
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .db-data-toolbar__spacer {
+    display: none;
+  }
+}
+
+@container database-main (max-width: 760px) {
+  .db-data-toolbar {
+    column-gap: 8px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .db-grid-filter {
+    width: 180px;
+    min-width: 140px;
+    flex-basis: 180px;
+  }
+}
+
+.db-vector-namespace {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+  border-right: 1px solid var(--app-border);
+}
+
+.db-vector-namespace__input {
+  width: 180px;
+}

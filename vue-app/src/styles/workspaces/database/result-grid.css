@@ -1,0 +1,416 @@
+/* Query/table result grids: Arco-like stepped surfaces, borders, and no floating shadows. */
+.db-query-result-error {
+  margin: 10px 12px 0;
+}
+
+.db-cell-detail .el-textarea__inner {
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.55;
+}
+
+.db-column-picker {
+  display: flex;
+  max-height: min(60vh, 340px);
+  flex-direction: column;
+  gap: 7px;
+}
+
+.db-column-picker__list {
+  min-height: 0;
+}
+
+.db-column-picker__list .el-scrollbar__view {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.db-column-picker__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--app-text-regular);
+  font-size: 12px;
+}
+
+.db-column-picker__header button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--app-accent);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.db-column-picker .el-checkbox {
+  --el-checkbox-font-weight: 400;
+
+  width: 100%;
+  margin-right: 0;
+  overflow: hidden;
+}
+
+.db-column-picker .el-checkbox__label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-grid-columns-button,
+.db-clear-field-filters,
+.db-multi-filter-button {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--app-accent-border);
+  border-radius: 4px;
+  background: var(--app-accent-soft);
+  padding: 0 8px;
+  color: var(--app-accent);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.db-grid-columns-button b {
+  font-weight: 650;
+}
+
+.db-grid-columns-button:hover,
+.db-clear-field-filters:hover,
+.db-multi-filter-button:hover,
+.db-multi-filter-button.is-active {
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft);
+}
+
+.db-multi-filter-button b {
+  display: inline-flex;
+  min-width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--app-accent);
+  color: var(--app-text-on-accent);
+  font-size: 10px;
+}
+
+.db-multi-filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.db-multi-filter-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.db-multi-filter-panel__header > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.db-multi-filter-panel__header strong {
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.db-multi-filter-panel__header small {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.db-multi-filter-panel__header button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--app-accent);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.db-multi-filter-panel__logic {
+  display: inline-flex !important;
+}
+
+.db-multi-filter-panel__logic .el-segmented__item {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.db-multi-filter-panel__conditions {
+  max-height: 300px;
+}
+.db-multi-filter-panel__conditions .el-scrollbar__view {
+  display: flex;
+  min-width: max-content;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.db-filter-condition {
+  display: grid;
+  grid-template-columns: 116px 126px 140px 140px 26px;
+  align-items: center;
+  gap: 6px;
+}
+
+.db-filter-condition > .el-select,
+.db-filter-condition > .el-input,
+.db-filter-condition > .el-input-number,
+.db-filter-condition > .el-date-editor {
+  width: 100%;
+  min-width: 0;
+}
+
+.db-filter-condition .el-input__wrapper,
+.db-filter-condition .el-select__wrapper,
+.db-filter-condition .el-input-number .el-input__wrapper,
+.db-filter-condition .el-date-editor .el-input__wrapper {
+  min-height: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+
+.db-filter-condition__remove {
+  grid-column: 5;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.db-filter-condition__remove:hover { color: var(--app-danger); }
+.db-filter-conditions-empty {
+  padding: 16px 0;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.db-multi-filter-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--app-border);
+  padding-top: 10px;
+}
+
+.db-multi-filter-panel__actions span { flex: 1; }
+.db-multi-filter-panel__actions :is(button, .el-button) {
+  height: 28px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  padding: 0 10px;
+  color: var(--app-text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.db-multi-filter-panel__actions :is(button, .el-button):hover:not(:disabled) { border-color: var(--app-accent); }
+.db-multi-filter-panel__actions :is(button, .el-button).is-primary {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: var(--app-text-on-accent);
+}
+.db-multi-filter-panel__actions :is(button, .el-button):disabled { cursor: not-allowed; opacity: 0.5; }
+
+.db-details-drawer__warning {
+  margin-bottom: 10px;
+  white-space: pre-line;
+}
+
+.db-field-drag-handle {
+  display: inline-flex;
+  width: 15px;
+  height: 20px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+  color: var(--app-text-muted);
+  cursor: grab;
+  font-size: 15px;
+  line-height: 1;
+  user-select: none;
+  border-radius: 3px;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.db-field-drag-handle:active {
+  cursor: grabbing;
+  color: var(--app-accent);
+}
+
+.db-field-drag-handle svg {
+  display: block;
+  fill: currentColor;
+}
+
+.db-grid-sort {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-family: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-grid-sort span {
+  color: var(--app-accent);
+  font-size: 12px;
+}
+
+
+/* Result-column metadata and row selection stay available in both grid layouts. */
+.db-grid-column-heading {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.db-grid-column-meta {
+  display: flex;
+  min-width: 0;
+  gap: 5px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.db-grid-column-meta small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-grid-column-meta small + small::before {
+  margin-right: 5px;
+  color: var(--app-border-strong);
+  content: "·";
+}
+
+/* Readable, bounded detail for result-grid values that are actually clipped in the cell. */
+.db-grid-cell-tooltip.el-popper {
+  width: max-content;
+  min-width: min(260px, calc(100vw - 32px));
+  max-width: min(480px, calc(100vw - 32px));
+  overflow: hidden;
+  border-color: var(--app-border);
+  background: var(--app-surface);
+  padding: 0;
+  color: var(--app-text);
+}
+
+.db-grid-cell-tooltip.el-popper .el-popper__arrow::before {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.db-grid-cell-tooltip__scroll {
+  --el-scrollbar-opacity: 0.24;
+  --el-scrollbar-hover-opacity: 0.42;
+  --el-scrollbar-bg-color: var(--app-text-muted);
+  --el-scrollbar-hover-bg-color: var(--app-text-muted);
+
+  max-width: min(480px, calc(100vw - 32px));
+  max-height: min(320px, calc(100vh - 48px));
+}
+
+.db-grid-cell-tooltip__body {
+  position: relative;
+}
+
+/* 右上角复制按钮：实心底遮住底层文本，悬停提主色 */
+.db-grid-cell-tooltip__copy {
+  position: absolute;
+  z-index: 1;
+  top: 4px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+}
+
+.db-grid-cell-tooltip__copy:hover {
+  border-color: var(--app-border-strong);
+  color: var(--app-accent);
+}
+
+.db-grid-cell-tooltip__copy .el-icon {
+  font-size: 12px;
+}
+
+.db-grid-cell-tooltip__scroll > .el-scrollbar__bar.is-horizontal {
+  display: none;
+}
+
+.db-grid-cell-tooltip__scroll > .el-scrollbar__bar.is-vertical {
+  top: 7px;
+  right: 3px;
+  bottom: 7px;
+  width: 4px;
+}
+
+.db-grid-cell-tooltip__scroll .el-scrollbar__wrap {
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.db-grid-cell-tooltip__content {
+  min-width: 0;
+  margin: 0;
+  /* 右上为复制按钮留出站位，避免长行首行被遮住 */
+  padding: 10px 38px 10px 12px;
+  color: var(--app-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* Plain-text cell value; the grid's single shared tooltip anchors to it when it is clipped. */
+.db-grid-cell-text {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

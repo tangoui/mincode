@@ -1,0 +1,134 @@
+.popup-window-titlebar__button {
+  display: inline-flex;
+  width: 34px;
+  min-width: 34px;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.popup-window-titlebar__button:hover {
+  background: var(--app-canvas);
+  color: var(--app-accent);
+}
+
+.popup-window-frame {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--el-bg-color);
+}
+
+.popup-window-titlebar {
+  display: flex;
+  height: 34px;
+  min-height: 34px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  user-select: none;
+}
+
+.popup-window-titlebar__title {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  padding: 0 12px;
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup-window-titlebar__actions {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+}
+
+.popup-window-content {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 主窗口保留标签槽位，独立 WebView 持有实际内容和原生会话。 */
+.popped-out-tab-placeholder,
+.popup-tab-status {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 32px;
+  background: var(--app-canvas);
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+.popped-out-tab-placeholder {
+  gap: 8px;
+}
+
+.popped-out-tab-placeholder > .el-icon {
+  margin-bottom: 4px;
+  color: var(--app-accent);
+  font-size: 36px;
+  opacity: 0.72;
+}
+
+.popped-out-tab-placeholder strong {
+  color: var(--app-text);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.popped-out-tab-placeholder p {
+  max-width: 420px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.popped-out-tab-placeholder > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.popped-out-tab-placeholder > div > .el-button {
+  height: 30px;
+  margin-left: 0;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.popped-out-tab-placeholder > div > .el-button + .el-button {
+  margin-left: 0;
+}
+
+.popup-tab-status {
+  font-size: 12px;
+}
+
+.popup-tab-status.is-error {
+  color: var(--app-danger);
+}

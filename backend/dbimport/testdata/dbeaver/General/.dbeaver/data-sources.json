@@ -1,0 +1,79 @@
+{
+	"folders": {
+		"Prod": {},
+		"Prod/Reports": {
+			"parent": "Prod"
+		}
+	},
+	"connections": {
+		"mysql8-18a1": {
+			"provider": "mysql",
+			"driver": "mysql8",
+			"name": "Orders MySQL",
+			"save-password": true,
+			"folder": "Prod",
+			"configuration": {
+				"host": "10.0.0.5",
+				"port": "3307",
+				"database": "orders",
+				"url": "jdbc:mysql://10.0.0.5:3307/orders",
+				"type": "prod",
+				"auth-model": "native",
+				"handlers": {
+					"ssh_tunnel": {
+						"type": "TUNNEL",
+						"enabled": true,
+						"save-password": true,
+						"properties": {
+							"host": "bastion.example.test",
+							"port": 2222,
+							"authType": "PASSWORD"
+						}
+					},
+					"mysql_ssl": {
+						"type": "CONFIG",
+						"enabled": true,
+						"properties": {}
+					}
+				}
+			}
+		},
+		"postgres-jdbc-2b": {
+			"provider": "postgresql",
+			"driver": "postgres-jdbc",
+			"name": "Analytics PG",
+			"save-password": false,
+			"folder": "Prod/Reports",
+			"configuration": {
+				"url": "jdbc:postgresql://pg.example.test:5433/analytics?sslmode=require",
+				"auth-model": "native"
+			}
+		},
+		"sqlite-3c": {
+			"provider": "generic",
+			"driver": "sqlite_jdbc",
+			"name": "Local cache",
+			"configuration": {
+				"database": "/tmp/fake/cache.db",
+				"url": "jdbc:sqlite:/tmp/fake/cache.db"
+			}
+		},
+		"hive-4d": {
+			"provider": "generic",
+			"driver": "apache_hive2",
+			"name": "Warehouse",
+			"configuration": {
+				"url": "jdbc:hive2://hive.example.test:10000/default"
+			}
+		},
+		"db2-5e": {
+			"provider": "db2",
+			"driver": "db2_iseries",
+			"name": "Mainframe",
+			"configuration": {
+				"host": "db2.example.test",
+				"port": "50000"
+			}
+		}
+	}
+}

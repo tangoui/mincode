@@ -1,0 +1,2073 @@
+/* HTTP mirrors the MinCode client: an environment/collections/history explorer,
+   request tabs, and a user-resizable request/response workspace. */
+.http-workspace {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--app-surface);
+}
+.http-sidebar {
+  display: flex;
+  min-width: 150px;
+  max-width: 380px;
+  flex: none;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+.http-sidebar-section {
+  flex: none;
+  overflow: hidden;
+  border-bottom: 1px solid var(--app-border);
+}
+.http-sidebar-section--fills {
+  display: flex;
+  min-height: 114px;
+  flex: 1;
+  flex-direction: column;
+}
+.http-sidebar-tabs {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--app-border);
+}
+.http-sidebar-tab {
+  position: relative;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  padding: 0 10px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.http-sidebar-tab:hover {
+  color: var(--app-text);
+}
+.http-sidebar-tab.is-active {
+  color: var(--app-accent);
+  font-weight: 600;
+}
+.http-sidebar-tab.is-active::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--app-accent);
+}
+.http-sidebar-section__header {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text-regular);
+  font-size: 11px;
+  font-weight: 600;
+}
+.http-sidebar-section__header--static {
+  min-height: 30px;
+  gap: 7px;
+  padding: 0 8px;
+}
+.http-sidebar-section__header > .el-button {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}.http-sidebar-section__header > .el-button:hover,
+.http-collection > header > .el-button:hover,
+.http-collection > header > .el-dropdown > .el-button:hover,
+.http-saved-request__action:hover,
+.http-add-row.el-button:hover {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+.http-sidebar-section__icon {
+  display: inline-flex;
+  width: 13px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-accent);
+  font-size: 11px;
+}.http-sidebar-section__header > span:not(.http-sidebar-section__icon),
+.http-collection__rename,
+.http-saved-request__rename,
+.http-stream-address .el-input,
+.http-stream-compose .el-textarea {
+  min-width: 0;
+  flex: 1;
+}
+.http-sidebar-section__header b {
+  margin-left: auto;
+  border-radius: 9px;
+  background: var(--app-muted);
+  padding: 1px 6px;
+  color: var(--app-text-muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+/* 环境控件位于请求页签工具行最右侧：
+   选择器 + 增删环境 + 变量编辑弹层触发钮，用左侧分隔线与 WS/SSE/Mock 区分。 */
+.http-tabs-env {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  order: 1;
+  margin-left: auto;
+  padding-left: 7px;
+  border-left: 1px solid var(--app-border);
+}
+.http-tabs-env__select {
+  width: 148px;
+  flex: none;
+}
+.http-tabs-env__dot {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--el-color-success);
+}
+.http-tabs-env__dot.is-empty {
+  background: var(--app-text-disabled);
+}
+.http-tabs-env__label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-tabs-env__select .el-select__wrapper {
+  min-height: 26px;
+  height: 26px;
+  font-size: 11px;
+}
+.http-tabs-env .el-button {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-accent);
+  cursor: pointer;
+}
+.http-tabs-env .el-button:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 45%, var(--app-surface));
+  background: var(--app-accent-soft);
+}
+.http-tabs-env .http-tabs-env__delete {
+  color: var(--app-text-muted);
+}
+.http-tabs-env .http-tabs-env__delete:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--el-color-danger) 45%, var(--app-surface));
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+.http-tabs-env .el-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.http-tabs-env .http-tabs-env__vars b {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  border-radius: 7px;
+  background: var(--app-accent);
+  padding: 0 4px;
+  color: var(--app-surface);
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 12px;
+}
+.http-tabs-env .http-tabs-env__vars {
+  position: relative;
+}
+.http-env-popover__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.http-env-popover__title b {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-env-popover__title .http-env-popover__add.el-button {
+  width: auto;
+  height: 24px;
+  flex: none;
+  margin-left: auto;
+  padding: 0 7px;
+  color: var(--app-accent);
+  font-size: 10px;
+}
+.http-env-rows--popover {
+  max-height: 240px;
+}
+.http-env-rows {
+  max-height: 182px;
+}
+.http-env-rows .el-scrollbar__view {
+  padding: 5px 8px 7px;
+}
+.http-env-row {
+  display: grid;
+  grid-template-columns: 17px minmax(52px, 0.9fr) minmax(60px, 1.15fr) 19px;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.http-env-row .el-checkbox {
+  margin-right: 0;
+}
+.http-env-row .el-input__wrapper {
+  min-height: 25px;
+  padding: 1px 5px;
+}
+.http-env-row .el-input__inner {
+  font-size: 10px;
+}
+.http-env-row > .el-button {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  width: 19px;
+  height: 20px;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+.http-env-row > .el-button:hover {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+.http-environment-manager {
+  --http-environment-control-height: 32px;
+}
+.http-environment-manager .el-dialog__header {
+  margin-right: 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--app-border);
+}
+.http-environment-manager .el-dialog__body {
+  padding-top: 16px;
+  padding-bottom: 14px;
+}
+.http-environment-manager .el-dialog__footer {
+  padding-top: 14px;
+  border-top: 1px solid var(--app-border);
+}
+.http-environment-manager__intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+.http-environment-manager__hint {
+  max-width: 540px;
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+.http-environment-manager__intro > .el-button {
+  min-height: var(--http-environment-control-height);
+  flex: none;
+}
+.http-environment-manager__list {
+  overscroll-behavior: contain;
+}
+.http-environment-manager__list .el-scrollbar__view {
+  display: grid;
+  gap: 10px;
+}
+/* 每个环境一张浅边框卡片：标题行放名称、当前标记 / 设为当前、删除；下方是变量表。不用色条，当前环境只用标签区分。 */
+.http-environment-manager__item {
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+.http-environment-manager__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 10px;
+  border-bottom: 1px solid var(--app-border);
+}
+.http-environment-manager__name {
+  min-width: 0;
+  flex: 1;
+}
+.http-environment-manager__name .el-input__wrapper {
+  border-color: transparent !important;
+  background: transparent !important;
+  font-weight: 600;
+}
+.http-environment-manager__name .el-input__wrapper:hover,
+.http-environment-manager__name.is-focus .el-input__wrapper,
+.http-environment-manager__name .el-input__wrapper.is-focus {
+  border-color: var(--app-input-border) !important;
+}
+.http-environment-manager__name .el-input__inner {
+  font-size: 12px;
+}
+.http-environment-manager__active-tag {
+  flex: none;
+}
+.http-environment-manager__set-active.el-button {
+  flex: none;
+  margin: 0;
+  color: var(--app-text-muted);
+}
+.http-environment-manager__set-active.el-button:hover {
+  color: var(--app-accent);
+}
+.http-environment-manager__delete.el-button {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  border-radius: 6px;
+  color: var(--app-text-muted);
+}
+.http-environment-manager__delete.el-button:hover:not(.is-disabled),
+.http-environment-manager__variables .http-env-row > .el-button:hover:not(.is-disabled) {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+.http-environment-manager__variables .el-input__wrapper {
+  min-height: var(--http-environment-control-height);
+}
+.http-environment-manager__variables .el-input__inner {
+  font-size: 11px;
+}
+.http-environment-manager__variables {
+  padding: 8px 10px 8px;
+}
+.http-environment-manager__variables .http-env-row {
+  grid-template-columns: 22px minmax(120px, 0.9fr) minmax(140px, 1.4fr) 28px;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.http-environment-manager__variables .http-env-row--head {
+  margin-bottom: 2px;
+  color: var(--app-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.http-environment-manager__variables .http-env-row > .el-button {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+}
+.http-environment-manager__item .http-add-row.el-button {
+  min-height: 28px;
+  margin-top: 1px;
+  padding: 4px 7px;
+  font-size: 11px;
+}
+@media (max-width: 680px) {
+  .http-environment-manager__intro {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .http-environment-manager__intro > .el-button {
+    align-self: flex-end;
+  }
+  .http-environment-manager__variables .http-env-row {
+    grid-template-columns: 22px minmax(0, 1fr) 28px;
+  }
+  .http-environment-manager__variables .http-env-row--head {
+    display: none;
+  }
+  .http-environment-manager__variables .http-env-row > .el-input:nth-of-type(2) {
+    grid-column: 2 / 3;
+  }
+  .http-environment-manager__variables .http-env-row > .el-button {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+.http-sidebar-empty {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  line-height: 1.65;
+  text-align: center;
+}
+.http-collection-list,
+.http-history-list {
+  min-height: 0;
+}
+/* 集合列表上方插了搜索框，这里用后代选择器而非直接子代。 */
+.http-sidebar-section--fills .http-collection-list,
+.http-body-editor > .el-textarea,
+.http-graphql-body .el-textarea,
+.http-body-fields,
+.http-request-editor,
+.http-document-editor > .el-textarea,
+.http-response-headers {
+  min-height: 0;
+  flex: 1;
+}
+.http-collection-search {
+  /* padding 由独立容器承担，避免 el-input 根节点固定高度被自身 padding 挤压裁切。 */
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 8px 6px;
+}
+.http-collection-search .app-search-field {
+  min-width: 0;
+  flex: 1;
+}
+.http-collection-search .el-dropdown {
+  flex: none;
+}
+/* 全局 .el-button 有 min-height: 30px，这里显式覆盖成和搜索框等高的正方形。 */
+.http-sidebar-icon-button.el-button {
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  border-radius: 6px;
+}
+.http-sidebar-icon-button.el-button:not(.el-button--primary) {
+  border-color: var(--app-border);
+  color: var(--app-text-regular);
+}
+.http-sidebar-onboarding {
+  display: grid;
+  gap: 6px;
+  margin: 10px 8px;
+  padding: 12px;
+  border: 1px dashed var(--app-border-strong);
+  border-radius: 8px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.http-sidebar-onboarding strong {
+  color: var(--app-text);
+  font-size: 12px;
+}
+.http-sidebar-onboarding > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.http-sidebar-onboarding .el-button {
+  margin: 0;
+}
+.http-collection-search .app-search-field {
+  --app-search-field-height: 26px;
+
+  width: 100%;
+}
+.http-collection-search .el-input__wrapper {
+  padding: 0 7px;
+}
+.http-collection-search .el-input__inner {
+  font-size: 11px;
+}
+.http-sidebar-section--fills .http-collection-list .el-scrollbar__view {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+.http-sidebar-section--fills .http-collection-list .el-scrollbar__view > .http-sidebar-empty {
+  flex: 1;
+}
+.http-collection {
+  border-bottom: 1px solid var(--app-border);
+}
+.http-collection .http-collection {
+  border-bottom: 0;
+}
+.http-collection > header,
+.http-saved-request {
+  display: flex;
+  align-items: center;
+}
+.http-collection > header {
+  min-height: 32px;
+  gap: 3px;
+  padding: 3px 6px 3px calc(6px + var(--http-tree-depth, 0) * 14px);
+  background: color-mix(in srgb, var(--app-muted) 78%, transparent);
+}
+.http-collection__toggle {
+  width: 18px !important;
+  height: 24px !important;
+}
+.http-collection__folder {
+  flex: none;
+  color: var(--app-accent);
+}
+.http-collection > header strong {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--app-text-regular);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-collection__rename.app-inline-rename,
+.http-saved-request__rename .app-inline-rename {
+  --el-input-height: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  font-size: 10px;
+}
+.http-collection__rename.app-inline-rename .el-input__wrapper,
+.http-saved-request__rename .app-inline-rename .el-input__wrapper {
+  min-height: 24px;
+  height: 24px;
+  padding: 0 6px;
+}
+.http-collection__rename.app-inline-rename .el-input__inner,
+.http-saved-request__rename .app-inline-rename .el-input__inner {
+  font-size: 10px;
+}
+.http-saved-request__rename {
+  display: grid;
+  min-height: 30px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+  padding: 3px 2px 3px calc(16px + var(--http-tree-depth, 0) * 14px);
+}
+.http-collection .el-button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+/* 集合树的图标按钮（含下拉触发按钮）统一 24px 方形圆角，悬停底色不出现圆形。 */
+.http-collection > header > .el-button,
+.http-collection > header > .el-dropdown > .el-button,
+.http-saved-request__action {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  flex: none;
+  place-items: center;
+  border-radius: 4px;
+}
+.http-saved-request__open.el-button {
+  min-width: 0;
+  min-height: 30px;
+  flex: 1;
+  padding: 4px 2px 4px calc(16px + var(--http-tree-depth, 0) * 14px);
+  text-align: left;
+}
+.http-saved-request__open.el-button > span {
+  display: grid;
+  min-width: 0;
+  width: 100%;
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 3px;
+}
+.http-saved-request .http-method {
+  justify-self: end;
+}
+.http-saved-request__open:hover {
+  background: var(--app-accent-soft);
+}
+.http-saved-request__open.el-button > span > span:nth-child(2) {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-save-request__select {
+  width: 100%;
+}
+.http-save-request__new.el-button {
+  display: flex;
+  margin: 10px 0 0;
+  padding: 0;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--app-accent);
+  cursor: pointer;
+}
+.http-method {
+  color: var(--el-color-success);
+  font:
+    700 9px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+/* 历史：按日期分组；每条两行（名字 / 主机+路径），右侧状态码与耗时·时间，悬停出现移除按钮。 */
+.http-history-group > header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 4px;
+  background: var(--app-sidebar);
+  color: var(--app-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.http-history-group > header b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.http-history-item {
+  position: relative;
+  margin: 0 6px;
+  border-radius: 6px;
+}
+.http-history-item:hover {
+  background: var(--app-hover);
+}
+.http-history-item__open {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.http-history-item__open:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 72%, var(--app-surface));
+  outline-offset: -2px;
+}
+.http-history-item__body {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.http-history-item__body strong,
+.http-history-item__body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-history-item__body strong {
+  color: var(--app-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.http-history-item__body small {
+  color: var(--app-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+.http-history-item__meta {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.http-history-item__meta i {
+  padding: 0 5px;
+  border-radius: 4px;
+  font: 700 10px/16px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-style: normal;
+}
+.http-history-item__meta i.is-ok {
+  background: color-mix(in srgb, var(--el-color-success) 13%, transparent);
+  color: var(--el-color-success);
+}
+.http-history-item__meta i.is-redirect {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+.http-history-item__meta i.is-client-error {
+  background: color-mix(in srgb, var(--el-color-warning) 15%, transparent);
+  color: var(--el-color-warning);
+}
+.http-history-item__meta i.is-server-error {
+  background: color-mix(in srgb, var(--el-color-danger) 13%, transparent);
+  color: var(--el-color-danger);
+}
+.http-history-item__meta small {
+  color: var(--app-text-muted);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.http-history-item__remove.el-button {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  margin: 0;
+  padding: 0;
+  border-radius: 5px;
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  opacity: 0;
+  transform: translateY(-50%);
+}
+.http-history-item:hover .http-history-item__remove.el-button,
+.http-history-item:focus-within .http-history-item__remove.el-button {
+  opacity: 1;
+}
+.http-history-item:hover .http-history-item__meta,
+.http-history-item:focus-within .http-history-item__meta {
+  visibility: hidden;
+}
+.http-history-item__remove.el-button:hover {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+.http-method.is-post { color: var(--el-color-warning); }
+.http-method.is-put,
+.http-method.is-patch { color: var(--app-accent); }
+.http-method.is-delete { color: var(--el-color-danger); }
+.http-method.is-head,
+.http-method.is-options { color: var(--app-text-muted); }
+.http-sidebar-env-list {
+  min-height: 0;
+  flex: 1;
+}
+.http-sidebar-env-group {
+  border-bottom: 1px solid var(--app-border);
+}
+.http-sidebar-env-group > header {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 10px;
+  background: color-mix(in srgb, var(--app-muted) 78%, transparent);
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.http-sidebar-env-group > header > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-sidebar-env-group > header > .el-button {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+.http-sidebar-env-group > header > .el-button:hover {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+.http-sidebar-env {
+  display: flex;
+  width: 100%;
+  min-height: 28px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 3px 10px 3px 18px;
+  color: var(--app-text-regular);
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.http-sidebar-env:hover {
+  background: var(--app-accent-soft);
+}
+.http-sidebar-env__dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border: 1px solid var(--app-text-muted);
+  border-radius: 50%;
+}
+.http-sidebar-env.is-active .http-sidebar-env__dot {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+}
+.http-sidebar-env__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-sidebar-env small {
+  color: var(--app-text-muted);
+  font-size: 9px;
+}
+.http-main-workspace {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 400px;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* 标签行：只有请求标签横向滚动；“+”、连接工具和环境固定在右侧，不会被挤出视野。 */
+.http-request-tabs-bar {
+  display: flex;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  align-items: center;
+  gap: 4px;
+  padding-right: 10px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+.http-request-tabs {
+  height: 43px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+/* 标签栏只横向滚动；内容高度扣掉底边框，避免多出 1px 出现竖向滚动条。 */
+.http-request-tabs .el-scrollbar__wrap {
+  overflow-y: hidden;
+}
+.http-request-tabs .el-scrollbar__bar.is-vertical {
+  display: none;
+}
+.http-request-tabs .el-scrollbar__bar.is-horizontal {
+  bottom: 1px;
+  height: 4px;
+}
+.http-request-tabs .el-scrollbar__view {
+  display: flex;
+  width: max-content;
+  min-height: 43px;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+}
+.http-request-tab,
+.http-request-tabs__tools > .el-button {
+  display: flex;
+  height: 32px;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.http-request-tab {
+  max-width: 210px;
+}
+.http-request-tab.is-active {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+.http-request-tab__select {
+  display: flex;
+  min-width: 0;
+  height: 30px;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  padding: 0 2px 0 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}.http-request-tab__select > span:nth-child(2),
+.http-body-field__file > span,
+.http-param-file > span,
+.http-binary-body > .el-button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-request-tabs__tools > .el-button {
+  margin: 0;
+  padding: 0 8px;
+  cursor: pointer;
+}
+.http-stream-panel {
+  display: flex;
+  height: min(680px, 72vh);
+  min-height: 460px;
+  flex-direction: column;
+  gap: 10px;
+}
+.http-stream-address,
+.http-stream-compose {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+.http-stream-address .el-input__wrapper {
+  min-height: 32px;
+}
+.http-stream-address .el-button,
+.http-stream-compose .el-button {
+  min-width: 100px;
+}
+.http-stream-status {
+  display: flex;
+  min-height: 30px;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-muted);
+  padding: 5px 9px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.http-stream-status strong {
+  color: var(--app-text-regular);
+}
+.http-stream-status__dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--app-text-muted);
+}.http-stream-status__dot.is-connecting,
+.http-request-tab__status.is-loading {
+  animation: http-tab-pulse 900ms ease-in-out infinite;
+  background: var(--app-accent);
+}
+.http-stream-status__dot.is-connected {
+  background: var(--el-color-success);
+}
+.http-stream-status__dot.is-error {
+  background: var(--el-color-danger);
+}
+.http-stream-section {
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}
+.http-stream-section--logs {
+  display: flex;
+  min-height: 160px;
+  flex: 1;
+  flex-direction: column;
+}
+.http-stream-section > header {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-muted);
+  color: var(--app-text-muted);
+  font-size: 10px;
+}.http-stream-section > header strong,
+.http-collection-runner__results article strong {
+  color: var(--app-text-regular);
+  font-size: 11px;
+}
+.http-stream-section > header button {
+  margin-left: auto;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 3px 6px;
+  color: var(--app-accent);
+  font-size: 10px;
+  cursor: pointer;
+}
+.http-stream-section > header button:hover:not(:disabled) {
+  background: var(--app-accent-soft);
+}
+.http-stream-section > header button:disabled {
+  color: var(--app-text-muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.http-stream-headers {
+  max-height: 116px;
+}
+.http-stream-headers .el-scrollbar__view {
+  padding: 6px 8px 2px;
+}
+.http-stream-header-row {
+  display: grid;
+  grid-template-columns: 24px minmax(130px, 0.8fr) minmax(180px, 1.2fr) 30px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.http-stream-header-row .el-select,
+.http-stream-header-row .el-input {
+  min-width: 0;
+}
+.http-stream-header-row .el-select__wrapper,
+.http-stream-header-row .el-input__wrapper {
+  min-height: 28px;
+}
+.http-stream-logs {
+  min-height: 0;
+  flex: 1;
+  background: var(--app-surface);
+}
+.http-stream-logs article {
+  border-bottom: 1px solid var(--app-border);
+  padding: 7px 10px;
+}
+.http-stream-logs article > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+.http-stream-logs article strong {
+  color: var(--app-text-regular);
+}
+.http-stream-logs article.is-received strong {
+  color: var(--el-color-success);
+}
+.http-stream-logs article.is-sent strong {
+  color: var(--app-accent);
+}
+.http-stream-logs article small {
+  margin-left: auto;
+}
+.http-stream-logs pre {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--app-text);
+  font:
+    11px/1.55 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+}
+.http-stream-logs article > .el-button {
+  margin-top: 2px;
+  padding: 0;
+}
+.http-stream-compose {
+  align-items: stretch;
+}
+.http-stream-compose .el-textarea__inner {
+  min-height: 72px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .http-stream-header-row {
+    grid-template-columns: 24px minmax(100px, 0.8fr) minmax(120px, 1.2fr) 30px;
+  }
+}
+
+.http-body-field__file.el-button:hover,
+.http-param-file.el-button:hover,
+.http-binary-body > .el-button:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 44%, var(--app-border));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.http-curl-dialog__hint {
+  margin: 0 0 9px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.http-curl-dialog .el-textarea__inner {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.http-curl-dialog__error {
+  margin: 8px 0 0;
+  color: var(--el-color-danger);
+  font-size: 12px;
+}
+
+.http-code-dialog__toolbar {
+  display: flex;
+  min-height: 30px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.http-code-dialog__languages {
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.http-code-dialog__languages .el-segmented {
+  width: max-content;
+}
+
+.http-code-dialog__toolbar > .el-button {
+  flex: none;
+}
+
+.http-code-dialog__plugins {
+  flex: none;
+  width: min(220px, 40%);
+}
+
+.http-code-dialog__languages .el-segmented.is-inactive {
+  --app-segmented-selected-bg: transparent;
+  --app-segmented-selection-border: transparent;
+  --app-segmented-selected-color: var(--app-text-regular);
+}
+
+.http-code-dialog__notice {
+  margin-bottom: 10px;
+}
+
+.http-code-dialog__content {
+  height: min(560px, 60vh);
+  border: 1px solid var(--app-border-subtle);
+  border-radius: 6px;
+  background: var(--app-surface-sunken);
+  color: var(--app-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
+}
+.http-code-dialog__content pre {
+  min-width: max-content;
+  margin: 0;
+  padding: 12px 14px;
+  color: inherit;
+  font: inherit;
+}
+
+.http-auth-editor {
+  align-items: flex-start;
+}
+
+.http-auth-editor > .el-select,
+.http-auth-editor > .el-input,
+.http-auth-editor__fields,
+.http-auth-editor__oauth {
+  width: min(100%, 680px);
+}
+
+.http-auth-editor__fields,
+.http-auth-editor__oauth {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.http-auth-editor__oauth > small,
+.http-auth-editor__empty {
+  grid-column: 1 / -1;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.http-auth-editor__fields .el-input,
+.http-auth-editor__fields .el-select,
+.http-auth-editor__oauth .el-input,
+.http-auth-editor__oauth .el-select {
+  width: 100%;
+}.http-body-editor,
+.http-document-editor {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.http-body-editor__types {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 30px;
+  flex: none;
+  margin-bottom: 7px;
+}
+
+.http-body-editor__types .el-segmented__item {
+  min-height: 24px;
+  flex: none;
+  padding: 0 7px;
+  font-size: 10px;
+  font-weight: 600;
+}.http-body-editor > .el-textarea .el-textarea__inner,
+.http-graphql-body .el-textarea__inner,
+.http-document-editor > .el-textarea .el-textarea__inner {
+  height: 100%;
+  min-height: 100%;
+}
+
+.http-body-editor__empty {
+  display: grid;
+  min-height: 92px;
+  flex: 1;
+  place-items: center;
+  border: 1px dashed var(--app-border);
+  border-radius: 6px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.http-graphql-body {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  gap: 10px;
+}
+
+.http-graphql-body > label {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+.http-body-fields .el-scrollbar__view {
+  min-width: max-content;
+}
+
+.http-body-fields__head,
+.http-body-field {
+  display: grid;
+  grid-template-columns: 28px minmax(100px, 0.85fr) minmax(160px, 1.4fr) 30px;
+  align-items: center;
+  gap: 6px;
+}
+
+.http-body-fields__head.is-form-data,
+.http-body-field.is-form-data {
+  grid-template-columns: 28px minmax(90px, 0.75fr) 88px minmax(130px, 1.1fr) minmax(110px, 0.8fr) 30px;
+}.http-body-fields__head,
+.http-kv-head {
+  height: 24px;
+  color: var(--app-text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.http-body-field {
+  margin-bottom: 5px;
+}.http-body-field .el-checkbox,
+.http-kv-row .el-checkbox {
+  margin-right: 0;
+  justify-self: center;
+}.http-body-field > .el-input,
+.http-body-field > .el-select,
+.http-kv-row > .el-input,
+.http-kv-row > .el-select,
+.http-auth-editor > .el-select,
+.http-auth-editor > .el-input {
+  width: 100%;
+  min-width: 0;
+  --el-component-size: 28px;
+}.http-body-field .el-input__wrapper,
+.http-body-field .el-select__wrapper,
+.http-kv-row .el-input__wrapper,
+.http-kv-row .el-select__wrapper,
+.http-auth-editor .el-input__wrapper,
+.http-auth-editor .el-select__wrapper {
+  height: 28px;
+  min-height: 28px;
+  box-sizing: border-box;
+}
+
+.http-body-field__file.el-button,
+.http-param-file.el-button,
+.http-binary-body > .el-button {
+  display: flex;
+  margin: 0;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 5px;
+  background: var(--app-surface);
+  padding: 0 8px;
+  color: var(--app-text-regular);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.http-param-file.el-button {
+  width: 100%;
+}
+
+.http-binary-body {
+  display: flex;
+  min-height: 92px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px dashed var(--app-border);
+  border-radius: 6px;
+}
+
+.http-binary-body > .el-button {
+  max-width: min(360px, 80%);
+}
+
+.http-binary-body > small {
+  max-width: 520px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.http-collection-runner__toolbar {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.http-collection-runner__toolbar > div {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.http-collection-runner__toolbar strong {
+  color: var(--app-text);
+  font-size: 14px;
+}
+
+.http-collection-runner__toolbar > .is-passed {
+  color: var(--el-color-success);
+}
+
+.http-collection-runner__toolbar > .is-failed {
+  color: var(--el-color-danger);
+}
+
+.http-collection-runner__results {
+  min-height: 240px;
+  max-height: min(520px, 58vh);
+  margin-top: 9px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+}
+
+.http-collection-runner__results article {
+  display: grid;
+  min-height: 44px;
+  grid-template-columns: 18px 42px minmax(0, 1fr) 50px 64px;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 5px 9px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.http-collection-runner__results article:last-child {
+  border-bottom: 0;
+}
+
+.http-collection-runner__results article > .el-icon {
+  color: var(--el-color-danger);
+}
+
+.http-collection-runner__results article.is-passed > .el-icon {
+  color: var(--el-color-success);
+}
+
+.http-collection-runner__results article > div {
+  min-width: 0;
+}
+
+.http-collection-runner__results article strong,
+.http-collection-runner__results article small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.http-collection-runner__results article small {
+  margin-top: 2px;
+  color: var(--app-text-muted);
+  font-size: 9px;
+}
+
+/* Request editor and response split: kept with the HTTP workspace rather than shared styles. */
+/* Limit the status dot to its dedicated element: Element Plus icons also render as <i>. */
+.http-request-tab__status {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--app-text-muted);
+}
+.http-request-tab__status.is-ok {
+  background: var(--el-color-success);
+}
+.http-request-tab__status.is-error {
+  background: var(--el-color-danger);
+}
+@keyframes http-tab-pulse {
+  50% {
+    opacity: 0.28;
+  }
+}
+/* 关闭按钮：18px 方形圆角；覆盖全局 .el-button 的 30px 最小高度，避免被拉成椭圆。 */
+.http-request-tab__close.el-button {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex: none;
+  margin: 0 4px 0 0;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  opacity: 1;
+}
+.http-request-tab__close.el-button:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+.http-request-tabs__tools {
+  display: flex;
+  height: 32px;
+  min-width: max-content;
+  flex: 1 0 auto;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding-left: 7px;
+  border-left: 1px solid var(--app-border);
+}
+.http-request-tabs__tools > .el-button {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+.http-request-tabs__tools > .el-button:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 45%, var(--app-surface));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+.http-request-tabs-bar .http-request-tabs__add.el-button {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  color: var(--app-text-muted);
+}
+.http-request-tabs__connect.el-button {
+  height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  gap: 4px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  color: var(--app-text-regular);
+  font-size: 11px;
+}
+.http-request-tabs__connect.el-button .el-icon {
+  margin-left: 4px;
+  font-size: 11px;
+}
+.http-connection-menu .el-dropdown-menu__item {
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 190px;
+}
+.http-connection-menu small {
+  color: var(--app-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+.http-request-response {
+  display: flex;
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}.http-request-panel,
+.http-response-panel {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* 地址行：方法 + 地址合成一个输入框占满剩余宽度，右侧只有发送 / 保存 / 更多，统一 32px 高。 */
+.http-address-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid var(--app-border);
+}
+.http-url-field {
+  display: flex;
+  min-width: 0;
+  height: 32px;
+  flex: 1;
+  border: 1px solid var(--app-input-border);
+  border-radius: var(--app-control-radius);
+  background: var(--app-input-bg);
+  transition: border-color 0.15s;
+}
+.http-url-field:hover {
+  border-color: var(--app-input-border-hover);
+}
+.http-url-field:focus-within {
+  border-color: var(--app-input-border-focus);
+}
+/* 外框由 .http-url-field 承担；全局输入框用 !important 加的边框在这里去掉，避免出现三层边框。 */
+.http-url-field .el-select__wrapper,
+.http-url-field .el-input__wrapper {
+  min-height: 30px;
+  height: 30px;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.http-url-field > .http-method-select.el-select {
+  width: 96px;
+  flex: none;
+  border-right: 1px solid var(--app-border);
+}
+.http-url-field > .http-method-select .el-select__selected-item {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+.http-method-select.is-get .el-select__selected-item { color: var(--el-color-success); }
+.http-method-select.is-post .el-select__selected-item { color: var(--el-color-warning); }
+.http-method-select.is-put .el-select__selected-item,
+.http-method-select.is-patch .el-select__selected-item { color: var(--app-accent); }
+.http-method-select.is-delete .el-select__selected-item { color: var(--el-color-danger); }
+.http-url-field > .http-url-input {
+  min-width: 0;
+  flex: 1;
+}
+.http-url-input .el-input__inner {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.http-address-row .el-button,
+.http-address-row .el-button-group > .el-button {
+  height: 32px;
+  margin: 0;
+}
+.http-address-row > .http-send-button {
+  flex: none;
+}
+.http-address-row > .http-send-button.el-button {
+  min-width: 86px;
+}
+.http-send-button .el-button-group > .el-button:first-child {
+  gap: 4px;
+  padding: 0 14px;
+  font-weight: 600;
+}
+.http-send-button .el-button-group > .el-button:first-child .el-icon {
+  margin-right: 4px;
+}
+.http-send-button .el-button-group > .el-dropdown__caret-button {
+  width: 28px;
+  padding: 0;
+  --el-button-divide-border-color: color-mix(in srgb, var(--app-text-on-accent) 35%, transparent);
+}
+/* 鼠标点击下拉箭头不画聚焦外框（Element Plus 会给 caret 按钮留下 2px 描边），键盘聚焦仍显示。 */
+.http-send-button .el-button-group > .el-button:focus:not(:focus-visible),
+.http-send-button .el-dropdown__caret-button:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+.http-send-button .el-button-group > .el-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--app-accent) 55%, var(--app-surface));
+  outline-offset: 1px;
+  z-index: 1;
+}
+.http-send-button.el-dropdown:focus-visible,
+.http-send-button .el-tooltip__trigger:focus-visible {
+  outline: none;
+}
+.http-address-action.el-button {
+  min-width: 64px;
+  padding: 0 12px;
+}
+.http-address-action--icon.el-button {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+/* ElTabs renders a header and a content container. This workspace owns only
+   the header; the request editor below is intentionally shared by every tab. */
+.http-config-tabs {
+  width: 100%;
+  min-height: 36px;
+  flex: none;
+  border-bottom: 1px solid var(--app-border);
+}
+.http-config-tabs .el-tabs__header {
+  margin: 0;
+}
+.http-config-tabs .el-tabs__nav-wrap::after {
+  height: 0;
+}
+.http-config-tabs .el-tabs__nav-scroll {
+  padding: 0 10px;
+}
+.http-config-tabs .el-tabs__item {
+  height: 36px;
+  padding: 0 12px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 36px;
+}
+.http-config-tabs .el-tabs__item:hover {
+  color: var(--app-text);
+}
+.http-config-tabs .el-tabs__item.is-active {
+  color: var(--app-accent);
+  font-weight: 600;
+}
+.http-config-tabs .el-tabs__active-bar {
+  height: 2px;
+  background: var(--app-accent);
+}
+.http-config-tabs .el-tabs__content {
+  display: none;
+}
+.http-config-tabs small {
+  margin-left: 4px;
+  border-radius: 8px;
+  background: var(--app-muted);
+  padding: 1px 5px;
+  color: var(--app-text-muted);
+}
+.http-request-editor .el-scrollbar__view {
+  min-height: 100%;
+  padding: 8px 10px;
+}
+.http-request-editor--fill .el-scrollbar__view {
+  display: flex;
+  box-sizing: border-box;
+  height: 100%;
+  flex-direction: column;
+}
+.http-request-editor .el-scrollbar__view > .el-textarea,
+.http-request-editor .el-scrollbar__view > .el-textarea .el-textarea__inner {
+  height: 100%;
+}
+.http-request-editor .el-textarea__inner {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.http-document-editor__toolbar {
+  margin-bottom: 6px;
+}
+.http-kv-head,
+.http-kv-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 6px;
+}
+.http-kv-head--params,
+.http-kv-row--params {
+  grid-template-columns: 28px minmax(0, 0.9fr) minmax(88px, 0.5fr) minmax(0, 1.4fr) minmax(0, 0.9fr) 30px;
+}
+.http-kv-head b:first-of-type {
+  display: none;
+}
+.http-kv-row {
+  margin-bottom: 5px;
+}
+.http-add-row.el-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 4px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+.http-add-row--sidebar {
+  margin-left: 19px;
+}
+.http-auth-editor {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.http-response-toolbar {
+  display: flex;
+  height: 36px;
+  min-height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 9px;
+  border-bottom: 1px solid var(--app-border);
+}
+.http-response-tabs {
+  width: fit-content;
+  flex: none;
+}
+.http-response-tabs .el-segmented__item {
+  min-height: 24px;
+  padding: 0 9px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 24px;
+}
+.http-response-tabs .el-segmented__item.is-selected {
+  color: var(--app-segmented-selected-color);
+}
+.http-response-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+.http-response-meta span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.http-response-meta .is-ok {
+  color: var(--el-color-success);
+}
+.http-response-meta .is-error {
+  color: var(--el-color-danger);
+}
+.http-response-large-notice {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+/* 浏览器本地模式：响应区顶部的行为差异提示（被忽略的请求头等）。 */
+.http-response-browser-note {
+  flex: none;
+  border-radius: 0;
+}
+/* 响应体由 VirtualTextViewer 渲染（styles/shared/virtual-text.css），这里只占满剩余高度。 */
+.http-response-body {
+  min-height: 0;
+  flex: 1;
+}
+.http-response-headers .el-scrollbar__view > div {
+  display: grid;
+  grid-template-columns: minmax(160px, 34%) minmax(0, 1fr);
+  gap: 10px;
+  border-bottom: 1px solid var(--app-border);
+  padding: 7px 11px;
+  font-size: 11px;
+}
+.http-response-headers__head {
+  position: sticky;
+  top: 0;
+  background: var(--app-muted);
+  color: var(--app-text-muted);
+  font-size: 9px !important;
+  text-transform: uppercase;
+}
+.http-response-empty {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.http-response-empty strong {
+  color: var(--app-text-regular);
+  font-size: 12px;
+}
+.http-response-pending {
+  display: flex;
+  height: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.http-response-pending__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.http-response-pending kbd {
+  min-width: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--app-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: var(--app-text-regular);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 15px;
+  text-align: center;
+}
+/* 未发请求：响应区只占一行（拖动手柄隐藏），请求区拿到全部剩余高度；发送后恢复用户上次的分栏比例。 */
+.http-request-response.is-response-pending > .el-splitter > .el-splitter-panel:first-child {
+  flex: 1 1 auto !important;
+}
+.http-request-response.is-response-pending > .el-splitter > .el-splitter-panel:last-child {
+  flex: 0 0 44px !important;
+  border-top: 1px solid var(--app-border);
+}
+@media (max-width: 820px) {
+  .http-tabs-env__select {
+    width: 112px;
+  }
+  .http-response-meta span {
+    display: none;
+  }
+  .http-auth-editor {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * HTTP 工作区的大弹窗（WS/SSE、Socket.IO、Mock、代码生成、集合运行、环境管理、cURL 导入）：整体高度不超过窗口，
+ * 只在弹窗内部滚动，遮罩层不出现原生滚动条。
+ */
+.el-overlay-dialog:has(> .http-fit-dialog) {
+  overflow: hidden;
+}
+.el-dialog.http-fit-dialog {
+  display: flex;
+  max-height: 92vh;
+  margin-bottom: 0;
+  flex-direction: column;
+}
+.el-dialog.http-fit-dialog > .el-dialog__body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.el-dialog.http-fit-dialog > .el-dialog__header,
+.el-dialog.http-fit-dialog > .el-dialog__footer {
+  flex: none;
+}
+.http-fit-dialog .http-code-dialog__content {
+  height: min(560px, calc(92vh - 220px));
+  min-height: 160px;
+}
+.http-fit-dialog .http-stream-panel {
+  height: min(760px, calc(92vh - 110px));
+  min-height: 0;
+}
+.http-fit-dialog .http-stream-section--logs {
+  min-height: 120px;
+}
+.http-socketio-panel.http-stream-panel {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.http-stream-address .http-socketio-namespace {
+  width: 220px;
+  flex: 0 0 220px;
+}
+.http-socketio-settings .el-tabs__header {
+  margin: 0;
+  padding: 0 9px;
+  background: var(--app-muted);
+}
+.http-socketio-settings .el-tabs__item {
+  height: 32px;
+  font-size: 11px;
+}
+.http-socketio-auth {
+  display: grid;
+  gap: 6px;
+  padding: 6px 8px;
+}
+.http-socketio-auth .el-textarea__inner,
+.http-socketio-compose .el-textarea__inner {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+.http-socketio-settings .http-stream-headers .el-scrollbar__view > .el-button {
+  margin-bottom: 4px;
+}
+.http-stream-logs article.is-ack strong {
+  color: var(--el-color-warning);
+}
+.http-stream-logs article > div > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-socketio-compose {
+  display: grid;
+  flex: none;
+  gap: 6px;
+}
+.http-socketio-compose__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.http-socketio-event {
+  min-width: 180px;
+  flex: 1;
+}
+.http-socketio-saved {
+  width: 200px;
+}
+.http-socketio-saved__option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+.http-socketio-saved__option small {
+  overflow: hidden;
+  flex: 1;
+  color: var(--app-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.http-socketio-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .http-stream-address .http-socketio-namespace,
+  .http-socketio-saved {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .http-socketio-panel .http-stream-address {
+    flex-wrap: wrap;
+  }
+}

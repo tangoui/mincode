@@ -1,0 +1,69 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tangoui/tango/4400ba652672ee2ad23783cd2d49996178e58302/cmd/tan/tan.schema.json",
+  "name": "MinCode",
+  "id": "com.tangoui.mincode",
+  "version": "0.4.0",
+  "copyright": "(c) 2026, tango",
+  "icon": "icons/appicon.png",
+  "icons": {
+    "macos": "icons/appicon.png",
+    "windows": "icons/appicon.ico",
+    "linux": {
+      "app": "icons/appicon.png"
+    }
+  },
+  "cgo": true,
+  "desktopBuildTags": [
+    "production",
+    "nocoredrivers"
+  ],
+  "features": [
+    "webview"
+  ],
+  "localizations": [
+    "zh-Hans",
+    "en"
+  ],
+  "urlSchemes": [
+    "mincode"
+  ],
+  "frontend": {
+    "dir": "vue-app",
+    "dist": "../frontend/dist",
+    "install": "pnpm --dir .. install --frozen-lockfile",
+    "dev": "pnpm dev",
+    "build": "pnpm build"
+  },
+  "macos": {
+    "minVersion": "12.0"
+  },
+  "linux": {
+    "package": "mincode",
+    "description": "A native developer workspace\nMinCode desktop developer workspace: terminals, SSH, databases and HTTP in one app.",
+    "license": "AGPL-3.0"
+  },
+  "installer": {
+    "macos": {
+      "dmg": {
+        "background": "icons/dmg-background.png",
+        "windowSize": [
+          640,
+          400
+        ],
+        "iconSize": 96,
+        "appPosition": [
+          170,
+          194
+        ],
+        "applicationsPosition": [
+          470,
+          194
+        ]
+      }
+    },
+    "windows": {
+      "scope": "user",
+      "desktopShortcut": "always"
+    }
+  }
+}

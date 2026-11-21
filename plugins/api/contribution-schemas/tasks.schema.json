@@ -1,0 +1,46 @@
+{
+  "$comment": "Entry schema for contributes.tasks (process plugins that declare the shell capability, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_tasks.go (install), tasks_detect.go (detection) and tasks_launch.go (launch). A static task's command is a bare program name found on the login PATH or ${pluginRoot}/<relative> (absolute paths are rejected); '${...}' in args and env values may only be {{lists.variables}}; cwd is ${projectRoot} (default) or ${projectRoot}/<relative>, resolved symlink-safely inside the project; env names on the contract denylist are rejected at install and at launch. when.files lists literal project-relative paths that must all exist. A provider names one of this plugin's contributes.actions with risk 'read' and aiCallable false; the host calls it only when the user opens the Tasks panel or refreshes, with {provider, project: {name, root? (only with workspace.read)}, platform} (<= {{limits.detectPayloadMaxBytes}} bytes, timeout {{limits.detectTimeoutMs}} ms) and expects {\"tasks\": [{id, title, detail?, group?, command, args?, env?, cwd?}]} (<= {{limits.detectedTasksMax}} tasks, <= {{limits.detectResultMaxBytes}} bytes; each task passes the static validator, invalid ones are dropped). Every first run per project, and every run after the resolved command line, env, cwd, plugin files or plugin version changed, needs an explicit user confirmation in every approval mode. AI tools cannot run plugin tasks.",
+  "description": "Tasks: named commands listed in the project Tasks panel and the command palette, run in a terminal pane after the user confirms the exact command line.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "kind", "title"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,31}$" },
+      "kind": { "enum": "{{lists.kinds}}" },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "detail": { "type": "string", "maxLength": "{{limits.detailMaxRunes}}", "description": "static only" },
+      "group": { "enum": "{{lists.groups}}", "description": "static only; defaults to other." },
+      "command": { "type": "string", "minLength": 1, "maxLength": "{{limits.commandMaxLength}}", "description": "static only: a bare program name such as \"npm\" or ${pluginRoot}/<relative path>. No shell runs in between: $VAR stays literal." },
+      "args": { "type": "array", "maxItems": "{{limits.argsMax}}", "items": { "type": "string", "maxLength": "{{limits.argMaxRunes}}" }, "description": "static only; at most {{limits.argsTotalBytes}} bytes in total." },
+      "env": {
+        "type": "object",
+        "maxProperties": "{{limits.envMax}}",
+        "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$", "not": { "enum": "{{lists.deniedEnvNames}}" } },
+        "additionalProperties": { "type": "string", "maxLength": "{{limits.envValueMaxRunes}}" },
+        "description": "static only"
+      },
+      "cwd": { "type": "string", "pattern": "^\\$\\{projectRoot\\}(/[^/]+)*$", "description": "static only; defaults to ${projectRoot}." },
+      "when": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": "{{limits.whenFilesMax}}",
+            "items": { "type": "string", "maxLength": "{{limits.whenFileMaxLength}}", "pattern": "^[A-Za-z0-9._@+-]+(/[A-Za-z0-9._@+-]+)*$" }
+          }
+        },
+        "additionalProperties": false,
+        "description": "static only: the task is listed only when every file exists in the project."
+      },
+      "action": { "type": "string", "minLength": 1, "description": "provider only: one of this plugin's contributes.actions with risk 'read' and aiCallable false." },
+      "platforms": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": "{{lists.platforms}}" } }
+    },
+    "additionalProperties": false
+  }
+}

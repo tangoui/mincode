@@ -1,0 +1,86 @@
+{
+  "$comment": "Entry schema for contributes.languageServers (process plugins that declare the shell capability, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_language_servers.go (install) and language_servers_launch.go (launch); the session rules live in backend/lsp/external.go. command is a bare program name found on the login PATH or ${pluginRoot}/<relative> (absolute paths are rejected); '${...}' in args and env values may only be {{lists.variables}}; there is no cwd: the server always runs in the project root. env names on the contract denylist are rejected at install and at launch. initializationOptions is a JSON object of at most {{limits.initializationOptionsMaxBytes}} bytes (canonical form) and {{limits.initializationOptionsMaxDepth}} levels; the host sends this copy in initialize whatever the client sends, and pins rootUri, rootPath and workspaceFolders to the project root. Every URI the editor sends must be a file:// URI inside the project root, frames are capped at {{limits.messageMaxBytes}} bytes and stderr at {{limits.stderrMaxBytes}} bytes. A server starts only after the user confirms its exact command line (once per server spec; ${projectRoot} stays unexpanded in the fingerprint) in every approval mode, at most {{limits.restartsMax}} times per {{limits.restartWindowSeconds}} s per project until the user restarts it, and at most {{limits.sessionsPerPlugin}} sessions per plugin. A built-in server for the same language wins unless the user overrides it per project and language. Servers stop when the plugin is disabled, uninstalled, reloaded or upgraded, not when the plugin process stops. workspace/applyEdit requests from the server are applied only right after a user action. AI tools cannot start or drive plugin language servers.",
+  "description": "Language servers: Language Server Protocol servers for editor languages, started in the project root after the user confirms the exact command line.",
+  "entry": {
+    "type": "object",
+    "required": [
+      "id",
+      "title",
+      "languages",
+      "command"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": "{{limits.titleMaxRunes}}"
+      },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "{{limits.titleMaxRunes}}"
+        }
+      },
+      "languages": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": "{{limits.languagesMax}}",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]{0,31}$"
+        },
+        "description": "Editor language ids (built-in or contributes.languages ids)."
+      },
+      "command": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": "{{limits.commandMaxLength}}",
+        "description": "A bare program name such as \"typescript-language-server\" or ${pluginRoot}/<relative path>. No shell runs in between: $VAR stays literal."
+      },
+      "args": {
+        "type": "array",
+        "maxItems": "{{limits.argsMax}}",
+        "items": {
+          "type": "string",
+          "maxLength": "{{limits.argMaxRunes}}"
+        },
+        "description": "At most {{limits.argsTotalBytes}} bytes in total."
+      },
+      "env": {
+        "type": "object",
+        "maxProperties": "{{limits.envMax}}",
+        "propertyNames": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$",
+          "not": {
+            "enum": "{{lists.deniedEnvNames}}"
+          }
+        },
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": "{{limits.envValueMaxRunes}}"
+        }
+      },
+      "initializationOptions": {
+        "type": "object",
+        "description": "Sent verbatim in initialize; at most {{limits.initializationOptionsMaxBytes}} bytes and {{limits.initializationOptionsMaxDepth}} levels."
+      },
+      "platforms": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "enum": "{{lists.platforms}}"
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

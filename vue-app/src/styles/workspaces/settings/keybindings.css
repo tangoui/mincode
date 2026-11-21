@@ -1,0 +1,445 @@
+/* Keybinding settings panel and recorder dialog (components/settings/Keybinding*.vue). */
+
+.app-keybindings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-keybindings__alert {
+  flex: none;
+}
+
+.app-keybindings__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 13px 2px;
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+  background: var(--app-surface);
+}
+
+.app-keybindings__options .el-form-item {
+  margin-bottom: 8px;
+}
+
+.app-keybindings__preset {
+  width: 220px;
+}
+
+/* Preset dropdown options are teleported, so these rules are not nested under .app-keybindings. */
+.app-keybindings__preset-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.app-keybindings__preset-source {
+  flex: none;
+  color: var(--app-text-muted);
+  font-size: var(--app-ui-font-size-extra-small);
+}
+
+.app-keybindings__preset-market {
+  border-top: 1px solid var(--app-border);
+  color: var(--app-accent);
+}
+
+.app-keybindings__note {
+  margin: 0 0 0 10px;
+  color: var(--app-text-muted);
+  font-size: var(--app-ui-font-size-extra-small);
+  line-height: 1.5;
+}
+
+.app-keybindings-import .app-keybindings__note {
+  margin: 0 0 8px;
+}
+
+.app-keybindings__toolbar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-keybindings__toolbar .el-button + .el-button {
+  margin-left: 0;
+}
+
+/* 按键搜索、导入导出等按钮统一使用搜索框高度，与搜索框、筛选按钮同一排等高。 */
+.app-keybindings__toolbar > .el-button {
+  display: inline-flex;
+  align-items: center;
+  height: var(--app-search-field-height, 28px);
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 12px;
+}
+
+.app-keybindings__search {
+  width: min(320px, 100%);
+  min-width: 180px;
+}
+
+.app-keybindings__search.is-recording .app-search-field .el-input__wrapper {
+  box-shadow: 0 0 0 1px var(--app-accent-border) inset;
+}
+
+.app-keybindings__spacer {
+  flex: 1 1 auto;
+}
+
+.app-keybindings__filter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.app-keybindings__filter .el-radio {
+  height: 26px;
+  margin-right: 0;
+}
+
+.app-keybindings__count {
+  margin-left: 6px;
+  border-radius: 8px;
+  background: var(--app-warning-soft);
+  padding: 0 6px;
+  color: var(--app-warning);
+  font-size: var(--app-ui-font-size-extra-small);
+}
+
+.app-keybindings__table {
+  overflow-x: auto;
+  border: 1px solid var(--app-border);
+  border-radius: 7px;
+}
+
+/* Fits the settings dialog: every column, including the row actions, stays visible. */
+.app-keybindings__table table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.app-keybindings__col-command { width: 34%; }
+.app-keybindings__col-keys { width: 24%; }
+.app-keybindings__col-when { width: 20%; }
+.app-keybindings__col-source { width: 76px; }
+.app-keybindings__col-actions { width: 112px; }
+
+.app-keybindings__table th,
+.app-keybindings__table td {
+  overflow: hidden;
+  border-bottom: 1px solid var(--app-border);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.app-keybindings__table th {
+  background: var(--app-muted);
+  color: var(--app-text-regular);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-keybindings__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.app-keybindings__table tbody tr:hover td {
+  background: var(--app-muted);
+}
+
+.app-keybindings__table .is-right {
+  text-align: right;
+}
+
+.app-keybindings__empty {
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+/* Small status tag (replaces ElTag in the table). */
+.app-keybindings__tag {
+  display: inline-block;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-muted);
+  padding: 0 6px;
+  color: var(--app-text-regular);
+  font-size: var(--app-ui-font-size-extra-small);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.app-keybindings__tag.is-primary { border-color: transparent; background: var(--app-accent-soft); color: var(--app-accent); }
+.app-keybindings__tag.is-success { border-color: transparent; background: var(--app-success-soft); color: var(--app-success); }
+.app-keybindings__tag.is-warning { border-color: transparent; background: var(--app-warning-soft); color: var(--app-warning); }
+.app-keybindings__tag.is-danger { border-color: transparent; background: var(--app-danger-soft); color: var(--app-danger); }
+
+.app-keybindings__command {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-keybindings__title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.app-keybindings__command code,
+.app-keybindings__when code,
+.app-keybindings-import code,
+.app-keybinding-recorder code {
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-ui-font-size-extra-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-keybindings__keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.app-keybindings__when {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--app-text-regular);
+  font-size: 11px;
+}
+
+.app-keybindings__muted {
+  color: var(--app-text-disabled);
+  font-size: 11px;
+}
+
+.app-keybindings__actions {
+  display: inline-flex;
+  gap: 0;
+}
+
+/* Plain buttons in the style of small text buttons (one ElButton per action per command was heavy). */
+.app-keybindings__action {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-regular);
+  font-size: 14px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.app-keybindings__icon {
+  width: 1em;
+  height: 1em;
+}
+
+.app-keybindings__action:hover:not(:disabled),
+.app-keybindings__action:focus-visible {
+  background: var(--app-muted);
+  color: var(--app-accent);
+}
+
+.app-keybindings__action:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: -2px;
+}
+
+.app-keybindings__action:disabled {
+  color: var(--app-text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.app-keybinding-kbd {
+  display: inline-block;
+  width: fit-content;
+  border: 1px solid var(--app-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--app-muted);
+  padding: 2px 6px;
+  color: var(--app-text);
+  font:
+    11px var(--app-font-mono);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.app-keybinding-kbd.is-conflict {
+  border-color: var(--app-warning-border);
+  background: var(--app-warning-soft);
+}
+
+.app-keybinding-kbd.is-reserved {
+  border-color: var(--app-danger-border);
+}
+
+.app-keybinding-kbd--large {
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+.app-keybindings-import__heading {
+  margin: 12px 0 6px;
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-keybindings-import__issues {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-keybindings-import__issues li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.app-keybindings-import__issues small {
+  grid-column: 2;
+  color: var(--app-text-muted);
+  font-size: var(--app-ui-font-size-extra-small);
+}
+
+/* Recorder dialog */
+.app-keybinding-recorder__form .el-form-item {
+  margin-bottom: 12px;
+}
+
+.app-keybinding-recorder__command {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.app-keybinding-recorder__current {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.app-keybinding-recorder__capture {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--app-border-strong);
+  border-radius: 6px;
+  background: var(--app-surface-sunken);
+  cursor: text;
+  outline: none;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.app-keybinding-recorder__capture:focus-visible,
+.app-keybinding-recorder__capture:focus {
+  border-style: solid;
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 2px var(--app-accent-ring);
+}
+
+.app-keybinding-recorder__placeholder {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.app-keybinding-recorder__hint {
+  margin: 4px 0 0;
+  color: var(--app-text-muted);
+  font-size: var(--app-ui-font-size-extra-small);
+  line-height: 1.5;
+}
+
+.app-keybinding-recorder__hint.is-warning {
+  color: var(--app-warning);
+}
+
+.app-keybinding-recorder__hint.is-success {
+  color: var(--app-success);
+}
+
+.app-keybinding-recorder__double {
+  width: 220px;
+}
+
+.app-keybinding-recorder__status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-keybinding-recorder__conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-keybinding-recorder__conflicts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Plugin global shortcuts section (components/settings/PluginGlobalShortcutsSection.vue). */
+.app-plugin-global-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.app-plugin-global-shortcuts__plugin {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-plugin-global-shortcuts__overlap {
+  color: var(--app-warning);
+  font-size: var(--app-ui-font-size-extra-small);
+  line-height: 1.4;
+}

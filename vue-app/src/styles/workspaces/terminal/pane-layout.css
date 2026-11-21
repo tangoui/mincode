@@ -1,0 +1,24 @@
+/* Terminal pane and compact header geometry. */
+/* Keep the terminal canvas edge-free, including the focused pane. */
+.terminal-pane,
+.terminal-pane.is-active {
+  box-shadow: none;
+}
+
+.terminal-pane-toolbar {
+  top: 8px;
+  right: 8px;
+  max-width: calc(100% - 16px);
+  height: auto;
+  gap: 4px;
+  border-color: var(--app-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+  padding: 4px 6px;
+}
+
+.terminal-pane:hover .terminal-pane-toolbar,
+.terminal-pane.is-active .terminal-pane-toolbar {
+  border-color: var(--app-border);
+  background: color-mix(in srgb, var(--app-surface) 94%, transparent);
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<application>
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="OPEN_SSH" host="gw.example.test" id="aaaa-bbbb" keyPath="$USER_HOME$/.ssh/id_ed25519" port="2200" username="deploy" />
+    </configs>
+  </component>
+</application>

@@ -1,0 +1,17 @@
+{
+  "$comment": "Entry schema for contributes.menus (process plugins, manifest apiVersion 2). The host (backend/plugin/contrib_menus.go) additionally checks that command names one of this plugin's contributes.commands, when syntax and reserved host keys per menu (reserved prefixes editor., resource., tab., terminal., database., git., ssh., sftp., redis., http.), commandPalette accepting only group/order/hidden, tray (system tray menu, host 0.3.0) accepting only command/group/order with at most {{limits.trayMaxPerPlugin}} items per plugin (the host shows each plugin as a submenu named after the plugin below its own items, at most {{limits.trayPluginsMax}} plugins, labels taken from the manifest and cut at {{limits.trayLabelMaxRunes}} characters; visibility follows the command's own when), and passContext requiring a fixed capability per menu: workspace.read in the editor, SQL editor, project tree, terminal and Git (git/changes, git/commit) menus, database.schema in database/tree/context, and remote.context in the SSH connection, SFTP file, Redis key and HTTP request menus (workbench/tab/context needs none). Menus listed in the contract keySinceHost need that host version.",
+  "description": "Menu items that run this plugin's own contributes.commands from host menus.",
+  "entry": {
+    "type": "object",
+    "required": ["command"],
+    "properties": {
+      "command": { "type": "string", "description": "Local id of one of this plugin's contributes.commands." },
+      "when": { "type": "string", "maxLength": "{{limits.whenMaxLength}}", "description": "Not accepted in commandPalette and tray." },
+      "group": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$" },
+      "order": { "type": "integer", "minimum": "{{limits.orderMin}}", "maximum": "{{limits.orderMax}}" },
+      "passContext": { "type": "boolean", "description": "Not accepted in commandPalette and tray." },
+      "hidden": { "type": "boolean", "description": "commandPalette only: hide the command from the palette." }
+    },
+    "additionalProperties": false
+  }
+}

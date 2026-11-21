@@ -1,0 +1,61 @@
+/* 浏览器本地模式：顶栏常驻标识与其说明弹层。只在非桌面环境渲染。 */
+
+/* 标签自带边框与底色，按钮外框不再叠加内边距与悬停描边。 */
+.app-header-button.app-browser-local-badge {
+  padding: 0;
+}
+.app-header-button.app-browser-local-badge:hover {
+  border-color: transparent;
+  background: transparent;
+}
+.app-browser-local-badge:focus-visible .el-tag {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+.app-browser-local {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--app-text);
+  font-size: 12px;
+}
+.app-browser-local__title {
+  font-size: 13px;
+}
+.app-browser-local__text {
+  margin: 0;
+  line-height: 1.5;
+}
+.app-browser-local__text--muted {
+  color: var(--app-text-muted);
+}
+.app-browser-local__heading {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.app-browser-local__features {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-browser-local__feature {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-browser-local__feature-name {
+  font-weight: 600;
+}
+.app-browser-local__feature-limit {
+  color: var(--app-text-muted);
+  line-height: 1.5;
+}
+.app-browser-local__limits .el-alert__title {
+  font-size: 11px;
+  line-height: 1.5;
+}

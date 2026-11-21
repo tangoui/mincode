@@ -1,0 +1,41 @@
+/* Project explorer deployment and Git-ref pickers. */
+.project-deployment-dialog .el-dialog__body {
+  padding-top: 12px;
+}
+
+.project-deployment-dialog .el-select {
+  width: 100%;
+}
+
+.project-deployment-dialog__scope {
+  margin: 0 0 14px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.project-dialog-state {
+  padding: 18px 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.project-branch-picker {
+  max-height: min(50vh, 320px);
+}
+.project-branch-picker .el-scrollbar__view {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-branch-picker__item {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  color: var(--app-text);
+}
+
+.project-branch-picker__item small {
+  color: var(--app-text-muted);
+}
+

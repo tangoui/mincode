@@ -1,0 +1,575 @@
+/* SSH sessions stay in the manager's right-hand pane. Tabs fill the strip
+   height like the database object tabs, with no blank band above them. */
+.ssh-session-tabs {
+  --el-tabs-header-height: 30px;
+  min-height: 30px;
+  flex: 0 0 30px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-muted);
+}
+
+.ssh-session-tabs.el-tabs--card > .el-tabs__header {
+  height: 30px;
+  margin: 0;
+  border-bottom: 0;
+}
+
+.ssh-session-tabs .el-tabs__nav-wrap {
+  padding: 0 6px;
+}
+
+.ssh-session-tabs .el-tabs__nav-wrap::after {
+  display: none;
+}
+
+.ssh-session-tabs .el-tabs__nav-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ssh-session-tabs .el-tabs__nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.ssh-session-tabs.el-tabs--card > .el-tabs__header .el-tabs__nav {
+  min-width: max-content;
+  border: 0;
+}
+
+.ssh-session-tabs.el-tabs--card > .el-tabs__header .el-tabs__item {
+  display: inline-flex;
+  height: 29px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  padding: 0 8px 0 9px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.ssh-session-tabs.el-tabs--card > .el-tabs__header .el-tabs__item:hover {
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.ssh-session-tabs.el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
+  background: var(--app-surface);
+  color: var(--app-accent);
+}
+
+.ssh-session-tabs .el-tabs__item:focus-visible {
+  outline: 0;
+  background: var(--app-surface);
+  color: var(--app-accent);
+}
+
+.ssh-session-tabs.el-tabs--card > .el-tabs__header .el-tabs__item.is-closable .is-icon-close {
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 3px;
+  color: var(--app-text-muted);
+}
+
+.ssh-session-tabs .el-tabs__item .is-icon-close:hover {
+  background: var(--app-muted);
+  color: var(--app-text);
+}
+
+.ssh-session-tab__label {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-session-tab__status {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--app-success);
+}
+
+.ssh-session-content {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}.ssh-session-content > .terminal-pane,
+/* Split SSH panes use the shared splitter and retain the same full-bleed terminal canvas. */
+.ssh-session-content > .ssh-session-split-group {
+  position: absolute;
+  inset: 0;
+}
+
+
+.ssh-session-tab__status.is-connecting,
+.ssh-session-tab__status.is-reconnecting {
+  background: var(--app-warning);
+}
+
+.ssh-session-tab__status.is-credentials,
+.ssh-session-tab__status.is-error {
+  background: var(--app-danger);
+}
+
+.ssh-session-tab__status.is-unavailable {
+  background: var(--app-text-disabled);
+}
+
+.ssh-terminal-state {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 9px;
+  background: color-mix(in srgb, var(--app-surface) 96%, transparent);
+  padding: 32px;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+.ssh-terminal-state > .el-icon {
+  font-size: 24px;
+  color: var(--app-warning);
+}
+
+.ssh-terminal-state.is-error > .el-icon,
+.ssh-terminal-state.is-credentials > .el-icon {
+  color: var(--app-danger);
+}
+
+.ssh-terminal-state strong {
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ssh-terminal-state p {
+  max-width: 520px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ssh-terminal-state code {
+  max-width: min(620px, 100%);
+  overflow-wrap: anywhere;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-muted);
+  padding: 6px 9px;
+  color: var(--app-danger);
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.ssh-terminal-state__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+}
+
+.ssh-server-manager.el-drawer {
+  top: 0;
+  height: 100%;
+}
+
+.ssh-server-manager .el-drawer__body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0 16px 16px;
+  background: var(--app-surface);
+  /* Docker 终端全屏覆盖层的定位祖先，让它能盖住顶部工具栏与页签头。 */
+  position: relative;
+}
+.ssh-server-manager__toolbar,
+.ssh-server-manager__filters,
+.ssh-server-overview__meters section,
+.ssh-server-docker-version {
+  display: flex;
+  align-items: center;
+}
+.ssh-server-manager__toolbar {
+  min-height: 48px;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.ssh-server-manager__heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.ssh-server-manager__heading strong {
+  flex: none;
+  color: var(--app-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ssh-server-manager__heading span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-server-manager__toolbar-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.ssh-server-manager__toolbar-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.ssh-server-manager.is-fullscreen .el-drawer__body {
+  min-width: 0;
+}
+.ssh-server-manager__tabs {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.ssh-server-manager__tabs .el-tabs__header {
+  flex: none;
+  margin-bottom: 12px;
+  border-bottom: 0;
+}
+
+.ssh-server-manager__tabs .el-tabs__nav-wrap::after {
+  height: 1px;
+  background: var(--app-border);
+}
+
+.ssh-server-manager__tabs .el-tabs__content {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  /* Element Plus 默认给它 position: relative，会把全屏覆盖层困在页签正文里。 */
+  position: static;
+}
+
+.ssh-server-manager__tab-pane {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ssh-server-manager__tab-pane > .el-table {
+  min-height: 0;
+  flex: 1 1 0;
+}
+.ssh-server-manager__filters {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ssh-server-overview {
+  display: grid;
+  gap: 16px;
+}
+.ssh-server-overview__meters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.ssh-server-overview__meters section {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-muted);
+}.ssh-server-overview__meters section > span,
+.ssh-docker-tab__label small {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+.ssh-server-overview__meters .el-progress {
+  width: 100%;
+}
+
+.ssh-server-overview-scrollbar {
+  height: 100%;
+}
+
+.ssh-server-overview-scrollbar .el-scrollbar__view {
+  padding: 16px;
+}.ssh-server-disk-io,
+.ssh-server-disk-mounts {
+  display: grid;
+  gap: 8px;
+}
+
+.ssh-server-disk-io > strong {
+  font-size: 12px;
+}
+
+.ssh-server-disk-io__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.ssh-server-disk-io__card {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface-muted);
+}
+
+.ssh-server-disk-io__device {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssh-server-disk-io__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.ssh-server-disk-io__row strong {
+  color: var(--app-text);
+  font-weight: 500;
+}
+
+.ssh-server-disk-mounts > strong {
+  font-size: 12px;
+}
+
+.ssh-server-disk-mounts__usage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.ssh-server-log-viewer {
+  min-height: 0;
+  flex: 1;
+  border: 1px solid var(--app-border);
+  background: var(--app-canvas);
+}
+
+.ssh-server-log-viewer .el-scrollbar__view {
+  min-height: 100%;
+}
+
+.ssh-server-log-viewer__content {
+  min-height: 100%;
+  margin: 0;
+  padding: 10px;
+  color: var(--app-text);
+  font: 11px/1.55 var(--app-font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ssh-server-log-viewer--dialog {
+  height: min(62vh, 560px);
+  flex: none;
+}
+.ssh-server-docker-version {
+  min-height: 34px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.ssh-server-docker-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.ssh-server-docker-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.ssh-server-docker-content {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.ssh-server-docker-content.has-terminal {
+  grid-template-rows: minmax(180px, 1fr) minmax(220px, 0.8fr);
+}
+
+.ssh-server-docker-terminal-pane {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  background: var(--app-canvas);
+}
+
+.ssh-docker-tab-bar {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  min-height: 34px;
+  border-bottom: 1px solid var(--app-border);
+  overflow: hidden;
+}
+
+.ssh-docker-tab-bar__scroll {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.ssh-docker-tab-bar__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.ssh-docker-tab {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  border-right: 1px solid var(--app-border);
+  background: transparent;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+  flex: none;
+}
+
+.ssh-docker-tab__select {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  padding: 0 4px 0 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.ssh-docker-tab:hover,
+.ssh-docker-tab__select:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+
+.ssh-docker-tab.is-active {
+  background: var(--app-canvas);
+  color: var(--app-text);
+  box-shadow: inset 0 -2px 0 var(--el-color-primary);
+}
+
+.ssh-docker-tab__label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ssh-docker-tab__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--app-text-muted);
+  padding: 0;
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.ssh-docker-tab__close:hover {
+  background: var(--app-border);
+  color: var(--app-text);
+}
+
+.ssh-docker-tab-bar__actions {
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  border-left: 1px solid var(--app-border);
+  flex: none;
+}
+
+.ssh-server-docker-terminal-pane.is-fullscreen {
+  /* 定位祖先是 .el-drawer__body，覆盖整个抽屉正文（含工具栏与页签头）。 */
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+}
+
+.ssh-docker-terminal {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  padding: 6px 4px 4px 8px;
+}
+
+.ssh-docker-terminal .xterm {
+  height: 100%;
+}
+
+/* xterm sizes its screen to whole rows; fill the rest so its black viewport never shows. */
+.ssh-docker-terminal .xterm-scrollable-element {
+  min-height: 100%;
+}
+
+@media (max-width: 760px) {
+  .ssh-server-overview__meters {
+    grid-template-columns: 1fr;
+  }
+
+  .ssh-server-docker-content.has-terminal {
+    grid-template-rows: minmax(160px, 0.8fr) minmax(220px, 1fr);
+  }
+}
+
+.ssh-session-split-group .el-splitter-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}

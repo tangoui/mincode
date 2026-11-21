@@ -1,0 +1,45 @@
+/* Keep the watermark above the workspace, but below Element Plus teleported
+   drawers/dialogs/poppers (whose overlay stack starts at 2000). */
+/* Temporary: keep the license state and settings intact, but hide the global
+   watermark until the product decision is finalized. */
+.app-license-watermark {
+  display: none;
+  position: fixed;
+  z-index: 1900;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.app-license-watermark__pattern {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: max(150vw, 1560px);
+  grid-template-columns: repeat(6, minmax(180px, 1fr));
+  gap: 88px 72px;
+  color: var(--app-text-regular);
+  opacity: 0.22;
+  transform: translate(-50%, -50%) rotate(-24deg);
+  transform-origin: center;
+}
+
+.app-license-watermark__mark {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .app-license-watermark__pattern {
+    grid-template-columns: repeat(5, minmax(160px, 1fr));
+    gap: 72px 56px;
+  }
+}

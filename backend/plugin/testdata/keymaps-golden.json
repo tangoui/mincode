@@ -1,0 +1,1414 @@
+[
+  {
+    "pluginId": "keymaps",
+    "pluginName": "键位方案 / Keymaps",
+    "version": "0.1.0",
+    "presets": [
+      {
+        "id": "keymaps.vscode",
+        "title": {
+          "zh": "VS Code",
+          "en": "VS Code"
+        },
+        "description": {
+          "zh": "Visual Studio Code 默认快捷键方案。",
+          "en": "The default Visual Studio Code keyboard shortcuts."
+        },
+        "rules": [
+          {
+            "key": "mod+shift+p",
+            "command": "builtin:command-palette"
+          },
+          {
+            "key": "f1",
+            "command": "builtin:command-palette"
+          },
+          {
+            "key": "mod+p",
+            "command": "builtin:quick-open"
+          },
+          {
+            "key": "cmd+e",
+            "command": "builtin:quick-open",
+            "platform": "mac"
+          },
+          {
+            "key": "mod+shift+f",
+            "command": "builtin:find-in-files"
+          },
+          {
+            "key": "ctrl+r",
+            "command": "builtin:recent-files"
+          },
+          {
+            "key": "mod+t",
+            "command": "builtin:go-to-symbol"
+          },
+          {
+            "key": "mod+,",
+            "command": "builtin:settings"
+          },
+          {
+            "key": "mod+k mod+s",
+            "command": "builtin:keybindings"
+          },
+          {
+            "key": "ctrl+cmd+i",
+            "command": "builtin:ai",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+i",
+            "command": "builtin:ai",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+shift+l",
+            "command": "builtin:lock-app",
+            "when": "!editor.focus"
+          },
+          {
+            "key": "mod+b",
+            "command": "workbench:toggle-sidebar"
+          },
+          {
+            "key": "ctrl+shift+g",
+            "command": "workbench:show-view.source-control"
+          },
+          {
+            "key": "ctrl+`",
+            "command": "workbench:show-view.terminal"
+          },
+          {
+            "key": "ctrl+shift+`",
+            "command": "workbench:new-terminal"
+          },
+          {
+            "key": "mod+shift+x",
+            "command": "workbench:show-view.plugins"
+          },
+          {
+            "key": "mod+w",
+            "command": "workbench:close-tab"
+          },
+          {
+            "key": "ctrl+f4",
+            "command": "workbench:close-tab",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+shift+t",
+            "command": "workbench:reopen-closed"
+          },
+          {
+            "key": "ctrl+tab",
+            "command": "workbench:next-tab"
+          },
+          {
+            "key": "ctrl+shift+tab",
+            "command": "workbench:prev-tab"
+          },
+          {
+            "key": "alt+cmd+right",
+            "command": "workbench:next-tab",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+cmd+left",
+            "command": "workbench:prev-tab",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+pagedown",
+            "command": "workbench:next-tab",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+pageup",
+            "command": "workbench:prev-tab",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+1",
+            "command": "workbench:tab-1",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+1",
+            "command": "workbench:tab-1",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+2",
+            "command": "workbench:tab-2",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+2",
+            "command": "workbench:tab-2",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+3",
+            "command": "workbench:tab-3",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+3",
+            "command": "workbench:tab-3",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+4",
+            "command": "workbench:tab-4",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+4",
+            "command": "workbench:tab-4",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+5",
+            "command": "workbench:tab-5",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+5",
+            "command": "workbench:tab-5",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+6",
+            "command": "workbench:tab-6",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+6",
+            "command": "workbench:tab-6",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+7",
+            "command": "workbench:tab-7",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+7",
+            "command": "workbench:tab-7",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+8",
+            "command": "workbench:tab-8",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+8",
+            "command": "workbench:tab-8",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+9",
+            "command": "workbench:tab-9",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+9",
+            "command": "workbench:tab-9",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+-",
+            "command": "workbench:navigate-back",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+shift+-",
+            "command": "workbench:navigate-forward",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+left",
+            "command": "workbench:navigate-back",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+right",
+            "command": "workbench:navigate-forward",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+s",
+            "command": "editor:save",
+            "when": "editor.focus \u0026\u0026 editor.kind != \"sql\""
+          },
+          {
+            "key": "alt+cmd+s",
+            "command": "editor:save-all",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+k s",
+            "command": "editor:save-all",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+enter",
+            "command": "database:run-query",
+            "when": "editor.focus \u0026\u0026 editor.kind == \"sql\""
+          },
+          {
+            "key": "shift+alt+up",
+            "command": "editor:editor.action.copyLinesUpAction",
+            "platform": [
+              "mac",
+              "win"
+            ]
+          },
+          {
+            "key": "ctrl+shift+alt+up",
+            "command": "editor:editor.action.copyLinesUpAction",
+            "platform": "linux"
+          },
+          {
+            "key": "shift+alt+down",
+            "command": "editor:editor.action.copyLinesDownAction",
+            "platform": [
+              "mac",
+              "win"
+            ]
+          },
+          {
+            "key": "ctrl+shift+alt+down",
+            "command": "editor:editor.action.copyLinesDownAction",
+            "platform": "linux"
+          },
+          {
+            "key": "mod+shift+k",
+            "command": "editor:editor.action.deleteLines"
+          },
+          {
+            "key": "mod+/",
+            "command": "editor:editor.action.commentLine"
+          },
+          {
+            "key": "shift+alt+a",
+            "command": "editor:editor.action.blockComment",
+            "platform": [
+              "mac",
+              "win"
+            ]
+          },
+          {
+            "key": "ctrl+shift+a",
+            "command": "editor:editor.action.blockComment",
+            "platform": "linux"
+          },
+          {
+            "key": "shift+alt+f",
+            "command": "editor:editor.action.formatDocument",
+            "platform": [
+              "mac",
+              "win"
+            ]
+          },
+          {
+            "key": "ctrl+shift+i",
+            "command": "editor:editor.action.formatDocument",
+            "platform": "linux"
+          },
+          {
+            "key": "f2",
+            "command": "editor:editor.action.rename"
+          },
+          {
+            "key": "f12",
+            "command": "editor:editor.action.revealDefinition"
+          },
+          {
+            "key": "mod+f12",
+            "command": "editor:editor.action.goToImplementation"
+          },
+          {
+            "key": "shift+f12",
+            "command": "editor:editor.action.goToReferences"
+          },
+          {
+            "key": "mod+d",
+            "command": "editor:editor.action.addSelectionToNextFindMatch"
+          },
+          {
+            "key": "mod+shift+l",
+            "command": "editor:editor.action.selectHighlights"
+          },
+          {
+            "key": "alt+cmd+up",
+            "command": "editor:editor.action.insertCursorAbove",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+cmd+down",
+            "command": "editor:editor.action.insertCursorBelow",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+up",
+            "command": "editor:editor.action.insertCursorAbove",
+            "platform": "win"
+          },
+          {
+            "key": "ctrl+alt+down",
+            "command": "editor:editor.action.insertCursorBelow",
+            "platform": "win"
+          },
+          {
+            "key": "shift+alt+up",
+            "command": "editor:editor.action.insertCursorAbove",
+            "platform": "linux"
+          },
+          {
+            "key": "shift+alt+down",
+            "command": "editor:editor.action.insertCursorBelow",
+            "platform": "linux"
+          },
+          {
+            "key": "alt+up",
+            "command": "editor:editor.action.moveLinesUpAction"
+          },
+          {
+            "key": "alt+down",
+            "command": "editor:editor.action.moveLinesDownAction"
+          },
+          {
+            "key": "ctrl+shift+cmd+right",
+            "command": "editor:editor.action.smartSelect.expand",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+shift+cmd+left",
+            "command": "editor:editor.action.smartSelect.shrink",
+            "platform": "mac"
+          },
+          {
+            "key": "shift+alt+right",
+            "command": "editor:editor.action.smartSelect.expand",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "shift+alt+left",
+            "command": "editor:editor.action.smartSelect.shrink",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+.",
+            "command": "editor:editor.action.quickFix"
+          },
+          {
+            "key": "mod+shift+space",
+            "command": "editor:editor.action.triggerParameterHints"
+          },
+          {
+            "key": "ctrl+g",
+            "command": "editor:editor.action.gotoLine"
+          },
+          {
+            "key": "mod+f",
+            "command": "editor:actions.find"
+          },
+          {
+            "key": "alt+cmd+f",
+            "command": "editor:editor.action.startFindReplaceAction",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+h",
+            "command": "editor:editor.action.startFindReplaceAction",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "f8",
+            "command": "editor:editor.action.marker.nextInFiles"
+          },
+          {
+            "key": "shift+f8",
+            "command": "editor:editor.action.marker.prevInFiles"
+          },
+          {
+            "key": "ctrl+j",
+            "command": "editor:editor.action.joinLines",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+f5",
+            "command": "editor:mincode.diff.next",
+            "when": "editor.kind == \"diff\""
+          },
+          {
+            "key": "shift+alt+f5",
+            "command": "editor:mincode.diff.previous",
+            "when": "editor.kind == \"diff\""
+          },
+          {
+            "key": "cmd+c",
+            "command": "terminal:copy",
+            "when": "terminal.selection",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+c",
+            "command": "terminal:copy",
+            "when": "terminal.selection",
+            "platform": "win"
+          },
+          {
+            "key": "ctrl+shift+c",
+            "command": "terminal:copy",
+            "platform": "linux"
+          },
+          {
+            "key": "cmd+v",
+            "command": "terminal:paste",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+v",
+            "command": "terminal:paste",
+            "platform": "win"
+          },
+          {
+            "key": "ctrl+shift+v",
+            "command": "terminal:paste",
+            "platform": "linux"
+          },
+          {
+            "key": "cmd+k",
+            "command": "terminal:clear",
+            "platform": "mac"
+          }
+        ]
+      },
+      {
+        "id": "keymaps.intellij",
+        "title": {
+          "zh": "JetBrains（IntelliJ IDEA）",
+          "en": "JetBrains (IntelliJ IDEA)"
+        },
+        "description": {
+          "zh": "IntelliJ IDEA 等 JetBrains IDE 的默认快捷键方案，支持双击 Shift。",
+          "en": "The default IntelliJ IDEA (JetBrains) keyboard shortcuts, including double Shift."
+        },
+        "doubleModifier": true,
+        "rules": [
+          {
+            "key": "mod+shift+a",
+            "command": "builtin:command-palette"
+          },
+          {
+            "key": "cmd+shift+o",
+            "command": "builtin:quick-open",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+shift+n",
+            "command": "builtin:quick-open",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "shift shift",
+            "command": "builtin:search-everywhere"
+          },
+          {
+            "key": "mod+shift+f",
+            "command": "builtin:find-in-files"
+          },
+          {
+            "key": "mod+e",
+            "command": "builtin:recent-files"
+          },
+          {
+            "key": "alt+cmd+o",
+            "command": "builtin:go-to-symbol",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+shift+n",
+            "command": "builtin:go-to-symbol",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "cmd+,",
+            "command": "builtin:settings",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+s",
+            "command": "builtin:settings",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "cmd+i",
+            "command": "builtin:ai",
+            "platform": "mac"
+          },
+          {
+            "key": "mod+shift+l",
+            "command": "builtin:lock-app"
+          },
+          {
+            "key": "cmd+1",
+            "command": "workbench:toggle-sidebar",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+1",
+            "command": "workbench:toggle-sidebar",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "cmd+9",
+            "command": "workbench:show-view.source-control",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+9",
+            "command": "workbench:show-view.source-control",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+f12",
+            "command": "workbench:show-view.terminal"
+          },
+          {
+            "key": "cmd+w",
+            "command": "workbench:close-tab",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+f4",
+            "command": "workbench:close-tab",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "cmd+shift+]",
+            "command": "workbench:next-tab",
+            "platform": "mac"
+          },
+          {
+            "key": "cmd+shift+[",
+            "command": "workbench:prev-tab",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+right",
+            "command": "workbench:next-tab",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+left",
+            "command": "workbench:prev-tab",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "cmd+[",
+            "command": "workbench:navigate-back",
+            "platform": "mac"
+          },
+          {
+            "key": "cmd+]",
+            "command": "workbench:navigate-forward",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+left",
+            "command": "workbench:navigate-back",
+            "platform": "win"
+          },
+          {
+            "key": "ctrl+alt+right",
+            "command": "workbench:navigate-forward",
+            "platform": "win"
+          },
+          {
+            "key": "mod+s",
+            "command": "editor:save-all",
+            "when": "editor.focus \u0026\u0026 editor.kind != \"sql\""
+          },
+          {
+            "key": "mod+enter",
+            "command": "database:run-query",
+            "when": "editor.focus \u0026\u0026 editor.kind == \"sql\""
+          },
+          {
+            "key": "mod+d",
+            "command": "editor:editor.action.duplicateSelection"
+          },
+          {
+            "key": "cmd+backspace",
+            "command": "editor:editor.action.deleteLines",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+y",
+            "command": "editor:editor.action.deleteLines",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+/",
+            "command": "editor:editor.action.commentLine"
+          },
+          {
+            "key": "alt+cmd+/",
+            "command": "editor:editor.action.blockComment",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+shift+/",
+            "command": "editor:editor.action.blockComment",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+cmd+l",
+            "command": "editor:editor.action.formatDocument",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+l",
+            "command": "editor:editor.action.formatDocument",
+            "platform": "win"
+          },
+          {
+            "key": "ctrl+alt+shift+l",
+            "command": "editor:editor.action.formatDocument",
+            "platform": "linux"
+          },
+          {
+            "key": "shift+f6",
+            "command": "editor:editor.action.rename"
+          },
+          {
+            "key": "mod+b",
+            "command": "editor:editor.action.revealDefinition"
+          },
+          {
+            "key": "alt+cmd+b",
+            "command": "editor:editor.action.goToImplementation",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+b",
+            "command": "editor:editor.action.goToImplementation",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+f7",
+            "command": "editor:editor.action.goToReferences"
+          },
+          {
+            "key": "ctrl+g",
+            "command": "editor:editor.action.addSelectionToNextFindMatch",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+j",
+            "command": "editor:editor.action.addSelectionToNextFindMatch",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+cmd+g",
+            "command": "editor:editor.action.selectHighlights",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+shift+j",
+            "command": "editor:editor.action.selectHighlights",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+shift+up",
+            "command": "editor:editor.action.moveLinesUpAction"
+          },
+          {
+            "key": "alt+shift+down",
+            "command": "editor:editor.action.moveLinesDownAction"
+          },
+          {
+            "key": "shift+cmd+up",
+            "command": "editor:editor.action.moveLinesUpAction",
+            "platform": "mac"
+          },
+          {
+            "key": "shift+cmd+down",
+            "command": "editor:editor.action.moveLinesDownAction",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+up",
+            "command": "editor:editor.action.smartSelect.expand",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+down",
+            "command": "editor:editor.action.smartSelect.shrink",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+w",
+            "command": "editor:editor.action.smartSelect.expand",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+shift+w",
+            "command": "editor:editor.action.smartSelect.shrink",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+enter",
+            "command": "editor:editor.action.quickFix"
+          },
+          {
+            "key": "mod+p",
+            "command": "editor:editor.action.triggerParameterHints"
+          },
+          {
+            "key": "cmd+l",
+            "command": "editor:editor.action.gotoLine",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+g",
+            "command": "editor:editor.action.gotoLine",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+f",
+            "command": "editor:actions.find"
+          },
+          {
+            "key": "cmd+r",
+            "command": "editor:editor.action.startFindReplaceAction",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+r",
+            "command": "editor:editor.action.startFindReplaceAction",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "f2",
+            "command": "editor:editor.action.marker.nextInFiles"
+          },
+          {
+            "key": "shift+f2",
+            "command": "editor:editor.action.marker.prevInFiles"
+          },
+          {
+            "key": "ctrl+shift+j",
+            "command": "editor:editor.action.joinLines"
+          },
+          {
+            "key": "f7",
+            "command": "editor:mincode.diff.next",
+            "when": "editor.kind == \"diff\""
+          },
+          {
+            "key": "shift+f7",
+            "command": "editor:mincode.diff.previous",
+            "when": "editor.kind == \"diff\""
+          },
+          {
+            "key": "cmd+c",
+            "command": "terminal:copy",
+            "when": "terminal.selection",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+shift+c",
+            "command": "terminal:copy",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+insert",
+            "command": "terminal:copy",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "cmd+v",
+            "command": "terminal:paste",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+shift+v",
+            "command": "terminal:paste",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "shift+insert",
+            "command": "terminal:paste",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "cmd+k",
+            "command": "terminal:clear",
+            "platform": "mac"
+          },
+          {
+            "key": "f8",
+            "command": "project:debug.stepOver",
+            "when": "debug.active"
+          },
+          {
+            "key": "f7",
+            "command": "project:debug.stepInto",
+            "when": "debug.active \u0026\u0026 editor.kind != \"diff\""
+          },
+          {
+            "key": "shift+f7",
+            "command": "project:debug.smartStepInto",
+            "when": "debug.active \u0026\u0026 editor.kind != \"diff\""
+          },
+          {
+            "key": "shift+f8",
+            "command": "project:debug.stepOut",
+            "when": "debug.active"
+          },
+          {
+            "key": "alt+f9",
+            "command": "project:debug.runToCursor",
+            "when": "debug.active"
+          },
+          {
+            "key": "cmd+alt+r",
+            "command": "project:debug.resume",
+            "when": "debug.active",
+            "platform": "mac"
+          },
+          {
+            "key": "f9",
+            "command": "project:debug.resume",
+            "when": "debug.active",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+f8",
+            "command": "project:debug.evaluate",
+            "when": "debug.active"
+          },
+          {
+            "key": "mod+f8",
+            "command": "project:debug.toggleBreakpoint"
+          },
+          {
+            "key": "ctrl+r",
+            "command": "project:debug.run",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+d",
+            "command": "project:debug.debug",
+            "platform": "mac"
+          },
+          {
+            "key": "cmd+f2",
+            "command": "project:debug.stop",
+            "platform": "mac"
+          },
+          {
+            "key": "shift+f10",
+            "command": "project:debug.run",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "shift+f9",
+            "command": "project:debug.debug",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+f2",
+            "command": "project:debug.stop",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "keymaps.eclipse",
+        "title": {
+          "zh": "Eclipse",
+          "en": "Eclipse"
+        },
+        "description": {
+          "zh": "Eclipse IDE 的常用快捷键方案。",
+          "en": "Common Eclipse IDE keyboard shortcuts."
+        },
+        "rules": [
+          {
+            "key": "mod+3",
+            "command": "builtin:command-palette"
+          },
+          {
+            "key": "mod+shift+r",
+            "command": "builtin:quick-open"
+          },
+          {
+            "key": "mod+shift+t",
+            "command": "builtin:go-to-symbol"
+          },
+          {
+            "key": "ctrl+h",
+            "command": "builtin:find-in-files"
+          },
+          {
+            "key": "mod+e",
+            "command": "builtin:recent-files"
+          },
+          {
+            "key": "mod+,",
+            "command": "builtin:settings"
+          },
+          {
+            "key": "mod+shift+l",
+            "command": "builtin:keybindings"
+          },
+          {
+            "key": "ctrl+cmd+i",
+            "command": "builtin:ai",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+alt+i",
+            "command": "builtin:ai",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+w",
+            "command": "workbench:close-tab",
+            "when": "!terminal.focus"
+          },
+          {
+            "key": "ctrl+f4",
+            "command": "workbench:close-tab",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+shift+w",
+            "command": "workbench:close-all"
+          },
+          {
+            "key": "mod+f6",
+            "command": "workbench:next-tab"
+          },
+          {
+            "key": "mod+shift+f6",
+            "command": "workbench:prev-tab"
+          },
+          {
+            "key": "cmd+[",
+            "command": "workbench:navigate-back",
+            "platform": "mac"
+          },
+          {
+            "key": "cmd+]",
+            "command": "workbench:navigate-forward",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+left",
+            "command": "workbench:navigate-back",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "alt+right",
+            "command": "workbench:navigate-forward",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "mod+s",
+            "command": "editor:save",
+            "when": "editor.focus \u0026\u0026 editor.kind != \"sql\""
+          },
+          {
+            "key": "mod+shift+s",
+            "command": "editor:save-all"
+          },
+          {
+            "key": "mod+enter",
+            "command": "database:run-query",
+            "when": "editor.focus \u0026\u0026 editor.kind == \"sql\""
+          },
+          {
+            "key": "ctrl+space",
+            "command": "editor:editor.action.triggerSuggest",
+            "platform": "linux"
+          },
+          {
+            "key": "alt+/",
+            "command": "editor:editor.action.triggerSuggest",
+            "platform": [
+              "mac",
+              "win"
+            ]
+          },
+          {
+            "key": "mod+shift+space",
+            "command": "editor:editor.action.triggerParameterHints"
+          },
+          {
+            "key": "mod+/",
+            "command": "editor:editor.action.commentLine"
+          },
+          {
+            "key": "mod+shift+/",
+            "command": "editor:editor.action.blockComment"
+          },
+          {
+            "key": "mod+d",
+            "command": "editor:editor.action.deleteLines"
+          },
+          {
+            "key": "mod+alt+down",
+            "command": "editor:editor.action.copyLinesDownAction"
+          },
+          {
+            "key": "mod+alt+up",
+            "command": "editor:editor.action.copyLinesUpAction"
+          },
+          {
+            "key": "alt+up",
+            "command": "editor:editor.action.moveLinesUpAction"
+          },
+          {
+            "key": "alt+down",
+            "command": "editor:editor.action.moveLinesDownAction"
+          },
+          {
+            "key": "alt+shift+up",
+            "command": "editor:editor.action.smartSelect.expand"
+          },
+          {
+            "key": "alt+shift+down",
+            "command": "editor:editor.action.smartSelect.shrink"
+          },
+          {
+            "key": "mod+shift+f",
+            "command": "editor:editor.action.formatDocument"
+          },
+          {
+            "key": "alt+cmd+r",
+            "command": "editor:editor.action.rename",
+            "platform": "mac"
+          },
+          {
+            "key": "alt+shift+r",
+            "command": "editor:editor.action.rename",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "f3",
+            "command": "editor:editor.action.revealDefinition"
+          },
+          {
+            "key": "mod+shift+g",
+            "command": "editor:editor.action.goToReferences"
+          },
+          {
+            "key": "mod+l",
+            "command": "editor:editor.action.gotoLine"
+          },
+          {
+            "key": "mod+1",
+            "command": "editor:editor.action.quickFix"
+          },
+          {
+            "key": "mod+f",
+            "command": "editor:editor.action.startFindReplaceAction"
+          },
+          {
+            "key": "mod+alt+j",
+            "command": "editor:editor.action.joinLines"
+          },
+          {
+            "key": "ctrl+.",
+            "command": "editor:editor.action.marker.nextInFiles"
+          },
+          {
+            "key": "ctrl+,",
+            "command": "editor:editor.action.marker.prevInFiles"
+          },
+          {
+            "key": "alt+f5",
+            "command": "editor:mincode.diff.next",
+            "when": "editor.kind == \"diff\""
+          },
+          {
+            "key": "shift+alt+f5",
+            "command": "editor:mincode.diff.previous",
+            "when": "editor.kind == \"diff\""
+          },
+          {
+            "key": "cmd+c",
+            "command": "terminal:copy",
+            "when": "terminal.selection",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+shift+c",
+            "command": "terminal:copy",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "cmd+v",
+            "command": "terminal:paste",
+            "platform": "mac"
+          },
+          {
+            "key": "ctrl+shift+v",
+            "command": "terminal:paste",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "keymaps.vim",
+        "title": {
+          "zh": "Vim",
+          "en": "Vim"
+        },
+        "description": {
+          "zh": "在 MinCode 默认方案之上启用 Vim 模态编辑，并用 Ctrl+W 前缀切换标签。",
+          "en": "Vim modal editing on top of the MinCode keymap, with Ctrl+W chords for tabs."
+        },
+        "extends": "mincode",
+        "editorMode": "vim",
+        "rules": [
+          {
+            "key": "ctrl+w",
+            "command": "-workbench:close-tab",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+i",
+            "command": "-builtin:ai",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+i",
+            "command": "builtin:ai",
+            "when": "!editor.focus",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+shift+i",
+            "command": "builtin:ai",
+            "platform": [
+              "win",
+              "linux"
+            ]
+          },
+          {
+            "key": "ctrl+w h",
+            "command": "workbench:prev-tab",
+            "when": "!terminal.focus"
+          },
+          {
+            "key": "ctrl+w l",
+            "command": "workbench:next-tab",
+            "when": "!terminal.focus"
+          },
+          {
+            "key": "ctrl+w w",
+            "command": "workbench:next-tab",
+            "when": "!terminal.focus"
+          },
+          {
+            "key": "ctrl+w shift+w",
+            "command": "workbench:prev-tab",
+            "when": "!terminal.focus"
+          },
+          {
+            "key": "ctrl+w c",
+            "command": "workbench:close-tab",
+            "when": "!terminal.focus"
+          },
+          {
+            "key": "ctrl+w q",
+            "command": "workbench:close-tab",
+            "when": "!terminal.focus"
+          },
+          {
+            "key": "ctrl+w s",
+            "command": "workbench:toggle-sidebar",
+            "when": "!terminal.focus"
+          },
+          {
+            "key": "ctrl+w t",
+            "command": "workbench:show-view.terminal",
+            "when": "!terminal.focus"
+          }
+        ]
+      }
+    ],
+    "issues": []
+  }
+]

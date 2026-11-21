@@ -1,0 +1,87 @@
+/* Plugin session sources on the sessions page (components/sessions/PluginSessionSources.vue
+   and PluginSessionTranscript.vue). Loaded with those lazy components only. */
+
+.app-plugin-session-sources {
+  border-top: 1px solid var(--sessions-border);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.app-plugin-session-sources__heading {
+  margin: 4px 8px 2px;
+  color: var(--sessions-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.app-plugin-session-source__badge {
+  flex: none;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+}
+
+.app-plugin-session-source__status,
+.app-plugin-session-source__notice {
+  margin: 5px 8px 9px 31px;
+  color: var(--sessions-text-muted);
+  font-size: 10px;
+}
+
+.app-plugin-session-source__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 5px 8px 9px 31px;
+  color: var(--app-danger);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.app-plugin-session-source__sessions {
+  margin: 0 0 2px 19px;
+  border-left: 1px solid var(--app-border-subtle);
+  padding-left: 6px;
+}
+
+.app-plugin-session-transcript__notice {
+  margin: 0 0 13px;
+  color: var(--sessions-text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.app-plugin-session-transcript__body {
+  padding: 11px 13px;
+}
+
+.app-plugin-session-transcript__text {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--app-text);
+  font-size: 12px;
+  line-height: 1.68;
+  white-space: pre-wrap;
+}
+
+.app-plugin-session-transcript__truncated {
+  display: block;
+  margin-top: 4px;
+  color: var(--sessions-text-muted);
+  font-size: 11px;
+}
+
+.app-plugin-session-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 16px;
+  color: var(--app-danger);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}

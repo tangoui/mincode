@@ -1,0 +1,63 @@
+/* Main content and supporting panes follow their semantic surface roles. */
+.db-workspace,
+.project-workspace,
+.ssh-workspace,
+.sessions-workspace,
+.git-workspace,
+.browser-workspace,
+.settings-workspace {
+  background: var(--app-surface);
+}
+
+.db-explorer,
+.sessions-navigator,
+.project-sidebar,
+.git-changes-pane,
+.browser-toolbar {
+  border-color: var(--app-border);
+  background: var(--app-sidebar);
+}
+
+.db-square-action,
+.db-pagination button {
+  border-color: var(--app-border-strong);
+  border-radius: 4px;
+  color: var(--app-accent);
+}
+
+.db-square-action:hover,
+.db-pagination button:hover:not(:disabled) {
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft);
+}
+
+.db-explorer-tabs,
+.settings-ai-scope-tabs {
+  background: var(--app-canvas);
+}
+
+.db-explorer-tabs button.is-active,
+.settings-ai-scope-tabs button.is-active {
+  background: var(--app-surface);
+  color: var(--app-accent);
+  box-shadow: none;
+}
+
+/* The shell is the fallback target; nested AI/database/plugin targets still win. */
+.app-frame {
+  position: relative;
+}
+
+.app-frame.file-drop-target-active::after {
+  position: absolute;
+  inset: 8px;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--app-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-surface));
+  color: var(--app-accent);
+  content: attr(data-file-drop-label);
+  pointer-events: none;
+}

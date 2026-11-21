@@ -1,0 +1,415 @@
+/*
+ * Shared layout for the SSH and database connection overview pages: title row,
+ * large search box, section headings, "recently opened" cards, grouped table rows
+ * and the ConnectionAvatar component. Page-specific additions stay in each
+ * workspace's own stylesheet.
+ */
+:root {
+  /* --app-border is nearly invisible on white themes; cards and the table need a slightly firmer edge. */
+  --connection-overview-border: color-mix(in srgb, var(--app-border-strong) 55%, var(--app-border));
+  --connection-overview-fill: color-mix(in srgb, var(--app-text) 4%, var(--app-surface));
+  --connection-overview-hover: color-mix(in srgb, var(--app-accent) 5%, var(--app-surface));
+  --connection-overview-radius: 11px;
+}
+
+/* Title row: page title, summary stats, trailing actions. */
+.connection-overview__head {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 14px;
+}
+
+.connection-overview__title {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.connection-overview__stat {
+  min-width: 0;
+  color: var(--app-text-muted);
+  font-size: 12.5px;
+}
+
+.connection-overview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.connection-overview__actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+/* Large search box: wraps AppSearchField and scales it up for the page's primary entry point. */
+.connection-overview__search {
+  --app-search-field-height: 40px;
+  min-width: 0;
+}
+
+.connection-overview__search .app-search-field {
+  width: 100%;
+  font-size: 14px;
+}
+
+.connection-overview__search .app-search-field.el-input .el-input__wrapper {
+  border-radius: 10px;
+  padding: 0 14px;
+}
+
+.connection-overview__search .app-search-field.el-input .el-input__prefix {
+  font-size: 16px;
+}
+
+/* Section heading with an optional count and a trailing action (e.g. "Clear history"). */
+.connection-overview__section {
+  display: flex;
+  min-width: 0;
+  min-height: 24px;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 8px;
+}
+
+.connection-overview__section-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-overview__section-count {
+  color: var(--app-text-disabled);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.connection-overview__section-action,
+.connection-overview__section-action.el-button {
+  flex: none;
+  margin-left: auto;
+  font-size: 12px;
+}
+
+/* "Recently opened" cards. */
+.connection-overview__recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  gap: 10px;
+}
+
+.connection-overview__recent-card {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--connection-overview-border);
+  border-radius: var(--connection-overview-radius);
+  padding: 11px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.connection-overview__recent-card:hover,
+.connection-overview__recent-card:focus-visible {
+  border-color: var(--app-accent);
+  background: var(--connection-overview-hover);
+}
+
+.connection-overview__recent-card:active {
+  background: var(--app-accent-soft);
+}
+
+.connection-overview__recent-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.connection-overview__recent-name,
+.connection-overview__recent-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-overview__recent-name {
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.connection-overview__recent-detail {
+  color: var(--app-text-muted);
+  font-size: 11.5px;
+}
+
+/* Grouped table: group headers and rows. Pages set --connection-overview-row-columns. */
+.connection-overview__table {
+  overflow: hidden;
+  border: 1px solid var(--connection-overview-border);
+  border-radius: var(--connection-overview-radius);
+  background: var(--app-surface);
+}
+
+.connection-overview__group {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  padding: 7px 14px;
+  background: var(--connection-overview-fill);
+  color: var(--app-text-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+}
+
+button.connection-overview__group {
+  cursor: pointer;
+}
+
+button.connection-overview__group:hover {
+  color: var(--app-text);
+}
+
+button.connection-overview__group:focus-visible {
+  outline: none;
+  color: var(--app-text);
+  box-shadow: inset 2px 0 0 var(--app-accent);
+}
+
+.connection-overview__row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: var(
+    --connection-overview-row-columns,
+    12px minmax(120px, 1fr) minmax(0, 2fr) auto
+  );
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--app-text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+/* Only rows that act on click get the pointer: native buttons or rows marked is-clickable. */
+button.connection-overview__row,
+.connection-overview__row.is-clickable {
+  cursor: pointer;
+}
+
+.connection-overview__row:last-child {
+  border-bottom: 0;
+}
+
+.connection-overview__row:hover {
+  background: var(--connection-overview-hover);
+}
+
+/* Keyboard highlight (e.g. the result Enter will open from the search box) and keyboard focus. */
+.connection-overview__row.is-highlighted,
+.connection-overview__row:focus-visible {
+  background: var(--app-accent-soft);
+  box-shadow: inset 2px 0 0 var(--app-accent);
+}
+
+.connection-overview__row:focus-visible {
+  outline: none;
+}
+
+.connection-overview__row > * {
+  min-width: 0;
+}
+
+.connection-overview__name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-overview__mono {
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-family: var(--app-font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-overview__muted {
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Inline status dot for rows; same state names as ConnectionAvatar. */
+/* Text for screen readers only (status-dot labels, the network-rate caption). */
+.connection-overview__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.connection-overview__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--app-text-disabled);
+}
+
+.connection-overview__dot.is-online {
+  background: var(--app-success);
+}
+
+.connection-overview__dot.is-pending {
+  background: var(--app-warning);
+}
+
+/* ConnectionAvatar */
+.connection-avatar {
+  position: relative;
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 9px;
+  /* Palette colors identify the connection (domain/connections/overview); a light tint of the color with the initials in a deeper shade of it, like the accent-soft selections. */
+  background: color-mix(in srgb, var(--connection-avatar-color, var(--app-text-disabled)) 16%, var(--app-surface));
+  color: color-mix(in srgb, var(--connection-avatar-color, var(--app-text-muted)) 78%, var(--app-text));
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+:root[data-theme-kind="dark"] .connection-avatar {
+  background: color-mix(in srgb, var(--connection-avatar-color, var(--app-text-disabled)) 26%, var(--app-surface));
+  color: color-mix(in srgb, var(--connection-avatar-color, var(--app-text-muted)) 45%, #ffffff);
+}
+
+.connection-avatar.is-size-26 {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font-size: 10.5px;
+}
+
+.connection-avatar__label {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  place-items: center;
+}
+
+.connection-avatar__label > :is(svg, img) {
+  max-width: 70%;
+  max-height: 70%;
+}
+
+.connection-avatar__status {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--app-surface);
+  border-radius: 50%;
+  background: var(--app-text-disabled);
+}
+
+.connection-avatar.is-size-26 .connection-avatar__status {
+  width: 9px;
+  height: 9px;
+}
+
+.connection-avatar__status.is-online {
+  background: var(--app-success);
+}
+
+.connection-avatar__status.is-pending {
+  background: var(--app-warning);
+}
+
+.connection-avatar__status.is-offline {
+  background: var(--app-text-disabled);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-overview__recent-card {
+    transition: none;
+  }
+}
+
+/* Narrow windows: keep everything inside the viewport without horizontal scroll. */
+@media (max-width: 680px) {
+  .connection-overview__head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .connection-overview__actions {
+    margin-left: 0;
+  }
+
+  .connection-overview__recent {
+    grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+    gap: 8px;
+  }
+
+  .connection-overview__row {
+    grid-template-columns: var(
+      --connection-overview-row-columns-narrow,
+      12px minmax(0, 1fr) auto
+    );
+    gap: 8px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  /* Secondary columns pages can drop on narrow windows. */
+  .connection-overview__row-optional {
+    display: none;
+  }
+}

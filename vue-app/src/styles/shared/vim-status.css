@@ -1,0 +1,93 @@
+/* Vim 编辑模式状态行（services/vim/monaco-vim-runtime.ts 渲染）：模式、待定按键、
+   `:`/`/` 命令行与提示。宿主（MonacoTextEditor）在编辑器下方预留隐藏的条带，
+   只有 Vim 附着时才显示；没有宿主条带的编辑器使用 `is-overlay` 覆盖在底部。
+   命令行 <input> 由 monaco-vim 自身创建并以 DOM 节点交给状态行，无法替换为
+   Element Plus 组件，因此在这里用 --app-* token 统一外观。 */
+.app-vim-status {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 10px;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-ui-font-size-extra-small);
+  line-height: 22px;
+}
+
+.app-vim-status[hidden] {
+  display: none;
+}
+
+.app-vim-status.is-overlay {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.app-vim-status__mode {
+  flex: none;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.app-vim-status[data-vim-mode="insert"] .app-vim-status__mode,
+.app-vim-status[data-vim-mode="replace"] .app-vim-status__mode {
+  color: var(--app-accent);
+}
+
+.app-vim-status[data-vim-mode^="visual"] .app-vim-status__mode {
+  color: var(--app-text);
+}
+
+.app-vim-status__prompt {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  color: var(--app-text);
+}
+
+.app-vim-status:not(.is-prompting) .app-vim-status__prompt {
+  flex: 0 1 auto;
+}
+
+.app-vim-status__prompt > span {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.app-vim-status__prompt input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 18px;
+  padding: 0 2px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--app-text);
+  font: inherit;
+  caret-color: var(--app-accent);
+}
+
+.app-vim-status__notification {
+  overflow: hidden;
+  min-width: 0;
+  flex: 0 1 auto;
+  color: var(--app-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-vim-status__keys {
+  flex: none;
+  margin-left: auto;
+}

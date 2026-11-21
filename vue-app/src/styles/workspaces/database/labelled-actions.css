@@ -1,0 +1,11 @@
+/* A labelled action must not inherit the fixed square dimensions used by icon actions. */
+.db-toolbar-action--label {
+  width: auto;
+  min-width: 68px;
+  gap: 5px;
+  padding: 0 8px;
+  color: var(--app-accent);
+  font-size: 12px;
+  white-space: nowrap;
+}
+

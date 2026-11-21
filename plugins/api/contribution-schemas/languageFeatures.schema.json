@@ -1,0 +1,39 @@
+{
+  "$comment": "Entry schema for contributes.languageFeatures (process plugins only, manifest apiVersion 2). Host validation lives in backend/plugin/contrib_language_features.go and language_feature_invoke.go. action must name one of this plugin's contributes.actions with risk 'read'; the one action answers every listed feature and dispatches on payload.feature. For each listed language the editor registers the listed features ({{lists.features}}). hover and completion are available since host 0.1.0; definition, references, codeLens, inlayHints, documentSymbol and codeAction need host 0.3.0 (contract valueSinceHost.features). Interactive features (hover, completion, definition, references, codeAction) run on a user gesture; passive features (codeLens, inlayHints, documentSymbol) run while the document is shown, debounced {{limits.passiveDebounceMs}} ms, with at most {{limits.passiveConcurrentPerPlugin}} in flight per plugin in their own slot group, and are suspended for {{limits.passiveSuspendMs}} ms after {{limits.passiveFailuresMax}} consecutive failures. The host calls the action through plugin_host_language_feature with {provider, feature, languageId, fileName, relativePath? (only with workspace.read), text, startLine, position?: {line, column}, range?, diagnostics?, includeDeclaration?, triggerCharacter?} where text is the document or, when it is larger than {{limits.textMaxBytes}} bytes, a window of whole lines starting at 1-based line startLine (payload <= min(action maxPayloadBytes, {{limits.payloadMaxBytes}}) bytes). position is sent only for hover, completion, definition and references; includeDeclaration (boolean, always present) only for references; range only for inlayHints ({startLine, endLine}: the visible lines, inside the sent text) and codeAction ({startLine, startColumn, endLine, endColumn}: the lightbulb range, columns in UTF-16 units); diagnostics only for codeAction ([{range, message, severity (error|warning|info|hint), source?}], <= {{limits.codeActionDiagnosticsMax}}, messages <= {{limits.codeActionDiagnosticMessageMaxRunes}} characters, possibly empty); codeLens, documentSymbol and codeAction always receive the whole document (startLine 1, no position; documents over {{limits.textMaxBytes}} bytes are not sent). Timeouts: references {{limits.referencesTimeoutMs}} ms, every other feature {{limits.timeoutMs}} ms. Lines and columns are 1-based absolute document positions (column <= {{limits.columnMax}}); range = {startLine, startColumn, endLine, endColumn}. hover expects {\"contents\": [string]} (<= {{limits.hoverContentsMax}} plain-text blocks of <= {{limits.hoverContentMaxRunes}} characters; an empty list shows nothing). completion expects {\"items\": [{label, insertText?, detail?, documentation?, kind?}], \"incomplete\"?: boolean} (first {{limits.completionItemsMax}} items kept, insertText is plain text, kind is one of {{lists.completionKinds}}). definition expects {\"locations\": [{path?, range, selectionRange?}]} (<= {{limits.definitionLocationsMax}}); references expects {\"locations\": [{path?, range}]} (<= {{limits.referencesLocationsMax}}); path is a project-relative path (<= {{limits.locationPathMaxBytes}} bytes, needs workspace.read; omitted means the requested document) and selectionRange must lie inside range. codeLens expects {\"lenses\": [{range, title, command?, args?}]} (<= {{limits.codeLensesMax}}; title <= {{limits.codeLensTitleMaxRunes}} characters of plain text without $(; command is one of this plugin's own action commands; args only for read commands, <= {{limits.codeLensArgsMaxProperties}} scalar properties and {{limits.codeLensArgsMaxBytes}} bytes, validated against the command inputSchema). inlayHints expects {\"hints\": [{position: {line, column}, label, kind?, paddingLeft?, paddingRight?}]} (<= {{limits.inlayHintsMax}} inside the requested range; label <= {{limits.inlayHintLabelMaxRunes}} characters; kind is one of {{lists.inlayHintKinds}}). documentSymbol expects {\"symbols\": [{name, detail?, kind, range, selectionRange?, children?}]} (<= {{limits.documentSymbolsMax}} symbols in total, <= {{limits.documentSymbolDepthMax}} levels; name <= {{limits.symbolNameMaxRunes}} and detail <= {{limits.symbolDetailMaxRunes}} characters; kind is one of {{lists.symbolKinds}}). codeAction expects {\"actions\": [{title, kind?, isPreferred?, edits: [{range, text}]}]} (first {{limits.codeActionItemsMax}} kept, title <= {{limits.codeActionTitleMaxRunes}} characters, kind one of {{lists.codeActionKinds}}, 1-{{limits.codeActionEditsMax}} non-overlapping edits of <= {{limits.codeActionEditTextMaxBytes}} bytes each inside the sent document); code actions edit only the requested document: there is no URI and no command, an action with any invalid edit or other field is dropped whole, and the edits are applied as one undoable change only when the user picks the action (never in a read-only editor). Results are <= {{limits.resultMaxBytes}} bytes; invalid items are dropped and over-limit lists truncated. Requests are cancelled when the editor no longer needs them.",
+  "description": "Language features: hover, completion, go to definition, find references, code lenses, inlay hints, document symbols and current-document quick fixes for the listed languages from one of this plugin's read actions.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "title", "languages", "features", "action"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "languages": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": "{{limits.languagesMax}}",
+        "uniqueItems": true,
+        "items": { "type": "string", "pattern": "^[a-z][a-z0-9+#._-]{0,31}$", "description": "Monaco language id, for example json, typescript or a language this plugin contributes." }
+      },
+      "features": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "description": "definition, references, codeLens, inlayHints, documentSymbol and codeAction need MinCode 0.3.0 or later (valueSinceHost in the contract).",
+        "items": { "enum": "{{lists.features}}" }
+      },
+      "triggerCharacters": {
+        "type": "array",
+        "maxItems": "{{limits.triggerCharactersMax}}",
+        "uniqueItems": true,
+        "items": { "type": "string", "pattern": "^[!-~]$", "description": "One printable ASCII character that opens completion (completion only)." }
+      },
+      "action": { "type": "string", "minLength": 1, "description": "Id of one of this plugin's contributes.actions with risk 'read'." }
+    },
+    "additionalProperties": false
+  }
+}

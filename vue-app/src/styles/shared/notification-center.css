@@ -1,0 +1,182 @@
+/* 通知中心：顶栏铃铛按钮、通知抽屉与通知列表。
+   字号层级：抽屉标题 13px → 通知标题 11px 粗体 → 正文 11px → 时间/来源 9px → 来源标签 8px。 */
+
+.app-notification-button {
+  position: relative;
+}
+.app-notification-button__badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 14px;
+  border-radius: 8px;
+  background: var(--app-danger);
+  padding: 0 4px;
+  color: var(--app-text-on-status);
+  font: 8px/14px sans-serif;
+  text-align: center;
+}
+
+.notification-drawer .el-drawer__body {
+  display: flex;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  font-size: 11px;
+}
+.notification-drawer__scroll {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+.notification-drawer__scroll > .el-scrollbar__wrap {
+  overflow-x: hidden;
+}
+.notification-drawer-title {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+}
+.notification-drawer-title strong {
+  font-size: 13px;
+}
+.notification-drawer-title span {
+  flex: 1;
+}
+.notification-drawer-title__action.el-button {
+  --el-button-text-color: var(--app-accent);
+  --el-button-hover-text-color: var(--app-accent);
+  --el-button-hover-bg-color: var(--app-accent-soft);
+  margin: 0;
+}
+
+.notification-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  /* 卡片紧凑排列，垂直间距仅靠 gap 控制 */
+  gap: 3px;
+  padding: 4px 10px 10px;
+  font-size: 11px;
+}
+.notification-list__item {
+  overflow: hidden;
+  border-color: var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+}
+.notification-list__item.is-unread {
+  background: var(--app-accent-soft);
+}
+.notification-list__item .el-card__body {
+  min-width: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+}
+.notification-list__item-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  gap: 8px;
+}
+.notification-list__content {
+  min-width: 0;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  overflow-wrap: anywhere;
+  text-align: left;
+  word-break: break-word;
+}
+.notification-list__content:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+.notification-list__item header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.notification-list__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+.notification-list__heading strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notification-list__item time {
+  flex: 0 0 auto;
+  color: var(--app-text-muted);
+  font-size: 9px;
+}
+/* 标题左侧的来源标签（el-tag）：优先级别高于 .el-tag.el-tag--small 才能覆盖其尺寸变量 */
+.notification-list__item .notification-list__source {
+  flex: 0 0 auto;
+  --el-tag-height: 16px;
+  --el-tag-font-size: 8px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 8px;
+  line-height: 14px;
+}
+.notification-list__item p {
+  max-width: 100%;
+  margin: 3px 0 0;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.notification-list__item .notification-list__detail {
+  color: var(--app-text-muted);
+  white-space: pre-wrap;
+}
+.notification-list__progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+.notification-list__progress .el-progress {
+  flex: 1;
+}
+.notification-list__remove.el-button {
+  --el-button-text-color: var(--app-text-muted);
+  --el-button-hover-text-color: var(--el-color-danger);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--el-color-danger) 12%, var(--app-surface));
+  align-self: start;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+}
+/* 插件通知的动作按钮组：在列表项主按钮之外，避免嵌套可交互元素 */
+.notification-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding-right: 32px;
+}
+.notification-list__actions .el-button {
+  max-width: 100%;
+  margin: 0;
+}
+.notification-list__actions .el-button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

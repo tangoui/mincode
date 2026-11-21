@@ -1,0 +1,37 @@
+/* SSH parity: connection manager sidebar and blank session/detail region. */
+.ssh-workspace {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--app-surface);
+}
+.ssh-manager-sidebar {
+  display: flex;
+  min-width: 200px;
+  max-width: 56%;
+  flex: none;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app-sidebar);
+}
+
+.ssh-manager-detail {
+  min-width: 0;
+  flex: 1;
+  background: var(--app-surface);
+}
+
+/* The connection list reuses the database navigator (db-connection-* classes); only the SSH identity differs. */
+.ssh-connection-navigator .db-connection-node__main {
+  position: relative;
+  gap: 9px;
+  padding: 5px 6px 5px 8px;
+}
+
+.ssh-connection-navigator .db-connection-node__meta em {
+  font-family: var(--app-font-mono);
+  font-size: 11px;
+}
+

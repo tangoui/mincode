@@ -1,0 +1,4 @@
+/* Database layout with a persisted resizable and collapsible workspace sidebar. */
+.db-explorer {
+  flex: none;
+}

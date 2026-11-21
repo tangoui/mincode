@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readSource as readFile } from './read-source.mjs';
+import { stripTypeScriptTypes } from 'node:module';
+import vm from 'node:vm';
+const service = await readFile(new URL('../src/services/plugin-menu-preferences.ts', import.meta.url), 'utf8');
+test('menu preference normalizes, persists and notifies only after successful save', async () => {
+  let stored, fail = false;
+  const events = [];
+  const code = stripTypeScriptTypes(service.replace(/^import .*;\n/m, '').replaceAll('export ', ''));
+  const ctx = vm.createContext({ loadPersistedValue: async () => stored, savePersistedValue: async (_key, value) => { if (fail) throw Error('save failed'); stored = value; }, window: { dispatchEvent: e => events.push(e) }, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } } });
+  vm.runInContext(code, ctx);
+  assert.equal(JSON.stringify(await ctx.loadPluginMenu()), '[]');
+  await ctx.savePluginMenu(['kafka', 'kafka', '', 2]);
+  assert.equal(JSON.stringify(await ctx.loadPluginMenu()), '["kafka"]');
+  assert.equal(events.length, 1);
+  fail = true;
+  await assert.rejects(ctx.savePluginMenu([]));
+  assert.equal(events.length, 1);
+});
+test('sidebar shortcuts require enabled and opted-in views; manager remains accessible', async () => {
+  const sidebar = await readFile(new URL('../src/components/layout/AppSidebar.vue', import.meta.url), 'utf8');
+  const manager = await readFile(new URL('../src/views/PluginManagerWorkspaceView.vue', import.meta.url), 'utf8');
+  assert.match(sidebar, /view.enabled && view.activeInWorkspace && menuPlugins.value.includes\(view.pluginId\)/);
+  assert.match(sidebar, /openPluginViewTab\(workbench, router/);
+  assert.match(sidebar, /tab.pluginView\?\.pluginId/);
+  assert.match(sidebar, /removeEventListener\(PLUGIN_MENU_EVENT/);
+  assert.match(manager, /加入左侧菜单/);
+  assert.match(manager, /@click="openPluginView\(view\)"/);
+});

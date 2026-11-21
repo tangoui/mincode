@@ -1,0 +1,135 @@
+{
+  "$comment": "Value schema for contributes.configuration (process plugins, API v2). Implemented by backend/plugin/contrib_configuration.go; see docs/development/plugin-development.md (plugin settings). Secret properties require the secrets capability, are string-only, global-only and have no default or enum.",
+  "description": "Plugin settings rendered by the host settings page.",
+  "value": {
+    "type": "object",
+    "required": [
+      "properties"
+    ],
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "titleLocalized": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "properties": {
+        "type": "object",
+        "maxProperties": "{{maxProperties}}",
+        "propertyNames": {
+          "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*){0,3}$",
+          "maxLength": "{{limits.keyMaxLength}}"
+        },
+        "additionalProperties": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "string",
+                "number",
+                "integer",
+                "boolean",
+                "array"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "titleLocalized": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": {
+              "type": "string"
+            },
+            "descriptionLocalized": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "default": {},
+            "enum": {
+              "type": "array",
+              "maxItems": "{{limits.enumMaxValues}}"
+            },
+            "enumLabelsLocalized": {
+              "type": "object",
+              "description": "Locale -> one label per enum value, in enum order.",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "format": {
+              "enum": [
+                "url",
+                "path"
+              ]
+            },
+            "minimum": {
+              "type": "number"
+            },
+            "maximum": {
+              "type": "number"
+            },
+            "maxLength": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16384
+            },
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "string"
+                },
+                "enum": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": "{{limits.enumMaxValues}}"
+                },
+                "maxLength": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 256
+            },
+            "secret": {
+              "type": "boolean"
+            },
+            "scope": {
+              "enum": [
+                "global",
+                "workspace"
+              ]
+            },
+            "order": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

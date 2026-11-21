@@ -1,0 +1,167 @@
+/* Terminal tabs: a strip above the split panes; every tab stays mounted, only the
+   active one is shown. Geometry matches the bottom panel's compact card tabs. */
+.terminal-tab-strip {
+  display: flex;
+  height: 32px;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding: 0 6px;
+}
+
+.terminal-tab-strip__tabs {
+  min-width: 0;
+  flex: 1;
+  --app-workspace-tabs-close-size: 16px;
+}
+
+/* Element Plus sizes the card header from --el-tabs-header-height (40px); match the 28px tabs. */
+.terminal-tab-strip__tabs > .el-tabs__header {
+  height: 28px;
+  margin: 0;
+  border-bottom: 0;
+}
+
+.terminal-tab-strip__tabs > .el-tabs__header .el-tabs__item {
+  height: 28px;
+  gap: 6px;
+  font-size: var(--app-ui-font-size-small);
+}
+
+.terminal-tab-strip__label {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tab-strip__rename.el-input {
+  width: 160px;
+}
+
+.terminal-tab-strip__attention {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--app-warning);
+}
+
+/* Same box as the tab's × (16px); Element Plus' disabled text color, no hover. */
+.terminal-tab-strip__close.is-disabled {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-disabled);
+  cursor: not-allowed;
+  font-size: 12px;
+}
+
+.terminal-tab-strip__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.terminal-tab-strip__add-wrap {
+  display: inline-flex;
+}
+
+.terminal-tab-strip__actions .el-button {
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+}
+
+.terminal-workspace-tab-panels {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0;
+}
+
+.terminal-workspace-tab-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0;
+}
+
+/* Memory of a tab's terminals (from 1 GB on): a quiet chip, warning color from 4 GB. */
+.terminal-tab-strip__memory {
+  display: inline-flex;
+  height: 18px;
+  flex: none;
+  align-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: var(--el-fill-color);
+  padding: 0 6px;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.terminal-tab-strip__memory:hover {
+  color: var(--el-text-color-primary);
+}
+
+.terminal-tab-strip__memory.is-high {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+.terminal-tab-memory__summary {
+  margin-bottom: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: var(--app-ui-font-size-small);
+}
+
+.terminal-tab-memory__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.terminal-tab-memory__process {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 40px;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  font-size: var(--app-ui-font-size-small);
+}
+
+.terminal-tab-memory__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tab-memory__size {
+  color: var(--el-text-color-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.terminal-tab-memory__process .el-button {
+  justify-self: end;
+}
+
+.terminal-tab-memory__shell {
+  justify-self: end;
+  color: var(--el-text-color-placeholder);
+  font-size: 11px;
+}

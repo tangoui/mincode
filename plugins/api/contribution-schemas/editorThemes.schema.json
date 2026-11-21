@@ -1,0 +1,40 @@
+{
+  "$comment": "Entry schema for contributes.editorThemes (declarative and process plugins, manifest apiVersion 2). An entry is inline or a {\"path\"} reference to a JSON file under editor-themes/, themes/ or assets/. Host validation lives in backend/plugin/contrib_editor_themes.go: colors must contain {{lists.requiredColors}} (opaque) and may use only the allowlisted Monaco color ids; rules are Monaco token rules. Contrast floors (translucent colors composited on editor.background): editor.foreground >= 4.5, every rule foreground >= 3.0 on its rule background or editor.background, editorCursor.foreground >= 3.0, editor.foreground on editor.selectionBackground >= 3.0. A theme that fails is skipped (install is refused). Themes cannot set fonts.",
+  "description": "Editor color themes: Monaco colors and syntax token rules offered in Settings > General > Editor theme, independent of the UI theme.",
+  "entry": {
+    "type": "object",
+    "required": ["id", "title", "kind", "colors"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}\\.[a-z0-9][a-z0-9-]{0,31}$", "description": "<pluginId>.<name>; the stored setting names this id." },
+      "title": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" },
+      "titleLocalized": {
+        "type": "object",
+        "maxProperties": "{{limits.localesMax}}",
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": "{{limits.titleMaxRunes}}" }
+      },
+      "kind": { "enum": "{{lists.kinds}}", "description": "Base Monaco theme: vs (light) or vs-dark (dark)." },
+      "colors": {
+        "type": "object",
+        "required": "{{lists.requiredColors}}",
+        "propertyNames": { "enum": "{{monacoColors}}" },
+        "additionalProperties": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" }
+      },
+      "rules": {
+        "type": "array",
+        "maxItems": "{{limits.tokenRulesMax}}",
+        "items": {
+          "type": "object",
+          "required": ["token"],
+          "properties": {
+            "token": { "type": "string", "pattern": "^[A-Za-z0-9._-]{0,128}$" },
+            "foreground": { "type": "string", "pattern": "^(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+            "background": { "type": "string", "pattern": "^(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+            "fontStyle": { "type": "string", "pattern": "^\\s*(?:(?:italic|bold|underline|strikethrough)(?:\\s+|$))*$", "description": "Space-separated subset of italic, bold, underline, strikethrough; empty resets." }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

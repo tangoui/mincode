@@ -1,0 +1,22 @@
+{
+  "$comment": "Entry schema for contributes.snippets (declarative and process plugins). Each path names a strict-JSON VS Code snippet file ({\"<name>\": {\"prefix\": string|string[], \"body\": string|string[], \"description\"?: string|string[]}}) inside the package's snippets/ or assets/ directory. The desktop host validates the file structure and bounds; the frontend validates snippet body syntax and the Monaco language.",
+  "description": "Editor snippet files per Monaco language (VS Code snippet format, strict JSON).",
+  "entry": {
+    "type": "object",
+    "required": ["language", "path"],
+    "properties": {
+      "language": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9+#._-]{0,31}$",
+        "description": "Monaco language id, for example typescript, sql or python."
+      },
+      "path": {
+        "type": "string",
+        "pattern": "\\.json$",
+        "maxLength": "{{fileRef.maxPathLength}}",
+        "description": "Package-relative path of the snippet file, for example snippets/typescript.json."
+      }
+    },
+    "additionalProperties": false
+  }
+}

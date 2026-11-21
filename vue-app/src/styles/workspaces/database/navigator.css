@@ -1,0 +1,907 @@
+/* Database navigator hierarchy ------------------------------------------------
+ * Keep the application-level activity bar above feature workspaces. Database
+ * panes may contain scrollable/virtualised content, but they must never cover
+ * the global navigation rail.
+ */
+.app-workspace-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.app-activity-bar {
+  position: relative;
+  z-index: 2;
+}
+
+.app-workspace-content {
+  position: relative;
+  z-index: 1;
+}
+
+.db-workspace {
+  min-width: 0;
+  isolation: isolate;
+}
+
+.db-explorer {
+  min-width: 280px;
+  flex: 0 0 auto;
+  background: var(--app-sidebar);
+}
+
+/* Navigator header: a title on the left, quiet 26px icon buttons on the right. */
+.db-explorer__toolbar {
+  height: 42px;
+  gap: 2px;
+  border-bottom-color: transparent;
+  padding: 0 10px;
+  container: db-explorer-toolbar / inline-size;
+}
+
+.db-explorer__title {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-explorer__toolbar > .el-dropdown {
+  flex: none;
+}
+
+.db-explorer__toolbar .db-square-action.el-button {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--app-text-muted);
+}
+
+.db-explorer__toolbar .db-square-action.el-button:hover,
+.db-explorer__toolbar .db-square-action.el-button:focus-visible {
+  background: var(--app-muted);
+  color: var(--app-text);
+}
+
+.db-explorer__toolbar .db-square-action.el-button.is-disabled,
+.db-explorer__toolbar .db-square-action.el-button.is-disabled:hover {
+  background: transparent;
+  color: var(--app-text-disabled);
+}
+
+/* "+ New" keeps the soft accent look the sidebars had before the redesign. */
+.db-explorer__toolbar .db-square-action.is-primary.el-button {
+  border: 1px solid color-mix(in srgb, var(--app-accent) 35%, var(--app-surface));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.db-explorer__toolbar .db-square-action.is-primary.el-button:hover,
+.db-explorer__toolbar .db-square-action.is-primary.el-button:focus-visible {
+  border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-surface));
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+/* Every action is inline by default. The "⋯" menu mirrors the secondary
+ * actions and only replaces them when the toolbar is too narrow to fit the
+ * title plus five 26px buttons (5 × 26 + 4 × 2 gap + ~80px title ≈ 220px). */
+.db-explorer__toolbar > .db-explorer__more {
+  display: none;
+}
+
+@container db-explorer-toolbar (max-width: 219px) {
+  .db-explorer__toolbar > .db-explorer__secondary.el-button {
+    display: none;
+  }
+
+  .db-explorer__toolbar > .db-explorer__more {
+    display: inline-flex;
+  }
+}
+
+/* Navigator footer (the only definition): a connection count summary, plus an
+ * optional quiet text action on the SSH sidebar. */
+.db-explorer__footer {
+  display: flex;
+  min-height: 34px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--app-border);
+  padding: 4px 8px 4px 12px;
+  color: var(--app-text-muted);
+  font-size: 11.5px;
+}
+
+.db-explorer__footer-summary {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-explorer__footer .el-button {
+  height: 24px;
+  flex: none;
+  margin: 0;
+  padding: 0 6px;
+  color: var(--app-text-muted);
+  font-size: 11.5px;
+}
+
+.db-explorer__footer .el-button:hover,
+.db-explorer__footer .el-button:focus-visible {
+  color: var(--app-accent);
+}
+
+.db-explorer-tabs {
+  width: auto;
+  min-width: 0;
+  height: 38px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 2px;
+  margin: 8px 12px 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.db-explorer-tabs :is(button, .el-button) {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  gap: 4px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  padding-inline: 5px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.db-explorer-tabs button span,
+.db-connection-node__meta strong,
+.db-connection-node__meta em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-object-tab__label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  padding-block: 1px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-explorer-tabs button.is-active {
+  background: var(--app-accent-soft);
+  box-shadow: none;
+  color: var(--app-accent);
+  font-weight: 600;
+}
+
+.db-tree-scroll {
+  padding: 0 6px 12px;
+}
+
+.db-connection-navigator,
+.db-object-navigator {
+  padding: 8px 0 10px;
+}
+
+.db-connection-navigator {
+  border-bottom: 1px solid var(--app-border);
+}
+
+.db-navigator-section-title {
+  display: flex;
+  height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  color: var(--app-text-regular);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.db-navigator-section-title b {
+  min-width: 18px;
+  border-radius: 9px;
+  background: var(--app-canvas);
+  padding: 1px 6px;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.db-connection-group + .db-connection-group {
+  margin-top: 8px;
+}
+
+.db-connection-group__title {
+  display: flex;
+  width: 100%;
+  height: 26px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0 6px;
+  color: var(--app-text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.db-connection-group__children {
+  position: relative;
+  padding-top: 4px;
+}
+
+
+.db-connection-group__title:hover {
+  background: var(--app-muted);
+  color: var(--app-text-regular);
+}
+
+.db-connection-group__title > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-connection-group__title small {
+  flex: none;
+  margin-left: auto;
+  color: var(--app-text-disabled);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.db-connection-entry {
+  min-width: 0;
+  margin: 2px 0;
+}
+
+.db-connection-node {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.db-connection-entry:hover > .db-connection-node {
+  background: var(--app-muted);
+}
+
+.db-connection-entry.is-active > .db-connection-node {
+  background: var(--app-accent-soft);
+}
+
+/* Database rows: the type icon sits on a light wash of its brand color (as in
+ * the connection overview) so the icon keeps its own color in both themes. */
+.db-connection-node__avatar.connection-avatar {
+  background: color-mix(in srgb, var(--db-connection-brand, var(--app-accent)) 14%, var(--app-surface));
+}
+
+/* Both sidebars draw session state as the avatar badge. The legacy status dot
+ * stays in the DOM for existing hooks but is visually hidden, so its title is
+ * not shown on hover; the row button's own title still describes the state. */
+.db-connection-navigator .db-connection-node__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Avatar status badges cut out of whatever background the row currently has. */
+.db-connection-node .connection-avatar__status {
+  border-color: var(--app-sidebar);
+}
+
+.db-connection-entry:hover > .db-connection-node .connection-avatar__status {
+  border-color: var(--app-muted);
+}
+
+.db-connection-entry.is-active > .db-connection-node .connection-avatar__status {
+  border-color: var(--app-accent-soft);
+}
+
+.db-connection-expand {
+  display: inline-flex;
+  width: 20px;
+  min-height: 32px;
+  align-self: stretch;
+  flex: none;
+  margin-left: 4px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.db-connection-expand:hover {
+  color: var(--app-accent);
+}
+
+/* Compact rows: one line is 32px; the second line (type · address, SSH address) grows it. */
+.db-connection-node__main {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 32px;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 3px 6px 3px 0;
+  color: var(--app-text-regular);
+  text-align: left;
+  cursor: pointer;
+}
+
+.db-connection-entry.is-active .db-connection-node__main {
+  color: var(--app-accent);
+}
+
+
+.db-connection-node__meta {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 1px;
+  align-items: center;
+}
+
+.db-connection-node__meta strong {
+  grid-column: 1;
+  color: var(--app-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.db-connection-entry.is-active .db-connection-node__meta strong {
+  color: var(--app-accent);
+}
+
+.db-connection-node__meta strong i {
+  margin-right: 3px;
+  color: var(--app-warning);
+  font-style: normal;
+}
+
+/* 插件驱动不可用（未安装、已禁用、异常）时，第二行的连接类型文字用警告色。 */
+.db-connection-node__meta .is-driver-unavailable {
+  color: var(--app-warning);
+}
+
+.db-connection-node__meta em {
+  grid-column: 1 / -1;
+  color: color-mix(in srgb, var(--app-text-muted) 82%, var(--app-text-regular));
+  font-size: 11px;
+  font-style: normal;
+}
+
+.db-connection-node__status {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--app-border-strong);
+}
+
+.db-connection-node__status.is-connected {
+  background: var(--app-success);
+}
+
+.db-connection-node > button:not(.db-connection-expand):not(.db-connection-node__main) {
+  display: none;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.db-connection-entry:hover
+  > .db-connection-node
+  > button:not(.db-connection-expand):not(.db-connection-node__main),
+.db-connection-entry:focus-within
+  > .db-connection-node
+  > button:not(.db-connection-expand):not(.db-connection-node__main) {
+  display: inline-flex;
+}.db-connection-node > button:not(.db-connection-expand):not(.db-connection-node__main):hover,
+.db-object-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item.is-active,
+.db-connection-group__menu:hover,
+.db-connection-node__menu:hover,
+.db-tree-node__menu:hover {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.db-connection-object-tree {
+  margin: 1px 0 5px 23px;
+  border-left: 1px solid var(--app-canvas);
+  padding: 2px 0 3px;
+}
+
+.db-connection-utility-row,
+.db-connection-audit-row {
+  display: flex;
+  width: 100%;
+  height: 30px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 0 8px 0 14px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.db-connection-utility-row .el-icon {
+  color: var(--app-warning);
+}
+
+.db-connection-audit-row {
+  margin: 3px 0 4px;
+  border-top: 1px solid var(--app-canvas);
+  color: var(--app-text-muted);
+}
+
+.db-connection-audit-row .el-icon {
+  color: var(--app-warning);
+}
+
+.db-connection-utility-row:hover,
+.db-connection-audit-row:hover,
+.db-connection-database > .db-tree-row:hover {
+  background: var(--app-muted);
+  color: var(--app-accent);
+}.db-connection-database > .db-tree-row,
+.db-connection-database > .db-tree-database__header > .db-tree-row {
+  height: 30px;
+  padding-left: 13px;
+  cursor: pointer;
+}.db-connection-database > .db-tree-row small,
+.db-connection-database > .db-tree-database__header > .db-tree-row small {
+  margin-left: auto;
+  color: var(--app-text-muted);
+  font-size: 10px;
+}
+
+.db-connection-database .db-tree-group-row {
+  height: 28px;
+}
+
+.db-connection-empty {
+  padding: 10px 8px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.db-object-navigator .db-navigator-section-title {
+  margin-top: 2px;
+}
+
+.db-tree-row,
+.db-tree-group-row,
+.db-table-row {
+  border-radius: 4px;
+}
+
+.db-table-row.is-active {
+  color: var(--app-accent);
+  font-weight: 600;
+}
+
+.db-table-row small {
+  margin-left: auto;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.db-table-search-row {
+  padding: 2px 8px 4px 30px;
+}
+
+.db-table-search-input {
+  width: 100%;
+  --app-search-field-height: 24px;
+}
+
+.db-connection-tabs {
+  height: 40px;
+  background: var(--app-surface);
+  padding: 0 14px;
+}
+
+.db-datasource-header {
+  height: 54px;
+  background: var(--app-surface);
+}
+
+.db-object-tabs {
+  display: flex;
+  min-width: 0;
+  height: 30px;
+  flex: none;
+  align-items: stretch;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.db-object-tabs__list {
+  --el-tabs-header-height: 30px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.db-object-tabs__list.el-tabs--card > .el-tabs__header {
+  height: 30px;
+  margin: 0;
+  border-bottom: 0;
+}
+
+.db-object-tabs__list .el-tabs__nav-wrap {
+  padding: 0 6px;
+}
+
+.db-object-tabs__list .el-tabs__nav-wrap::after {
+  display: none;
+}
+
+.db-object-tabs__list .el-tabs__nav-prev,
+.db-object-tabs__list .el-tabs__nav-next {
+  top: 0;
+  display: flex;
+  height: var(--el-tabs-header-height);
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.db-object-tabs__list :is(.el-tabs__nav-prev, .el-tabs__nav-next) > .el-icon {
+  margin: 0;
+  color: inherit;
+}
+
+.db-object-tabs__list .el-tabs__nav-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.db-object-tabs__list .el-tabs__nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.db-object-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__nav {
+  min-width: max-content;
+  border: 0;
+}
+
+.db-object-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item {
+  display: inline-flex;
+  max-width: min(280px, 36cqi);
+  height: 29px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  padding: 0 8px 0 9px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.db-object-tabs__list.el-tabs--card > .el-tabs__header .el-tabs__item:hover {
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.db-object-tabs__list .el-tabs__item:focus-visible {
+  outline: 0;
+  background: var(--app-surface);
+  color: var(--app-accent);
+}
+
+.db-object-tabs__list .el-tabs__item .is-icon-close {
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 3px;
+  color: var(--app-text-muted);
+}
+
+.db-object-tabs__list .el-tabs__item .is-icon-close:hover {
+  background: var(--app-muted);
+  color: var(--app-text);
+}
+
+.db-object-tabs__new.el-button {
+  width: 30px;
+  height: 30px;
+  align-self: end;
+  flex: none;
+  margin: 0 6px 0 0;
+  border-radius: 4px 4px 0 0;
+  color: var(--app-text-muted);
+}
+
+.db-object-tabs__new.el-button:hover {
+  background: var(--app-surface);
+  color: var(--app-accent);
+}/* Connection tree action affordances: keep row controls quiet until they are needed. */
+.db-connection-group__header,
+/* Schema tree menus mirror connection actions without crowding every object row. */
+.db-tree-database__header,
+.db-table-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}.db-connection-group__header .db-connection-group__title,
+.db-tree-database__header > .db-tree-row,
+.db-table-row__main {
+  min-width: 0;
+  flex: 1;
+}
+
+.db-connection-group__menu,
+.db-connection-node__menu {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.db-connection-group__menu {
+  display: none;
+  margin-right: 4px;
+}
+
+.db-connection-group:hover .db-connection-group__menu,
+.db-connection-group:focus-within .db-connection-group__menu {
+  display: inline-flex;
+}
+
+.db-connection-node > .el-dropdown {
+  display: none;
+  flex: none;
+}
+
+.db-connection-entry:hover > .db-connection-node > .el-dropdown,
+.db-connection-entry:focus-within > .db-connection-node > .el-dropdown {
+  display: inline-flex;
+}
+
+.db-table-row {
+  width: 100%;
+  padding-left: 0;
+}
+
+.db-table-row__main {
+  display: flex;
+  width: 100%;
+  height: 29px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0 8px 0 47px;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.db-table-row__main:hover,
+.db-table-row.is-active .db-table-row__main {
+  background: var(--app-accent-soft);
+}
+
+.db-tree-node__menu.el-button {
+  margin: 0 2px 0 0;
+  padding: 0;
+}
+
+.db-tree-node__menu {
+  display: none;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-right: 2px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: pointer;
+}
+
+.db-tree-database__header:hover .db-tree-node__menu,
+.db-tree-database__header:focus-within .db-tree-node__menu,
+.db-table-row:hover .db-tree-node__menu,
+.db-table-row:focus-within .db-tree-node__menu {
+  display: inline-flex;
+}
+
+.db-object-actions-popper .el-dropdown-menu__item.is-danger,
+.db-object-actions-popper .el-dropdown-menu__item.is-danger .el-icon {
+  color: var(--app-danger);
+}
+
+.db-object-actions-popper .el-dropdown-menu__item.is-danger:not(.is-disabled):focus,
+.db-object-actions-popper .el-dropdown-menu__item.is-danger:not(.is-disabled):hover {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
+/* Compact native drag targets keep connection regrouping visible without changing navigator density. */
+.db-connection-group {
+  position: relative;
+}
+
+.db-connection-group.is-drop-before::before,
+.db-connection-group.is-drop-after::after {
+  position: absolute;
+  right: 5px;
+  left: 5px;
+  z-index: 2;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--app-accent);
+  content: "";
+}
+
+.db-connection-group.is-drop-before::before {
+  top: -3px;
+}
+
+.db-connection-group.is-drop-after::after {
+  bottom: -3px;
+}
+
+.db-connection-group.is-drop-target > .db-connection-group__header {
+  border-radius: 4px;
+  outline: 1px dashed var(--app-accent);
+  outline-offset: -1px;
+}
+
+/* Drag starts from the group or connection label itself, so the navigator
+ * does not reserve a separate handle column. Keep the normal pointer while
+ * hovering; only switch to the drag cursor while the user is pressing. */
+.db-connection-group__title[draggable="true"],
+.db-connection-node__main[draggable="true"] {
+  cursor: pointer;
+}
+
+.db-connection-group__title[draggable="true"]:active,
+.db-connection-node__main[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.db-connection-entry.is-dragging {
+  opacity: 0.45;
+}
+
+.db-connection-node__status.is-connecting {
+  background: var(--app-accent);
+  animation: db-connection-status-pulse 900ms ease-in-out infinite;
+}
+
+.db-connection-entry.is-connecting .db-connection-node__main {
+  cursor: wait;
+}
+
+.db-connection-entry.is-connecting .db-connection-expand {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@keyframes db-connection-status-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .db-connection-node__status.is-connecting {
+    animation: none;
+  }
+}
+
+/* Groups are flat section titles: a short colored bar identifies the group,
+ * the count is plain muted text and the collapse chevron sits at the far end. */
+.db-connection-group__header {
+  min-height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0;
+}
+
+.db-connection-group__header .db-connection-group__title {
+  background: transparent;
+  color: var(--app-text-muted);
+}
+
+.db-connection-group__header .db-connection-group__title:hover,
+.db-connection-group__header .db-connection-group__title:focus-visible {
+  background: transparent;
+  color: var(--app-text-regular);
+}
+
+.db-connection-group__bar {
+  display: block;
+  width: 3px;
+  height: 14px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--app-text-disabled);
+}
+
+.db-connection-group__header .db-tree-chevron {
+  color: var(--app-text-disabled);
+}
+
+/* Rows sit directly under their group title without a tree guide line. */
+.db-connection-group__children {
+  margin-left: 0;
+  padding-left: 0;
+}
