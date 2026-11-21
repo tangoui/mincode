@@ -31,9 +31,10 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           config_version="$(jq -er .version tan.json)"
           app_version="$(sed -nE 's/^var AppVersion = "([^"]+)"$/\1/p' backend/misc/misc.go)"
-          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ||
+          # Match the version syntax accepted by tan.json.
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+(\.[0-9]+){0,2}([-+][0-9A-Za-z.-]+)?$ ||
                 "$version" != "$config_version" || "$version" != "$app_version" ]]; then
-            echo "::error::Expected vX.Y.Z matching tan.json ($config_version) and misc.AppVersion ($app_version); got $GITHUB_REF_NAME"
+            echo "::error::Expected a v-prefixed tag matching tan.json ($config_version) and misc.AppVersion ($app_version); got $GITHUB_REF_NAME"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
