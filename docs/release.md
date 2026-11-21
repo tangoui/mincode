@@ -1,8 +1,20 @@
 # Desktop releases
 
-GitHub Actions builds macOS installers for Apple silicon and Intel, a Windows
-x64 installer, and a Linux x64 tarball. Each version starts as a draft for
-maintainer review.
+GitHub Actions builds each target with cgo on a native runner. Each version
+starts as a draft for maintainer review.
+
+| Manifest platform | GitHub runner | Installers |
+|---|---|---|
+| `darwin-arm64` | `macos-15` | `.dmg` |
+| `darwin-amd64` | `macos-15-intel` | `.dmg` |
+| `windows-amd64` | `windows-latest` | NSIS `-setup.exe` |
+| `windows-arm64` | `windows-11-arm` | NSIS `-setup.exe` |
+| `linux-amd64` | `ubuntu-22.04` | `.tar.gz`, `.AppImage`, `.deb`, `.rpm` |
+| `linux-arm64` | `ubuntu-24.04-arm` | `.tar.gz`, `.AppImage`, `.deb`, `.rpm` |
+
+The GitHub release also contains `latest.json` when update signing is
+configured, full update payloads (macOS `.app.tar.gz`, Windows app `.exe`,
+and the Linux `.tar.gz`), and any generated `.patch` files.
 
 ## Configure update signing
 
@@ -28,7 +40,13 @@ update manifest. Those builds have in-app updates disabled.
 
 The workflow generates full update payloads and uses the previous published
 release's signed manifest and payloads to generate patches when they are
-smaller. The first signed release has full payloads only.
+smaller. Linux and Windows ARM64 start with full payloads in 0.4.1 because
+0.4.0 has no assets for those targets.
+
+The Linux manifest uses the `dir` format and points to the tarball, so 0.4.0
+tarball users can update in place from the extracted application directory.
+AppImage, deb, and rpm installations show new versions in Settings and link
+to GitHub Releases to download the matching package.
 
 The **Renew update manifest** workflow refreshes `latest.json` each Monday.
 Run it manually after publishing a draft that has been open for several
@@ -64,4 +82,6 @@ Ensure the Go bin directory is on `PATH`. Tango reads the build tags directly
 from `tan.json` and writes the packages to `dist/`. On Windows and Linux, use
 `pnpm package:desktop -features all`, which selects the backend profile
 available on those hosts. The release matrix uses the same platform-specific
-settings.
+settings. On Linux, use `pnpm package:desktop -features all -format tar,appimage,deb,rpm`
+with `appimagetool` on `PATH` to build all four formats. The deb and rpm
+include Tango's GTK 3 and WebKitGTK 4.1 runtime dependencies.
