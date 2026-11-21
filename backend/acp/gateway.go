@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
-	"slices"
 	"strings"
 	"sync"
 
-	"mincode/app/backend/browser"
 	"mincode/app/backend/core"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -46,7 +44,6 @@ func (c *acpConnection) requestError(operation string, cause error) error {
 
 func (c *acpConnection) close() {
 	c.closeOnce.Do(func() {
-		browser.RevokeInternalMCPServer(c.serverID)
 		if c.cancel != nil {
 			c.cancel()
 		}
@@ -60,18 +57,11 @@ func (c *acpConnection) close() {
 	})
 }
 
-// launchAgentProcess starts the agent process; tests replace it.
-var launchAgentProcess = launchAgent
-
-// acpGateway 是 ACP 连接池：serverId -> 连接。带 revision 机制以取消进行中的连接。
-// 结构对齐 mcp/gateway.go。owners 记录由 acp_launch_plugin 启动（含连接中）的
-// serverId 所属插件，供 DisconnectPluginAgents 按插件断开。
 type acpGateway struct {
 	mu         sync.Mutex
 	sessions   map[string]*acpConnection
 	revisions  map[string]uint64
 	connecting map[string]context.CancelFunc
-	owners     map[string]string
 }
 
 func newAcpGateway() *acpGateway {
@@ -79,17 +69,10 @@ func newAcpGateway() *acpGateway {
 		sessions:   map[string]*acpConnection{},
 		revisions:  map[string]uint64{},
 		connecting: map[string]context.CancelFunc{},
-		owners:     map[string]string{},
 	}
 }
 
 func (g *acpGateway) beginConnect(parent context.Context, serverID string) (uint64, context.Context, *acpConnection) {
-	return g.beginOwnedConnect(parent, serverID, "")
-}
-
-// beginOwnedConnect starts a connect attempt and records ownerPluginID ("" for
-// none) before anything runs, so a plugin stop cancels it from here on.
-func (g *acpGateway) beginOwnedConnect(parent context.Context, serverID, ownerPluginID string) (uint64, context.Context, *acpConnection) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	rev := g.revisions[serverID] + 1
@@ -99,11 +82,6 @@ func (g *acpGateway) beginOwnedConnect(parent context.Context, serverID, ownerPl
 	}
 	connectCtx, cancel := context.WithCancel(parent)
 	g.connecting[serverID] = cancel
-	if ownerPluginID == "" {
-		delete(g.owners, serverID)
-	} else {
-		g.owners[serverID] = ownerPluginID
-	}
 	old := g.sessions[serverID]
 	delete(g.sessions, serverID)
 	return rev, connectCtx, old
@@ -135,10 +113,8 @@ func (g *acpGateway) watchTransport(serverID string, conn *acpConnection) {
 	// Revoke this connection's resources before another launch can reuse the server ID.
 	conn.close()
 	delete(g.sessions, serverID)
-	owner := g.owners[serverID]
-	delete(g.owners, serverID)
 	g.mu.Unlock()
-	core.Emit(AcpDisconnectedEvent, AcpDisconnectedPayload{ServerIDs: []string{serverID}, PluginID: owner})
+	core.Emit(AcpDisconnectedEvent, AcpDisconnectedPayload{ServerIDs: []string{serverID}})
 }
 
 func (g *acpGateway) failConnect(serverID string, rev uint64) {
@@ -148,7 +124,6 @@ func (g *acpGateway) failConnect(serverID string, rev uint64) {
 			cancel()
 		}
 		delete(g.connecting, serverID)
-		delete(g.owners, serverID)
 	}
 	g.mu.Unlock()
 }
@@ -162,44 +137,10 @@ func (g *acpGateway) disconnect(serverID string) {
 	}
 	conn := g.sessions[serverID]
 	delete(g.sessions, serverID)
-	delete(g.owners, serverID)
 	g.mu.Unlock()
 	if conn != nil {
 		conn.close()
 	}
-}
-
-// disconnectOwner closes every connection, live or still connecting, owned by
-// pluginID, and returns their server ids (sorted).
-func (g *acpGateway) disconnectOwner(pluginID string) []string {
-	if pluginID == "" {
-		return nil
-	}
-	g.mu.Lock()
-	connections := []*acpConnection{}
-	serverIDs := []string{}
-	for id, owner := range g.owners {
-		if owner != pluginID {
-			continue
-		}
-		serverIDs = append(serverIDs, id)
-		g.revisions[id] = g.revisions[id] + 1
-		if cancel := g.connecting[id]; cancel != nil {
-			cancel()
-			delete(g.connecting, id)
-		}
-		if conn := g.sessions[id]; conn != nil {
-			connections = append(connections, conn)
-			delete(g.sessions, id)
-		}
-		delete(g.owners, id)
-	}
-	g.mu.Unlock()
-	for _, conn := range connections {
-		conn.close()
-	}
-	slices.Sort(serverIDs)
-	return serverIDs
 }
 
 func (g *acpGateway) disconnectAll() {
@@ -216,7 +157,6 @@ func (g *acpGateway) disconnectAll() {
 		connections = append(connections, conn)
 		delete(g.sessions, id)
 	}
-	clear(g.owners)
 	g.mu.Unlock()
 	for _, conn := range connections {
 		conn.close()
@@ -245,31 +185,15 @@ func (g *acpGateway) listStatus() []AcpServerStatus {
 
 // launch 启动 Agent 子进程并完成协议初始化握手。
 func (g *acpGateway) launch(ctx context.Context, serverID, command string, args []string, env map[string]string, cwd string) (*AcpInitResult, error) {
-	return g.launchOwned(ctx, serverID, "", cwd, func() (string, []string, map[string]string, func() error, error) {
-		return command, args, env, nil, nil
-	})
-}
-
-// launchOwned is launch for a connection owned by ownerPluginID ("" for none).
-// resolve runs after the attempt is registered, so a plugin stop between the
-// resolve and the handshake still cancels it; its beforeExec (may be nil) runs
-// immediately before the process is created.
-func (g *acpGateway) launchOwned(ctx context.Context, serverID, ownerPluginID, cwd string, resolve func() (string, []string, map[string]string, func() error, error)) (*AcpInitResult, error) {
-	rev, connectCtx, old := g.beginOwnedConnect(ctx, serverID, ownerPluginID)
+	rev, connectCtx, old := g.beginConnect(ctx, serverID)
 	if old != nil {
 		old.close()
 	}
-	command, args, env, beforeExec, err := resolve()
-	if err != nil {
-		g.failConnect(serverID, rev)
-		return nil, err
-	}
-	// A plugin stop during the resolve cancels the attempt before anything runs.
 	if err := connectCtx.Err(); err != nil {
 		g.failConnect(serverID, rev)
 		return nil, fmt.Errorf("ACP server '%s' connection was cancelled", serverID)
 	}
-	conn, err := launchAgentProcess(connectCtx, serverID, command, args, env, cwd, beforeExec)
+	conn, err := launchAgent(connectCtx, serverID, command, args, env, cwd)
 	if err != nil {
 		g.failConnect(serverID, rev)
 		return nil, err
@@ -289,26 +213,16 @@ func (g *acpGateway) newSession(ctx context.Context, serverID, cwd string, mcpSe
 	if err != nil {
 		return nil, err
 	}
-	registration, err := newInternalBrowserMCPRegistration(serverID, "")
-	if err != nil {
-		return nil, err
-	}
 	releaseRoot := conn.client.addRoot(cwd)
 	res, err := conn.csc.NewSession(ctx, acpsdk.NewSessionRequest{
 		Cwd:        cwd,
-		McpServers: appendInternalBrowserMCP(mcpServers, registration),
+		McpServers: mcpServers,
 	})
 	if err != nil {
 		releaseRoot()
-		browser.RevokeInternalMCPLease(registration.lease.Token)
 		return nil, conn.requestError("创建会话", err)
 	}
 	sessionID := string(res.SessionId)
-	if err := browser.BindInternalMCPLease(registration.lease.Token, serverID, sessionID); err != nil {
-		releaseRoot()
-		browser.RevokeInternalMCPLease(registration.lease.Token)
-		return nil, fmt.Errorf("bind internal browser MCP session: %w", err)
-	}
 	return &AcpNewSessionResult{
 		SessionID:     sessionID,
 		Modes:         res.Modes,
@@ -321,21 +235,16 @@ func (g *acpGateway) loadSession(ctx context.Context, serverID, sessionID, cwd s
 	if err != nil {
 		return nil, err
 	}
-	registration, err := newInternalBrowserMCPRegistration(serverID, sessionID)
-	if err != nil {
-		return nil, err
-	}
 	endReplay := conn.client.beginSessionReplay(sessionID)
 	defer endReplay()
 	releaseRoot := conn.client.addRoot(cwd)
 	res, err := conn.csc.LoadSession(ctx, acpsdk.LoadSessionRequest{
 		SessionId:  acpsdk.SessionId(sessionID),
 		Cwd:        cwd,
-		McpServers: appendInternalBrowserMCP(mcpServers, registration),
+		McpServers: mcpServers,
 	})
 	if err != nil {
 		releaseRoot()
-		browser.RevokeInternalMCPLease(registration.lease.Token)
 		return nil, conn.requestError("恢复会话", err)
 	}
 	return &AcpLoadSessionResult{

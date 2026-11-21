@@ -104,7 +104,7 @@ func activityRoot() (string, error) {
 	if root == "" {
 		return "", errors.New("user data directory is unavailable")
 	}
-	return filepath.Join(root, "com.mincode.desktop", "terminal-activity"), nil
+	return filepath.Join(root, "com.tangoui.mincode", "terminal-activity"), nil
 }
 
 func ensureInitialized() error {

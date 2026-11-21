@@ -12,7 +12,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/jchv/go-webview2 v0.0.0-20260205173254-56598839c808
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/microsoft/go-mssqldb v1.10.0
 	github.com/nakagami/firebirdsql v0.9.19
@@ -25,8 +24,6 @@ require (
 	github.com/xuri/excelize/v2 v2.9.0
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.57.0
-	golang.org/x/image v0.47.0
-	golang.org/x/mod v0.41.0
 	golang.org/x/sys v0.49.0
 	gopkg.in/inf.v0 v0.9.1
 	modernc.org/sqlite v1.53.0
@@ -47,7 +44,6 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/jchv/go-winloader v0.0.0-20250406163304-c1995be93bd1 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect

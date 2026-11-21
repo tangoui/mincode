@@ -27,7 +27,6 @@ type shellSessionRecoveredPayload struct {
 // core.Emit 走标准事件通道。
 func dispatchShellOutput(sessionID, data string) {
 	attention.observeOutput(sessionID, data)
-	publishCloudShellEvent(CloudShellEvent{SessionID: sessionID, Data: data})
 	if streamHub.publishOutput(sessionID, data) {
 		return
 	}
@@ -41,7 +40,6 @@ func dispatchShellOutput(sessionID, data string) {
 // offset (0 = none) is forwarded in the event; see shellOutputPayload.
 func dispatchLocalShellOutput(sessionID, data string, offset int64) {
 	attention.observeOutput(sessionID, data)
-	publishCloudShellEvent(CloudShellEvent{SessionID: sessionID, Data: data})
 	streamHub.publishOutput(sessionID, data)
 	emitShellOutputEvent(sessionID, data, offset)
 }
@@ -64,7 +62,6 @@ func emitShellSessionEnded(sessionID, reason string, recoverable bool) {
 	if !recoverable {
 		attention.ended(sessionID)
 	}
-	publishCloudShellEvent(CloudShellEvent{SessionID: sessionID, Ended: !recoverable, Reason: reason})
 	core.Emit("shell-session-ended", shellSessionEndedPayload{
 		SessionID:   sessionID,
 		Reason:      reason,
@@ -93,7 +90,6 @@ func emitShellSessionEnded(sessionID, reason string, recoverable bool) {
 // 或停止日志流误报为 SSH 连接故障。
 func emitShellCommandEnded(sessionID string) {
 	attention.ended(sessionID)
-	publishCloudShellEvent(CloudShellEvent{SessionID: sessionID, Ended: true, Reason: "command_exited"})
 	core.Emit("shell-session-ended", shellSessionEndedPayload{
 		SessionID:   sessionID,
 		Reason:      "command_exited",

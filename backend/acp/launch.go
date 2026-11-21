@@ -20,10 +20,9 @@ const (
 )
 
 // launchAgent 启动 Agent 子进程（stdio JSON-RPC）并完成协议初始化握手。
-// 失败时会尽力杀掉已启动的子进程，避免泄漏。beforeExec（可为 nil）在
-// cmd.Start() 前一刻执行；它失败时不创建进程，并以 "untrusted:" 拒绝启动
+// 失败时会尽力杀掉已启动的子进程，避免泄漏。
 // （插件智能体用它确认程序文件仍是用户确认过的那一份）。
-func launchAgent(ctx context.Context, serverID, command string, args []string, env map[string]string, cwd string, beforeExec func() error) (conn *acpConnection, err error) {
+func launchAgent(ctx context.Context, serverID, command string, args []string, env map[string]string, cwd string) (conn *acpConnection, err error) {
 	processEnv := buildAgentProcessEnv(env)
 	resolvedCommand := resolveAgentExecutable(command, processEnv)
 	cmd := exec.Command(resolvedCommand, args...)
@@ -44,13 +43,6 @@ func launchAgent(ctx context.Context, serverID, command string, args []string, e
 	stderr := core.NewCappedWriter(64 * 1024)
 	cmd.Stderr = stderr
 
-	if beforeExec != nil {
-		if err := beforeExec(); err != nil {
-			_ = stdin.Close()
-			_ = stdout.Close()
-			return nil, fmt.Errorf("untrusted: ACP Agent %q was not started: %w", command, err)
-		}
-	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("启动 ACP Agent %q 失败: %w", command, err)
 	}

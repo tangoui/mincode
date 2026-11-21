@@ -16,7 +16,7 @@ var excludedCoreDrivers = map[string]string{
 // coreDriverUnavailable is prefixed with the driver_required code the
 // frontend recognises (databaseDriverErrorCode).
 func coreDriverUnavailable(name string) error {
-	return fmt.Errorf("driver_required: 当前构建未内置 %s 驱动，请安装并启用提供 %s 驱动的插件，然后在连接设置中将该连接改绑到插件驱动", name, name)
+	return fmt.Errorf("driver_required: 此版本未内置 %s 驱动", name)
 }
 
 func buildDuckDBSession(*DbConnectionConfig) (*dbSession, error) {

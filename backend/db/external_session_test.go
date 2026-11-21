@@ -805,50 +805,6 @@ func TestExternalSessionsSchemaSyncRejections(t *testing.T) {
 	}
 }
 
-func TestExternalSessionsCloudReadOnly(t *testing.T) {
-	conn := newFakeExternalConn(externalFeatureReadOnly)
-	conn.metadata[ExternalMetadataNavigation] = `{"databases":[{"name":"main","tables":[]}]}`
-	rows := make([][]any, 0, 600)
-	for i := 0; i < 600; i++ {
-		rows = append(rows, []any{i})
-	}
-	conn.pages = []ExternalPage{{Columns: cols("n"), Rows: rows}}
-	_, ids := connectFakeSession(t, conn)
-	if _, err := CloudSchema(ids[0]); err != nil {
-		t.Fatalf("cloud schema: %v", err)
-	}
-	result, err := CloudReadOnlyQuery(ids[0], "SELECT n FROM t")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.RowCount != cloudReadOnlyMaxRows || len(result.Rows) != cloudReadOnlyMaxRows {
-		t.Fatalf("rows = %d", result.RowCount)
-	}
-	conn.mu.Lock()
-	last := conn.lastExec
-	conn.mu.Unlock()
-	if !last.ReadOnly || last.Mode != ExternalExecuteQuery {
-		t.Fatalf("cloud execute = %+v", last)
-	}
-	if _, err := CloudReadOnlyQuery(ids[0], "DELETE FROM t"); err == nil {
-		t.Fatal("cloud read-only query must reject writes before reaching the plugin")
-	}
-
-	// A driver without readOnly is never opened for the cloud companion.
-	unsafe := newFakeExternalConn()
-	provider := &fakeExternalProvider{conns: []*fakeExternalConn{unsafe}}
-	withExternalProvider(t, provider)
-	password := "s3cret"
-	_, err = ConnectCloudReadOnly(CloudReadOnlyConnection{Config: DbConnectionConfig{
-		DbType: "plugin", Password: &password, ConnectionID: "conn-1",
-		Driver: &ExternalDriverRef{PluginID: "acme.db", DriverID: "acme"},
-	}})
-	if err == nil || !strings.HasPrefix(err.Error(), "unsupported:") {
-		t.Fatalf("cloud connect without readOnly = %v", err)
-	}
-	waitFor(t, "unsafe connection close", func() bool { _, closes := unsafe.snapshot(); return closes == 1 })
-}
-
 func TestExternalDriverReleaseAllowed(t *testing.T) {
 	withExternalProvider(t, nil)
 	ref := ExternalDriverRef{PluginID: "acme.db", DriverID: "acme"}
