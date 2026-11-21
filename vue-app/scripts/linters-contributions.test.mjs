@@ -14,7 +14,6 @@ import {
   selectedLinter,
   updateLinterPreference,
 } from "../src/domain/plugins/linters.ts";
-import { CONFIG_SYNC_STORAGE_PREFIX } from "../src/domain/settings/config-sync.ts";
 import { notifyEditorSaved } from "../src/services/editor-save-participants.ts";
 import { lazyContributionApply } from "../src/services/contributions/lazy-consumer.ts";
 import { createLintScheduler } from "../src/services/plugin-linter-queue.ts";
@@ -65,7 +64,7 @@ test("linters: entries are re-validated; only active process plugins contribute"
 });
 
 test("linters: preferences are machine-local, off by default and normalized", () => {
-  assert.ok(!PLUGIN_LINTERS_STORAGE_KEY.startsWith(CONFIG_SYNC_STORAGE_PREFIX), "never synced or exported");
+  assert.ok(!PLUGIN_LINTERS_STORAGE_KEY.startsWith("app_"), "never synced or exported");
   const byLanguage = JSON.parse(
     '{"typescript":{"linter":"z.lint/eslint","onType":true},"go":{"onType":true},"Bad Lang":{"linter":"z.lint/eslint"},"__proto__":{"linter":"z.lint/eslint"}}',
   );

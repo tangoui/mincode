@@ -3,26 +3,17 @@ import { computed, defineAsyncComponent, nextTick, ref, watch } from "vue";
 import { useVueI18n } from "@/i18n/messages";
 import { filterQuickPickItems, SERVICE_PROVIDER_REMEMBER_ID, type PluginPrompt } from "@/domain/plugins/host-prompts";
 import { diffModelPath, utf8Length } from "@/domain/plugins/host-ui";
-import type { BackupDialogAnswer } from "@/services/backup-host";
-import { answerBackupDialog, answerPrompt } from "@/services/plugin-host-ui";
+import { answerPrompt } from "@/services/plugin-host-ui";
 import { useLocalProjectStore } from "@/stores/local-project";
 import { usePluginHostUiStore } from "@/stores/plugin-host-ui";
 
 const MonacoDiffEditor = defineAsyncComponent(() => import("@/components/projects/MonacoDiffEditor.vue"));
-// Backup dialogs (services/backup-host.ts) load with the first backup request.
-const PluginBackupPasswordDialog = defineAsyncComponent(() => import("@/components/plugins/PluginBackupPasswordDialog.vue"));
-const PluginBackupRestoreConfirm = defineAsyncComponent(() => import("@/components/plugins/PluginBackupRestoreConfirm.vue"));
 
 const { t } = useVueI18n();
 const store = usePluginHostUiStore();
 const project = useLocalProjectStore();
 
 const prompt = computed<PluginPrompt | undefined>(() => store.prompts[0]);
-const backupDialog = computed(() => store.backupDialogs[0]);
-
-function answerBackup(answer: BackupDialogAnswer) {
-  if (backupDialog.value) void answerBackupDialog(backupDialog.value, answer);
-}
 const query = ref("");
 const picked = ref<string[]>([]);
 const active = ref("");
@@ -282,22 +273,6 @@ function onPickKey(event: KeyboardEvent) {
       >{{ t("common.confirm") }}</el-button>
     </template>
   </el-dialog>
-
-  <!-- One backup dialog at a time; keyed so the next request gets a fresh instance. -->
-  <PluginBackupPasswordDialog
-    v-if="backupDialog?.kind === 'backupPassword'"
-    :key="backupDialog.id"
-    :request="backupDialog"
-    @submit="answerBackup"
-    @cancel="answerBackup({ cancelled: true })"
-  />
-  <PluginBackupRestoreConfirm
-    v-else-if="backupDialog?.kind === 'backupRestoreConfirm'"
-    :key="backupDialog.id"
-    :request="backupDialog"
-    @confirm="answerBackup({ confirmed: true })"
-    @cancel="answerBackup({ confirmed: false })"
-  />
 
   <el-dialog
     v-for="diff in store.diffs"

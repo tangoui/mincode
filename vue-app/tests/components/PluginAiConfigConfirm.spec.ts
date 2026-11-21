@@ -30,7 +30,6 @@ function mcpRow(fields: Partial<Extract<AiConfigReviewRow, { kind: "mcp" }>> = {
     envKeys: ["FIGMA_API_KEY"],
     headerKeys: [],
     secretValues: "none",
-    auth: "none",
     prompts: [],
     ...fields,
   };
@@ -111,15 +110,5 @@ describe("plugin ai.config confirmation", () => {
     writeButton()?.click();
     await flushPromises();
     expect(dialog.emitted("confirm")).toEqual([[{}]]);
-  });
-
-  it("oauth rows say sign-in is needed after install", async () => {
-    await open([mcpRow({ auth: "oauth", transport: "http", commandLine: "", url: "https://mcp.example.com/mcp" })]);
-    expect(document.body.textContent).toContain(translate("plugins.aiConfig.oauthAfterInstall"));
-  });
-
-  it("rows without sign-in do not mention it", async () => {
-    await open([mcpRow()]);
-    expect(document.body.textContent).not.toContain(translate("plugins.aiConfig.oauthAfterInstall"));
   });
 });

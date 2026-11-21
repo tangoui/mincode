@@ -44,7 +44,7 @@ test("App.vue installs the dispatcher and app commands without loading the palet
   const app = await readFile(new URL("App.vue", SRC), "utf8");
   assert.doesNotMatch(app, /use-command-palette/);
   assert.doesNotMatch(app, /handleGlobalKeydown|handleAppLockKeydown|matchesCommandPaletteShortcut/);
-  assert.match(app, /const uninstallKeybindingDispatcher = installKeybindingDispatcher\(\{ isLocked: \(\) => appLock\.locked \}\)/);
+  assert.match(app, /const uninstallKeybindingDispatcher = installKeybindingDispatcher\(\)/);
   assert.match(app, /uninstallKeybindingDispatcher\(\);/);
   assert.match(app, /void keybindings\.hydrate\(\);/);
   assert.match(app, /useAppCommands\(/);
@@ -113,7 +113,7 @@ test("migrated handlers register catalog commands instead of listening for keys"
   assert.match(project, /id: "project:paste-node"/);
   assert.match(project, /registerKeybindingContext\("tree\.selection"/);
   const appCommands = await readFile(new URL("composables/use-app-commands.ts", SRC), "utf8");
-  for (const id of ["builtin:command-palette", "builtin:settings", "builtin:ai", "builtin:lock-app"]) {
+  for (const id of ["builtin:command-palette", "builtin:settings", "builtin:ai"]) {
     assert.match(appCommands, new RegExp(`id: "${id}"`));
   }
 });

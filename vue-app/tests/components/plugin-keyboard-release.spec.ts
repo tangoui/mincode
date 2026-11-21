@@ -50,7 +50,7 @@ describe("keybinding dispatcher while a plugin holds the keyboard", () => {
     const store = usePluginTakeoverStore();
     let runs = 0;
     const unregister = registerCommand({ id: "builtin:command-palette", source: "builtin", title: "Palette", execute: () => { runs += 1; } });
-    const uninstall = installKeybindingDispatcher({ isLocked: () => false });
+    const uninstall = installKeybindingDispatcher();
     try {
       const mac = useKeybindingsStore().platform === "mac";
       const palette = () => key({ key: "k", code: "KeyK", metaKey: mac, ctrlKey: !mac });

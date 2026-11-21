@@ -62,16 +62,14 @@ test("切走的会话释放详情，最近查看的与运行中/未保存/有队
   assert.match(release, /conversation\.messages = \[\];[\s\S]*?conversation\.detailsLoaded = false;/);
 });
 
-test("未加载详情的会话在发送、云端读取前先加载；清空会话会写入完整状态", async () => {
+test("未加载详情的会话在发送前先加载；清空会话会写入完整状态", async () => {
   const drawer = await readFile(new URL("../src/components/ai/AiAssistantDrawer.vue", import.meta.url), "utf8");
   const sidebar = await readFile(new URL("../src/components/ai/AiConversationSidebar.vue", import.meta.url), "utf8");
   const ensure = store.match(/async function ensureConversationDetails\(id: string\) \{[\s\S]*?\n  }\n/)?.[0] ?? "";
   assert.match(ensure, /await loadConversationDetail\(scopeId, id\)/);
   assert.match(ensure, /mergeLoadedConversationDetails\(current, loaded\);/);
   assert.match(store, /function mergeLoadedConversationDetails\([\s\S]*?current\.messages = mergeById\(loaded\.messages, current\.messages\);[\s\S]*?current\.detailsLoaded = true;/);
-  assert.equal((drawer.match(/if \(!\(await ensureSendableConversation\(conversationId, request\)\)\) return;/g) ?? []).length, 2);
-  assert.match(drawer, /if \(selected\) await assistant\.ensureConversationDetails\(selected\.id\);/);
-  assert.match(drawer, /if \(!\(await assistant\.ensureConversationDetails\(conversation\.id\)\)\) \{\s*claimedCloudPayloads\.delete\(event\.requestId\);\s*continue;/);
+  assert.equal((drawer.match(/if \(!\(await ensureSendableConversation\(conversationId\)\)\) return;/g) ?? []).length, 2);
   assert.match(store, /function clearConversationMessages\(id: string\) \{[\s\S]*?conversation\.detailsLoaded = true;\s*conversation\.messages = \[\];/);
   assert.match(sidebar, /conversation\.detailsLoaded !== false && !conversation\.messages\.length/);
 });

@@ -1,4 +1,4 @@
-export type AiPromptSuggestionKind = "skill" | "tool" | "file" | "prompt" | "context";
+export type AiPromptSuggestionKind = "tool" | "file" | "prompt" | "context";
 
 export interface AiPromptSuggestion {
   id: string;
@@ -6,7 +6,7 @@ export interface AiPromptSuggestion {
   description: string;
   kind: AiPromptSuggestionKind;
   insertText: string;
-  /** Display name of the plugin that contributed this suggestion (plugin skills and prompts). */
+  /** Display name of the plugin that contributed this suggestion (plugin prompts). */
   source?: string;
   /** Plugin prompt key (`<pluginId>.<id>`); selecting it expands the template into the draft. */
   promptKey?: string;
@@ -17,16 +17,6 @@ export interface AiPromptSuggestion {
 export interface AiPromptSuggestionTool {
   name: string;
   description: string;
-}
-
-export interface AiPromptSuggestionSkill {
-  id?: string;
-  name: string;
-  description: string;
-  /** Plugin display name when the skill comes from a plugin. */
-  source?: string;
-  /** Text typed after `/skill` (defaults to the name); plugin skills use `<pluginId>.<id>`. */
-  invocation?: string;
 }
 
 /** A plugin prompt template offered in the composer; it only ever expands into the draft. */
@@ -46,16 +36,12 @@ export function toolSuggestionText(toolName: string): string {
   return `/${toolName} `;
 }
 
-export function skillSuggestionText(skillName: string): string {
-  return `/skill ${skillName} `;
-}
-
 export function parseAiPromptSuggestionQuery(input: string): AiPromptSuggestionQuery | null {
   const trimmed = input.trimStart();
   if (!trimmed.startsWith("/") || trimmed.includes("{")) return null;
 
   const body = trimmed.slice(1).trim();
-  const typedCommand = /^(skill|tool|prompt)(?:\s+(.*))?$/i.exec(body);
+  const typedCommand = /^(tool|prompt)(?:\s+(.*))?$/i.exec(body);
   if (typedCommand) {
     return {
       kind: typedCommand[1]!.toLowerCase() as AiPromptSuggestionKind,
@@ -69,21 +55,12 @@ export function parseAiPromptSuggestionQuery(input: string): AiPromptSuggestionQ
 export function buildAiPromptSuggestions(
   input: string,
   tools: AiPromptSuggestionTool[],
-  skills: AiPromptSuggestionSkill[],
   prompts: AiPromptSuggestionPrompt[] = []
 ): AiPromptSuggestion[] {
   const parsed = parseAiPromptSuggestionQuery(input);
   if (!parsed) return [];
 
   const suggestions: AiPromptSuggestion[] = [
-    ...skills.map((skill) => ({
-      id: `skill:${skill.id?.trim() || skill.name}`,
-      name: skill.name,
-      description: skill.description,
-      kind: "skill" as const,
-      insertText: skillSuggestionText(skill.invocation?.trim() || skill.name),
-      ...(skill.source ? { source: skill.source } : {}),
-    })),
     ...prompts.map((prompt) => ({
       id: `prompt:${prompt.key}`,
       name: prompt.name,

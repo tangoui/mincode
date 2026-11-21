@@ -140,11 +140,8 @@ test("legacy palette choices keep their behaviour through the resolver and match
   assert.notEqual(press(modShiftP, cmdK), "builtin:command-palette");
 });
 
-test("host rules keep lock, AI panel keys and project clipboard keys", () => {
+test("host rules keep AI panel keys and project clipboard keys", () => {
   const resolution = resolve([]);
-  assert.equal(press(resolution, { code: "KeyL", metaKey: true, shiftKey: true }), "builtin:lock-app");
-  assert.equal(press(resolution, { code: "KeyL", metaKey: true, shiftKey: true }, { focus: "input" }), "builtin:lock-app");
-  assert.equal(press(resolution, { code: "KeyL", metaKey: true, shiftKey: true }, { focus: "dialog" }), "builtin:lock-app");
   const ai = { "ai.panel.focus": true };
   assert.equal(press(resolution, { code: "Escape", key: "Escape" }, { focus: "input", context: { ...ai, "ai.running": true } }), "ai:stop");
   assert.equal(press(resolution, { code: "Escape", key: "Escape" }, { focus: "input", context: ai }), "ignore");

@@ -8,9 +8,8 @@
 // straight to the host's write and never back to the plugin; the inputs are
 // cleared as soon as the dialog closes.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { ElAlert, ElButton, ElCollapse, ElCollapseItem, ElDialog, ElInput, ElScrollbar, ElTag } from "element-plus";
+import { ElAlert, ElButton, ElDialog, ElInput, ElScrollbar, ElTag } from "element-plus";
 import {
-  AI_CONFIG_SKILL_EXCERPT_LENGTH,
   isAiConfigFieldName,
   visibleReviewText,
   type AiConfigReviewPrompt,
@@ -163,28 +162,7 @@ function fieldList(names: readonly string[]) {
                   <dd class="app-plugin-ai-config__secret">{{ t(`plugins.aiConfig.secretValues.${row.secretValues}`) }}</dd>
                 </template>
               </template>
-              <template v-else>
-                <template v-if="row.description">
-                  <dt>{{ t("plugins.aiConfig.description") }}</dt>
-                  <dd>{{ row.description }}</dd>
-                </template>
-                <dt>{{ t("plugins.aiConfig.excerpt", { count: AI_CONFIG_SKILL_EXCERPT_LENGTH }) }}</dt>
-                <dd><code class="app-plugin-ai-config__excerpt">{{ row.excerpt }}{{ row.truncated ? "…" : "" }}</code></dd>
-                <dd v-if="row.truncated">
-                  <ElCollapse class="app-plugin-ai-config__full">
-                    <ElCollapseItem :title="t('plugins.aiConfig.fullText')" :name="row.key">
-                      <ElScrollbar max-height="240px">
-                        <code class="app-plugin-ai-config__full-text">{{ row.fullText }}</code>
-                      </ElScrollbar>
-                    </ElCollapseItem>
-                  </ElCollapse>
-                </dd>
-                <dd v-if="row.extraFiles" class="app-plugin-ai-config__note">{{ t("plugins.aiConfig.extraFiles") }}</dd>
-              </template>
             </dl>
-            <p v-if="row.kind === 'mcp' && row.auth === 'oauth'" class="app-plugin-ai-config__note is-warning">
-              {{ t("plugins.aiConfig.oauthAfterInstall") }}
-            </p>
             <div v-if="askedPrompts(row).length" class="app-plugin-ai-config__prompts">
               <p class="app-plugin-ai-config__prompts-title">{{ t("plugins.aiConfig.promptsTitle") }}</p>
               <div v-for="prompt in askedPrompts(row)" :key="promptField(prompt)" class="app-plugin-ai-config__prompt">

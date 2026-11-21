@@ -10,7 +10,7 @@ test('saved runtime templates join slash suggestions without activating a plugin
  const item=contribution({revision:1,entries:[custom]});
  const registry=buildPluginAiPromptRegistry([item]);
  assert.equal(registry.prompts.length,2);
- const suggestions=buildAiPromptSuggestions('/',[],[],registry.prompts.map(p=>({key:p.key,name:p.title,description:p.description,source:p.pluginName})));
+ const suggestions=buildAiPromptSuggestions('/',[],registry.prompts.map(p=>({key:p.key,name:p.title,description:p.description,source:p.pluginName})));
  assert.ok(suggestions.some(s=>s.promptKey==='acme.'+custom.id));
  assert.equal(expandAiPromptTemplate(registry.prompts[1].body,{selection:'code'}).text,'Check code');
  assert.equal(buildPluginAiPromptRegistry([{...item,activeInWorkspace:false}]).prompts.length,0);

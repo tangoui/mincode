@@ -47,15 +47,6 @@ interface UpdateProgress {
   total?: number;
 }
 
-interface SettingsDirectoryEntry {
-  name: string;
-  path: string;
-  isDir: boolean;
-}
-
-const MAX_SKILL_SCAN_DIRECTORIES = 10_000;
-const MAX_DISCOVERED_SKILLS = 1_000;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -114,38 +105,18 @@ export function loadProtocolStatuses() {
 export function readSettingsTextFile(path: string) { return invokeBackend<string>("local_fs_read_selected_text_file", { path }); }
 export function getUserHomeDirectory() { return invokeBackend<string>("get_user_home_dir", {}); }
 export function chooseSettingsJsonFile(title: string) { return chooseNativeFile(title, [{ DisplayName: "JSON", Pattern: "*.json" }]); }
-export function chooseSettingsMarkdownFile(title: string) { return chooseNativeFile(title, [{ DisplayName: "Markdown", Pattern: "*.md" }]); }
 export function chooseSettingsDirectory(title: string) { return chooseNativeDirectory(title); }
-export async function findSettingsSkillFiles(root: string) {
-  const directories = [""];
-  const skillPaths: string[] = [];
-  const normalizedRoot = root.replace(/[\\/]+$/, "") || root;
-
-  for (let index = 0; index < directories.length; index += 1) {
-    if (directories.length > MAX_SKILL_SCAN_DIRECTORIES) throw new Error("skill_scan_too_large");
-    const dirPath = directories[index]!;
-    const entries = await invokeBackend<SettingsDirectoryEntry[]>("local_fs_list_dir", {
-      projectRoot: root,
-      dirPath: dirPath || null,
-    });
-    for (const entry of entries) {
-      if (entry.isDir) {
-        directories.push(entry.path);
-      } else if (entry.name.toLowerCase() === "skill.md") {
-        skillPaths.push(`${normalizedRoot}/${entry.path}`);
-        if (skillPaths.length > MAX_DISCOVERED_SKILLS) throw new Error("too_many_skills");
-      }
-    }
-  }
-
-  return skillPaths.sort((left, right) => left.localeCompare(right));
-}
 export function connectMcpServer(server: StoredMcpServer) {
   const runtimeServer = normalizeMcpServerForRuntime(server);
-  return invokeBackend("mcp_connect", { serverId: runtimeServer.id, transport: runtimeServer.transport, command: runtimeServer.command,
-    args: runtimeServer.args.trim() ? runtimeServer.args.trim().split(/\s+/) : [], env: runtimeServer.env, url: runtimeServer.url, headers: runtimeServer.headers,
-    // "oauth" makes the backend send the host-held sign-in token (mcpauth).
-    auth: runtimeServer.auth });
+  return invokeBackend("mcp_connect", {
+    serverId: runtimeServer.id,
+    transport: runtimeServer.transport,
+    command: runtimeServer.command,
+    args: runtimeServer.args.trim() ? runtimeServer.args.trim().split(/\s+/) : [],
+    env: runtimeServer.env,
+    url: runtimeServer.url,
+    headers: runtimeServer.headers,
+  });
 }
 export function disconnectMcpServer(serverId: string) { return invokeBackend("mcp_disconnect", { serverId }); }
 export function fetchAiModels(config: AiModelFetchConfig) { return invokeBackend<string[]>("ai_list_models", { config }); }

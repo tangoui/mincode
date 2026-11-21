@@ -24,7 +24,6 @@ import {
   browserCapabilities,
   browserCapabilityNames,
 } from "./ai-tools/browser-tools";
-import { computerCapabilities } from "./ai-tools/computer-tools";
 import {
   terminalCapabilities,
   terminalCapabilityNames,
@@ -538,9 +537,6 @@ function globalCapabilities(
       ? httpCapabilities(dependencies)
       : []),
     ...browserCapabilities(dependencies),
-    ...(dependencies.nativeRuntime === true
-      ? computerCapabilities(dependencies)
-      : []),
     ...devtoolsCapabilities(),
     ...pluginCapabilities(dependencies, dependencies.nativeRuntime),
     ...sessionsCapabilities(dependencies, dependencies.nativeRuntime),

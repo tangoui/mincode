@@ -50,17 +50,6 @@ export function installPluginHostUiBridge(): () => void {
       parsingPrompts.delete(event.id);
       store.removePrompt(event.id);
     }),
-    // Both go through the same lazily loaded module, so a cancel is handled after its request.
-    listenAppEvent("plugin:backup-request", (event) => {
-      void loadBackupHost().then(({ handleBackupRequest }) => handleBackupRequest(event), () => replyBackupUnavailable(event));
-    }),
-    listenAppEvent("plugin:backup-request-cancel", (event) => {
-      void loadBackupHost().then(({ cancelBackupRequest }) => cancelBackupRequest(event), () => undefined);
-    }),
-    // Only a loaded backup host can have a reload waiting for this.
-    listenAppEvent("plugin:backup-restore-finished", (event) => {
-      void backupHost?.then(({ handleBackupRestoreFinished }) => handleBackupRestoreFinished(event), () => undefined);
-    }),
   ];
   return () => {
     for (const stop of stops) stop();
@@ -98,33 +87,6 @@ export async function answerPrompt(prompt: PluginPrompt, answer: PromptAnswer) {
   // The prompt may already be closed (timeout, plugin stopped); nothing to do then.
   await invokeBackend("plugin_host_prompt_reply", reply).catch(() => undefined);
   return true;
-}
-
-/**
- * The backup channel (services/backup-host.ts: collect and write MinCode's
- * data, the backup password and restore confirmation dialogs), loaded with
- * the first plugin:backup-request so it stays out of the entry bundle.
- */
-let backupHost: Promise<typeof import("@/services/backup-host")> | undefined;
-function loadBackupHost() {
-  backupHost ??= import("@/services/backup-host").catch((error: unknown) => {
-    backupHost = undefined;
-    throw error;
-  });
-  return backupHost;
-}
-
-/** The module failed to load: never leave the Go side waiting on a request nobody handles. */
-function replyBackupUnavailable(event: unknown) {
-  const id = (event as { id?: unknown } | null)?.id;
-  if (typeof id === "string" && /^[A-Za-z0-9_.:-]{1,128}$/.test(id)) void invokeBackend("plugin_host_backup_reply", { id, error: "unavailable" }).catch(() => undefined);
-}
-
-export async function answerBackupDialog(
-  ...args: Parameters<typeof import("@/services/backup-host").answerBackupDialog>
-) {
-  const { answerBackupDialog: answer } = await loadBackupHost();
-  await answer(...args);
 }
 
 async function openEditor(event: unknown) {

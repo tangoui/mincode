@@ -9,68 +9,6 @@ export function enqueuePersistedWrite<T>(task: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Write freeze after a backup restore (services/backup-host.ts): stores still
- * hold their old in-memory state, and their flushes (debounced saves,
- * beforeunload) would write it back over the restored data. Frozen keys are
- * skipped on every write path, native and browser; the freeze lives only in
- * memory, so the reload that follows a restore clears it.
- */
-let allPersistedWritesFrozen = 0;
-const frozenPersistedKeys = new Map<string, number>();
-const reportedFrozenKeys = new Set<string>();
-
-/**
- * Freezes writes of keys (or of every key); returns the function that lifts
- * this freeze. Freezes nest: a key stays frozen until every freeze holding
- * it was lifted.
- */
-export function freezePersistedWrites(keys: Iterable<string> | "all"): () => void {
-  if (keys === "all") {
-    allPersistedWritesFrozen += 1;
-    let liftedAll = false;
-    return () => {
-      if (liftedAll) return;
-      liftedAll = true;
-      allPersistedWritesFrozen -= 1;
-    };
-  }
-  const list = [...new Set(keys)];
-  for (const key of list) frozenPersistedKeys.set(key, (frozenPersistedKeys.get(key) ?? 0) + 1);
-  let lifted = false;
-  return () => {
-    if (lifted) return;
-    lifted = true;
-    for (const key of list) {
-      const count = (frozenPersistedKeys.get(key) ?? 1) - 1;
-      if (count > 0) frozenPersistedKeys.set(key, count);
-      else frozenPersistedKeys.delete(key);
-    }
-  };
-}
-
-/** True while writes of key are frozen; skipped writes are logged once per key. */
-export function isPersistedWriteFrozen(key: string): boolean {
-  const frozen = allPersistedWritesFrozen > 0 || frozenPersistedKeys.has(key);
-  if (frozen && !reportedFrozenKeys.has(key)) {
-    reportedFrozenKeys.add(key);
-    // eslint-disable-next-line no-console
-    console.debug(`[persistent-store] write of ${key} skipped: frozen after a backup restore`);
-  }
-  return frozen;
-}
-
-/** Lifts every freeze; tests only (the app lifts a full freeze by reloading). */
-export function clearPersistedWriteFreezesForTests(): void {
-  allPersistedWritesFrozen = 0;
-  frozenPersistedKeys.clear();
-}
-
-/** The current freeze, for tests. */
-export function persistedWriteFreezeState(): { all: boolean; keys: string[] } {
-  return { all: allPersistedWritesFrozen > 0, keys: [...frozenPersistedKeys.keys()].sort() };
-}
-
-/**
  * Keys whose localStorage copy is read synchronously before native hydration
  * (first paint). Desktop saves keep a browser snapshot only for these; every
  * other key is written natively only. Keep in sync with the readers noted.
@@ -157,7 +95,6 @@ function writeBrowserSnapshot(key: string, value: unknown): void {
 
 /** Best-effort browser snapshot write for sibling stores; never throws. */
 export function writePersistedBrowserSnapshot(key: string, value: unknown): void {
-  if (isPersistedWriteFrozen(key)) return;
   try {
     const serialized = JSON.stringify(value);
     if (serialized !== undefined) writeSerializedBrowserSnapshot(key, serialized);
@@ -177,7 +114,7 @@ function deleteBrowserSnapshot(key: string): void {
 
 /** Removes a stale browser copy after a native save; repeated saves skip the sync call. */
 export function clearDesktopBrowserSnapshot(key: string): void {
-  if (clearedDesktopBrowserSnapshots.has(key) || isPersistedWriteFrozen(key)) return;
+  if (clearedDesktopBrowserSnapshots.has(key)) return;
   deleteBrowserSnapshot(key);
   clearedDesktopBrowserSnapshots.add(key);
 }
@@ -288,16 +225,9 @@ export async function loadPersistedValue<T>(key: string): Promise<T | null> {
   return parseBrowserValue<T>(key);
 }
 
-export async function applyPersistedBatch(
-  batch: PersistedBatch,
-  options: {
-    /** Only the backup restore batch itself writes through a freeze. */
-    ignoreWriteFreeze?: boolean;
-  } = {},
-): Promise<void> {
-  const writable = (key: string) => options.ignoreWriteFreeze === true || !isPersistedWriteFrozen(key);
-  const sets = (batch.sets ?? []).filter(({ key }) => writable(key));
-  const deleteKeys = (batch.deleteKeys ?? []).filter(writable);
+export async function applyPersistedBatch(batch: PersistedBatch): Promise<void> {
+  const sets = batch.sets ?? [];
+  const deleteKeys = batch.deleteKeys ?? [];
   const deleteAiScopeIds = [...(batch.deleteAiScopeIds ?? [])];
   const deleteAllAiHistory = batch.deleteAllAiHistory === true;
   const operations: StoreBatchOperation[] = [
@@ -342,7 +272,6 @@ export async function savePersistedValueWithBrowserSnapshot(
   browserSnapshot: unknown,
   options: { writeBrowserSnapshotInDesktop?: boolean } = {},
 ): Promise<void> {
-  if (isPersistedWriteFrozen(key)) return;
   const desktopRuntime = isDesktopRuntime();
   if (!desktopRuntime) {
     writeBrowserSnapshot(key, browserSnapshot);
@@ -353,7 +282,6 @@ export async function savePersistedValueWithBrowserSnapshot(
   if (keepBrowserSnapshot) writeBrowserSnapshot(key, browserSnapshot);
 
   await enqueuePersistedWrite(async () => {
-    if (isPersistedWriteFrozen(key)) return;
     try {
       await invokeBackend<void>("store_set", { key, value });
       if (!keepBrowserSnapshot) clearDesktopBrowserSnapshot(key);
@@ -373,12 +301,10 @@ export function savePersistedValue(
 }
 
 export async function deletePersistedValue(key: string): Promise<void> {
-  if (isPersistedWriteFrozen(key)) return;
   deleteBrowserSnapshot(key);
   if (!isDesktopRuntime()) return;
 
   await enqueuePersistedWrite(async () => {
-    if (isPersistedWriteFrozen(key)) return;
     try {
       await invokeBackend<void>("store_del", { key });
     } catch {
@@ -389,7 +315,7 @@ export async function deletePersistedValue(key: string): Promise<void> {
 
 /**
  * Returns a portable typed snapshot for the Settings import/export workflow.
- * With strict (backups), a failed or malformed native load in the desktop app
+ * With strict enabled, a failed or malformed native load in the desktop app
  * throws instead of falling back to the partial browser copy.
  */
 export async function loadAllPersistedValues(

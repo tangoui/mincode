@@ -1,9 +1,7 @@
 import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
-import { normalizeTencentSkillHubDocsUrl } from "@/domain/ai/skillhub-repository";
 import {
   findMcpPathPlaceholder,
   GIT_MCP_PACKAGE,
-  normalizeMcpAuth,
   type McpTransport,
   type StoredMcpServer,
 } from "@/domain/ai/mcp-servers";
@@ -35,21 +33,6 @@ export function mergeMcpServersById(
   return merged;
 }
 
-/** A skill is stored as text only. Its scripts are never automatically executed. */
-export interface StoredAiSkill {
-  id: string;
-  name: string;
-  content: string;
-  sourcePath?: string;
-  description?: string;
-  docsUrl?: string;
-  enabled: boolean;
-  /** "manual" for a skill written in MinCode; absent for imported and registry skills. */
-  origin?: "manual";
-}
-
-export type AiSkillSource = "manual" | "local" | "registry";
-
 export interface RegistryEntry {
   id: string;
   name: string;
@@ -73,9 +56,7 @@ interface HttpResponse {
 }
 
 // Discover lists the built-in catalog plus plugin catalogs (contributes.aiCatalogs).
-// Online sources (registries, SkillHub, Git repositories) live in the official
-// connector & skill market plugin (`ai-market`), which also handles upgrades.
-const MAX_SKILL_BYTES = 512 * 1024;
+// Plugin sources are supplied by the connector catalog plugin (`ai-market`), which also handles upgrades.
 
 const BUILTIN_MCP_CATALOG: RegistryEntry[] = [
   {
@@ -212,60 +193,6 @@ export function getBuiltinMcpCatalog() {
   return BUILTIN_MCP_CATALOG;
 }
 
-const BUILTIN_SKILL_CATALOG: RegistryEntry[] = [
-  {
-    id: "builtin-skill-code-review",
-    name: "代码审查助手",
-    description: "系统化检查正确性、安全性、性能、可读性和测试。",
-    source: "builtin",
-    inlinePayload: [
-      "---",
-      "name: 代码审查助手",
-      "description: 系统化审查代码变更并输出结构化清单。",
-      "---",
-      "",
-      "# 代码审查助手",
-      "",
-      "审查代码时，逐项检查正确性、安全性、性能、可读性与测试。",
-      "输出时按「问题 → 位置 → 建议」分组；只报告有依据的问题，不臆测。",
-    ].join("\n"),
-  },
-  {
-    id: "builtin-skill-commit-message",
-    name: "提交信息规范",
-    description: "根据实际变更生成准确、简洁的 Conventional Commit。",
-    source: "builtin",
-    inlinePayload: [
-      "---",
-      "name: 提交信息规范",
-      "description: 按 Conventional Commits 生成提交信息。",
-      "---",
-      "",
-      "# 提交信息规范",
-      "",
-      "格式为 `<type>(<scope>): <subject>`；subject 使用祈使句、不加句号并控制在 72 个字符内。",
-      "只描述实际变更；多个逻辑点使用正文要点说明。",
-    ].join("\n"),
-  },
-  {
-    id: "builtin-skill-debugging",
-    name: "系统化调试",
-    description: "用复现、观测、假设和验证定位根因。",
-    source: "builtin",
-    inlinePayload: [
-      "---",
-      "name: 系统化调试",
-      "description: 用假设-验证法定位问题根因。",
-      "---",
-      "",
-      "# 系统化调试",
-      "",
-      "遵循复现 → 观测 → 假设 → 验证 → 修复的流程。",
-      "以日志、报错栈和最小实验为证据，优先修复根因并补充回归验证。",
-    ].join("\n"),
-  },
-];
-
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -275,7 +202,7 @@ export function normalizeDocumentationUrl(value: unknown) {
   try {
     const url = new URL(asString(value));
     if (url.protocol !== "https:" && url.protocol !== "http:") return "";
-    return normalizeTencentSkillHubDocsUrl(url.toString());
+    return url.toString();
   } catch {
     return "";
   }
@@ -347,12 +274,12 @@ function matches(entry: RegistryEntry, query: string) {
   return !needle || `${entry.name} ${entry.description}`.toLowerCase().includes(needle);
 }
 
-function directUrlEntry(value: string, extension: ".json" | ".md"): RegistryEntry | null {
+function directUrlEntry(value: string): RegistryEntry | null {
   const installRef = toRawContentUrl(value);
-  if (!installRef || !installRef.toLowerCase().split(/[?#]/)[0]!.endsWith(extension)) return null;
+  if (!installRef || !installRef.toLowerCase().split(/[?#]/)[0]!.endsWith(".json")) return null;
   return {
     id: `git-${installRef}`,
-    name: filenameWithoutExtension(installRef, extension === ".md" ? "SKILL" : "MCP Server"),
+    name: filenameWithoutExtension(installRef, "MCP Server"),
     description: installRef,
     source: "git",
     installRef,
@@ -370,20 +297,13 @@ function mergeEntries(...lists: RegistryEntry[][]) {
 }
 
 export async function searchMcpRegistry(query: string, searchPlugins = noPluginEntries) {
-  const direct = directUrlEntry(query, ".json");
+  const direct = directUrlEntry(query);
   const plugin = await searchPlugins(query).catch(() => []);
   return mergeEntries(
     direct ? [direct] : [],
     BUILTIN_MCP_CATALOG.filter((entry) => matches(entry, query)),
     plugin
   );
-}
-
-export async function searchSkillRegistry(query: string, searchPlugins = noPluginEntries) {
-  const direct = directUrlEntry(query, ".md");
-  const plugin = await searchPlugins(query).catch(() => []);
-  if (direct) return mergeEntries([direct], plugin);
-  return mergeEntries(BUILTIN_SKILL_CATALOG.filter((entry) => matches(entry, query)), plugin);
 }
 
 function normaliseMcpServer(id: string, value: unknown): StoredMcpServer | null {
@@ -408,27 +328,21 @@ function normaliseMcpServer(id: string, value: unknown): StoredMcpServer | null 
     enabled: raw.enabled !== false,
     env: asStringRecord(raw.env),
     headers: asStringRecord(raw.headers),
-    ...withAuthMarker(raw.auth),
   };
-}
-
-function withAuthMarker(value: unknown): Pick<StoredMcpServer, "auth"> {
-  const auth = normalizeMcpAuth(value);
-  return auth ? { auth } : {};
 }
 
 /**
  * A connector read from saved settings: documentation link made inert unless
- * it is a web URL, env/headers defaulted, and only a known auth marker kept.
+ * it is a web URL, env/headers defaulted, and legacy authentication markers discarded.
  */
 export function normalizeStoredMcpServer(server: StoredMcpServer): StoredMcpServer {
-  const { auth, ...rest } = (server ?? {}) as Partial<StoredMcpServer>;
+  const rest = { ...server } as Partial<StoredMcpServer> & { auth?: unknown };
+  delete rest.auth;
   return {
     ...rest,
     docsUrl: normalizeDocumentationUrl(rest.docsUrl),
     env: rest.env && typeof rest.env === "object" ? rest.env : {},
     headers: rest.headers && typeof rest.headers === "object" ? rest.headers : {},
-    ...withAuthMarker(auth),
   } as StoredMcpServer;
 }
 
@@ -475,7 +389,6 @@ export function serializeEditableMcpConfig(servers: readonly StoredMcpServer[]) 
       if (server.docsUrl) config.docsUrl = server.docsUrl;
       if (Object.keys(server.env).length) config.env = { ...server.env };
       if (Object.keys(server.headers).length) config.headers = { ...server.headers };
-      if (server.auth) config.auth = server.auth;
       return [server.id, config];
     }),
   );
@@ -529,7 +442,6 @@ export function parseEditableMcpConfig(text: string): StoredMcpServer[] {
       config.docsUrl ?? config.documentationUrl ?? config.documentation ?? config.docs ?? config.homepage;
     const docsUrl = rawDocsUrl === undefined ? "" : normalizeDocumentationUrl(rawDocsUrl);
     if (rawDocsUrl !== undefined && !docsUrl) throw new Error(`invalid_mcp_docs_url:${id}`);
-    if (config.auth !== undefined && !normalizeMcpAuth(config.auth)) throw new Error(`invalid_mcp_auth:${id}`);
     return {
       id,
       transport,
@@ -540,7 +452,6 @@ export function parseEditableMcpConfig(text: string): StoredMcpServer[] {
       enabled: config.enabled !== false,
       env: strictStringRecord(config.env, "env"),
       headers: strictStringRecord(config.headers, "headers"),
-      ...withAuthMarker(config.auth),
     };
   });
 }
@@ -608,80 +519,3 @@ export async function loadMcpRegistryEntry(entry: RegistryEntry) {
 }
 
 /** Parses a SKILL.md front-matter block and retains the full markdown as AI context. */
-export function parseAiSkillMarkdown(
-  content: string,
-  sourcePath: string,
-  fallbackName = "SKILL"
-): StoredAiSkill {
-  if (new TextEncoder().encode(content).length > MAX_SKILL_BYTES)
-    throw new Error("skill_too_large");
-  const trimmed = content.trim();
-  if (!trimmed) throw new Error("empty_skill");
-  const frontMatter = trimmed.match(/^---\s*\n([\s\S]*?)\n---\s*(?:\n|$)/);
-  const frontMatterMap = Object.fromEntries(
-    (frontMatter?.[1] ?? "")
-      .split(/\r?\n/)
-      .map((line) => line.match(/^([\w-]+):\s*(.+)$/))
-      .filter((match): match is RegExpMatchArray => Boolean(match))
-      .map((match) => [match[1]!, match[2]!.replace(/^['"]|['"]$/g, "").trim()])
-  );
-  const name = asString(frontMatterMap.name) || filenameWithoutExtension(sourcePath, fallbackName);
-  return {
-    id: slugify(`${name}-${sourcePath}`, `skill-${Date.now()}`),
-    name,
-    content: trimmed,
-    sourcePath,
-    description: asString(frontMatterMap.description),
-    docsUrl: normalizeDocumentationUrl(
-      frontMatterMap.documentation ||
-        frontMatterMap.docs ||
-        frontMatterMap.homepage ||
-        frontMatterMap.repository
-    ),
-    enabled: true,
-  };
-}
-
-/**
- * Builds a skill written in MinCode from SKILL.md text. Unlike an imported
- * file there is no filename to fall back on, so front matter `name` is required.
- */
-export function createManualAiSkill(content: string, id: string): StoredAiSkill {
-  const parsed = parseAiSkillMarkdown(content, "", "");
-  if (!parsed.name) throw new Error("skill_name_required");
-  return {
-    id,
-    name: parsed.name,
-    content: parsed.content,
-    description: parsed.description,
-    docsUrl: parsed.docsUrl,
-    enabled: true,
-    origin: "manual",
-  };
-}
-
-/**
- * Registry installs keep their download URL, `builtin:<id>` or
- * `plugin:<pluginId>/<catalogId>/<itemId>` as source; imports keep a file path.
- */
-export function aiSkillSource(skill: Pick<StoredAiSkill, "origin" | "sourcePath">): AiSkillSource {
-  if (skill.origin === "manual") return "manual";
-  const source = skill.sourcePath?.trim() ?? "";
-  return source && !/^(?:https?:\/\/|builtin:|plugin:)/i.test(source) ? "local" : "registry";
-}
-
-/** `/skill <name>` matches names case-insensitively, so names must be unique that way. */
-export function hasAiSkillNamed(skills: readonly StoredAiSkill[], name: string, exceptId?: string) {
-  const key = name.trim().toLowerCase();
-  return skills.some((skill) => skill.id !== exceptId && skill.name.trim().toLowerCase() === key);
-}
-
-export async function loadSkillRegistryEntry(entry: RegistryEntry) {
-  const content = await registryEntryText(entry);
-  if (!content) throw new Error("missing_skill_install_source");
-  const skill = parseAiSkillMarkdown(content, entry.installRef ?? `builtin:${entry.id}`, entry.name);
-  return {
-    ...skill,
-    docsUrl: skill.docsUrl || normalizeDocumentationUrl(entry.docsUrl),
-  };
-}

@@ -10,7 +10,6 @@ import {
   type AiAnthropicAuth,
 } from "@/domain/ai/anthropic-auth";
 import { AI_REASONING_EFFORT_CHOICES } from "@/domain/ai/model-selection";
-import { normalizeDocumentationUrl, parseAiSkillMarkdown } from "@/domain/ai/settings-integrations";
 import { findSynced, type SyncKind, type SyncSource } from "@/domain/ai/sync-source";
 
 export { findSynced, type SyncKind, type SyncSource };
@@ -49,19 +48,10 @@ export interface SyncMcpData {
   env: Record<string, string>;
   headers: Record<string, string>;
   prompts?: SyncMcpPrompt[];
-  /** The server needs an OAuth sign-in; written to the settings object only when present. */
-  auth?: "oauth";
-}
-export interface SyncSkillData {
-  content: string;
-  description?: string;
-  docsUrl?: string;
-  hasExtraFiles: boolean;
 }
 export type SyncItem =
   | { kind: "profile"; sourceId: string; name: string; sourceApp: string; profile: SyncProfileData }
-  | { kind: "mcp"; sourceId: string; name: string; sourceApp: string; mcp: SyncMcpData }
-  | { kind: "skill"; sourceId: string; name: string; sourceApp: string; skill: SyncSkillData };
+  | { kind: "mcp"; sourceId: string; name: string; sourceApp: string; mcp: SyncMcpData };
 export type SyncStatus = "new" | "update" | "conflict" | "unchanged";
 export interface SyncPreviewEntry {
   key: string;
@@ -73,7 +63,7 @@ export interface SyncPreviewEntry {
   changedFields: string[];
   secretChanged: boolean;
   targetName?: string;
-  /** Stable note codes: "possible-duplicate", "extra-files". */
+  /** "possible-duplicate" when the name is already taken. */
   notes: string[];
 }
 export interface SyncChoice {
@@ -92,7 +82,6 @@ export type SyncReviewedEntry = Pick<
 export interface SyncSettingsLists {
   aiProfiles: Record<string, unknown>[];
   mcpServers: Record<string, unknown>[];
-  aiSkills: Record<string, unknown>[];
 }
 /** Sync key → hash of the secrets last written from the source. Local only, never synced. */
 export type SecretHashes = Record<string, string>;
@@ -103,12 +92,11 @@ const PROFILE_API_FORMATS = ["openai", "openai-responses", "anthropic"] as const
 const MCP_TRANSPORTS = ["stdio", "http"] as const;
 const MCP_PROMPT_TARGETS = ["env", "header"] as const;
 const MCP_PROMPT_FIELD = { env: "env", header: "headers" } as const;
-const MCP_AUTH_MODES = ["oauth"] as const;
 export const SYNC_PROMPT_LABEL_MAX = 200;
 export const SYNC_PROMPT_PREFIX_MAX = 32;
-const LIST_BY_KIND = { profile: "aiProfiles", mcp: "mcpServers", skill: "aiSkills" } as const;
-// MCP servers are named by their id; profiles and skills carry a separate name.
-const NAME_FIELD = { profile: "name", mcp: "id", skill: "name" } as const;
+const LIST_BY_KIND = { profile: "aiProfiles", mcp: "mcpServers" } as const;
+// MCP servers are named by their id; profiles carry a separate name.
+const NAME_FIELD = { profile: "name", mcp: "id" } as const;
 const SOURCE_APP_LABELS: Record<string, string> = { claude: "Claude Code", codex: "Codex" };
 
 // Written fields other than the add-only ones (name, enabled). Secret fields are
@@ -124,10 +112,7 @@ const PROFILE_FIELDS = [
   "subagentModel",
   "reasoningEffort",
 ] as const;
-const MCP_FIELDS = ["transport", "command", "args", "url", "env", "headers", "auth"] as const;
-// Fingerprints taken before `auth` existed, and of objects without it, cover these.
-const MCP_FIELDS_WITHOUT_AUTH = MCP_FIELDS.filter((name) => name !== "auth");
-const SKILL_FIELDS = ["content", "description", "docsUrl"] as const;
+const MCP_FIELDS = ["transport", "command", "args", "url", "env", "headers"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -226,7 +211,7 @@ function parseMcpPrompts(
 
 function parseMcpData(value: unknown): SyncMcpData | undefined {
   if (!isRecord(value)) return undefined;
-  const { transport, command, args, url, env, headers, prompts, auth } = value;
+  const { transport, command, args, url, env, headers, prompts } = value;
   if (
     !isOneOf(MCP_TRANSPORTS, transport) ||
     typeof command !== "string" ||
@@ -235,8 +220,7 @@ function parseMcpData(value: unknown): SyncMcpData | undefined {
     !isStringRecord(env) ||
     !isStringRecord(headers) ||
     (transport === "stdio" && !isFilled(command)) ||
-    (transport === "http" && !isFilled(url)) ||
-    !isOptional(auth, (item) => isOneOf(MCP_AUTH_MODES, item))
+    (transport === "http" && !isFilled(url))
   ) {
     return undefined;
   }
@@ -250,31 +234,6 @@ function parseMcpData(value: unknown): SyncMcpData | undefined {
     env: { ...env },
     headers: { ...headers },
     ...(parsedPrompts ? { prompts: parsedPrompts } : {}),
-    ...(auth === undefined ? {} : { auth: auth as "oauth" }),
-  };
-}
-
-function parseSkillData(value: unknown, name: string): SyncSkillData | undefined {
-  if (!isRecord(value)) return undefined;
-  const { content, description, docsUrl, hasExtraFiles } = value;
-  if (
-    typeof content !== "string" ||
-    typeof hasExtraFiles !== "boolean" ||
-    !isOptional(description, (item) => typeof item === "string") ||
-    !isOptional(docsUrl, (item) => typeof item === "string")
-  ) {
-    return undefined;
-  }
-  try {
-    parseAiSkillMarkdown(content, "", name);
-  } catch {
-    return undefined;
-  }
-  return {
-    content,
-    hasExtraFiles,
-    ...(description === undefined ? {} : { description: description as string }),
-    ...(docsUrl === undefined ? {} : { docsUrl: docsUrl as string }),
   };
 }
 
@@ -289,10 +248,6 @@ function parseSyncItem(value: unknown): SyncItem | undefined {
   if (kind === "mcp") {
     const mcp = parseMcpData(value.mcp);
     return mcp && { kind, sourceId, name, sourceApp, mcp };
-  }
-  if (kind === "skill") {
-    const skill = parseSkillData(value.skill, name);
-    return skill && { kind, sourceId, name, sourceApp, skill };
   }
   return undefined;
 }
@@ -383,31 +338,21 @@ function writtenFields(item: SyncItem): SettingsObject {
       ...(profile.contextWindow === undefined ? {} : { contextWindow: profile.contextWindow }),
     };
   }
-  if (item.kind === "mcp") {
-    const mcp = item.mcp;
-    return {
-      transport: mcp.transport,
-      command: mcp.command,
-      args: joinMcpArgs(mcp.args),
-      url: mcp.url,
-      env: { ...mcp.env },
-      headers: { ...mcp.headers },
-      ...(mcp.auth === undefined ? {} : { auth: mcp.auth }),
-    };
-  }
-  const parsed = parseAiSkillMarkdown(item.skill.content, "", item.name);
+  const mcp = item.mcp;
   return {
-    content: parsed.content,
-    description: item.skill.description?.trim() || parsed.description || "",
-    docsUrl: normalizeDocumentationUrl(item.skill.docsUrl ?? "") || parsed.docsUrl || "",
+    transport: mcp.transport,
+    command: mcp.command,
+    args: joinMcpArgs(mcp.args),
+    url: mcp.url,
+    env: { ...mcp.env },
+    headers: { ...mcp.headers },
   };
 }
 
-/** Field sets a fingerprint may have been taken over; contextWindow and auth are written only when present. */
+/** Field sets a fingerprint may have been taken over; contextWindow is written only when present. */
 function fingerprintFieldSets(kind: SyncKind): (readonly string[])[] {
   if (kind === "profile") return [PROFILE_FIELDS, [...PROFILE_FIELDS, "contextWindow"]];
-  if (kind === "mcp") return [MCP_FIELDS_WITHOUT_AUTH, MCP_FIELDS];
-  return [SKILL_FIELDS];
+  return [MCP_FIELDS];
 }
 
 function sortedKeys(value: unknown) {
@@ -490,7 +435,7 @@ function secretValues(item: SyncItem): Record<string, string> | undefined {
   return undefined;
 }
 
-const SECRET_FIELDS = { profile: ["apiKey"], mcp: ["env", "headers"], skill: [] } as const;
+const SECRET_FIELDS = { profile: ["apiKey"], mcp: ["env", "headers"] } as const;
 
 function pickFields(fields: SettingsObject, names: readonly string[]) {
   return Object.fromEntries(names.map((name) => [name, fields[name]]));
@@ -598,8 +543,6 @@ function localSecretMissing(item: SyncItem, target: SettingsObject) {
 
 function changedFieldNames(item: SyncItem, fields: SettingsObject, target: SettingsObject) {
   const names = Object.keys(fields);
-  // auth is written only when present, so a source that dropped it must still compare it.
-  if (item.kind === "mcp" && !names.includes("auth")) names.push("auth");
   const source = fingerprintView(item.kind, fields, names);
   const current = fingerprintView(item.kind, target, names);
   return Object.keys(source).filter((name) => stableJson(source[name]) !== stableJson(current[name]));
@@ -680,7 +623,6 @@ function previewPlanned(
   const takenByKind = {
     profile: namesInList("profile", lists.aiProfiles),
     mcp: namesInList("mcp", lists.mcpServers),
-    skill: namesInList("skill", lists.aiSkills),
   };
   return planned.map(({ item, key, baseName, fields, fingerprint, secretHash: sourceSecret }) => {
     const entry: SyncPreviewEntry = {
@@ -692,7 +634,7 @@ function previewPlanned(
       needsSecret: false,
       changedFields: [],
       secretChanged: false,
-      notes: item.kind === "skill" && item.skill.hasExtraFiles ? ["extra-files"] : [],
+      notes: [],
     };
     const list = lists[LIST_BY_KIND[item.kind]];
     const index = findSynced(list, pluginId, item);
@@ -805,13 +747,11 @@ export function applySync(
   const next: SyncSettingsLists = {
     aiProfiles: [...lists.aiProfiles],
     mcpServers: [...lists.mcpServers],
-    aiSkills: [...lists.aiSkills],
   };
   const nextSecrets: SecretHashes = { ...secrets };
   const takenByKind = {
     profile: namesInList("profile", next.aiProfiles),
     mcp: namesInList("mcp", next.mcpServers),
-    skill: namesInList("skill", next.aiSkills),
   };
   let added = 0;
   let overwritten = 0;
@@ -826,7 +766,6 @@ export function applySync(
       // Added disabled: an enabled server can be started by an AI turn (mention
       // or mcp.load_tools) without the user ever pressing Connect (spec §4.2, §7).
       if (item.kind === "mcp") list.push({ id: name, ...fields, enabled: false, syncSource });
-      else if (item.kind === "skill") list.push({ id: createId("skill"), name, ...fields, enabled: true, syncSource });
       else list.push({ id: createId("profile"), name, ...fields, syncSource });
       added += 1;
     } else {
@@ -835,8 +774,7 @@ export function applySync(
       const entry = entryByKey.get(key)!;
       const written = overwriteFields(item, fields, target, entry);
       const next: SettingsObject = { ...target, ...written, syncSource };
-      // A source without auth clears a marker an earlier sync wrote; a fill-in writes only the secrets.
-      if (item.kind === "mcp" && item.mcp.auth === undefined && !fillsSecretsOnly(entry)) delete next.auth;
+      if (item.kind === "mcp" && !fillsSecretsOnly(entry)) delete next.auth;
       list[index] = next;
       overwritten += 1;
     }

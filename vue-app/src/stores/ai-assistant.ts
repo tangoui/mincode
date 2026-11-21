@@ -6,17 +6,6 @@ import { createLatestTaskRunner } from "@/domain/async/serialized-task-queue";
 import { acceptHMRUpdate, defineStore, storeToRefs } from "pinia";
 import { compactAiAttachment, sanitizeAiAttachments, type AiAttachment } from "@/domain/ai/attachments";
 import { normalizeAiConversationTitle } from "@/domain/ai/conversation-title";
-import { mergeTurnSnapshots, normalizeTurnSnapshots, retainTurnSnapshots, type TurnSnapshot } from "@/domain/ai/turn-snapshots";
-import {
-  combineTurnSnapshotRecords,
-  pruneSnapshotRoot,
-  SNAPSHOT_STORE_MAX_BYTES,
-  normalizeSnapshotPruneTimes,
-  snapshotRootsDueForPrune,
-  type ConversationTurnSnapshots,
-  type RetainedTurnSnapshot,
-} from "@/domain/ai/snapshot-retention";
-import { pruneProjectSnapshots } from "@/services/ai-snapshot-service";
 import type { AiExternalSource } from "@/domain/ai/plugin-turns";
 import type { AiLoopMessage } from "@/services/ai-agent-loop";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
@@ -112,11 +101,6 @@ export interface AiQueuedMessage {
   content: string;
   attachments?: AiAttachment[];
   createdAt: number;
-  cloud?: {
-    sourceDeviceId: string;
-    requestId: string;
-    relayId: string;
-  };
   /** A message relayed by a plugin (host.ai.turn.start); the reply streams back to it. */
   pluginTurn?: { turnId: string };
 }
@@ -192,11 +176,6 @@ export interface AiConversation extends AiAssistantSnapshot {
     result?: string;
     resultStatus?: AiConversationStatus;
   };
-  /**
-   * Project snapshots taken around each user turn that had side effects, one per
-   * (userMessageId, projectRoot). Saved with the conversation metadata; absent in older data.
-   */
-  turnSnapshots?: TurnSnapshot[];
 }
 
 type LegacyAiConversation = AiConversation & { completionUnread?: boolean };
@@ -213,8 +192,6 @@ function createId(prefix: string) {
 }
 
 const AI_CONVERSATION_SIDEBAR_WIDTH_KEY = "app_ai_conversation_sidebar_width";
-/** Last snapshot-store prune time per project root (rate-limits the startup sweep). */
-const AI_SNAPSHOT_PRUNE_TIMES_KEY = "app_ai_snapshot_prune_times";
 const AI_CONVERSATION_SIDEBAR_MIN_WIDTH = 210;
 const AI_CONVERSATION_SIDEBAR_MAX_WIDTH = 720;
 const AI_CONVERSATION_SIDEBAR_DEFAULT_WIDTH = 238;
@@ -425,10 +402,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     conversation.unread = conversation.unread === true || legacyConversation.completionUnread === true;
     delete legacyConversation.completionUnread;
     // Only rewritten when stored data is malformed, so repeated calls stay side-effect free.
-    if (conversation.turnSnapshots !== undefined) {
-      const turnSnapshots = normalizeTurnSnapshots(conversation.turnSnapshots);
-      if (turnSnapshots !== conversation.turnSnapshots) conversation.turnSnapshots = turnSnapshots;
-    }
     return conversation;
   }
 
@@ -658,8 +631,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
       savePersistedValue(AI_ASSISTANT_PLACEMENT_KEY, placement.value),
       savePersistedValue(AI_CONVERSATION_SIDEBAR_WIDTH_KEY, conversationSidebarWidth.value),
     ]);
-    // Snapshot stores are otherwise pruned only when references go away.
-    void scheduleStartupSnapshotPrune();
   }
   function setDraft(value: string) {
     draft.value = value;
@@ -1007,17 +978,9 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
       agentHistory: conversation.agentHistory ?? [],
     }, messageId);
     if (!rewound) return undefined;
-    const droppedRoots = conversation.turnSnapshots?.map((record) => record.projectRoot) ?? [];
     conversation.messages = rewound.messages;
     conversation.agentEvents = rewound.agentEvents;
     conversation.agentHistory = rewound.agentHistory;
-    // Like the removed turns' events, their snapshot records go with them.
-    if (conversation.turnSnapshots?.length) {
-      conversation.turnSnapshots = retainTurnSnapshots(
-        conversation.turnSnapshots,
-        new Set(rewound.messages.flatMap((message) => (message.id ? [message.id] : []))),
-      );
-    }
     conversation.updatedAt = Date.now();
     markConversationDirty(id);
     if (id === activeConversationId.value) {
@@ -1026,21 +989,7 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
       agentHistory.value = cloneAgentHistory(rewound.agentHistory);
     }
     // The removed turns' trees may now be unreferenced (deferred while any turn runs).
-    scheduleSnapshotPrune(droppedRoots);
     return cloneMessage(rewound.removed);
-  }
-  /** Stores the snapshot records of a finished turn, replacing earlier ones for the same turn and root. */
-  function recordTurnSnapshots(id: string, records: readonly TurnSnapshot[]) {
-    const conversation = conversationById(id);
-    if (!conversation) return false;
-    // A turn rewound or cleared before its record arrived leaves nothing to restore.
-    const live = conversation.detailsLoaded === false
-      ? records
-      : retainTurnSnapshots(records, new Set(conversation.messages.flatMap((message) => (message.id ? [message.id] : []))));
-    if (!live.length) return false;
-    conversation.turnSnapshots = mergeTurnSnapshots(conversation.turnSnapshots ?? [], live);
-    markConversationDirty(id, "meta");
-    return true;
   }
   function setConversationAgentHistory(id: string, history: AiLoopMessage[]) {
     const conversation = conversationById(id);
@@ -1240,7 +1189,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     return {
       ...message,
       attachments: message.attachments?.map(compactAiAttachment),
-      cloud: message.cloud ? { ...message.cloud } : undefined,
       pluginTurn: message.pluginTurn ? { ...message.pluginTurn } : undefined,
     };
   }
@@ -1552,10 +1500,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
       (event) => `${event.id}\u0000${event.triggerMessageId ?? ""}`,
     );
     current.messageQueue = mergeById(loaded.messageQueue, current.messageQueue);
-    current.turnSnapshots = mergeTurnSnapshots(
-      normalizeTurnSnapshots(loaded.turnSnapshots),
-      normalizeTurnSnapshots(current.turnSnapshots),
-    );
     current.detailsLoaded = true;
   }
 
@@ -1749,8 +1693,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     if (index < 0 || !target || target.running || conversationDeletionInProgress) return false;
     const deletedIds = new Set([id, ...relatedConversations.map((item) => item.conversationId)]);
     if (conversations.value.some((item) => deletedIds.has(item.id) && item.running)) return false;
-    const snapshotRoots = [...deletedIds].flatMap((id) =>
-      (conversationById(id)?.turnSnapshots ?? []).map((record) => record.projectRoot));
 
     // 先同步活动态，失败回滚时可直接复用原对象，避免深拷贝大段会话历史。
     syncActiveConversation();
@@ -1820,7 +1762,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
         void switchConversation(activeConversationId.value).catch(() => undefined);
       }
       // The deleted turns' snapshots are no longer referenced by this conversation.
-      scheduleSnapshotPrune(snapshotRoots);
       return true;
     } catch (error) {
       const concurrentStateChanged = autoPersistenceDirty;
@@ -1859,13 +1800,11 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
   function clearConversationMessages(id: string) {
     const conversation = conversationById(id);
     if (!conversation) return false;
-    const droppedRoots = conversation.turnSnapshots?.map((record) => record.projectRoot) ?? [];
     // The cleared state is complete, so saving it must replace the stored items.
     conversation.detailsLoaded = true;
     conversation.messages = [];
     conversation.agentHistory = [];
     conversation.agentEvents = [];
-    conversation.turnSnapshots = [];
     markConversationDirty(id);
     conversation.messageQueue = [];
     conversation.status = "not_started";
@@ -1878,7 +1817,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
       agentEvents.value = [];
       activeQueue.value = [];
     }
-    scheduleSnapshotPrune(droppedRoots);
     return true;
   }
   function conversationIsVisible(id: string) {
@@ -1979,162 +1917,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     { immediate: true, flush: "sync" },
   );
 
-  // --- Snapshot retention ------------------------------------------------------
-  // Turn records are written only when a turn finishes, so a turn still in flight
-  // has a "before" tree no conversation references yet. Pruning therefore waits
-  // until no AI conversation is running (in any window: sessionProgress tracks
-  // every run) and is retried when the last run ends.
-  const pendingSnapshotPruneRoots = new Set<string>();
-  let snapshotPruneInProgress = false;
-
-  class SnapshotPruneDeferred extends Error {}
-
-  /** Conversations held in memory: the active workspace and cached inactive ones. */
-  function memoryConversations() {
-    return [
-      ...conversations.value,
-      ...[...inactiveWorkspaceConversations.values()].flatMap((collection) => collection.conversations),
-    ];
-  }
-
-  /**
-   * Turn snapshot records of every conversation, stored or in memory. `union`
-   * (pruning) keeps both copies; otherwise memory wins (see
-   * combineTurnSnapshotRecords). With `memoryOnlyOnError`, a failing store
-   * listing falls back to memory instead of throwing.
-   */
-  async function collectTurnSnapshotRecords(
-    options: { excludeConversationId?: string; memoryOnlyOnError?: boolean; union?: boolean } = {},
-  ) {
-    const stored: ConversationTurnSnapshots[] = [];
-    try {
-      const overviews = await listAiWorkspaceOverviews<AiConversationCollection>();
-      for (const overview of overviews ?? []) {
-        for (const conversation of overview?.collection?.conversations ?? []) {
-          if (conversation?.id) stored.push({ conversationId: conversation.id, records: normalizeTurnSnapshots(conversation.turnSnapshots) });
-        }
-      }
-    } catch (error) {
-      if (!options.memoryOnlyOnError) throw error;
-    }
-    const memory = memoryConversations().map((conversation) => ({ conversationId: conversation.id, records: conversation.turnSnapshots ?? [] }));
-    return combineTurnSnapshotRecords(stored, memory, options);
-  }
-
-  /** Records whose trees the size cap dropped can no longer restore files. */
-  function markTurnSnapshotsEvicted(items: readonly RetainedTurnSnapshot[]) {
-    const byConversation = new Map<string, Set<string>>();
-    for (const { conversationId, record } of items) {
-      const keys = byConversation.get(conversationId) ?? new Set<string>();
-      keys.add(`${record.userMessageId}\u0000${record.projectRoot}`);
-      byConversation.set(conversationId, keys);
-    }
-    for (const [conversationId, keys] of byConversation) {
-      // Records held only in storage (workspaces not loaded) stay as they are; a rewind
-      // there finds the tree missing and offers only the conversation rewind.
-      const conversation = memoryConversations().find((item) => item.id === conversationId);
-      if (!conversation?.turnSnapshots?.length) continue;
-      let changed = false;
-      conversation.turnSnapshots = conversation.turnSnapshots.map((record) => {
-        if (!keys.has(`${record.userMessageId}\u0000${record.projectRoot}`)) return record;
-        changed = true;
-        return {
-          userMessageId: record.userMessageId,
-          projectRoot: record.projectRoot,
-          status: "no_snapshot" as const,
-          ...(record.startedAt === undefined ? {} : { startedAt: record.startedAt }),
-          ...(record.finishedAt === undefined ? {} : { finishedAt: record.finishedAt }),
-        };
-      });
-      if (changed) markConversationDirty(conversationId, "meta");
-    }
-  }
-
-  async function runPendingSnapshotPrunes() {
-    const roots = [...pendingSnapshotPruneRoots];
-    pendingSnapshotPruneRoots.clear();
-    // Stored copies count too (union), so unsaved rewinds and clears are saved first.
-    try {
-      await flushPersistence();
-    } catch {
-      // Keeping a stale stored tree is harmless; pruning still runs.
-    }
-    let records: RetainedTurnSnapshot[];
-    try {
-      // Without every conversation's records the keep set could miss a live tree.
-      records = await collectTurnSnapshotRecords({ union: true });
-    } catch {
-      return;
-    }
-    for (const root of roots) {
-      try {
-        await pruneSnapshotRoot({
-          projectRoot: root,
-          records,
-          maxBytes: SNAPSHOT_STORE_MAX_BYTES,
-          onEvict: markTurnSnapshotsEvicted,
-          prune: (projectRoot, keep) => {
-            // A turn started meanwhile: its before tree is not in `keep`.
-            if (runningConversationIdsKey.value) throw new SnapshotPruneDeferred();
-            return pruneProjectSnapshots(projectRoot, keep);
-          },
-        });
-        void markSnapshotRootPruned(root);
-      } catch (error) {
-        if (error instanceof SnapshotPruneDeferred) pendingSnapshotPruneRoots.add(root);
-        // Otherwise (browser preview, backend failure) the store is left as it is.
-      }
-    }
-  }
-
-  let snapshotPruneTimes: Record<string, number> | undefined;
-  async function loadSnapshotPruneTimes() {
-    if (!snapshotPruneTimes) {
-      try {
-        snapshotPruneTimes = normalizeSnapshotPruneTimes(await loadPersistedValue<unknown>(AI_SNAPSHOT_PRUNE_TIMES_KEY));
-      } catch {
-        snapshotPruneTimes = {};
-      }
-    }
-    return snapshotPruneTimes;
-  }
-  async function markSnapshotRootPruned(root: string) {
-    const times = await loadSnapshotPruneTimes();
-    times[root] = Date.now();
-    try {
-      await savePersistedValue(AI_SNAPSHOT_PRUNE_TIMES_KEY, { ...times });
-    } catch {
-      // Only rate limiting is lost: the next startup prunes this root again.
-    }
-  }
-  /**
-   * Startup sweep: prunes (and so packs and caps) every store a turn record
-   * references, at most once a day per root, once no AI turn is running.
-   */
-  async function scheduleStartupSnapshotPrune() {
-    let records: RetainedTurnSnapshot[];
-    try {
-      records = await collectTurnSnapshotRecords({ union: true, memoryOnlyOnError: true });
-    } catch {
-      return;
-    }
-    const due = snapshotRootsDueForPrune(records.map((item) => item.record.projectRoot), await loadSnapshotPruneTimes(), Date.now());
-    scheduleSnapshotPrune(due);
-  }
-
-  /** Prunes the snapshot stores of these project roots once no AI turn is running. */
-  function scheduleSnapshotPrune(roots: Iterable<string>) {
-    for (const root of roots) if (root) pendingSnapshotPruneRoots.add(root);
-    if (runningConversationIdsKey.value || snapshotPruneInProgress || !pendingSnapshotPruneRoots.size) return;
-    snapshotPruneInProgress = true;
-    void runPendingSnapshotPrunes().finally(() => {
-      snapshotPruneInProgress = false;
-      scheduleSnapshotPrune([]);
-    });
-  }
-  watch(runningConversationIdsKey, (runningKey) => {
-    if (!runningKey) scheduleSnapshotPrune([]);
-  });
   function setConversationPermission(id: string, permission?: AiAssistantPermission) {
     const conversation = conversationById(id);
     if (!conversation) return false;
@@ -2247,7 +2029,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
         status: restoredStatus,
         agentHistory: persistedAgentHistory(conversation.agentHistory ?? []),
         agentEvents: settledAgentEvents(conversation.agentEvents.map(safeAgentEvent), eventStatus),
-        turnSnapshots: normalizeTurnSnapshots(conversation.turnSnapshots),
         pendingPermission: undefined,
         agentReady: false,
       }, activeWorkspaceScopeId.value);
@@ -2515,8 +2296,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     ) {
       throw new Error("ai_conversation_running");
     }
-    const snapshotRoots = memoryConversations().flatMap((conversation) =>
-      (conversation.turnSnapshots ?? []).map((record) => record.projectRoot));
     pauseAutoPersistence();
     try {
       // 让清空前发起的工作区读取结果失效，避免旧缓存或预取结果在删除后回灌。
@@ -2535,7 +2314,6 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
       resetWorkspaceConversationState();
       await nextTick();
       autoPersistenceDirty = false;
-      scheduleSnapshotPrune(snapshotRoots);
     } finally {
       resumeAutoPersistence();
     }
@@ -2737,7 +2515,7 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     open, fullscreen, mode, layoutMode, placement, selectedModel, selectedReasoningEffort, width, conversationSidebarWidth, hydrated, workspaceSwitching, activeWorkspaceScopeId, topWorkspaceId, topWorkspaceName, topWorkspaceScopeId, topWorkspaceProjectRoot, globalOverviewsLoading, messages, agentHistory, agentEvents, activeQueue, pendingContextAttachments, pendingPermission, loading, awaitingResponse, draft, draftAttachments,
     acpServerId, acpSessionId, agentReady, agentStarting, conversations, allConversations, activeConversationId, activeConversation,
     hydrate, setWorkspaceDirectory, followTopWorkspace, preloadWorkspaceScope, switchWorkspaceScope, switchToConversation, createConversationForTopWorkspace, refreshGlobalConversationOverviews, setDraft, setDraftAttachments, setSelectedModel, setSelectedReasoningEffort, show, addContextAttachment, takeContextAttachments, toggle, close, setPlacement, setLayoutMode, setWidth, persistWidth, setConversationSidebarWidth, persistConversationSidebarWidth,
-    addMessage, addMessageToConversation, removeMessageFromConversation, setMessagePresentation, setMessageTokenUsage, setConversationAgentHistory, recordTurnSnapshots, collectTurnSnapshotRecords, updateLastAssistant, updateLastAssistantForConversation,
+    addMessage, addMessageToConversation, removeMessageFromConversation, setMessagePresentation, setMessageTokenUsage, setConversationAgentHistory, updateLastAssistant, updateLastAssistantForConversation,
     appendAssistantMessageForConversation, upsertAgentEvent, upsertAgentEventForConversation, removeAgentEventForConversation, clearAgentEvents, anchorUnassignedAgentEvents, settleRunningAgentEvents,
     enqueueMessage, prioritizeQueuedMessage, dequeueMessage, removeQueuedMessage, updateQueuedMessage, queueLength,
     createConversation, createDelegatedConversation, recordDelegatedConversationResult, delegatedConversationReports, conversationFamily, setConversationWorkspace, moveConversationToWorkspace, switchConversation, renameConversation, setConversationArchived, setConversationPinned, deleteConversation, clearConversationMessages, clearConversationHistory,

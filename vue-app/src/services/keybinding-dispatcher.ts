@@ -10,7 +10,7 @@
  *    double-modifier tracking, which must see the key before any control;
  *  - capture phase `keyup` / composition events: double-modifier and IME.
  *
- * Guards: IME composition (in the matcher), the app lock screen, and the
+ * Guards: IME composition (in the matcher), and the
  * settings key recorder (`keybindings.recording`). Phase 2 only executes
  * `handler: "app"` catalog commands and plugin commands with a registered
  * handler; keys of other commands pass through untouched.
@@ -31,11 +31,6 @@ import { executeRegisteredCommand, isRegisteredCommandEnabled } from "@/services
 import { useKeybindingsStore } from "@/stores/keybindings";
 import { handlePluginKeyboardRelease } from "@/services/plugin-keyboard-release";
 import { usePluginTakeoverStore } from "@/stores/plugin-takeover";
-
-export interface KeybindingDispatcherOptions {
-  /** The app lock screen is showing: no binding may run. */
-  isLocked: () => boolean;
-}
 
 function hasTextSelection(): boolean {
   const selection = typeof window === "undefined" ? null : window.getSelection();
@@ -68,7 +63,7 @@ function canExecute(command: string, context: PluginContextValues): boolean {
 }
 
 /** Installs the window listeners; returns the uninstaller. */
-export function installKeybindingDispatcher(options: KeybindingDispatcherOptions): () => void {
+export function installKeybindingDispatcher(): () => void {
   const store = useKeybindingsStore();
   const takeover = usePluginTakeoverStore();
   const { t } = useVueI18n();
@@ -99,7 +94,7 @@ export function installKeybindingDispatcher(options: KeybindingDispatcherOptions
 
   // A plugin view that holds the keyboard (features.keyboardCapture) gets every chord.
   function suspended(): boolean {
-    return store.recording || options.isLocked() || takeover.keyboardCaptured();
+    return store.recording || takeover.keyboardCaptured();
   }
 
   function commandTitle(command: string): string {

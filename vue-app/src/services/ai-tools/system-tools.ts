@@ -150,14 +150,6 @@ export function systemCapabilities(dependencies: AiToolDependencies): AiCapabili
     {
       module: "system",
       target: "none",
-      tool: tool("system.get_environment_checks", "Check whether a shell, Git, Node, a package manager and Docker are available on this machine."),
-      mode: "read",
-      risk: "read",
-      execute: () => dependencies.invoke("system_get_environment_checks", {}),
-    },
-    {
-      module: "system",
-      target: "none",
       tool: tool("system.list_cli_tools", "List the developer and AI command-line tools this app probes for, with the version of each installed one.", {
         force: { type: "boolean", description: "Re-probe instead of using the cached result." },
       }),

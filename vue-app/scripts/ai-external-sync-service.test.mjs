@@ -176,15 +176,6 @@ test("missing or malformed lists are read as empty", async () => {
   assert.equal(entry.status, "new");
 });
 
-test("secret hashes are not part of config sync", async () => {
-  const persistence = await readSource("../src/services/config-sync-persistence.ts");
-  assert.ok(!persistence.includes(SECRETS_KEY));
-  const configSync = await readSource("../src/domain/settings/config-sync.ts");
-  const prefix = configSync.match(/CONFIG_SYNC_STORAGE_PREFIX = "([^"]+)"/)?.[1];
-  assert.equal(prefix, "app_");
-  assert.ok(!SECRETS_KEY.startsWith(prefix), "config sync only collects app_ keys");
-  assert.match(serviceSource, new RegExp(`"${SECRETS_KEY}"`));
-});
 
 /**
  * Stand-in for SettingsWorkspaceView: its own settings copy, a debounced save
@@ -290,7 +281,7 @@ test("the Settings page registers its flush and assigns the published lists", as
   const body = view.slice(start, view.indexOf("\n});", start));
   assert.match(body, /externallySyncedSettingsLists\(\)/);
   assert.match(body, /if \(!settingsHydrated\.value \|\| !lists\) return;/);
-  for (const list of ["aiProfiles", "mcpServers", "aiSkills"]) {
+  for (const list of ["aiProfiles", "mcpServers"]) {
     assert.match(body, new RegExp(`settings\\.${list} = external\\.${list};`));
   }
   assert.match(body, /persist\(\);/);

@@ -36,7 +36,6 @@ function safeSettingsSummary(value: Record<string, unknown>) {
       typeof value.acpAdapterId === "string" && Boolean(value.acpAdapterId.trim()),
     acpInjectRules: value.acpInjectRules === true,
     enabledMcpServers: count(value.enabledMcpServers),
-    enabledAiSkills: count(value.enabledAiSkills),
     enabledAiRules: count(value.enabledAiRules),
   };
 }

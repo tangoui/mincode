@@ -11,8 +11,7 @@ import type {
 } from "@/domain/ssh/types";
 import { sanitizeSshProfile } from "@/domain/ssh/types";
 import { normalizeConnectionGroupOrder } from "@/domain/connections/group-order";
-import { onBackupRestored } from "@/domain/backup/restored-event";
-import { isPersistedWriteFrozen, loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
+import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 import { decryptField, encryptField } from "@/services/field-crypto";
 import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
 
@@ -108,7 +107,7 @@ async function loadStoredCredentials(): Promise<Record<string, SshRuntimeCredent
 }
 
 async function persistCredentials(credentialsByProfileId: Record<string, SshRuntimeCredentials>) {
-  if (!isDesktopRuntime() || isPersistedWriteFrozen(CREDENTIALS_STORAGE_KEY)) return;
+  if (!isDesktopRuntime()) return;
   const entries = await Promise.all(
     Object.entries(credentialsByProfileId).map(async ([profileId, credentials]) => {
       const encrypted = await Promise.all(
@@ -121,8 +120,6 @@ async function persistCredentials(credentialsByProfileId: Record<string, SshRunt
     })
   );
 
-  // Re-checked after encrypting: a backup restore may have frozen the key meanwhile.
-  if (isPersistedWriteFrozen(CREDENTIALS_STORAGE_KEY)) return;
   if (!entries.length) {
     await invokeBackend<void>("store_del", { key: CREDENTIALS_STORAGE_KEY });
     return;
@@ -496,22 +493,6 @@ export const useSshConnectionsStore = defineStore("ssh-connections", () => {
 
     return hydrationPromise;
   }
-
-  /**
-   * A backup restore rewrote the saved connections: load them again, dropping
-   * a pending debounced save of the old list. Not hydrated yet: the first
-   * hydrate reads the restored data.
-   */
-  async function reloadFromStorage() {
-    if (hydrationPromise) await hydrationPromise.catch(() => undefined);
-    if (!hydrated.value) return;
-    clearProfilePersistTimer();
-    hydrated.value = false;
-    await hydrate();
-  }
-  onBackupRestored([STORAGE_KEY, CREDENTIALS_STORAGE_KEY, GROUP_ORDER_STORAGE_KEY], () =>
-    reloadFromStorage().catch(() => undefined),
-  );
 
   watch(
     profiles,

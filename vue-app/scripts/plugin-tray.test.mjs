@@ -244,31 +244,6 @@ test("plugin-tray: parse plugin-command target", () => {
   }
 });
 
-test("App plugin-command target is ignored while locked", async () => {
-  const runs = [];
-  const run = (...args) => {
-    runs.push(args);
-    return Promise.resolve();
-  };
-  const value = '{"pluginId":"acme","commandId":"shot"}';
-  assert.equal(handlePluginCommandTarget(value, { locked: true, run }), false);
-  assert.deepEqual(runs, []);
-  assert.equal(handlePluginCommandTarget("not json", { locked: false, run }), false);
-  assert.deepEqual(runs, []);
-  assert.equal(handlePluginCommandTarget(value, { locked: false, run }), true);
-  assert.deepEqual(runs, [["tray", "acme", "shot"]]);
-
-  // App.vue loads the dispatcher and the runner on demand and reads the lock at click time.
-  const app = await source("App.vue");
-  assert.match(app, /target\?\.kind === "plugin-command"/);
-  assert.match(app, /import\("@\/domain\/plugins\/tray"\)/);
-  assert.match(app, /import\("@\/services\/plugin-shell-commands"\)/);
-  assert.match(app, /locked: appLock\.locked/);
-  // A chunk that fails to load shows the unavailable toast, never an unhandled rejection.
-  const branch = app.slice(app.indexOf('target?.kind === "plugin-command"'), app.indexOf('target?.kind === "ai-conversation"'));
-  assert.match(branch, /pluginContrib\.shell\.unavailable/);
-  assert.equal(branch.match(/\.catch\(unavailable\)/g)?.length, 2);
-});
 
 test("plugin-tray: install preview titles", () => {
   const contributes = {

@@ -24,12 +24,3 @@ test("trusted plugins skip action confirmation through the host", async () => {
   assert.doesNotMatch(frame, /getPluginDangerousActionTrust/);
   assert.match(frame, /confirmAction\(action, session\.pluginId\)/);
 });
-
-
-test("a market install preview hides the temporary download path and names the market as source", async () => {
-  const manager = await readFile(new URL("src/views/PluginManagerWorkspaceView.vue", root), "utf8");
-  const metadata = await readFile(new URL("src/components/plugins/PluginMetadata.vue", root), "utf8");
-  assert.match(manager, /<div v-if="!marketInstall" class="app-plugin-preview__source"/);
-  assert.match(manager, /<PluginMetadata :metadata="preview\.manifest" :source="marketInstall \? 'market' : 'local'" \/>/);
-  assert.match(metadata, /source === "market" \? t\("plugins\.previewFromMarket"\)/);
-});

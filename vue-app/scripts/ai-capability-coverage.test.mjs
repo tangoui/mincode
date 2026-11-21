@@ -291,7 +291,6 @@ test("database write capabilities stay behind approval and reach the right sessi
 test("system capabilities treat the clipboard and screen as sensitive", async () => {
   const tools = await readTools("system-tools.ts");
   for (const command of [
-    "system_get_environment_checks",
     "detect_cli_tools",
     "check_update",
     "clipboard_read_text",

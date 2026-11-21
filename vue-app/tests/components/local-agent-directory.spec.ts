@@ -7,7 +7,6 @@ import AiMessageThread from "@/components/ai/AiMessageThread.vue";
 import AiPermissionCard from "@/components/ai/AiPermissionCard.vue";
 import AiPromptComposer from "@/components/ai/AiPromptComposer.vue";
 import AiQueuedMessages from "@/components/ai/AiQueuedMessages.vue";
-import { completeCloudPayload, enqueueCloudPayload } from "@/services/cloud-payload-bridge";
 import { useAiAssistantStore } from "@/stores/ai-assistant";
 import { useLocalProjectStore } from "@/stores/local-project";
 import { useWorkbenchStore } from "@/stores/workbench";
@@ -143,7 +142,6 @@ function calls(command: string) {
 
 afterEach(() => {
   unmount?.();
-  completeCloudPayload("queued-remote-regression");
   unmount = undefined;
   host.invoke.mockClear();
   host.invoke.mockResolvedValue([]);
@@ -360,89 +358,6 @@ describe("local agent directory in the assistant", () => {
     expect(session.assistant.messages).toContainEqual(expect.objectContaining({ content: "Existing transcript" }));
   });
 
-  it("starts an idle temporary agent's remote turn in the restored project", async () => {
-    const session = await mountAssistant(project);
-    await session.start();
-    session.thread().vm.$emit("startInDefaultDirectory");
-    await flushPromises();
-    const temporaryServerId = calls("acp_launch")[0]?.serverId;
-    const originalServerId = session.assistant.persistedSnapshot().acpServerId;
-    session.restoreProject();
-
-    const messageId = session.assistant.enqueueMessage(session.conversation.id, {
-      content: "Remote message",
-      createdAt: 1,
-      cloud: { sourceDeviceId: "test-device", requestId: "test-request", relayId: "test-relay" },
-    });
-    await nextTick();
-    session.queue().vm.$emit("send-now", messageId!);
-    await flushPromises();
-
-    expect(calls("acp_launch").map((args) => args?.cwd)).toEqual([defaultPath, project]);
-    expect(calls("acp_load_session")).toEqual([expect.objectContaining({
-      cwd: project, serverId: originalServerId, sessionId: originalId,
-    })]);
-    await vi.waitFor(() => expect(calls("acp_prompt")).toEqual([expect.objectContaining({
-      serverId: originalServerId, sessionId: originalId, text: "Remote message",
-    })]));
-    expect(calls("acp_disconnect")).toEqual([{ serverId: temporaryServerId }]);
-    expect(calls("acp_cancel")).toEqual([]);
-    expect(calls("acp_default_local_directory")).toHaveLength(1);
-    expect(session.assistant.persistedSnapshot().acpSessionId).toBe(originalId);
-
-    const permission = {
-      serverId: originalServerId,
-      sessionId: originalId,
-      requestId: "project-write",
-      toolCall: { kind: "edit" },
-      options: [{ optionId: "allow-once", kind: "allow_once", name: "Allow once" }],
-    };
-    host.events.get("acp:permission-request")?.(permission);
-    await flushPromises();
-    expect(session.assistant.pendingPermission).toMatchObject(permission);
-    expect(calls("acp_respond_permission")).toEqual([]);
-    session.permission().vm.$emit("decide", "allow-once");
-    await flushPromises();
-    expect(calls("acp_respond_permission")).toEqual([{
-      serverId: originalServerId, sessionId: originalId, requestId: permission.requestId,
-      optionId: "allow-once", cancelled: false,
-    }]);
-    session.finishPrompt();
-    await flushPromises();
-  });
-
-  it("leaves a cloud request queued until the active local prompt finishes", async () => {
-    const session = await mountAssistant(project);
-    await session.start();
-    session.thread().vm.$emit("startInDefaultDirectory");
-    await flushPromises();
-    await session.send("Local message");
-    await vi.waitFor(() => expect(calls("acp_prompt")).toEqual([expect.objectContaining({ sessionId: temporaryId })]));
-    session.restoreProject();
-
-    const requestId = "queued-remote-regression";
-    expect(enqueueCloudPayload({
-      sourceDeviceId: "test-device",
-      requestId,
-      relayId: "test-relay",
-      channel: "ai.chat.send",
-      sequence: 1,
-      replayed: false,
-      payload: { conversationId: session.conversation.id, content: "Remote message" },
-    })).toBe(true);
-    await vi.waitFor(() => expect(session.assistant.activeQueue.map((message) => message.id)).toContain(requestId));
-    expect(calls("acp_disconnect")).toEqual([]);
-    expect(calls("acp_cancel")).toEqual([]);
-
-    session.finishPrompt();
-    await vi.waitFor(() => expect(calls("acp_prompt")).toEqual([
-      expect.objectContaining({ sessionId: temporaryId, text: "Local message" }),
-      expect.objectContaining({ sessionId: originalId, text: "Remote message" }),
-    ]));
-    expect(calls("acp_cancel")).toEqual([]);
-    session.finishPrompt();
-    await flushPromises();
-  });
 
   it("does not publish a project session that disconnects before initialization replies", async () => {
     const session = await mountAssistant(project);
@@ -481,29 +396,5 @@ describe("local agent directory in the assistant", () => {
     })]));
     session.finishPrompt();
     await flushPromises();
-  });
-
-  it("allows the next local send after a remote failure receipt could not be delivered", async () => {
-    const session = await mountAssistant(project);
-    const invoke = host.invoke.getMockImplementation()!;
-    host.invoke.mockImplementation((command, args) => command === "cloud_realtime_send"
-      ? Promise.reject(new Error("mock relay unavailable"))
-      : invoke(command, args));
-    const messageId = session.assistant.enqueueMessage(session.conversation.id, {
-      content: "Remote message",
-      createdAt: 1,
-      cloud: { sourceDeviceId: "test-device", requestId: "test-request", relayId: "test-relay" },
-    });
-    await nextTick();
-    expect(messageId).toBeTruthy();
-    session.queue().vm.$emit("send-now", messageId!);
-    await vi.waitFor(() => expect(calls("cloud_realtime_send")).toHaveLength(1));
-    expect(calls("acp_default_local_directory")).toEqual([]);
-
-    session.restoreProject();
-    session.composer().vm.$emit("update:modelValue", "Local message");
-    await nextTick();
-    session.composer().vm.$emit("send");
-    await vi.waitFor(() => expect(calls("acp_prompt")).toEqual([expect.objectContaining({ sessionId: originalId, text: "Local message" })]));
   });
 });

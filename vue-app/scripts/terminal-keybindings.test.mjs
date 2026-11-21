@@ -14,7 +14,7 @@ import { keymapPresetChainOf } from "./keymap-plugin-presets.mjs";
 const PRESET_IDS = { mincode: "mincode", vscode: "keymaps.vscode", jetbrains: "keymaps.intellij", eclipse: "keymaps.eclipse", vim: "keymaps.vim" };
 const CODES = { c: "KeyC", v: "KeyV", f: "KeyF", k: "KeyK", a: "KeyA", l: "KeyL", r: "KeyR", w: "KeyW", p: "KeyP", i: "KeyI", q: "KeyQ" };
 // Commands registered at startup (use-app-commands.ts); everything else is not executable yet.
-const REGISTERED = new Set(["builtin:command-palette", "builtin:settings", "builtin:ai", "builtin:lock-app"]);
+const REGISTERED = new Set(["builtin:command-palette", "builtin:settings", "builtin:ai"]);
 
 function resolution(presetId, platform, user = []) {
   return resolveKeybindings({
@@ -216,7 +216,7 @@ test("decideTerminalKey ignores bare modifiers and reports the bubbling binding"
   assert.equal(decideTerminalKey(keydown("ctrl+Control", { code: "ControlLeft" }), env).kind, "shell");
   const lock = decideTerminalKey(keydown("ctrl+shift+l"), env);
   assert.equal(lock.kind, "bubble");
-  assert.equal(lock.binding.command, "builtin:lock-app");
+  assert.equal(lock.binding.command);
   // Unregistered skip-shell commands do not steal the key.
-  assert.equal(decideTerminalKey(keydown("ctrl+shift+l"), { ...env, canExecuteApp: () => false }).kind, "shell");
+  assert.equal(decideTerminalKey(keydown("ctrl+k"), { ...env, canExecuteApp: () => false }).kind, "shell");
 });

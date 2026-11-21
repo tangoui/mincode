@@ -67,7 +67,7 @@ function preview() {
           size="small"
           @update:model-value="updateFilter('source', $event as CatalogSource)"
         >
-          <el-option v-for="source in (['all', 'local', 'cloud'] as const)" :key="source" :value="source" :label="t(`plugins.catalogSource.${source}`)" />
+          <el-option v-for="source in (['all', 'local', 'official'] as const)" :key="source" :value="source" :label="t(`plugins.catalogSource.${source}`)" />
         </el-select>
         <el-select
           class="app-plugin-toolbar__filter"
@@ -76,7 +76,7 @@ function preview() {
           size="small"
           @update:model-value="updateFilter('status', $event as CatalogStatus)"
         >
-          <el-option v-for="status in (['all', 'installed', 'upgradable', 'available'] as const)" :key="status" :value="status" :label="t(`plugins.catalogStatus.${status}`)" />
+          <el-option v-for="status in (['all', 'installed', 'available'] as const)" :key="status" :value="status" :label="t(`plugins.catalogStatus.${status}`)" />
         </el-select>
         <!-- One native picker cannot offer both files and folders on Windows/Linux, so folders get their own entry. -->
         <el-dropdown

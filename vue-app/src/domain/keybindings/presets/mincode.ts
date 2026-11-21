@@ -56,7 +56,6 @@ export const MINCODE_PRESET: KeymapPresetData = {
     { key: "mod+,", command: "builtin:settings" },
     { key: "mod+i", command: "builtin:ai" },
     // Inside Monaco ⇧⌘L stays "select all occurrences", as before the keymap existed.
-    { key: "mod+shift+l", command: "builtin:lock-app", when: "!editor.focus" },
     { key: "mod+shift+t", command: "workbench:new-terminal" },
     { key: "mod+w", command: "workbench:close-tab", when: "!terminal.focus" },
     { key: "ctrl+tab", command: "workbench:next-tab" },

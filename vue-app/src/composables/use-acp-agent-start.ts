@@ -21,7 +21,7 @@ import {
   startAcpAgent,
   type AcpAgentStartOutcome,
 } from "@/domain/ai/acp-agent-start";
-import type { AcpMcpServer, AcpMcpServerSet } from "@/domain/ai/acp-mcp-servers";
+import type { AcpMcpServer } from "@/domain/ai/acp-mcp-servers";
 import { useVueI18n } from "@/i18n/messages";
 import { pluginAcpAgents, pluginAcpAgentsReady } from "@/services/contributions/acp-agents-state";
 import { launchPluginAcpAgent, prepareAcpAgent, trustAcpAgent } from "@/services/plugin-acp-agent-service";
@@ -61,7 +61,7 @@ export interface ConversationAgentStart {
   recordedAdapterId?: string;
   hasPreviousSession: boolean;
   /** The connectors this session receives (resolved once per start by the caller). */
-  mcpServers: () => Promise<AcpMcpServerSet>;
+  mcpServers: () => AcpMcpServer[];
   /** acp_launch for a built-in or custom adapter id. */
   launchCommandAgent: (adapterId: string) => Promise<void>;
 }
@@ -136,7 +136,7 @@ export function useAcpAgentStart(options: {
         trust: trustAcpAgent,
         launchPlugin: launchPluginAcpAgent,
         confirm: async (launch) =>
-          confirmPluginLaunch(launch, { notices: pluginAcpAgentNotices((await input.mcpServers()).servers) }),
+          confirmPluginLaunch(launch, { notices: pluginAcpAgentNotices(input.mcpServers()) }),
       },
     );
     switch (outcome.kind) {

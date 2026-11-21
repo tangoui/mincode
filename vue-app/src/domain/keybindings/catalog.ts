@@ -96,18 +96,15 @@ const ENTRIES: Entry[] = [
   app("builtin:settings", "keybindings.command.builtin:settings", "general", { showInPalette: true, available: true }),
   app("builtin:keybindings", "keybindings.command.builtin:keybindings", "general", { showInPalette: true, available: true }),
   app("builtin:ai", "keybindings.command.builtin:ai", "general", { showInPalette: true, available: true }),
-  app("builtin:lock-app", "keybindings.command.builtin:lock-app", "general", { showInPalette: true, available: true }),
   // Workbench
   // Registered by the active view (project, database, HTTP, SSH, sessions) while it is shown.
   app("workbench:toggle-sidebar", "keybindings.command.workbench:toggle-sidebar", "view", { showInPalette: true, available: true }),
-  app("workbench:show-view.source-control", "keybindings.command.workbench:show-view.source-control", "view", { available: true }),
   app("workbench:show-view.terminal", "keybindings.command.workbench:show-view.terminal", "view", { available: true }),
   app("workbench:new-terminal", "keybindings.command.workbench:new-terminal", "view", { showInPalette: true, available: true }),
   // Registered by the terminal workspace view while it is shown (tabs inside a terminal workbench tab).
   app("terminal:new-tab", "keybindings.command.terminal:new-tab", "view", { showInPalette: true, available: true }),
   app("terminal:next-tab", "keybindings.command.terminal:next-tab", "view", { repeatable: true, available: true }),
   app("terminal:prev-tab", "keybindings.command.terminal:prev-tab", "view", { repeatable: true, available: true }),
-  app("workbench:show-view.plugins", "keybindings.command.workbench:show-view.plugins", "view", { available: true }),
   app("workbench:close-tab", "keybindings.command.workbench:close-tab", "navigation", { showInPalette: true, available: true }),
   app("workbench:close-all", "keybindings.command.workbench:close-all", "navigation", { showInPalette: true, available: true }),
   app("workbench:reopen-closed", "keybindings.command.workbench:reopen-closed", "navigation", { showInPalette: true, available: true }),

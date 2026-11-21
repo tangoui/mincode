@@ -66,11 +66,6 @@ import {
   nativeErrorMessage,
 } from "@/services/desktop-bridge";
 import {
-  completeCloudPayload,
-  listCloudPayloads,
-  subscribeCloudPayloads,
-} from "@/services/cloud-payload-bridge";
-import {
   claimPluginAiTurn,
   refreshPendingPluginAiTurns,
   subscribePluginAiTurnApprovals,
@@ -95,14 +90,6 @@ import {
   type PluginAiTurnRequest,
 } from "@/domain/ai/plugin-turns";
 import { selectAiTurnHistory } from "@/domain/ai/turn-history";
-import {
-  acknowledgeCloudPayload,
-  parseCloudAiCancel,
-  parseCloudAiSend,
-  sendCloudAiResponse,
-  sendCloudAiSyncSnapshot,
-  sendCloudApprovalRequest,
-} from "@/services/cloud-ai-bridge";
 import { listenResilientJSONStream } from "@/services/resilient-json-stream";
 import { isStreamAvailable } from "@/services/desktop-stream";
 import {
@@ -149,13 +136,9 @@ import {
 import { useVueI18n } from "@/i18n/messages";
 import {
   normalizeMcpServerForRuntime,
-  type StoredAiSkill,
   type StoredMcpServer,
 } from "@/domain/ai/settings-integrations";
-import { buildSelectedAiSkillsContext } from "@/domain/ai/skill-context";
-import { buildAcpMcpServers, type AcpMcpServerSet } from "@/domain/ai/acp-mcp-servers";
-import { isMcpAuthRequired } from "@/domain/ai/mcp-auth";
-import { acpAuthHeaders } from "@/services/mcp-auth-service";
+import { buildAcpMcpServers, type AcpMcpServer } from "@/domain/ai/acp-mcp-servers";
 import {
   expandAiPromptTemplate,
   pluginAiPromptDescription,
@@ -172,7 +155,6 @@ import {
 } from "@/domain/ai/session-config-option";
 import { normalizeAiMaxLoops } from "@/domain/ai/agent-loop-limit";
 import { isAiStreamIdleTimeoutError } from "@/domain/ai/stream-idle-watchdog";
-import { computerUseGuidanceFor } from "@/domain/ai/computer-use";
 import { mergeAiTokenUsage, withAiTokenRequestStats, type AiTokenUsage } from "@/domain/ai/token-usage";
 import {
   AI_APPROVAL_MODES,
@@ -193,7 +175,6 @@ import {
   parseAiPromptSuggestionQuery,
   type AiPromptSuggestion,
   type AiPromptSuggestionPrompt,
-  type AiPromptSuggestionSkill,
 } from "@/domain/ai/tool-command";
 import {
   AI_REASONING_EFFORT_CHOICES,
@@ -220,16 +201,7 @@ import {
 import { loadSidebarVisibility, saveSidebarVisibility, sidebarItemIds } from "@/services/sidebar-preferences";
 import { applyUiTheme, normalizeUiTheme } from "@/services/ui-theme";
 import { setAutostart, setMinimizeToTray } from "@/services/settings-service";
-import { aiCapabilityRegistry, type AiCapabilityExecutionResult, type AiCapabilityRisk } from "@/domain/ai/capability-registry";
-import { createTurnSnapshotRecorder, isSideEffectRisk, resolveTurnSnapshotRoot, type TurnSnapshot } from "@/domain/ai/turn-snapshots";
-import {
-  buildRewindRestorePlans,
-  restorablePlans,
-  shouldOfferRewindRestore,
-  untrackedRunTurnSnapshots,
-  type RewindRestorePlan,
-} from "@/domain/ai/rewind-restore-plan";
-import { captureProjectSnapshot, diffProjectSnapshots, restoreProjectSnapshot } from "@/services/ai-snapshot-service";
+import { aiCapabilityRegistry, type AiCapabilityExecutionResult } from "@/domain/ai/capability-registry";
 import { runWithAbort, throwIfAborted } from "@/domain/async/abort";
 import { callMcpToolCancellable } from "@/services/mcp-tool-call";
 import { startPluginMcpServer } from "@/services/plugin-mcp-server-service";
@@ -340,10 +312,6 @@ import {
 const VISUAL_CAPTURE_TOOL_NAMES = new Set([
   "browser.capture_view",
   "browser.computer_action",
-  "computer.capture_screen",
-  "computer.open_app",
-  "computer.open_url",
-  "computer.execute",
 ]);
 
 interface AcpSessionUpdatePayload {
@@ -391,7 +359,6 @@ interface StoredSettings {
   activeAiProfileId?: string;
   aiProfiles?: StoredAiProfile[];
   mcpServers?: StoredMcpServer[];
-  aiSkills?: Array<StoredAiSkill | string>;
   aiRules?: StoredAiRule[];
   acpAdapterId?: string;
   acpInjectRules?: boolean;
@@ -462,7 +429,6 @@ void conversationPreferences.hydrate();
 const pluginPrompts = useAiPluginPromptsStore();
 const aiContextProviders = useAiContextProvidersStore();
 const AiPluginContextDialog = defineAsyncComponent(() => import("@/components/ai/AiPluginContextDialog.vue"));
-const AiRewindRestoreDialog = defineAsyncComponent(() => import("@/components/ai/AiRewindRestoreDialog.vue"));
 void pluginPrompts.hydrate();
 const browserWorkspace = useBrowserWorkspaceStore();
 const router = useRouter();
@@ -670,7 +636,6 @@ let stopSessionUpdate: (() => void) | undefined;
 let stopPermissionRequest: (() => void) | undefined;
 let stopNativeFileDrop: (() => void) | undefined;
 let stopRunCancelRequested: (() => void) | undefined;
-let stopCloudPayloads: (() => void) | undefined;
 let stopPluginAiTurns: (() => void) | undefined;
 let stopPluginAiTurnCancellations: (() => void) | undefined;
 let stopPluginAiTurnApprovals: (() => void) | undefined;
@@ -703,8 +668,6 @@ interface PluginTurnRun {
 const pluginTurnRuns = new Map<string, PluginTurnRun>();
 const pluginTurnByConversation = new Map<string, string>();
 let processingPluginTurns = false;
-const cloudRequests = new Map<string, { sourceDeviceId: string; requestId: string; relayId: string; messageId: string }>();
-const cloudApprovals = new Map<string, { sourceDeviceId: string; conversationId: string }>();
 const agenticAborts = new Map<string, AbortController>();
 const subagentParentAborts = new Map<string, AbortController>();
 const subagentUsageCollectors = new Map<string, {
@@ -1135,46 +1098,6 @@ function reorderConversationWorkspaceGroups(keys: string[]) {
   );
 }
 
-const enabledSkillSuggestions = computed<AiPromptSuggestionSkill[]>(() => {
-  void settingsSnapshotVersion.value;
-  const stored = loadStoredSettings();
-  if (assistant.mode === "agent" && stored.acpInjectRules !== true) return [];
-  const skills = Array.isArray(stored.aiSkills) ? stored.aiSkills : [];
-  return skills.flatMap((skill, index) => {
-    const normalized: StoredAiSkill = typeof skill === "string"
-      ? {
-          id: `legacy-${index}`,
-          name: skill,
-          content: skill,
-          description: "",
-          enabled: true,
-        }
-      : skill;
-    const name = typeof normalized?.name === "string" ? normalized.name.trim() : "";
-    const content = typeof normalized?.content === "string" ? normalized.content.trim() : "";
-    if (!name || !content || normalized.enabled === false) return [];
-    return [{
-      id: typeof normalized.id === "string" ? normalized.id : `skill-${index}`,
-      name,
-      description:
-        typeof normalized.description === "string" && normalized.description.trim()
-          ? normalized.description.trim()
-          : "SKILL.md",
-    }];
-  });
-});
-// Plugin skills follow the same injection gate as user skills; they are offered only for explicit /skill.
-const pluginSkillSuggestions = computed<AiPromptSuggestionSkill[]>(() => {
-  void settingsSnapshotVersion.value;
-  if (assistant.mode === "agent" && loadStoredSettings().acpInjectRules !== true) return [];
-  return pluginPrompts.enabledSkills.map((skill) => ({
-    id: `plugin:${skill.key}`,
-    name: pluginAiPromptTitle(skill, localeChain.value),
-    description: pluginAiPromptDescription(skill, localeChain.value),
-    source: skill.pluginName,
-    invocation: skill.key,
-  }));
-});
 // Plugin prompt templates only expand into the draft, so they are offered in every mode.
 const pluginPromptSuggestions = computed<AiPromptSuggestionPrompt[]>(() =>
   pluginPrompts.enabledPrompts.map((prompt) => ({
@@ -1188,7 +1111,6 @@ const filteredToolSuggestions = computed(() =>
   buildAiPromptSuggestions(
     input.value,
     agentTools.value,
-    [...enabledSkillSuggestions.value, ...pluginSkillSuggestions.value],
     pluginPromptSuggestions.value,
   )
 );
@@ -1296,7 +1218,7 @@ watch(
 );
 onBeforeUnmount(() => clearTimeout(fileMentionSearchTimer));
 // "@mention" of a plugin context provider (contributes.aiContextProviders): offered under the same
-// gate as rules/skills injection, it only opens a preview; the user decides whether to insert.
+// gate as rules injection, it only opens a preview; the user decides whether to insert.
 const pluginContextOffered = computed(() => {
   void settingsSnapshotVersion.value;
   return assistant.mode !== "agent" || loadStoredSettings().acpInjectRules === true;
@@ -1328,10 +1250,10 @@ function dismissComposerSuggestions() {
   else input.value = "";
 }
 const pluginContextDialog = ref<{ provider: PluginAiContextProvider; remaining: number }>();
-/** Characters of the rules/skills context the next request adds (the budget plugin context shares). */
+/** Characters of the rules context the next request adds (the budget plugin context shares). */
 function baseAiContextChars() {
   const workspaceId = assistant.activeConversation?.workspaceId || workbench.activeWorkspaceId;
-  return enabledAiContext(workspaceId, input.value).length;
+  return enabledAiContext(workspaceId).length;
 }
 const pluginContextBudgetState = computed(() => {
   if (!attachments.value.some(isPluginContextAttachment)) return undefined;
@@ -1857,9 +1779,7 @@ const composerLabels = computed(() => ({
   previewAttachment: t("ai.attachment.preview", { name: "{name}" }),
   suggestionList: mentionSuggestionsActive.value ? t("ai.fileMention.label") : t("ai.toolSuggest.label"),
   suggestionHint: mentionSuggestionsActive.value ? t("ai.fileMention.hint") : t("ai.toolSuggest.hint"),
-  suggestionSkill: t("ai.toolSuggest.skill"),
   suggestionPrompt: t("pluginContrib.aiPrompts.suggestionPrompt"),
-  suggestionPluginSkill: t("pluginContrib.aiPrompts.pluginSkill"),
   suggestionTool: t("ai.toolSuggest.tool"),
   suggestionFile: t("ai.fileMention.file"),
   suggestionContext: t("pluginContrib.aiContextProviders.suggestion"),
@@ -2027,7 +1947,7 @@ function stringRecord(value: unknown) {
     )
   );
 }
-function enabledAiContext(workspaceId: string, prompt: string, includeRules = true) {
+function enabledAiContext(workspaceId: string, includeRules = true) {
   const stored = loadStoredSettings();
   const sections: string[] = [];
   const rules = Array.isArray(stored.aiRules) ? stored.aiRules : [];
@@ -2046,22 +1966,12 @@ function enabledAiContext(workspaceId: string, prompt: string, includeRules = tr
     : [];
   if (enabledRules.length) sections.push(`## MinCode rules\n${enabledRules.join("\n\n")}`);
 
-  const skills = Array.isArray(stored.aiSkills) ? stored.aiSkills : [];
-  const skillContext = buildSelectedAiSkillsContext(skills, prompt, pluginPrompts.enabledSkills);
-  if (skillContext) sections.push(skillContext);
-
   const context = sections.join("\n\n");
   return context.length > MAX_AI_CONTEXT_CHARS ? context.slice(0, MAX_AI_CONTEXT_CHARS) : context;
 }
-/**
- * Connectors handed to the external agent: signed-in remote connectors carry
- * the host token as an Authorization header; ones still needing a sign-in are
- * left out and listed in signInRequired, and ones whose token refresh hit a
- * network failure in networkFailed.
- */
-async function configuredAcpMcpServers(projectRoot = workspaceRoot()): Promise<AcpMcpServerSet> {
+function configuredAcpMcpServers(projectRoot = workspaceRoot()) {
   const stored = loadStoredSettings();
-  return buildAcpMcpServers(Array.isArray(stored.mcpServers) ? stored.mcpServers : [], projectRoot, acpAuthHeaders);
+  return buildAcpMcpServers(Array.isArray(stored.mcpServers) ? stored.mcpServers : [], projectRoot);
 }
 function mcpToolSchema(value: unknown): Record<string, unknown> {
   const schema = asRecord(value);
@@ -2095,7 +2005,6 @@ async function connectSavedMcpServerForAi(requestedServerId: string) {
         env: stringRecord(server.env),
         url: server.url,
         headers: stringRecord(server.headers),
-        auth: server.auth,
       })).tools;
   const [resources, prompts] = await Promise.all([
     invokeBackend<unknown[]>("mcp_list_resources", { serverId }).catch(() => []),
@@ -2125,7 +2034,7 @@ async function loadMcpServerTools(
   if (!servers.length && !pluginServers.length) return { tools: [], failures };
   const reportFailure = (serverId: string, label: string, error: unknown) => {
     // A connector that needs a sign-in is not broken: point at where to sign in.
-    const detail = isMcpAuthRequired(error) ? t("ai.mcp.signInRequired", { name: label }) : String(error);
+    const detail = nativeErrorMessage(error);
     failures.set(serverId, detail);
     assistant.upsertAgentEventForConversation(conversationId, {
       id: `mcp-connect-${serverId}`,
@@ -2181,7 +2090,6 @@ async function loadMcpServerTools(
             env: stringRecord(server.env),
             url: server.url,
             headers: stringRecord(server.headers),
-            auth: server.auth,
           });
       return result.tools.flatMap((tool) => {
         if (!tool?.name?.trim()) return [];
@@ -2251,7 +2159,6 @@ function acpPromptText(text: string, conversationId: string, workspaceId: string
   if (!stored.acpInjectRules) return text;
   const context = enabledAiContext(
     workspaceId,
-    text,
     !acpContextInjected.has(conversationId),
   );
   return context ? `${context}
@@ -2721,8 +2628,7 @@ async function executeSubagentPlanForAi(
           projectRoot,
           signal,
           // Subagents run inside the parent turn; writes to the conversation's projects
-          // snapshot under it, writes to their private worktrees resolve to no root.
-          { allowedTools, forceProjectRoot: true, snapshotTurnId: activeSnapshotTurns.get(conversationId) },
+          { allowedTools, forceProjectRoot: true },
         ),
       startRun: async (input) => {
         const run = await startAgentRun(input);
@@ -2879,9 +2785,6 @@ const unregisterNativeAiCapabilities = registerNativeAiCapabilities({
       acpAdapterId: stored.acpAdapterId,
       acpInjectRules: stored.acpInjectRules,
       enabledMcpServers: stored.mcpServers?.filter((server) => server.enabled).length ?? 0,
-      enabledAiSkills: stored.aiSkills?.filter((skill) =>
-        typeof skill === "string" || skill.enabled !== false
-      ).length ?? 0,
       enabledAiRules: stored.aiRules?.filter((rule) => rule.enabled !== false).length ?? 0,
     };
   },
@@ -3142,35 +3045,10 @@ async function authorizeTool(
     relayedTurn.approval = { id: approval.id, summary, risk: request.risk, tool: request.toolName };
     void pushPluginTurnProgress(relayedTurn);
   }
-  const cloudRequest = cloudRequests.get(request.conversationId);
   let decision: Awaited<typeof approval.decision>;
   try {
-    if (cloudRequest) {
-      cloudApprovals.set(approval.id, {
-        sourceDeviceId: cloudRequest.sourceDeviceId,
-        conversationId: request.conversationId,
-      });
-      try {
-        await sendCloudApprovalRequest({
-          targetDeviceId: cloudRequest.sourceDeviceId,
-          requestId: `approval-${cloudRequest.requestId}-${approval.id}`,
-          approvalId: approval.id,
-          conversationId: request.conversationId,
-          toolName: request.toolName,
-          resourceId: request.resourceId,
-          risk: request.risk,
-          summary,
-          sequence: Date.now(),
-        });
-      } catch (error) {
-        // 远端收不到审批请求时撤下本地卡片，避免留下无人能处理的审批。
-        toolApprovalQueue.resolve(approval.id);
-        throw error;
-      }
-    }
     decision = await approval.decision;
   } finally {
-    cloudApprovals.delete(approval.id);
     if (relayedTurn) {
       relayedTurn.approvalSummary = undefined;
       relayedTurn.approval = undefined;
@@ -3337,7 +3215,6 @@ function workspaceContextForConversation(conversationId: string) {
     });
   }
 
-  warmUpProjectSnapshot(projectRoot);
   const existing = conversationWorkspaceContexts.get(conversationId);
   if (
     existing
@@ -3359,56 +3236,6 @@ function workspaceContextForConversation(conversationId: string) {
 interface AgentToolExecutionPolicy {
   allowedTools?: ReadonlySet<string>;
   forceProjectRoot?: boolean;
-  /** User message of the turn this call belongs to; side effects are snapshotted under it. */
-  snapshotTurnId?: string;
-}
-
-// Turn snapshots for restoring files on rewind: the first side effect of a turn
-// waits at most this long for the "before" snapshot, then runs without one.
-const TURN_SNAPSHOT_TIMEOUT_MS = 3000;
-const turnSnapshotRecorder = createTurnSnapshotRecorder({
-  capture: captureProjectSnapshot,
-  timeoutMs: TURN_SNAPSHOT_TIMEOUT_MS,
-});
-/** Conversation → user message of the agentic turn running there (subagents snapshot under it). */
-const activeSnapshotTurns = new Map<string, string>();
-
-/** Background baseline so the first in-turn capture of a large repository only re-reads changed files. */
-function warmUpProjectSnapshot(projectRoot: string | undefined) {
-  if (projectRoot?.trim()) void turnSnapshotRecorder.warmUp(projectRoot.trim());
-}
-
-function optionalPath(value: unknown) {
-  return typeof value === "string" && value.trim() ? value : undefined;
-}
-
-/** Captures the "before" snapshot of the project an approved side-effecting call writes to. */
-async function snapshotBeforeSideEffect(
-  conversationId: string,
-  policy: AgentToolExecutionPolicy,
-  risk: AiCapabilityRisk,
-  target: { resourceRoot?: string; cwd?: string },
-) {
-  const snapshotTurnId = policy.snapshotTurnId;
-  if (!snapshotTurnId || !isSideEffectRisk(risk)) return;
-  const conversation = assistant.conversationById(conversationId);
-  const root = resolveTurnSnapshotRoot({
-    ...target,
-    boundRoot: conversation?.projectRoot,
-    allowedRoots: localProject.projectsForWorkspace(conversation?.workspaceScopeId || "").map((item) => item.root),
-  });
-  if (root) await turnSnapshotRecorder.beforeSideEffect(snapshotTurnId, root);
-}
-
-/** Takes the "after" snapshots of a finished turn and stores every record with the conversation. */
-async function recordTurnSnapshots(conversationId: string, userMessageId: string) {
-  if (activeSnapshotTurns.get(conversationId) === userMessageId) activeSnapshotTurns.delete(conversationId);
-  try {
-    const records = await turnSnapshotRecorder.finish(userMessageId);
-    assistant.recordTurnSnapshots(conversationId, records);
-  } catch {
-    // Snapshots never fail a turn; without a record the rewind just cannot restore files.
-  }
 }
 
 async function executeAgentTool(
@@ -3484,7 +3311,6 @@ async function executeAgentTool(
         });
       }
     }
-    await snapshotBeforeSideEffect(conversationId, policy, authorizationRequest.risk, {});
     throwIfAborted(signal);
     const result = safeMcpResult(await callMcpToolCancellable<McpCallResult>(
       invokeBackend,
@@ -3557,10 +3383,6 @@ async function executeAgentTool(
           });
         }
       }
-      await snapshotBeforeSideEffect(conversationId, policy, callRisk, {
-        resourceRoot: optionalPath(resource.metadata?.projectRoot),
-        cwd: optionalPath(args.cwd),
-      });
       throwIfAborted(signal);
       authorized = true;
     }
@@ -3602,7 +3424,7 @@ async function executeAgentTool(
     const captureMimeType = typeof capture?.mimeType === "string" ? capture.mimeType : "image/png";
     const attachments: AiAttachment[] | undefined = captureData
       ? [{
-          id: globalThis.crypto?.randomUUID?.() ?? `computer-capture-${Date.now()}`,
+          id: globalThis.crypto?.randomUUID?.() ?? `browser-capture-${Date.now()}`,
           name: `${call.name.startsWith("browser.") ? "browser" : "desktop"}-capture-${Date.now()}.png`,
           mimeType: captureMimeType,
           size: Math.floor(captureData.length * 0.75),
@@ -3616,7 +3438,7 @@ async function executeAgentTool(
           result: {
             ...capture,
             data: undefined,
-            visualObservation: "The updated Computer Use screenshot is attached to this tool result.",
+            visualObservation: "The updated browser screenshot is attached to this tool result.",
           },
         }
       : result;
@@ -3723,153 +3545,6 @@ function cancelMessageEdit() {
   input.value = "";
   attachments.value = [];
 }
-// Rewinding turns that changed project files first asks whether to restore them
-// (spec: 回退恢复文件). One dialog lists every project root the turns wrote to.
-type RewindRestoreChoice = "restore" | "rewind" | "cancel";
-const rewindRestoreDialog = ref<{ plans: RewindRestorePlan[]; resolve: (choice: RewindRestoreChoice) => void }>();
-/** Set while a rewind prepares, asks or restores, so a second click cannot start another. */
-let rewindPreparing = false;
-/** Whether the last prepareRewind wrote project files (so a rewind that then fails says so). */
-let rewindRestoredFiles = false;
-
-/** Snapshot records of the turns a rewind to `messageId` removes (that user message and every later one). */
-function rewoundTurnSnapshots(conversationId: string, messageId: string): TurnSnapshot[] {
-  const conversation = assistant.conversationById(conversationId);
-  const messages = conversation?.messages ?? [];
-  const index = messages.findIndex((message) => message.id === messageId && message.role === "user");
-  if (!conversation || index < 0) return [];
-  const removed = new Set(messages.slice(index).flatMap((message) => (message.role === "user" && message.id ? [message.id] : [])));
-  return (conversation.turnSnapshots ?? []).filter((record) => removed.has(record.userMessageId));
-}
-
-/**
- * Turns of other conversations still running, whose records are written only
- * when they end: this window's in-flight recorder turns, plus a stand-in for
- * each run this window cannot see into (another window, an ACP agent). Their
- * candidate files count as conflicts, so a restore never reverts their work.
- */
-function runningTurnSnapshots(conversationId: string, rewound: readonly TurnSnapshot[]): TurnSnapshot[] {
-  const ownTurns = new Set((assistant.conversationById(conversationId)?.messages ?? []).flatMap((message) => (message.id ? [message.id] : [])));
-  const local = turnSnapshotRecorder.inFlight().filter((record) => !ownTurns.has(record.userMessageId));
-  const untracked = progress.activeRuns.flatMap((run) => {
-    if (run.navigation.type !== "ai-conversation" || run.navigation.conversationId === conversationId) return [];
-    // Agentic turns this window runs snapshot every side effect through the recorder.
-    if (activeSnapshotTurns.has(run.navigation.conversationId)) return [];
-    return [{ projectRoot: assistant.conversationById(run.navigation.conversationId)?.projectRoot, startedAt: run.progress.createdAt }];
-  });
-  return [...local, ...untrackedRunTurnSnapshots(rewound.map((record) => record.projectRoot), untracked)];
-}
-
-/**
- * Reads the rewound turns' records (rewindConversationTo drops them, so this
- * runs first), plans the restore and asks. Turns without records rewind as before.
- */
-async function confirmRewindRestore(conversationId: string, messageId: string): Promise<{ choice: RewindRestoreChoice; plans: RewindRestorePlan[] }> {
-  const rewound = rewoundTurnSnapshots(conversationId, messageId);
-  if (!rewound.length) return { choice: "rewind", plans: [] };
-  let plans: RewindRestorePlan[];
-  try {
-    const others = await assistant.collectTurnSnapshotRecords({ excludeConversationId: conversationId, memoryOnlyOnError: true });
-    plans = await buildRewindRestorePlans({
-      rewound,
-      others: [...others.map((item) => item.record), ...runningTurnSnapshots(conversationId, rewound)],
-      diff: diffProjectSnapshots,
-    });
-  } catch {
-    plans = [];
-  }
-  if (!shouldOfferRewindRestore(plans)) return { choice: "rewind", plans };
-  const choice = await new Promise<RewindRestoreChoice>((resolve) => {
-    rewindRestoreDialog.value = { plans, resolve };
-  });
-  rewindRestoreDialog.value = undefined;
-  return { choice, plans };
-}
-function settleRewindRestore(choice: RewindRestoreChoice) {
-  rewindRestoreDialog.value?.resolve(choice);
-}
-
-/**
- * Restores the planned files root by root. Files changed since the turns are
- * reported by the backend and left alone. A failure may have changed some files
- * already, so the user decides whether the conversation is still rewound
- * (false = keep it); the remaining roots are not restored after a failure.
- */
-async function restoreRewoundFiles(plans: RewindRestorePlan[]) {
-  const conflicts: string[] = [];
-  let changed = 0;
-  for (const plan of restorablePlans(plans)) {
-    try {
-      const result = await restoreProjectSnapshot({
-        projectRoot: plan.projectRoot,
-        target: plan.target,
-        expected: plan.expected,
-        paths: [...plan.restore, ...plan.remove],
-      });
-      changed += result.restored.length + result.deleted.length;
-      conflicts.push(...result.conflicts);
-    } catch (error) {
-      try {
-        await ElMessageBox.confirm(
-          t("ai.rewindRestore.failed", { root: plan.projectRoot, error: error instanceof Error ? error.message : String(error) }),
-          t("ai.rewindRestore.failedTitle"),
-          { type: "warning", confirmButtonText: t("ai.rewindRestore.rewindAnyway"), cancelButtonText: t("ai.rewindRestore.keepConversation") },
-        );
-      } catch {
-        return false;
-      }
-      break;
-    }
-  }
-  if (conflicts.length) {
-    const shown = conflicts.slice(0, 5).join(", ") + (conflicts.length > 5 ? ", …" : "");
-    ElMessage.warning(t("ai.rewindRestore.conflictsLeft", { count: conflicts.length, files: shown }));
-  } else if (changed) {
-    ElMessage.success(t("ai.rewindRestore.restored", { count: changed }));
-  }
-  return true;
-}
-
-/** True when the conversation may be rewound now (files already restored if the user chose so). */
-async function prepareRewind(conversationId: string, messageId: string, onCancel?: () => void) {
-  if (rewindPreparing) return false;
-  rewindPreparing = true;
-  rewindRestoredFiles = false;
-  try {
-    const { choice, plans } = await confirmRewindRestore(conversationId, messageId);
-    if (choice === "cancel") {
-      onCancel?.();
-      return false;
-    }
-    const rewindable = () => {
-      const conversation = assistant.conversationById(conversationId);
-      return Boolean(conversation && !conversation.running && conversation.messages.some((message) => message.id === messageId));
-    };
-    // The conversation may have moved on while the dialog was open: then nothing is
-    // touched, and an edit being resent goes back into the composer.
-    if (!rewindable()) {
-      onCancel?.();
-      ElMessage.warning(t("ai.rewindRestore.conversationChanged"));
-      return false;
-    }
-    if (choice === "restore") {
-      if (!(await restoreRewoundFiles(plans))) {
-        onCancel?.();
-        return false;
-      }
-      rewindRestoredFiles = true;
-      if (!rewindable()) {
-        onCancel?.();
-        ElMessage.warning(t("ai.rewindRestore.notRewound"));
-        return false;
-      }
-    }
-    return true;
-  } finally {
-    rewindPreparing = false;
-  }
-}
-
 async function resendFromMessage(
   messageId: string,
   replacement?: { content: string; attachments: AiAttachment[] },
@@ -3882,11 +3557,10 @@ async function resendFromMessage(
     return;
   }
   const conversationId = assistant.activeConversationId;
-  if (!(await prepareRewind(conversationId, messageId, onCancel))) return;
   const removed = assistant.rewindConversationTo(conversationId, messageId);
   if (!removed) {
     onCancel?.();
-    ElMessage.warning(t(rewindRestoredFiles ? "ai.rewindRestore.notRewound" : "ai.rewindRestore.conversationChanged"));
+    ElMessage.warning(t("ai.rewindRestore.conversationChanged"));
     return;
   }
   await sendAgentic({
@@ -3904,7 +3578,6 @@ function resendEditedMessage() {
   if (!content && !selected.length) return;
   editingMessageId.value = undefined;
   input.value = "";
-  // Cancelling the restore dialog puts the edit back.
   void resendFromMessage(messageId, { content, attachments: selected }, () => {
     if (assistant.activeConversationId !== conversationId || input.value) return;
     editingMessageId.value = messageId;
@@ -4156,50 +3829,14 @@ interface QueuedSendRequest {
   attachments: AiAttachment[];
   createdAt?: number;
   messageId?: string;
-  cloud?: AiQueuedMessage["cloud"];
   pluginTurn?: AiQueuedMessage["pluginTurn"];
-}
-
-async function failCloudSend(request: QueuedSendRequest | undefined, message: string) {
-  if (!request?.cloud) return false;
-  const conversationId = request.conversationId;
-  const messageId = assistant.addMessageToConversation(conversationId, {
-    id: request.messageId,
-    role: "user",
-    content: request.content,
-    createdAt: request.createdAt,
-  });
-  if (!messageId) return false;
-  assistant.addMessageToConversation(conversationId, {
-    role: "assistant",
-    content: message,
-  });
-  assistant.setConversationStatus(conversationId, "failed");
-  await assistant.flushPersistence();
-  await sendCloudAiResponse({
-    targetDeviceId: request.cloud.sourceDeviceId,
-    conversationId,
-    requestId: request.cloud.requestId,
-    content: message,
-    status: "failed",
-    sequence: Date.now(),
-  });
-  await acknowledgeCloudPayload({
-    requestId: request.cloud.requestId,
-    relayId: request.cloud.relayId,
-  });
-  completeCloudPayload(request.cloud.requestId);
-  claimedCloudPayloads.delete(request.cloud.requestId);
-  cloudRequests.delete(conversationId);
-  return true;
 }
 
 // Queued and remote sends can target a conversation whose details are not loaded;
 // sending without them would drop its history.
-async function ensureSendableConversation(conversationId: string, request?: QueuedSendRequest) {
+async function ensureSendableConversation(conversationId: string) {
   if (await assistant.ensureConversationDetails(conversationId)) return true;
   if (!assistant.conversationById(conversationId)) return true;
-  if (await failCloudSend(request, t("ai.conversationLoadFailed"))) return false;
   ElMessage.error(t("ai.conversationLoadFailed"));
   return false;
 }
@@ -4209,7 +3846,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
   const selectedAttachments = sanitizeAiAttachments(request?.attachments ?? attachments.value);
   if (!text && !selectedAttachments.length) return;
   const conversationId = request?.conversationId ?? assistant.activeConversationId;
-  if (!(await ensureSendableConversation(conversationId, request))) return;
+  if (!(await ensureSendableConversation(conversationId))) return;
   const targetConversation = assistant.conversationById(conversationId);
   if (parallelDelegationPending(targetConversation)) return;
   // 普通输入在运行中应入队；已出队请求则由发送锁串行，不受可能滞后的运行态投影阻塞。
@@ -4233,7 +3870,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
     await refreshConversationRuntimeResources(runContext.resources, runContext.projectRoot);
   } catch (error) {
     agenticSendGate.release(conversationId);
-    if (await failCloudSend(request, nativeErrorMessage(error))) return;
     ElMessage.warning(nativeErrorMessage(error));
     return;
   }
@@ -4241,14 +3877,12 @@ async function sendAgentic(request?: QueuedSendRequest) {
   assistant.settleRunningAgentEvents(conversationId, "cancelled");
   if (!canStreamAi()) {
     agenticSendGate.release(conversationId);
-    if (await failCloudSend(request, t("common.desktopRequired"))) return;
     return ElMessage.warning(t("common.desktopRequired"));
   }
   try {
     await hydrateSettingsSnapshot();
   } catch {
     agenticSendGate.release(conversationId);
-    if (await failCloudSend(request, t("ai.credentialsLoadFailed"))) return;
     ElMessage.error(t("ai.credentialsLoadFailed"));
     return;
   }
@@ -4260,7 +3894,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
   });
   if (!auth.valid) {
     agenticSendGate.release(conversationId);
-    if (await failCloudSend(request, t(aiProviderAuthMessageKey(auth)))) return;
     ElMessage.warning(t(aiProviderAuthMessageKey(auth)));
     return;
   }
@@ -4277,14 +3910,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
     return;
   }
   if (request?.pluginTurn) beginPluginTurn(request.pluginTurn.turnId, conversationId, triggerMessageId);
-  if (request?.cloud) {
-    cloudRequests.set(conversationId, {
-      sourceDeviceId: request.cloud.sourceDeviceId,
-      requestId: request.cloud.requestId,
-      relayId: request.cloud.relayId,
-      messageId: triggerMessageId,
-    });
-  }
   if (!request) consumeComposerInput(text, selectedAttachments);
   const runId = await beginConversationRun(
     conversationId,
@@ -4296,14 +3921,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
   if (!runId) {
     agenticSendGate.release(conversationId);
     assistant.setConversationStatus(conversationId, "failed");
-    if (request?.cloud) {
-      assistant.addMessageToConversation(conversationId, {
-        role: "assistant",
-        content: t("ai.agentic.failed", { error: t("ai.taskProgress.failed") }),
-      });
-      await assistant.flushPersistence();
-      await deliverCloudReply(conversationId);
-    }
     return;
   }
   assistant.anchorUnassignedAgentEvents(conversationId, triggerMessageId);
@@ -4383,9 +4000,9 @@ async function sendAgentic(request?: QueuedSendRequest) {
     ? "You are a coding assistant. Answer greetings, questions, explanations, and other conversational requests directly without calling tools. Use workspace or MCP tools only when the request requires an action or verified project information. After tool-driven work is completed and verified, call task_complete exactly once. Its summary is the final user-facing delivery report: never reduce project analysis, code review, architecture review, investigation, or research to a few sentences. State the conclusion, inspected scope and evidence, concrete findings with file paths/symbols/call chains where available, risks or unanswered questions, prioritized recommendations, and validation or uncovered areas."
     : "You are an assistant. Answer greetings, questions, and other conversational requests directly without calling tools. Use enabled MCP tools only when the request requires them. After tool-driven work is completed and verified, call task_complete exactly once. Its summary is the final user-facing delivery report: for analysis, review, investigation, or research, include the conclusion, evidence, findings, risks, recommendations, and verification limits instead of a brief completion notice.";
   const externalSource = targetConversation?.external;
-  // Rules and skills describe the local user's projects; isolated relayed turns get none of it.
+  // Rules describe the local user's projects; isolated relayed turns get none of it.
   const isolatedExternal = Boolean(externalSource && !externalSource.workspace);
-  const context = isolatedExternal ? "" : enabledAiContext(runContext.workspaceId, text);
+  const context = isolatedExternal ? "" : enabledAiContext(runContext.workspaceId);
   const persistedHistory = targetConversation?.agentHistory ?? [];
   const currentUserMessage: AiLoopMessage = {
     role: "user",
@@ -4413,7 +4030,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
       })),
   });
   const conversationHistory = turnHistory.messages;
-  const reports = !externalSource && !relayedTurnRun && !request?.cloud
+  const reports = !externalSource && !relayedTurnRun
     ? assistant.delegatedConversationReports(conversationId)
     : [];
   const reportContext: AiLoopMessage | undefined = reports.length
@@ -4431,12 +4048,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
       ),
     );
   };
-  activeSnapshotTurns.set(conversationId, triggerMessageId);
-  // The after snapshot is recorded before the run reports its final phase: the
-  // conversation stays "running" (so rewind, resend and edit stay disabled) until
-  // the turn's record is stored. Bounded by the recorder's timeouts.
-  let turnSnapshotsRecorded: Promise<void> | undefined;
-  const settleTurnSnapshots = () => (turnSnapshotsRecorded ??= recordTurnSnapshots(conversationId, triggerMessageId));
   try {
     // Tool selection follows earlier turns only when they are part of this request.
     const toolHistory = relayedTurnRun?.history === "none" ? [] : persistedHistory;
@@ -4496,14 +4107,13 @@ async function sendAgentic(request?: QueuedSendRequest) {
     const currentTools = () => [...nativeTools, ...mcpLoader, ...mcpTools];
     const selectedTools = currentTools();
     const toolTokens = estimateAiToolTokens(selectedTools);
-    const computerUseGuidance = computerUseGuidanceFor(selectedTools.map((tool) => tool.name));
     const relayedRun = externalSource ? activePluginTurn(conversationId) : undefined;
     const systemPrompt = externalSource
       ? `${baseSystemPrompt}\n\n${externalTurnSystemPrompt(externalSource, {
         instructions: relayedRun?.instructions,
         allowedPlugins: relayedRun?.allowedPlugins,
       })}`
-      : computerUseGuidance ? `${baseSystemPrompt}\n\n${computerUseGuidance}` : baseSystemPrompt;
+      : baseSystemPrompt;
     const delegationGuidance = selectedTools.some((tool) => tool.name === "agent.run_parallel")
       ? "\n\nWhen the user asks you to delegate work to a new conversation, use agent.run_parallel. Use one task for a single handoff. When the user asks for several child conversations, dispatch each actual task directly from this conversation in one call and give each task a self-contained prompt. Keep coordination and the final summary in this conversation. "
         + "Choose a configured model per task when the user specifies a model or asks you to choose. Use only exact IDs from this list, and omit the model when the default suits the task. Configured delegation models: "
@@ -4557,7 +4167,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
           signal,
           {
             ...(externalToolNames ? { allowedTools: externalToolNames } : {}),
-            snapshotTurnId: triggerMessageId,
           },
         ),
       // MCP tools and every mutation remain serialized. Native capabilities explicitly
@@ -4705,7 +4314,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
         assistant.setMessageTokenUsage(conversationId, summaryMessageId, replyTokenUsage);
       }
       assistant.settleRunningAgentEvents(conversationId, "completed");
-      await settleTurnSnapshots();
       if (superseded()) return;
       await reportConversationRun(
         conversationId,
@@ -4725,7 +4333,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
         if (result.usedTools && lastAssistant.content.trim()) assistant.setMessagePresentation(conversationId, lastAssistant.id, "task-summary");
       }
       assistant.settleRunningAgentEvents(conversationId, "completed");
-      await settleTurnSnapshots();
       if (superseded()) return;
       await reportConversationRun(
         conversationId,
@@ -4752,7 +4359,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
         assistant.setMessageTokenUsage(conversationId, loopLimitMessageId, replyTokenUsage);
       }
       assistant.settleRunningAgentEvents(conversationId, "failed");
-      await settleTurnSnapshots();
       if (superseded()) return;
       await reportConversationRun(
         conversationId,
@@ -4771,7 +4377,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
     const streamTimedOut = isAiStreamIdleTimeoutError(error);
     assistant.settleRunningAgentEvents(conversationId, aborted ? "cancelled" : "failed");
     assistant.setConversationStatus(conversationId, aborted ? "interrupted" : "failed");
-    await settleTurnSnapshots();
     if (superseded()) return;
     const runUpdate = reportConversationRun(
       conversationId,
@@ -4815,21 +4420,12 @@ async function sendAgentic(request?: QueuedSendRequest) {
   } finally {
     streamTextBatcher.flush();
     streamTextBatcher.dispose();
-    // Backstop for exits that report no final phase here (superseded runs, early returns).
-    await settleTurnSnapshots();
     // 中断超时兜底可能已经启动下一条消息，旧任务不得清理新任务的控制器和发送锁。
     if (agenticAborts.get(conversationId) === abortController) {
       agenticAborts.delete(conversationId);
       subagentUsageCollectors.delete(conversationId);
       agenticSendGate.release(conversationId);
       await scrollToBottomIfFollowing(conversationId);
-      if (cloudRequests.has(conversationId)) {
-        try {
-          await deliverCloudReply(conversationId);
-        } catch (error) {
-          ElMessage.error(nativeErrorMessage(error));
-        }
-      }
       await finishPluginTurnForConversation(conversationId);
       const shouldResumeQueue = !abortController.signal.aborted
         || resumeQueueAfterCancellation.delete(conversationId);
@@ -4927,22 +4523,6 @@ async function handleAcpServersDisconnected(serverIds: string[]) {
   }
   assistant.markAcpServersDisconnected([...disconnected]);
 }
-/** Says once per session start which connectors the agent did not get, and why. */
-function noteAcpSkippedConnectors(conversationId: string, skipped: AcpMcpServerSet) {
-  if (skipped.signInRequired.length) {
-    assistant.addMessageToConversation(conversationId, {
-      role: "system",
-      content: t("ai.mcp.oauthSkippedForAcp", { names: skipped.signInRequired.join(", ") }),
-    });
-  }
-  // A refresh that did not reach the server needs the network, not a new sign-in.
-  if (skipped.networkFailed.length) {
-    assistant.addMessageToConversation(conversationId, {
-      role: "system",
-      content: t("ai.mcp.oauthNetworkFailedForAcp", { names: skipped.networkFailed.join(", ") }),
-    });
-  }
-}
 function releaseAcpRun(conversationId: string) {
   const target = acpRunTargets.get(conversationId);
   if (!target) return;
@@ -4986,7 +4566,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
     return;
   }
 
-  const remote = Boolean(conversation.external || request?.cloud || request?.pluginTurn);
+  const remote = Boolean(conversation.external || request?.pluginTurn);
   try {
     const pending = agentStartPromises.get(id);
     if (pending) {
@@ -5039,7 +4619,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
         return target;
       }
       const cwd = context.projectRoot;
-      let mcpServerSet: Promise<AcpMcpServerSet> | undefined;
+      let mcpServerSet: AcpMcpServer[] | undefined;
       const mcpServers = () => (mcpServerSet ??= configuredAcpMcpServers(cwd));
       const start: AcpStartingServer = { serverId, directoryKind, needsConnectionCheck: false };
       acpStartingServers.set(id, start);
@@ -5063,9 +4643,9 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
         if (!adapterId) return;
         launched = true;
         if (!stillStarting()) return;
-        const acpMcpServers = await mcpServers();
+        const acpMcpServers = mcpServers();
         if (!stillStarting()) return;
-        const sessionArgs = { serverId, cwd, mcpServers: acpMcpServers.servers };
+        const sessionArgs = { serverId, cwd, mcpServers: acpMcpServers };
         let restored: AcpConfigOptionsResult | undefined;
         if (previousSessionId) {
           try {
@@ -5110,7 +4690,6 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
             });
           }
         }
-        noteAcpSkippedConnectors(id, acpMcpServers);
         ready = true;
         return target;
       } finally {
@@ -5128,11 +4707,6 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
       assistant.agentStarting = agentStartPromises.size > 0;
     }
   } catch (error) {
-    try {
-      if (await failCloudSend(request, nativeErrorMessage(error))) return;
-    } catch (reportError) {
-      ElMessage.error(nativeErrorMessage(reportError));
-    }
     if (acpDisposed) return;
     ElMessage.error(nativeErrorMessage(error));
     notifyAi(aiErrorNotification(error, "notifications.ai.agentStartFailed", conversation.title) ?? {
@@ -5146,7 +4720,7 @@ async function sendAgent(request?: QueuedSendRequest) {
   const selectedAttachments = sanitizeAiAttachments(request?.attachments ?? attachments.value);
   if (!text && !selectedAttachments.length) return;
   const conversationId = request?.conversationId ?? assistant.activeConversationId;
-  if (!(await ensureSendableConversation(conversationId, request))) return;
+  if (!(await ensureSendableConversation(conversationId))) return;
   const activeConversation = assistant.conversationById(conversationId);
   // 普通输入在运行中应入队；已出队请求则由发送锁串行，不受可能滞后的运行态投影阻塞。
   if (activeConversation?.running && !request) {
@@ -5176,7 +4750,6 @@ async function sendAgent(request?: QueuedSendRequest) {
     await refreshConversationRuntimeResources(runContext.resources, runContext.projectRoot);
   } catch (error) {
     acpSendGate.release(conversationId);
-    if (await failCloudSend(request, nativeErrorMessage(error))) return;
     ElMessage.warning(nativeErrorMessage(error));
     return;
   }
@@ -5443,7 +5016,6 @@ async function sendQueuedMessage(conversationId: string, msg: AiQueuedMessage) {
     attachments: msg.attachments?.map((attachment) => ({ ...attachment })) ?? [],
     createdAt: msg.createdAt,
     messageId: msg.id,
-    cloud: msg.cloud ? { ...msg.cloud } : undefined,
     pluginTurn: msg.pluginTurn ? { ...msg.pluginTurn } : undefined,
   };
   if (conversation.mode === "agent") await sendAgent(request);
@@ -5618,60 +5190,6 @@ function conversationReplyContent(conversationId: string, messageId: string) {
     .join("\n\n");
 }
 
-async function deliverCloudReply(conversationId: string) {
-  const remote = cloudRequests.get(conversationId);
-  if (!remote) return;
-  const conversation = assistant.conversationById(conversationId);
-  const content = conversationReplyContent(conversationId, remote.messageId);
-  cloudPartialReplies.delete(remote.requestId);
-  await sendCloudAiResponse({
-    targetDeviceId: remote.sourceDeviceId,
-    conversationId,
-    requestId: remote.requestId,
-    content,
-    status: conversation?.status ?? "interrupted",
-    sequence: Date.now(),
-  });
-  await acknowledgeCloudPayload({ requestId: remote.requestId, relayId: remote.relayId });
-  completeCloudPayload(remote.requestId);
-  claimedCloudPayloads.delete(remote.requestId);
-  cloudRequests.delete(conversationId);
-}
-
-const CLOUD_PARTIAL_INTERVAL_MS = 2_000;
-// 单帧密文上限约 88KB，超长回复只等最终结果，避免流式片段发送失败。
-const CLOUD_PARTIAL_MAX_CHARS = 24_000;
-const cloudPartialReplies = new Map<string, { content: string; count: number; sending: boolean }>();
-let cloudPartialTimer: ReturnType<typeof setInterval> | undefined;
-
-async function pushCloudPartialReplies() {
-  for (const [conversationId, remote] of cloudRequests) {
-    const state = cloudPartialReplies.get(remote.requestId) ?? { content: "", count: 0, sending: false };
-    if (state.sending) continue;
-    const content = conversationReplyContent(conversationId, remote.messageId);
-    if (!content || content === state.content || content.length > CLOUD_PARTIAL_MAX_CHARS) continue;
-    state.sending = true;
-    state.count += 1;
-    cloudPartialReplies.set(remote.requestId, state);
-    try {
-      await sendCloudAiResponse({
-        targetDeviceId: remote.sourceDeviceId,
-        conversationId,
-        requestId: `${remote.requestId}-partial-${state.count}`,
-        replyTo: remote.requestId,
-        content,
-        status: "streaming",
-        sequence: Date.now(),
-      });
-      state.content = content;
-    } catch {
-      // 流式片段只是进度预览，失败时等待下一轮或最终回复即可。
-    } finally {
-      state.sending = false;
-    }
-  }
-}
-
 async function runNextQueuedMessage(conversationId: string) {
   await runNextConversationQueueItem(
     conversationId,
@@ -5837,12 +5355,6 @@ function stopAllAgents() {
   }
 }
 
-// A conversation bound to a project gets a background baseline snapshot.
-watch(
-  () => assistant.activeConversation?.projectRoot,
-  warmUpProjectSnapshot,
-  { immediate: true },
-);
 watch(() => localProject.projectRoot, () => {
   invalidateAiNativeResources();
   void syncAiNativeResources();
@@ -5979,177 +5491,6 @@ async function handleAcpSessionUpdate(payload: AcpSessionUpdatePayload) {
   await scrollToBottomIfFollowing(conversationId);
 }
 
-let processingCloudPayloads = false;
-const claimedCloudPayloads = new Set<string>();
-async function consumeCloudAiPayloads() {
-  if (processingCloudPayloads) return;
-  processingCloudPayloads = true;
-  try {
-    for (const event of listCloudPayloads("approval.decision")) {
-      if (claimedCloudPayloads.has(event.requestId)) continue;
-      claimedCloudPayloads.add(event.requestId);
-      const approvalId = typeof event.payload.approvalId === "string" ? event.payload.approvalId : "";
-      const decision = event.payload.decision;
-      const remote = cloudApprovals.get(approvalId);
-      const approval = toolApprovals.value.find((item) => item.id === approvalId);
-      const conversationId = typeof event.payload.conversationId === "string"
-        ? event.payload.conversationId
-        : "";
-      if (!remote || !approval) {
-        await acknowledgeCloudPayload(event);
-        completeCloudPayload(event.requestId);
-        claimedCloudPayloads.delete(event.requestId);
-        continue;
-      }
-      if (
-        remote.sourceDeviceId !== event.sourceDeviceId
-        || remote.conversationId !== conversationId
-        || approval.conversationId !== conversationId
-      ) {
-        await acknowledgeCloudPayload(event);
-        completeCloudPayload(event.requestId);
-        claimedCloudPayloads.delete(event.requestId);
-        continue;
-      }
-      resolveToolApproval(approvalId, decision === "allow_once" ? { scope: "once" } : {});
-      await acknowledgeCloudPayload(event);
-      completeCloudPayload(event.requestId);
-      claimedCloudPayloads.delete(event.requestId);
-    }
-    for (const event of listCloudPayloads("ai.chat.cancel")) {
-      if (claimedCloudPayloads.has(event.requestId)) continue;
-      claimedCloudPayloads.add(event.requestId);
-      const conversationId = parseCloudAiCancel(event);
-      // 只允许发起该远程任务的设备停止它，避免其它配对设备中断本机会话。
-      if (conversationId && cloudRequests.get(conversationId)?.sourceDeviceId === event.sourceDeviceId) {
-        await cancelConversation(conversationId);
-      }
-      await acknowledgeCloudPayload(event);
-      completeCloudPayload(event.requestId);
-      claimedCloudPayloads.delete(event.requestId);
-    }
-    for (const event of listCloudPayloads("ai.sync.request")) {
-      if (claimedCloudPayloads.has(event.requestId)) continue;
-      claimedCloudPayloads.add(event.requestId);
-      const requestedConversationId = typeof event.payload.conversationId === "string"
-        ? event.payload.conversationId
-        : undefined;
-      const selected = requestedConversationId
-        ? assistant.conversations.find((item) => item.id === requestedConversationId)
-        : assistant.activeConversation;
-      if (selected) await assistant.ensureConversationDetails(selected.id);
-      const conversations = assistant.conversations.slice(0, 50).map((conversation) => ({
-        id: conversation.id,
-        title: conversation.title,
-        updatedAt: conversation.updatedAt,
-        status: conversation.status,
-        running: conversation.running,
-      }));
-      const sourceMessages = (selected?.messages ?? []).slice(-100);
-      const messages: Array<{ id?: string; role: string; content: string; createdAt?: number }> = [];
-      let messageBytes = 0;
-      for (let index = sourceMessages.length - 1; index >= 0; index -= 1) {
-        const message = sourceMessages[index];
-        const snapshot = {
-          id: message.id,
-          role: message.role,
-          content: message.content.slice(0, 8000),
-          createdAt: message.createdAt,
-        };
-        const bytes = new TextEncoder().encode(JSON.stringify(snapshot)).byteLength;
-        if (messageBytes + bytes > 48 * 1024) break;
-        messages.unshift(snapshot);
-        messageBytes += bytes;
-      }
-      await sendCloudAiSyncSnapshot({
-        targetDeviceId: event.sourceDeviceId,
-        requestId: event.requestId,
-        sequence: Date.now(),
-        payload: {
-          conversations,
-          activeConversationId: selected?.id ?? assistant.activeConversationId,
-          messages,
-          truncated: (selected?.messages.length ?? 0) > messages.length,
-        },
-      });
-      await acknowledgeCloudPayload(event);
-      completeCloudPayload(event.requestId);
-      claimedCloudPayloads.delete(event.requestId);
-    }
-    for (const event of listCloudPayloads("ai.chat.send")) {
-      if (claimedCloudPayloads.has(event.requestId)) continue;
-      claimedCloudPayloads.add(event.requestId);
-      const parsed = parseCloudAiSend(event);
-      if (!parsed) {
-        claimedCloudPayloads.delete(event.requestId);
-        continue;
-      }
-      let conversation = parsed.conversationId
-        ? assistant.conversations.find((item) => item.id === parsed.conversationId)
-        : undefined;
-      if (!conversation) conversation = assistant.createConversation("agentic");
-      if (!(await assistant.ensureConversationDetails(conversation.id))) {
-        claimedCloudPayloads.delete(event.requestId);
-        continue;
-      }
-      const existingIndex = conversation.messages.findIndex((message) => message.id === event.requestId);
-      if (existingIndex >= 0) {
-        const existingReply = conversation.messages
-          .slice(existingIndex + 1)
-          .filter((message) => message.role === "assistant")
-          .map((message) => message.content.trim())
-          .filter(Boolean)
-          .join("\n\n");
-        if (existingReply) {
-          await sendCloudAiResponse({
-            targetDeviceId: event.sourceDeviceId,
-            conversationId: conversation.id,
-            requestId: event.requestId,
-            replyTo: event.requestId,
-            content: existingReply,
-            status: conversation.status,
-            sequence: Date.now(),
-          });
-          await acknowledgeCloudPayload(event);
-          completeCloudPayload(event.requestId);
-          claimedCloudPayloads.delete(event.requestId);
-          continue;
-        }
-      }
-      assistant.enqueueMessage(conversation.id, {
-        id: event.requestId,
-        content: parsed.content,
-        createdAt: parsed.createdAt ?? Date.now(),
-        cloud: {
-          sourceDeviceId: event.sourceDeviceId,
-          requestId: event.requestId,
-          relayId: event.relayId,
-        },
-      });
-      await assistant.flushPersistence();
-      assistant.show("agentic");
-      if (!conversation.running) {
-        void runNextQueuedMessage(conversation.id).catch((error) => {
-          claimedCloudPayloads.delete(event.requestId);
-          ElMessage.error(nativeErrorMessage(error));
-        });
-      }
-    }
-  } catch (error) {
-    for (const event of [
-      ...listCloudPayloads("approval.decision"),
-      ...listCloudPayloads("ai.chat.cancel"),
-      ...listCloudPayloads("ai.sync.request"),
-      ...listCloudPayloads("ai.chat.send"),
-    ]) {
-      claimedCloudPayloads.delete(event.requestId);
-    }
-    ElMessage.error(nativeErrorMessage(error));
-  } finally {
-    processingCloudPayloads = false;
-  }
-}
-
 function selectionElement(node: Node | null) {
   if (node instanceof Element) return node;
   return node?.parentElement ?? null;
@@ -6206,11 +5547,6 @@ onMounted(() => {
   window.addEventListener("pagehide", closeDefaultDirectoryAgents);
   window.addEventListener("focus", markVisibleConversationRead);
   document.addEventListener("visibilitychange", markVisibleConversationRead);
-  stopCloudPayloads = subscribeCloudPayloads(() => void consumeCloudAiPayloads());
-  void consumeCloudAiPayloads();
-  cloudPartialTimer = setInterval(() => {
-    if (cloudRequests.size) void pushCloudPartialReplies();
-  }, CLOUD_PARTIAL_INTERVAL_MS);
   if (!isPopupWindow()) {
     stopPluginAiTurns = subscribePluginAiTurns(() => void consumePluginAiTurns());
     stopPluginAiTurnCancellations = subscribePluginAiTurnCancellations((id) => void cancelPluginAiTurn(id));
@@ -6270,8 +5606,6 @@ onBeforeUnmount(() => {
   stopSessionUpdate?.();
   stopPermissionRequest?.();
   stopNativeFileDrop?.();
-  stopCloudPayloads?.();
-  if (cloudPartialTimer) clearInterval(cloudPartialTimer);
   stopPluginAiTurns?.();
   stopPluginAiTurnCancellations?.();
   stopPluginAiTurnApprovals?.();
@@ -6841,13 +6175,6 @@ onBeforeUnmount(() => {
         :remaining="pluginContextDialog.remaining"
         @insert="insertPluginContext"
         @close="pluginContextDialog = undefined"
-      />
-      <AiRewindRestoreDialog
-        v-if="rewindRestoreDialog"
-        :model-value="true"
-        :plans="rewindRestoreDialog.plans"
-        @confirm="(restoreFiles: boolean) => settleRewindRestore(restoreFiles ? 'restore' : 'rewind')"
-        @cancel="settleRewindRestore('cancel')"
       />
       <el-dialog
         v-model="previewAttachment"

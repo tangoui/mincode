@@ -6,7 +6,6 @@ import PluginManagerWorkspaceView from "@/views/PluginManagerWorkspaceView.vue";
 
 const mocks = vi.hoisted(() => ({
   installPreview: vi.fn(),
-  cloudStatus: vi.fn(),
   warning: vi.fn(),
   error: vi.fn(),
   setScope: vi.fn(async () => undefined),
@@ -42,41 +41,6 @@ vi.mock("@/services/desktop-bridge", () => ({
   chooseNativeDirectory: vi.fn(async () => ""),
   chooseNativeFile: vi.fn(async () => ""),
   chooseNativeSaveFile: vi.fn(async () => ""),
-}));
-
-vi.mock("@/services/cloud-companion-service", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/services/cloud-companion-service")>()),
-  cloudStatus: mocks.cloudStatus,
-}));
-
-vi.mock("@/services/market-service", () => ({
-  listMarketPlugins: async () => ({
-    items: [
-      {
-        product_key: "demo.cloud",
-        name: "Demo Cloud Plugin",
-        slug: "demo-cloud-plugin",
-        description: "A published plugin used by the sign-in redirect test.",
-        homepage: "",
-        icon: "",
-        category: "other",
-        tags: [],
-        author: null,
-        cover_url: "",
-        latest_published_version: "1.2.3",
-        updated_at: 1,
-        requires_paid_host: false,
-        min_host_version: "",
-        max_host_version_exclusive: "",
-        host_compatibility: "compatible",
-        compatible_version: "1.2.3",
-        download_count: 0,
-        like_count: 0,
-      },
-    ],
-    truncated: false,
-  }),
-  previewMarketPluginInstall: mocks.installPreview,
 }));
 
 vi.mock("@/services/plugin-service", () => ({
@@ -131,7 +95,6 @@ const menuItem = (label: string) =>
 
 beforeEach(() => {
   plugins.list = [plugin(1), plugin(2), plugin(3)];
-  mocks.cloudStatus.mockReset().mockResolvedValue({ signedIn: true, configured: true, deviceAvailable: false });
   mocks.setScope.mockClear();
   mocks.exportData.mockClear();
 });

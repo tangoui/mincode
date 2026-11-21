@@ -18,7 +18,7 @@ function panelSource(startMarker, endMarker) {
 }
 
 test("connector panel keeps installed servers and discovery in separate sub tabs", () => {
-  const panel = panelSource("aiTab === 'mcp'", "aiTab === 'skills'");
+  const panel = panelSource("aiTab === 'mcp'", "aiTab === 'rules'");
 
   assert.match(panel, /v-model="mcpSubTab"/);
   const installedGuard = panel.indexOf(`v-if="mcpSubTab === 'installed'"`);
@@ -38,31 +38,6 @@ test("connector panel keeps installed servers and discovery in separate sub tabs
   );
 });
 
-test("skills panel keeps installed skills and discovery in separate sub tabs", () => {
-  const panel = panelSource("aiTab === 'skills'", "aiTab === 'rules'");
-
-  assert.match(panel, /v-model="skillSubTab"/);
-  const installedGuard = panel.indexOf(`v-if="skillSubTab === 'installed'"`);
-  assert.notEqual(installedGuard, -1, "missing installed sub tab branch");
-  const discoverBranch = panel.indexOf("<template v-else>", installedGuard);
-  assert.notEqual(discoverBranch, -1, "missing discovery sub tab branch");
-
-  // Installed skills render as a card grid since c6f9c9be.
-  const installedList = panel.indexOf(`v-for="skill in settings.aiSkills"`);
-  assert.ok(
-    installedList > installedGuard && panel.lastIndexOf("settings-ai-card-grid", installedList) > installedGuard,
-    "installed skill cards must be inside the installed sub tab",
-  );
-  assert.ok(
-    installedList > installedGuard && installedList < discoverBranch,
-    "installed skill list must render only in the installed sub tab",
-  );
-  const searchLine = panel.indexOf("settings.skills.searchPlaceholder");
-  assert.ok(
-    searchLine > discoverBranch,
-    "skill registry search must render only in the discovery sub tab",
-  );
-});
 
 test("installed/discover sub tab labels exist in both locales", () => {
   for (const locale of [zhLocale, enLocale]) {

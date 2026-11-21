@@ -29,7 +29,6 @@ const RULES = [
   { key: "mod+k", command: "builtin:command-palette" },
   { key: "mod+k mod+s", command: "builtin:keybindings" },
   { key: "mod+,", command: "builtin:settings" },
-  { key: "mod+shift+l", command: "builtin:lock-app" },
   { key: "ctrl+tab", command: "workbench:next-tab" },
   { key: "mod+w", command: "workbench:close-tab" },
   { key: "shift shift", command: "builtin:search-everywhere" },
@@ -87,9 +86,9 @@ test("focus classes: input, dialog, terminal and Monaco", () => {
   assert.equal(matcher.handleKeydown(key("Comma", { metaKey: true }), env("input")).kind, "execute");
   // allowInInput commands (AI panel Esc) work in the composer.
   assert.equal(matcher.handleKeydown(key("Escape"), env("input", { "ai.panel.focus": true })).kind, "execute");
-  // Dialogs only admit lock.
+  // Dialogs only admit bindings that opt in with dialog.focus.
   assert.equal(matcher.handleKeydown(key("Comma", { metaKey: true }), env("dialog")).kind, "ignore");
-  assert.equal(matcher.handleKeydown(key("KeyL", { metaKey: true, shiftKey: true }), env("dialog")).kind, "execute");
+  assert.equal(matcher.handleKeydown(key("KeyL", { metaKey: true, shiftKey: true }), env("dialog")).kind, "ignore");
   // Terminal: allowlist or any mac ⌘ chord.
   assert.equal(matcher.handleKeydown(key("KeyW", { metaKey: true }), env("terminal")).kind, "execute");
   assert.equal(matcher.handleKeydown(key("Tab", { ctrlKey: true }), env("terminal")).kind, "execute");

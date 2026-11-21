@@ -5,7 +5,6 @@ import { Unlock } from "@element-plus/icons-vue";
 import { fullTrustDisplayText as displayText, type FullTrustStatus } from "@/domain/plugins/full-trust";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
 import { getFullTrust, getFullTrustAudit, setFullTrust } from "@/services/plugin-full-trust";
-import { useAppLockStore } from "@/stores/app-lock";
 import "@/styles/workspaces/plugins/plugin-full-trust.css";
 
 // Full trust switch of one plugin (spec §七). Go is the only judge: turning it
@@ -25,7 +24,6 @@ const props = withDefaults(defineProps<{
 }>(), { trusted: undefined });
 const emit = defineEmits<{ changed: [trusted: boolean] }>();
 const { t } = useVueI18n();
-const appLock = useAppLockStore();
 const status = ref<FullTrustStatus>();
 const saving = ref(false);
 const statusFailed = ref(false);
@@ -40,7 +38,6 @@ const trusted = computed(() => (status.value ? status.value.trusted === true : p
 const blockedReason = computed(() => {
   const subject = status.value?.subject;
   if (subject && !subject.eligible) return notEligibleText(subject.reason ?? "");
-  if (!trusted.value && appLock.locked) return t("plugins.fullTrust.locked");
   return "";
 });
 // ElSwitch has no aria-describedby prop and puts fall-through attributes on its
@@ -107,7 +104,6 @@ function reportSetError(error: unknown) {
   const message = errorText(error);
   const notEligible = /\bnot_eligible:(\w*)/.exec(message);
   if (/\bchanged:/.test(message)) ElMessage.warning(t("plugins.fullTrust.changed"));
-  else if (/\blocked:/.test(message)) ElMessage.warning(t("plugins.fullTrust.locked"));
   else if (notEligible) ElMessage.warning(notEligibleText(notEligible[1] ?? ""));
   else ElMessage.error(t("plugins.fullTrust.setFailed", { error: message }));
 }

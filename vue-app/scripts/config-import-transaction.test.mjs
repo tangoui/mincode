@@ -7,10 +7,9 @@ const persistentStoreSource = await readFile(
   new URL("../src/services/persistent-store.ts", import.meta.url),
   "utf8"
 );
-const [settingsViewSource, configPortabilitySource, configSyncSource] = await Promise.all([
+const [settingsViewSource, configPortabilitySource] = await Promise.all([
   readFile(new URL("../src/views/SettingsWorkspaceView.vue", import.meta.url), "utf8"),
   readFile(new URL("../src/services/config-portability.ts", import.meta.url), "utf8"),
-  readFile(new URL("../src/services/config-sync-persistence.ts", import.meta.url), "utf8"),
 ]);
 const compiled = ts.transpileModule(
   persistentStoreSource
@@ -109,25 +108,4 @@ test("Settings import restores plugin data before app configuration", () => {
   assert.match(configPortabilitySource, /"plugin_host_config_import_plugins"/);
   // Plugin-only files stay importable when the caller confirmed plugin data exists.
   assert.match(configPortabilitySource, /!Object\.keys\(values\)\.length && !options\.allowEmpty/);
-});
-
-test("Settings config sync flushes older auto-save before applying its batch", () => {
-  const applyStart = settingsViewSource.indexOf("async function applyConfigSyncSnapshot");
-  const applyEnd = settingsViewSource.indexOf(
-    "async function updateWorkspaceStateIsolation",
-    applyStart
-  );
-  const applySource = settingsViewSource.slice(applyStart, applyEnd);
-
-  assert.ok(
-    applySource.indexOf("await flushPendingSettingsPersist()")
-      < applySource.indexOf("await applyPersistedConfigSyncSnapshot(snapshot)")
-  );
-});
-
-test("config sync skips retired AI history keys in both directions", () => {
-  assert.match(configSyncSource, /isRetiredAiHistoryStorageKey\(key\)/);
-  assert.match(configSyncSource, /skippedKeys\.push\(key\)/);
-  assert.doesNotMatch(configSyncSource, /saveAiConversationCollection/);
-  assert.doesNotMatch(configSyncSource, /aiConversationScopeFromStorageKey/);
 });
