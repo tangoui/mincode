@@ -13,7 +13,13 @@ import {
 import { useVueI18n } from "@/i18n/messages";
 import { notifyApp } from "@/services/notifications";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
-import { checkForUpdates, type UpdateInfo } from "@/services/settings-service";
+import {
+  checkForUpdates,
+  downloadAndStageUpdate,
+  listenUpdateProgress,
+  restartForUpdate,
+  type UpdateInfo,
+} from "@/services/settings-service";
 import { isDesktopRuntime } from "@/services/desktop-bridge";
 
 export const useAppUpdateStore = defineStore("app-update", () => {
@@ -21,6 +27,10 @@ export const useAppUpdateStore = defineStore("app-update", () => {
   const preferences = ref<UpdatePreferences>(normalizeUpdatePreferences(undefined));
   const info = ref<UpdateInfo>();
   const checking = ref(false);
+  const downloading = ref(false);
+  const progressPercent = ref<number>();
+  const readyVersion = ref<string>();
+  const restarting = ref(false);
   const error = ref("");
   const hydrated = ref(false);
   let hydrationPromise: Promise<void> | undefined;
@@ -100,9 +110,10 @@ export const useAppUpdateStore = defineStore("app-update", () => {
   }
 
   async function checkIfDue() {
-    if (inflight || !isDesktopRuntime()) return;
+    if (inflight || downloading.value || readyVersion.value || !isDesktopRuntime()) return;
     await hydrate();
     if (!isAutoCheckDue(preferences.value, Date.now())) return;
+    if (inflight || downloading.value || readyVersion.value) return;
     const task = runCheck(false);
     inflight = task;
     try {
@@ -137,9 +148,42 @@ export const useAppUpdateStore = defineStore("app-update", () => {
     await savePreferences({ skippedVersion: undefined });
   }
 
+  async function stageUpdate(version: string) {
+    downloading.value = true;
+    progressPercent.value = undefined;
+    const stopProgress = listenUpdateProgress((event) => {
+      if (event.kind === "downloading" || event.kind === "patch-failed") {
+        progressPercent.value = undefined;
+      } else if (event.kind === "progress" && event.total && event.total > 0 && event.done !== undefined) {
+        progressPercent.value = Math.max(0, Math.min(100, Math.round((event.done / event.total) * 100)));
+      }
+    });
+    try {
+      const result = await downloadAndStageUpdate(version);
+      readyVersion.value = result.version;
+      return result;
+    } finally {
+      stopProgress();
+      downloading.value = false;
+    }
+  }
+
+  async function restart() {
+    restarting.value = true;
+    try {
+      await restartForUpdate();
+    } finally {
+      restarting.value = false;
+    }
+  }
+
   return {
     info,
     checking,
+    downloading,
+    progressPercent,
+    readyVersion,
+    restarting,
     error,
     hydrated,
     autoCheck,
@@ -153,6 +197,8 @@ export const useAppUpdateStore = defineStore("app-update", () => {
     setAutoCheck,
     skipVersion,
     clearSkippedVersion,
+    stageUpdate,
+    restart,
   };
 });
 

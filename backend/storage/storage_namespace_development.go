@@ -2,4 +2,4 @@
 
 package storage
 
-const appDataDirectory = "com.mincode.desktop.dev"
+const appDataDirectory = "com.tangoui.mincode.dev"

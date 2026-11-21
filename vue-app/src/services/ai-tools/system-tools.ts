@@ -171,8 +171,8 @@ export function systemCapabilities(dependencies: AiToolDependencies): AiCapabili
       tool: tool("system.check_for_update", "Check whether a newer version of this app is published."),
       mode: "read",
       risk: "network",
-      approvalPreview: () => "Check the update server for a newer app version",
-      execute: async () => sanitizeAiResult(await dependencies.invoke("check_update", { serverUrl: "" })),
+      approvalPreview: () => "Check GitHub Releases for a newer app version",
+      execute: async () => sanitizeAiResult(await dependencies.invoke("check_update", {})),
     },
     {
       module: "system",

@@ -16,9 +16,6 @@
 //	mcp_get_prompt     {serverId, name, arguments}                          -> McpPromptResult
 //	mcp_list_status                                                         -> [McpServerStatus]
 //	mcp_read_config_file {path}                                             -> string
-//
-// auth "oauth"（仅 http 传输）：用主程序登录得到的令牌发 Authorization: Bearer，
-// 覆盖同名 header；未登录、续期失败或令牌被拒时错误含 [MCP_AUTH_REQUIRED]。
 package mcp
 
 import (
@@ -182,8 +179,7 @@ type connectArgs struct {
 	Env       map[string]string `json:"env"`
 	URL       string            `json:"url"`
 	Headers   map[string]string `json:"headers"`
-	// Auth "oauth" sends the host-held OAuth token (see connectHTTP).
-	Auth string `json:"auth"`
+	Auth      string            `json:"auth"`
 }
 
 func mcpConnectHandler(_ string, argsJSON string) (string, error) {

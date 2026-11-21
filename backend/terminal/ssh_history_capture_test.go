@@ -97,13 +97,13 @@ func TestRecordSSHCommandsFiltersAndPause(t *testing.T) {
 	p := sshHistoryPayload{ProfileID: "a", Host: "h", Port: 22, Username: "u"}
 	// 敏感命令、前后空格命令被过滤；重复命令只保留一条。
 	recordSSHCommandsAt(root, p, []string{"ls -l", "curl --password x", "  pad  ", "ls -l"})
-	data, err := readSSHHistory(filepath.Join(root, "com.mincode.desktop", "ssh-command-history", historyKey(p)+".json"))
+	data, err := readSSHHistory(filepath.Join(root, "com.tangoui.mincode", "ssh-command-history", historyKey(p)+".json"))
 	if err != nil || len(data.Entries) != 1 || data.Entries[0].Command != "ls -l" {
 		t.Fatalf("got %+v err=%v", data, err)
 	}
 	// 已暂停保存时不记录。
 	data.Enabled = false
-	path := filepath.Join(root, "com.mincode.desktop", "ssh-command-history", historyKey(p)+".json")
+	path := filepath.Join(root, "com.tangoui.mincode", "ssh-command-history", historyKey(p)+".json")
 	if err := writeSSHHistory(path, data); err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestWireOnDataCapturesSSHHistory(t *testing.T) {
 
 	wireHandlersForSession("wire-capture-test").onData("nihaoya\r")
 
-	path := filepath.Join(root, "com.mincode.desktop", "ssh-command-history", historyKey(p)+".json")
+	path := filepath.Join(root, "com.tangoui.mincode", "ssh-command-history", historyKey(p)+".json")
 	data, err := readSSHHistory(path)
 	if err != nil || len(data.Entries) != 1 || data.Entries[0].Command != "nihaoya" {
 		t.Fatalf("wire input must be recorded: %+v err=%v", data, err)
@@ -261,7 +261,7 @@ func TestObserveSSHOutputSuppressesPasswordHistory(t *testing.T) {
 	observeSSHOutput(proc, "\r\nu@h:~$ ")
 	captureSSHInput(proc, "whoami\r")
 
-	path := filepath.Join(root, "com.mincode.desktop", "ssh-command-history", historyKey(p)+".json")
+	path := filepath.Join(root, "com.tangoui.mincode", "ssh-command-history", historyKey(p)+".json")
 	data, err := readSSHHistory(path)
 	if err != nil || len(data.Entries) != 1 || data.Entries[0].Command != "whoami" {
 		t.Fatalf("password must not be recorded: %+v err=%v", data, err)

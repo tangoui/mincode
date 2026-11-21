@@ -17,7 +17,6 @@ import (
 
 func init() {
 	core.Register("ai_complete_inline", aiCompleteInlineHandler)
-	core.Register("ai_generate_commit_message", aiGenerateCommitMessageHandler)
 }
 
 // aiStreamConfig 对齐 Tauri AiStreamConfig（camelCase）。inline 补全仅用前 4 字段。
@@ -64,20 +63,7 @@ type aiCompleteInlineArgs struct {
 	FilePath string         `json:"filePath"`
 }
 
-type aiGenerateCommitMessageArgs struct {
-	Config aiStreamConfig `json:"config"`
-	Patch  string         `json:"patch"`
-}
-
-const (
-	// 内联补全只写一行左右，且对延迟敏感，保持小预算。
-	inlineCompletionOutputTokens uint32 = 160
-	// 提交信息正文很短，使用独立上限，避免继承通用会话的大输出预算拖慢短任务。
-	// 仍显著高于内联补全预算，给会消耗推理 token 的模型留出安全空间。
-	commitMessageOutputTokens uint32 = 1024
-	// 提交信息是短任务，不能沿用较长的通用非流式等待时间，否则界面会长时间卡在生成中。
-	commitMessageRequestTimeout = 90 * time.Second
-)
+const inlineCompletionOutputTokens uint32 = 160
 
 // inlineCompletionRequestTimeout 内联补全对延迟敏感，超过该时长的结果已无意义。
 const inlineCompletionRequestTimeout = 45 * time.Second
@@ -198,41 +184,6 @@ func completeWithClient(
 	}
 }
 
-func aiGenerateCommitMessageHandler(_ string, argsJson string) (string, error) {
-	var args aiGenerateCommitMessageArgs
-	if err := core.DecodeArgs(argsJson, &args); err != nil {
-		return "", err
-	}
-	patch := strings.TrimSpace(args.Patch)
-	if patch == "" {
-		return "", core.ErrString("暂存区为空，请先暂存文件")
-	}
-	if strings.TrimSpace(args.Config.BaseURL) == "" || strings.TrimSpace(args.Config.Model) == "" {
-		return "", core.ErrString("请先配置 AI 服务地址和模型")
-	}
-
-	system := "你是专业的 Git 提交信息生成助手。根据 staged diff 生成符合 Conventional Commits 规范的 commit message。\n" +
-		"格式为 type(scope): description，type 可使用 feat、fix、docs、style、refactor、test、chore、perf。\n" +
-		"第一行不超过 72 个字符；必要时空一行后添加简洁正文。\n" +
-		"只描述 diff 中的实际变更。只输出 commit message，不要解释、引号或 Markdown。"
-	user := "请根据以下 staged 变更摘要和紧凑 diff 生成 commit message：\n\n" + core.TakeChars(patch, 12_000)
-
-	// 提交信息是独立短任务，不允许通用会话配置把输出预算放大到数千 token。
-	commitConfig := commitMessageConfig(args.Config)
-	client := aiTimeoutHTTPClient(commitMessageRequestTimeout)
-	result, err := completeWithClient(client, &commitConfig, system, user, commitMessageOutputTokens)
-	if err != nil {
-		return "", err
-	}
-	if result.Content == "" {
-		if result.Reason != "" {
-			return "", core.ErrString("AI 未返回提交信息：" + result.Reason)
-		}
-		return "", core.ErrString("AI 未返回提交信息")
-	}
-	return core.EncodeResult(result.Content)
-}
-
 // aiPostJSON 发送 JSON POST 并返回解析后的响应体（含状态码校验）。
 func aiPostJSON(client *http.Client, url string, headers map[string]string, body any) (map[string]json.RawMessage, error) {
 	buf, err := json.Marshal(body)
@@ -279,15 +230,7 @@ func configuredOutputTokens(config *aiStreamConfig, fallback uint32) uint32 {
 	return fallback
 }
 
-func commitMessageConfig(config aiStreamConfig) aiStreamConfig {
-	if config.MaxOutputTokens == 0 || config.MaxOutputTokens > commitMessageOutputTokens {
-		config.MaxOutputTokens = commitMessageOutputTokens
-	}
-	return config
-}
-
-// completionResult 把正文和「为什么没有正文」分开返回。内联补全允许空结果（模型
-// 判断无需续写），提交信息不允许，两者需要据此给出不同反馈。
+// completionResult separates the generated text from the reason it is empty.
 type completionResult struct {
 	Content string
 	Reason  string

@@ -193,7 +193,7 @@ func sshHistoryPath(root string, p sshHistoryPayload) (string, error) {
 	if root == "" {
 		return "", fmt.Errorf("无法确定用户数据目录")
 	}
-	path := filepath.Join(root, "com.mincode.desktop", "ssh-command-history", historyKey(p)+".json")
+	path := filepath.Join(root, "com.tangoui.mincode", "ssh-command-history", historyKey(p)+".json")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		legacyRoot := filepath.Join(root, "mincode")
 		if info, err := os.Stat(legacyRoot); err == nil && info.IsDir() {

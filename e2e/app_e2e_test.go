@@ -270,19 +270,6 @@ func TestE2EMacTitleBar(t *testing.T) {
 	app.Quit()
 }
 
-// TestE2EOpensFileFromLaunch：应用以一个文件为启动参数启动（文件关联、“打开方式”在
-// Windows/Linux 就是这样传进来的；macOS 冷启动也走同一条路），前端在项目视图里打开它。
-func TestE2EOpensFileFromLaunch(t *testing.T) {
-	file := filepath.Join(t.TempDir(), "e2e-open.txt")
-	if err := os.WriteFile(file, []byte("opened by the operating system\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	app := launchMinCode(t, file)
-	win := app.Window("MinCode")
-	waitOrDump(t, app, win, `[...document.querySelectorAll(".app-top-tabs .el-tabs__item.is-active")].some((n) => n.innerText.includes("项目")) && document.body.innerText.includes("e2e-open.txt")`)
-	app.Quit()
-}
-
 // TestE2EOpensDeepLinkFromLaunch：应用由 mincode://workspace?view=http 链接启动，链接在前端
 // 挂载前到达，排队到前端就绪后仍切到 HTTP 工作区。
 func TestE2EOpensDeepLinkFromLaunch(t *testing.T) {

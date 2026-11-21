@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestCoreProfileExcludesPluginBackedDrivers(t *testing.T) {
+func TestCoreProfileExcludesUnavailableDrivers(t *testing.T) {
 	available := make(map[string]struct{}, len(supportedDatabaseTypes))
 	for _, dbType := range supportedDatabaseTypes {
 		available[dbType] = struct{}{}
@@ -25,7 +25,7 @@ func TestCoreProfileExcludesPluginBackedDrivers(t *testing.T) {
 	}
 }
 
-func TestCoreProfileSavedConnectionsNeedDriverPlugin(t *testing.T) {
+func TestCoreProfileSavedConnectionsReportUnavailableDriver(t *testing.T) {
 	path, service, user := t.TempDir()+"/saved.duckdb", "ORCL", "app"
 	for _, cfg := range []*DbConnectionConfig{
 		{DbType: "duckdb", FilePath: &path},
@@ -35,8 +35,8 @@ func TestCoreProfileSavedConnectionsNeedDriverPlugin(t *testing.T) {
 		{DbType: "ClickHouse", Host: "db.example.test", Port: 9000, Database: &service},
 	} {
 		_, err := buildProfileSession(cfg)
-		if err == nil || !strings.HasPrefix(err.Error(), "driver_required:") || !strings.Contains(err.Error(), "插件") || !strings.Contains(err.Error(), "改绑") {
-			t.Fatalf("buildProfileSession(%s) error = %v, want driver_required with plugin rebinding hint", cfg.DbType, err)
+		if err == nil || !strings.HasPrefix(err.Error(), "driver_required: 此版本未内置 ") {
+			t.Fatalf("buildProfileSession(%s) error = %v, want unavailable driver error", cfg.DbType, err)
 		}
 	}
 	if _, err := duckdbSchema(context.Background(), nil); err == nil || !strings.HasPrefix(err.Error(), "driver_required:") {

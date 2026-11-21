@@ -3,7 +3,7 @@
 // 与 Tauri src-tauri/src/crypto.rs 对齐：
 //   - 密文格式 enc:v2:<base64(nonce(12) ‖ ciphertext)>
 //   - HKDF-SHA256(IKM=deviceFingerprint, salt=每机随机32B, info="mincode-aes-gcm-key-v2")
-//   - salt 持久化于 <dataDir>/com.mincode.desktop/.key_salt
+//   - salt 持久化于 <dataDir>/com.tangoui.mincode/.key_salt
 //
 // 命令契约（入参 camelCase，返回裸字符串）：
 //
@@ -435,5 +435,5 @@ func saltPath() string {
 	if dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, "com.mincode.desktop", ".key_salt")
+	return filepath.Join(dir, "com.tangoui.mincode", ".key_salt")
 }

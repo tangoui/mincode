@@ -19,7 +19,7 @@ import (
 // and external_result.go (validation of untrusted plugin output). buildSession
 // keeps rejecting every config with Driver set (errExternalDriverUnavailable),
 // so a plugin-bound connection can never silently fall back to a built-in
-// driver; db_connect, backups, schema access and ConnectCloudReadOnly route
+// driver; db_connect, backups and schema access route
 // such configs to connectExternalSession, which enforces the credential grant.
 
 // ExternalDriverRef names one driver contributed by one plugin.

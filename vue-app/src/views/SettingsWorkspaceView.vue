@@ -62,7 +62,6 @@ import {
   chooseSettingsMarkdownFile,
   connectMcpServer,
   disconnectMcpServer,
-  downloadAndOpenUpdate,
   fetchAiModels,
   findSettingsSkillFiles,
   testAiConnection,
@@ -457,7 +456,7 @@ const appUpdate = useAppUpdateStore();
 void appUpdate.hydrate();
 const updateInfo = computed<UpdateInfo | undefined>(() => appUpdate.info);
 const updateChecking = computed(() => appUpdate.checking);
-const updateDownloading = ref(false);
+const updateDownloading = computed(() => appUpdate.downloading);
 const updateError = ref("");
 const mcpStatuses = ref<McpStatus[]>([]);
 /** Connectors whose last connect from this page failed with [MCP_AUTH_REQUIRED]. */
@@ -2072,17 +2071,15 @@ async function checkUpdate() {
 }
 async function downloadUpdate() {
   if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
-  if (!updateInfo.value?.available) return;
-  updateDownloading.value = true;
+  if (!updateInfo.value?.available || updateDownloading.value || updateChecking.value) return;
   updateError.value = "";
   try {
-    const result = await downloadAndOpenUpdate();
-    const title = t("settings.update.opened", { file: result.fileName });
+    const result = await appUpdate.stageUpdate(updateInfo.value.version);
+    const title = t("settings.update.ready", { version: result.version });
     ElMessage.success(title);
     notifyApp({ source: "update", level: "success", title });
   } catch (error) {
     const message = nativeErrorMessage(error);
-    updateError.value = message;
     ElMessage.error(t("settings.update.downloadFailed", { message }));
     notifyApp({
       source: "update",
@@ -2090,8 +2087,14 @@ async function downloadUpdate() {
       title: t("notifications.update.downloadFailed"),
       message,
     });
-  } finally {
-    updateDownloading.value = false;
+  }
+}
+
+async function restartAfterUpdate() {
+  try {
+    await appUpdate.restart();
+  } catch (error) {
+    ElMessage.error(t("settings.update.restartFailed", { message: nativeErrorMessage(error) }));
   }
 }
 
@@ -3908,7 +3911,12 @@ onBeforeUnmount(() => {
             </div>
           </dl>
           <div class="settings-update-actions">
-            <el-button :icon="Refresh" :loading="updateChecking" @click="checkUpdate">
+            <el-button
+              :icon="Refresh"
+              :loading="updateChecking"
+              :disabled="updateDownloading || Boolean(appUpdate.readyVersion)"
+              @click="checkUpdate"
+            >
               {{ updateChecking ? t("settings.update.checking") : t("settings.checkUpdate") }}
             </el-button>
             <el-switch
@@ -3939,9 +3947,7 @@ onBeforeUnmount(() => {
                 <p>{{
                   updateInfo.available
                     ? t("settings.update.availableHint")
-                    : updateInfo.version
-                      ? t("settings.update.latestHint")
-                      : t("settings.update.noReleaseHint")
+                    : t("settings.update.latestHint")
                 }}</p>
               </div>
               <el-tag :type="updateInfo.available ? 'warning' : 'success'" effect="plain">
@@ -3953,31 +3959,43 @@ onBeforeUnmount(() => {
                 <dt>{{ t("settings.update.currentVersion") }}</dt>
                 <dd>{{ updateInfo.currentVersion }}</dd>
               </div>
-              <div>
+              <div v-if="updateInfo.available">
                 <dt>{{ t("settings.update.latestVersion") }}</dt>
-                <dd>{{ updateInfo.version || t("settings.update.noRelease") }}</dd>
+                <dd>{{ updateInfo.version }}</dd>
               </div>
-              <div>
+              <div v-if="updateInfo.available">
                 <dt>{{ t("settings.update.pubDate") }}</dt>
                 <dd>{{ formatUpdateDate(updateInfo.pubDate) }}</dd>
               </div>
-              <div>
+              <div v-if="updateInfo.available">
                 <dt>{{ t("settings.update.packageSize") }}</dt>
                 <dd>{{ formatUpdateSize(updateInfo.downloadSize) }}</dd>
               </div>
             </dl>
             <!-- Actions sit above the notes, which scroll on their own, so a long changelog never hides them. -->
-            <footer v-if="updateInfo.available" class="settings-update-card__footer">
+            <el-progress
+              v-if="updateDownloading && appUpdate.progressPercent !== undefined"
+              :percentage="appUpdate.progressPercent"
+              :aria-label="t('settings.update.downloading')"
+            />
+            <footer v-if="appUpdate.readyVersion" class="settings-update-card__footer">
+              <el-button type="primary" :loading="appUpdate.restarting" @click="restartAfterUpdate">
+                {{ t("settings.update.restart") }}
+              </el-button>
+              <span>{{ t("settings.update.ready", { version: appUpdate.readyVersion }) }}</span>
+            </footer>
+            <footer v-else-if="updateInfo.available" class="settings-update-card__footer">
               <el-button
                 type="primary"
                 :icon="Download"
                 :loading="updateDownloading"
+                :disabled="updateChecking"
                 @click="downloadUpdate"
               >
                 {{
                   updateDownloading
                     ? t("settings.update.downloading")
-                    : t("settings.update.downloadAndOpen")
+                    : t("settings.update.download")
                 }}
               </el-button>
               <el-button
@@ -3990,7 +4008,6 @@ onBeforeUnmount(() => {
               <el-button v-else text @click="appUpdate.clearSkippedVersion()">
                 {{ t("settings.update.unskipVersion") }}
               </el-button>
-              <span>{{ t("settings.update.openedHint") }}</span>
             </footer>
             <div class="settings-update-card__notes">
               <el-scrollbar max-height="360px">

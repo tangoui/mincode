@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"mincode/app/backend/agentprogress"
 	"mincode/app/backend/core"
@@ -37,7 +36,6 @@ func Shutdown() { gateway.disconnectAll() }
 
 func init() {
 	core.Register("acp_launch", acpLaunchHandler)
-	core.Register("acp_launch_plugin", acpLaunchPluginHandler)
 	core.Register("acp_new_session", acpNewSessionHandler)
 	core.Register("acp_load_session", acpLoadSessionHandler)
 	core.Register("acp_prompt", acpPromptHandler)
@@ -144,105 +142,10 @@ func acpLaunchHandler(_ string, argsJSON string) (string, error) {
 	return core.EncodeResult(res)
 }
 
-// PluginAgentResolver resolves a plugin ACP agent (contributes.acpAgents) for
-// projectRoot from the plugin host's own snapshot. It re-checks every gate on
-// each call and returns the launch only when the user confirmed exactly this
-// launch; otherwise its error starts with a process launch code such as
-// "untrusted:" or "unavailable:". beforeExec (may be nil) runs immediately
-// before the process is created and refuses a plugin file swapped since the
-// resolve; its failure aborts the launch with "untrusted:".
-type PluginAgentResolver func(pluginID, agentID, projectRoot string) (command string, args []string, env map[string]string, beforeExec func() error, err error)
-
-var (
-	pluginAgentResolverMu sync.RWMutex
-	pluginAgentResolver   PluginAgentResolver
-)
-
-// SetPluginAgentResolver installs the single resolver (the plugin host), so
-// this package never imports plugin. Call from init(); a second registration
-// panics.
-func SetPluginAgentResolver(resolver PluginAgentResolver) {
-	if resolver == nil {
-		panic("nil plugin agent resolver")
-	}
-	pluginAgentResolverMu.Lock()
-	defer pluginAgentResolverMu.Unlock()
-	if pluginAgentResolver != nil {
-		panic("plugin agent resolver registered twice")
-	}
-	pluginAgentResolver = resolver
-}
-
-func registeredPluginAgentResolver() PluginAgentResolver {
-	pluginAgentResolverMu.RLock()
-	defer pluginAgentResolverMu.RUnlock()
-	return pluginAgentResolver
-}
-
-// AcpDisconnectedEvent tells the frontend which ACP connections the host
-// closed on its own (a plugin's agents on disable, uninstall, reload, upgrade
-// or failure), so their conversations start the agent again on the next send.
 const AcpDisconnectedEvent = "acp:disconnected"
 
-// AcpDisconnectedPayload is the AcpDisconnectedEvent payload.
 type AcpDisconnectedPayload struct {
 	ServerIDs []string `json:"serverIds"`
-	PluginID  string   `json:"pluginId"`
-}
-
-// DisconnectPluginAgents closes every connection started by acp_launch_plugin
-// for pluginID, including ones still starting (plugin disabled, uninstalled,
-// reloaded, upgraded or failed), and emits AcpDisconnectedEvent with their
-// server ids when there were any.
-func DisconnectPluginAgents(pluginID string) {
-	serverIDs := gateway.disconnectOwner(pluginID)
-	if len(serverIDs) == 0 {
-		return
-	}
-	core.Emit(AcpDisconnectedEvent, AcpDisconnectedPayload{ServerIDs: serverIDs, PluginID: pluginID})
-}
-
-type acpLaunchPluginArgs struct {
-	ServerID string `json:"serverId"`
-	PluginID string `json:"pluginId"`
-	AgentID  string `json:"agentId"`
-	Cwd      string `json:"cwd"`
-}
-
-// acpLaunchPluginHandler starts a plugin agent by reference: the WebView names
-// (pluginId, agentId) and the conversation's project; the command, args and
-// env come only from the resolver, which refuses an unconfirmed launch.
-func acpLaunchPluginHandler(_ string, argsJSON string) (string, error) {
-	var a acpLaunchPluginArgs
-	if err := core.DecodeArgs(argsJSON, &a); err != nil {
-		return "", err
-	}
-	pluginID, agentID := strings.TrimSpace(a.PluginID), strings.TrimSpace(a.AgentID)
-	if a.ServerID == "" {
-		return "", fmt.Errorf("serverId is required")
-	}
-	if pluginID == "" || agentID == "" {
-		return "", fmt.Errorf("pluginId and agentId are required")
-	}
-	// A plugin agent always runs in its conversation's project root.
-	if strings.TrimSpace(a.Cwd) == "" {
-		return "", fmt.Errorf("cwd is required")
-	}
-	cwd, err := resolveCwd(a.Cwd)
-	if err != nil {
-		return "", err
-	}
-	resolver := registeredPluginAgentResolver()
-	if resolver == nil {
-		return "", fmt.Errorf("unavailable: plugin ACP agents are not available")
-	}
-	res, err := gateway.launchOwned(context.Background(), a.ServerID, pluginID, cwd, func() (string, []string, map[string]string, func() error, error) {
-		return resolver(pluginID, agentID, cwd)
-	})
-	if err != nil {
-		return "", err
-	}
-	return core.EncodeResult(res)
 }
 
 type acpNewSessionArgs struct {

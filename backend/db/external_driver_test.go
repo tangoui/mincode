@@ -19,9 +19,6 @@ func TestDriverBoundConfigNeverBuildsBuiltinSession(t *testing.T) {
 	if _, err := buildSession(&cfg); !errors.Is(err, errExternalDriverUnavailable) {
 		t.Fatalf("buildSession error = %v", err)
 	}
-	if _, err := ConnectCloudReadOnly(CloudReadOnlyConnection{Config: cfg}); !errors.Is(err, errExternalDriverUnavailable) {
-		t.Fatalf("cloud read-only error = %v", err)
-	}
 	if registeredExternalDriverProvider() != nil {
 		t.Fatal("no provider is registered before T2")
 	}

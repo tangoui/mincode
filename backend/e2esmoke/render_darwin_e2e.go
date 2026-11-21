@@ -8,6 +8,7 @@ package e2esmoke
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 #import <objc/message.h>
+#include <stdint.h>
 
 static WKWebView *e2eFindWebView(NSView *view) {
 	if ([view isKindOfClass:[WKWebView class]]) return (WKWebView *)view;
@@ -20,7 +21,7 @@ static WKWebView *e2eFindWebView(NSView *view) {
 
 // Returns bit 1 when App Nap is held off, bit 2 when WebKit's occlusion
 // detection was turned off for the window's web view.
-static int e2eKeepRendering(void *window) {
+static int e2eKeepRendering(uintptr_t window) {
 	int result = 0;
 	static id activity = nil;
 	if (activity == nil) {
@@ -41,10 +42,7 @@ static int e2eKeepRendering(void *window) {
 */
 import "C"
 
-import (
-	"fmt"
-	"unsafe"
-)
+import "fmt"
 
 // KeepRenderingWhenCovered stops macOS from pausing the smoke window while
 // other windows cover it. WKWebView suspends requestAnimationFrame, rendering
@@ -54,11 +52,11 @@ import (
 // own test runners use), so it exists only in `-tags e2e` builds and is
 // skipped when a WebKit version no longer responds to it. Call on the main
 // thread with the window's NativeWindow handle.
-func KeepRenderingWhenCovered(nativeWindow unsafe.Pointer) error {
+func KeepRenderingWhenCovered(nativeWindow uintptr) error {
 	if !Enabled() {
 		return nil
 	}
-	result := int(C.e2eKeepRendering(nativeWindow))
+	result := int(C.e2eKeepRendering(C.uintptr_t(nativeWindow)))
 	if result&2 == 0 {
 		return fmt.Errorf("web view occlusion detection could not be turned off (app nap held off: %t)", result&1 != 0)
 	}

@@ -118,10 +118,7 @@ func terminalSSHAuthMethods(authType, password, keyFile, passphrase, sessionID s
 				items[i] = SshMfaPromptItem{Prompt: question, Echo: i < len(echos) && echos[i]}
 			}
 			prompt := SshMfaPromptPayload{SessionID: sessionID, Name: name, Instructions: instruction, Prompts: items}
-			// 手机端发起的云会话由云端桥接把验证码提示转发给那台手机；其余会话照常弹给桌面界面。
-			if !deliverCloudMFAPrompt(prompt) {
-				core.Emit("ssh-mfa-prompt", prompt)
-			}
+			core.Emit("ssh-mfa-prompt", prompt)
 			select {
 			case answers := <-ch:
 				return answers, nil

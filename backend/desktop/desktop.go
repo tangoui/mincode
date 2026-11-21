@@ -5,20 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"mincode/app/backend/core"
 	"mincode/app/backend/storage"
-	pluginapi "mincode/app/plugins/api"
 )
 
 const windowStateKey = "desktop_window_state_v1"
@@ -45,22 +39,6 @@ type Adapter struct {
 	SetGlobalShortcut func(enabled bool, accelerator string) error
 	SetBadge          func(label string) error
 	FocusTarget       func(target NavigationTarget)
-	// SetMenuAccelerators turns MinCode's own application-menu shortcuts off
-	// while a plugin page holds the keyboard, and back on afterwards.
-	SetMenuAccelerators func(enabled bool)
-	// Plugin global shortcuts (backend/plugin/global_shortcuts.go) go through
-	// the same desktop global shortcut manager as MinCode's own shortcut.
-	// RegisterPluginShortcut reports an OS refusal (another application holds
-	// the combo) as an error; HostShortcut is MinCode's own registered
-	// accelerator ("" when off); IsWayland reports a Wayland session, where
-	// plugin shortcuts are not offered.
-	RegisterPluginShortcut   func(accelerator string, fn func()) error
-	UnregisterPluginShortcut func(accelerator string) error
-	HostShortcut             func() string
-	IsWayland                func() bool
-	// SetPluginTray rebuilds the plugin section of the system tray menu
-	// (backend/plugin/tray_menu.go resolves the groups from manifests).
-	SetPluginTray func(groups []PluginTrayGroup)
 }
 
 var (
@@ -73,16 +51,12 @@ func init() {
 	core.Register("desktop_set_badge", setBadgeHandler)
 	core.Register("desktop_navigate", navigateHandler)
 	core.Register("desktop_take_pending_navigation", takePendingNavigationHandler)
-	core.Register("desktop_set_menu_accelerators", setMenuAcceleratorsHandler)
 }
 
-// SetAdapter installs the native implementation and tells host shortcut
-// listeners to re-read it (plugin shortcuts become registrable).
 func SetAdapter(value Adapter) {
 	adapterMu.Lock()
 	adapter = value
 	adapterMu.Unlock()
-	notifyHostShortcutChange("")
 }
 
 func currentAdapter() Adapter { adapterMu.RLock(); defer adapterMu.RUnlock(); return adapter }
@@ -91,9 +65,6 @@ func currentAdapter() Adapter { adapterMu.RLock(); defer adapterMu.RUnlock(); re
 // (vue-app hostGlobalShortcutErrorNotice), not display text.
 var errGlobalShortcutUnavailable = errors.New("global-shortcut-unavailable")
 
-// GlobalShortcutOccupiedError: MinCode's own activation shortcut cannot be
-// registered because the shared desktop shortcut manager already holds the combo for
-// something else (a plugin global shortcut binding).
 type GlobalShortcutOccupiedError struct{ Accelerator string }
 
 func (e *GlobalShortcutOccupiedError) Error() string {
@@ -115,35 +86,8 @@ func setGlobalShortcutHandler(_, argsJSON string) (string, error) {
 	if args.Accelerator == "" {
 		args.Accelerator = "CmdOrCtrl+Shift+Space"
 	}
-	// MinCode's own shortcut wins over plugin shortcuts: listeners release a
-	// plugin binding of the same combo before it is registered, then settle
-	// on whatever the adapter actually holds afterwards.
-	pending := ""
-	if args.Enabled {
-		pending = args.Accelerator
-	}
-	notifyHostShortcutChange(pending)
-	err := fn(args.Enabled, args.Accelerator)
-	notifyHostShortcutChange("")
-	if err != nil {
+	if err := fn(args.Enabled, args.Accelerator); err != nil {
 		return "", err
-	}
-	return core.EncodeResult(nil)
-}
-
-func setMenuAcceleratorsHandler(_, argsJSON string) (string, error) {
-	var args struct {
-		Enabled *bool `json:"enabled"`
-	}
-	if err := core.DecodeArgs(argsJSON, &args); err != nil {
-		return "", err
-	}
-	if args.Enabled == nil {
-		return "", fmt.Errorf("enabled is required")
-	}
-	// Without a native application menu (Linux, tests) there is nothing to toggle.
-	if fn := currentAdapter().SetMenuAccelerators; fn != nil {
-		fn(*args.Enabled)
 	}
 	return core.EncodeResult(nil)
 }
@@ -152,11 +96,6 @@ func navigateHandler(_, argsJSON string) (string, error) {
 	var target NavigationTarget
 	if err := core.DecodeArgs(argsJSON, &target); err != nil {
 		return "", err
-	}
-	// Only the native tray closure produces plugin-command targets (through
-	// Navigate); the frontend runs plugin commands directly.
-	if target.Kind == pluginCommandTargetKind {
-		return "", fmt.Errorf("不支持的桌面导航目标")
 	}
 	if err := Navigate(target); err != nil {
 		return "", err
@@ -202,11 +141,10 @@ func ParseDeepLink(raw string) (NavigationTarget, error) {
 	if err != nil || !strings.EqualFold(parsed.Scheme, "mincode") {
 		return NavigationTarget{}, fmt.Errorf("无效的 MinCode 深链")
 	}
-	action := strings.ToLower(strings.Trim(parsed.Host+parsed.Path, "/"))
-	host := strings.ToLower(parsed.Host)
-	if host != "settings" && host != "ai" && host != "workspace" && host != "" {
-		return parsePluginDeepLink(strings.TrimSpace(raw), parsed)
+	if parsed.User != nil || parsed.Port() != "" {
+		return NavigationTarget{}, fmt.Errorf("无效的 MinCode 深链")
 	}
+	action := strings.ToLower(strings.Trim(parsed.Host+parsed.Path, "/"))
 	switch action {
 	case "settings":
 		return NavigationTarget{Kind: "view", Value: "settings"}, nil
@@ -223,70 +161,12 @@ func ParseDeepLink(raw string) (NavigationTarget, error) {
 	}
 }
 
-var pluginTargetIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
-
 // agentRunIDPattern matches agentprogress run IDs ("run-" + 32 hex digits).
 var agentRunIDPattern = regexp.MustCompile(`^run-[0-9a-f]{32}$`)
 
 // terminalPaneIDPattern matches the frontend's terminal pane IDs (UUIDs and
 // prefixed live-session IDs); a terminal-pane target focuses that pane's tab.
 var terminalPaneIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
-
-// Plugin links (contributes.uriHandlers) use mincode://<pluginId>/<path>?<query>.
-// The desktop layer only checks the URL shape and forwards it as a
-// "plugin-uri" target; the plugin host resolves it against the plugin's
-// handlers (plugin_host_uri_resolve) and the frontend always asks the user
-// before anything opens.
-const pluginLinkMaxLength = 2048
-
-var (
-	pluginLinkHostPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,127}$`)
-	pluginLinkReserved    = reservedLinkHosts()
-)
-
-func reservedLinkHosts() map[string]bool {
-	reserved := map[string]bool{"settings": true, "ai": true, "workspace": true}
-	if spec, ok := pluginapi.ContributionPointSpecFor("uriHandlers"); ok {
-		for _, host := range spec.List("reservedHosts") {
-			reserved[strings.ToLower(host)] = true
-		}
-	}
-	return reserved
-}
-
-func parsePluginDeepLink(raw string, parsed *url.URL) (NavigationTarget, error) {
-	decodedQuery, _ := url.QueryUnescape(parsed.RawQuery)
-	if len(raw) > pluginLinkMaxLength || !utf8.ValidString(raw) || strings.IndexFunc(raw, unsafeLinkRune) >= 0 ||
-		strings.IndexFunc(parsed.Path, unsafeDecodedRune) >= 0 || strings.IndexFunc(decodedQuery, unsafeDecodedRune) >= 0 {
-		return NavigationTarget{}, fmt.Errorf("插件链接过长或包含非法字符")
-	}
-	if parsed.Opaque != "" || parsed.User != nil || strings.Contains(parsed.Host, "@") || strings.Contains(parsed.Host, ":") {
-		return NavigationTarget{}, fmt.Errorf("插件链接不能包含账号或端口")
-	}
-	host := strings.ToLower(parsed.Host)
-	if !pluginLinkHostPattern.MatchString(host) || pluginLinkReserved[host] {
-		return NavigationTarget{}, fmt.Errorf("不支持的深链动作")
-	}
-	path := parsed.EscapedPath()
-	if path == "" || path == "/" {
-		return NavigationTarget{}, fmt.Errorf("插件链接缺少路径")
-	}
-	value := "mincode://" + host + path
-	if parsed.RawQuery != "" {
-		value += "?" + parsed.RawQuery
-	}
-	return NavigationTarget{Kind: "plugin-uri", Value: value}, nil
-}
-
-func unsafeLinkRune(r rune) bool {
-	return unicode.IsSpace(r) || unsafeDecodedRune(r)
-}
-
-// unsafeDecodedRune rejects control and format (bidi) characters in the
-// percent-decoded path and query; encoded spaces are allowed.
-func unsafeDecodedRune(r rune) bool {
-	return unicode.IsControl(r) || unicode.Is(unicode.Cf, r)
-}
 
 func ValidateTarget(target NavigationTarget) error {
 	switch target.Kind {
@@ -322,30 +202,7 @@ func ValidateTarget(target NavigationTarget) error {
 		if allowedView(target.Value) {
 			return nil
 		}
-	case "plugin-uri":
-		if strings.HasPrefix(target.Value, "mincode://") {
-			if parsed, err := ParseDeepLink(target.Value); err == nil && parsed.Kind == "plugin-uri" && parsed.Value == target.Value {
-				return nil
-			}
-		}
-	case "plugin":
-		// A plugin notification opens that plugin's page; the view is optional.
-		var value struct {
-			PluginID string `json:"pluginId"`
-			ViewID   string `json:"viewId"`
-		}
-		if err := json.Unmarshal([]byte(target.Value), &value); err == nil &&
-			pluginTargetIDPattern.MatchString(value.PluginID) &&
-			(value.ViewID == "" || pluginTargetIDPattern.MatchString(value.ViewID)) {
-			return nil
-		}
-	case pluginCommandTargetKind:
-		// A tray click runs a plugin command. Only the native tray closure
-		// produces it: desktop_navigate refuses it and ParseDeepLink never
-		// yields it.
-		if validPluginCommandTarget(target.Value) {
-			return nil
-		}
+
 	}
 	return fmt.Errorf("不支持的桌面导航目标")
 }
@@ -356,19 +213,10 @@ func ValidateTarget(target NavigationTarget) error {
 // listening yet. The frontend drains with
 // desktop_take_pending_navigation on mount, which also marks it ready; later
 // links are emitted live. Bounded (oldest evicted) and expiring.
-var (
-	pendingNavigationMax = uriHandlerLimit("coldStartQueueMax", 8)
-	pendingNavigationTTL = time.Duration(uriHandlerLimit("coldStartTtlSeconds", 120)) * time.Second
+const (
+	pendingNavigationMax = 8
+	pendingNavigationTTL = 120 * time.Second
 )
-
-func uriHandlerLimit(name string, fallback int64) int {
-	if spec, ok := pluginapi.ContributionPointSpecFor("uriHandlers"); ok {
-		if value := spec.Limit(name); value > 0 {
-			return int(value)
-		}
-	}
-	return int(fallback)
-}
 
 type pendingNavigation struct {
 	target NavigationTarget
@@ -425,60 +273,17 @@ func TakePendingNavigation() []NavigationTarget {
 	return targets
 }
 
-// decodeExactJSON decodes one JSON object with no unknown fields and no
-// trailing data.
-func decodeExactJSON(raw string, destination any) error {
-	decoder := json.NewDecoder(strings.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("trailing data")
-	}
-	return nil
-}
-
 func takePendingNavigationHandler(_, _ string) (string, error) {
 	return core.EncodeResult(TakePendingNavigation())
 }
 
 func allowedView(value string) bool {
 	switch value {
-	case "dashboard", "projects", "terminal", "ssh", "sftp", "database", "http", "sessions", "browser", "settings", "plugins":
+	case "dashboard", "terminal", "ssh", "sftp", "database", "notes", "http", "sessions", "ai", "settings":
 		return true
 	default:
 		return false
 	}
-}
-
-func LaunchPayload(args []string, workingDir string) (files []string, targets []NavigationTarget) {
-	seen := map[string]bool{}
-	for _, arg := range args[1:] {
-		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(arg)), "mincode://") {
-			if target, err := ParseDeepLink(arg); err == nil {
-				targets = append(targets, target)
-			}
-			continue
-		}
-		if strings.Contains(arg, "://") || strings.HasPrefix(strings.ToLower(arg), "magnet:") {
-			continue
-		}
-		path := strings.TrimSpace(arg)
-		if path == "" || strings.HasPrefix(path, "-") {
-			continue
-		}
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(workingDir, path)
-		}
-		path = filepath.Clean(path)
-		if info, err := os.Stat(path); err == nil && !info.IsDir() && !seen[path] {
-			seen[path] = true
-			files = append(files, path)
-		}
-	}
-	return files, targets
 }
 
 func ClampWindowState(state WindowState, areas []WorkArea) WindowState {

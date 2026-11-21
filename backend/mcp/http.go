@@ -26,16 +26,10 @@ const (
 )
 
 type httpConn struct {
-	serverID string
-	url      string
-	headers  map[string]string
-	client   *http.Client
-	// oauth is set for connectors marked auth "oauth": every request carries
-	// Authorization: Bearer <bearer>, replacing any configured header.
-	oauth  *OAuthTokenSource
-	authM  sync.Mutex
-	bearer string
-
+	serverID  string
+	url       string
+	headers   map[string]string
+	client    *http.Client
 	sessM     sync.Mutex
 	sessionID string
 	nextID    atomic.Uint64
@@ -44,11 +38,12 @@ type httpConn struct {
 }
 
 // connectHTTP 校验 URL、建立客户端、完成 initialize 握手并抓取能力列表。
-// auth 为 "oauth" 时先向 OAuthTokenSource 取访问令牌（快过期会先刷新），未登录
-// 则不发出任何请求、直接返回 [MCP_AUTH_REQUIRED]。
 func connectHTTP(parent context.Context, serverID, url string, headers map[string]string, auth string) (*mcpConnection, error) {
 	if err := core.ValidateRequestURL(url); err != nil {
 		return nil, err
+	}
+	if auth == "oauth" {
+		return nil, errors.New("[MCP_AUTH_UNSUPPORTED] 当前版本不支持连接器登录")
 	}
 	ctx, cancel := context.WithCancel(parent)
 	c := &httpConn{
@@ -58,20 +53,6 @@ func connectHTTP(parent context.Context, serverID, url string, headers map[strin
 		client:   newMCPHTTPClient(),
 		ctx:      ctx,
 		cancel:   cancel,
-	}
-	if auth == authOAuth {
-		source, err := currentOAuthSource()
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-		token, err := source.AccessToken(ctx, serverID, url)
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-		c.oauth = &source
-		c.bearer = token
 	}
 	if err := c.initialize(); err != nil {
 		cancel()
@@ -168,46 +149,28 @@ func (c *httpConn) postJSONRPC(ctx context.Context, body any, expectID *uint64) 
 	defer cancel()
 	stop := context.AfterFunc(c.ctx, cancel)
 	defer stop()
-	for attempt := 0; ; attempt++ {
-		resp, bearer, err := c.send(requestCtx, payload)
-		if err != nil {
-			return nil, err
-		}
-		if resp.StatusCode == http.StatusUnauthorized {
-			retry, err := c.handleUnauthorized(requestCtx, resp, bearer, attempt)
-			if err != nil || retry {
-				drainAndClose(resp.Body)
-				if err != nil {
-					return nil, err
-				}
-				continue
-			}
-		}
-		result, err := c.readResponse(resp, expectID)
-		resp.Body.Close()
-		return result, err
+
+	resp, err := c.send(requestCtx, payload)
+	if err != nil {
+		return nil, err
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized && hasBearerChallenge(resp.Header.Values("WWW-Authenticate")) {
+		return nil, authRequiredError(c.serverID)
+	}
+	return c.readResponse(resp, expectID)
 }
 
-// send posts one JSON-RPC payload and returns the bearer token it carried.
-func (c *httpConn) send(ctx context.Context, payload []byte) (*http.Response, string, error) {
+// send posts one JSON-RPC payload.
+func (c *httpConn) send(ctx context.Context, payload []byte) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(payload))
 	if err != nil {
-		return nil, "", fmt.Errorf("[mcp:%s] build request: %w", c.serverID, err)
+		return nil, fmt.Errorf("[mcp:%s] build request: %w", c.serverID, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
-	}
-	var bearer string
-	if c.oauth != nil {
-		c.authM.Lock()
-		bearer = c.bearer
-		c.authM.Unlock()
-		// Set after the configured headers so it replaces any Authorization
-		// value (header names are canonicalised, so case does not matter).
-		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
 	c.sessM.Lock()
 	sid := c.sessionID
@@ -218,39 +181,9 @@ func (c *httpConn) send(ctx context.Context, payload []byte) (*http.Response, st
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("[mcp:%s] HTTP request failed: %w", c.serverID, err)
+		return nil, fmt.Errorf("[mcp:%s] HTTP request failed: %w", c.serverID, err)
 	}
-	return resp, bearer, nil
-}
-
-// handleUnauthorized decides what a 401 means. OAuth connectors refresh the
-// rejected token once and retry once; a second 401 (or a failed refresh) is
-// [MCP_AUTH_REQUIRED]. Other connectors report [MCP_AUTH_REQUIRED] when the
-// server offers a Bearer challenge, so the UI can suggest signing in;
-// otherwise the 401 is an ordinary HTTP error.
-func (c *httpConn) handleUnauthorized(ctx context.Context, resp *http.Response, rejected string, attempt int) (bool, error) {
-	if c.oauth == nil {
-		if hasBearerChallenge(resp.Header.Values("WWW-Authenticate")) {
-			return false, authRequiredError(c.serverID)
-		}
-		return false, nil
-	}
-	if attempt > 0 {
-		return false, authRequiredError(c.serverID)
-	}
-	token, err := c.oauth.RefreshAfterUnauthorized(ctx, c.serverID, c.url, rejected)
-	if err != nil {
-		return false, fmt.Errorf("[mcp:%s] %w", c.serverID, err)
-	}
-	c.authM.Lock()
-	c.bearer = token
-	c.authM.Unlock()
-	return true, nil
-}
-
-func drainAndClose(body io.ReadCloser) {
-	_, _ = io.Copy(io.Discard, io.LimitReader(body, mcpMaxErrorBytes))
-	_ = body.Close()
+	return resp, nil
 }
 
 func (c *httpConn) readResponse(resp *http.Response, expectID *uint64) (json.RawMessage, error) {

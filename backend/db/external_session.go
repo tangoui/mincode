@@ -511,66 +511,6 @@ func externalExecStatement(parent context.Context, s *dbSession, statement strin
 	return pager.finish(summary)
 }
 
-// externalReadOnlyQuery runs one already-validated read-only statement (cloud
-// companion) with readOnly true, so a driver that declares readOnly enforces
-// it itself. At most maxRows rows are kept.
-func externalReadOnlyQuery(parent context.Context, s *dbSession, statement string, maxRows int) (*QueryResult, error) {
-	start := time.Now()
-	if err := validateExternalStatement(statement); err != nil {
-		return nil, err
-	}
-	if err := s.ext.require(externalFeatureReadOnly); err != nil {
-		return nil, err
-	}
-	timeout := timeoutForQuery(statement)
-	ctx, cancel := context.WithTimeout(parent, timeout+externalHostDeadlineSlack)
-	defer cancel()
-	ext := s.ext
-	call, err := ext.begin(ctx, true)
-	if err != nil {
-		return nil, err
-	}
-	defer ext.end(call)
-	result := &QueryResult{Rows: [][]any{}}
-	pager := newExternalPager()
-	pager.rowLimit = maxRows
-	pager.onRow = func(row []any, _ int) error {
-		result.Rows = append(result.Rows, row)
-		return nil
-	}
-	pageRows := maxRows
-	if pageRows > pager.maxRows {
-		pageRows = pager.maxRows
-	}
-	summary, err := ext.conn.Execute(call.ctx, ExternalExecute{
-		RequestID: call.requestID,
-		Statement: statement,
-		Mode:      ExternalExecuteQuery,
-		ReadOnly:  true,
-		MaxRows:   pageRows,
-		MaxBytes:  int64(pager.maxBytes),
-		Timeout:   timeout,
-	}, pager.page)
-	if errors.Is(err, errExternalStopPaging) && pager.stopped {
-		err, summary = nil, nil
-	}
-	if err != nil {
-		return nil, call.callError(err, timeout, false)
-	}
-	if summary != nil && summary.Cancelled != "" {
-		return nil, externalCancelledError(summary.Cancelled)
-	}
-	if err := pager.finish(summary); err != nil {
-		return nil, err
-	}
-	result.Columns = pager.resultColumns()
-	result.RowCount = len(result.Rows)
-	result.Notice = pager.notice()
-	result.ExecutionMs = time.Since(start).Milliseconds()
-	return result, nil
-}
-
-// externalExecuteQuery is db_execute_query for plugin sessions.
 func externalExecuteQuery(s *dbSession, statement string, database *string, queryID string, readOnly bool) (*QueryResult, error) {
 	return runExternalQuery(context.Background(), s, statement, database, queryID, readOnly)
 }

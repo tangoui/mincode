@@ -1,8 +1,0 @@
-{
- "description":"Receive user-authorized system links and files in a plugin view. Never changes defaults or starts downloads on installation.",
- "entry":{"type":"object","required":["id","type","view"],"properties":{
- "id":{"type":"string","pattern":"^[a-z][a-z0-9-]{0,31}$"},"type":{"enum":"{{lists.types}}"},
- "view":{"type":"string","minLength":1,"maxLength":64},"title":{"type":"string","maxLength":64},
- "titleLocalized":{"type":"object","maxProperties":16,"additionalProperties":{"type":"string","minLength":1,"maxLength":64}}
- },"additionalProperties":false}
-}
