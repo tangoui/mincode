@@ -6,7 +6,6 @@
 //	store_get_many    {keys}                -> {key: any | null}（缺失键返回 null）
 //	store_set         {key, value}          -> void
 //	store_del         {key}                 -> void
-//	store_del_many    {keys}                -> void
 //	store_load_all    {}                    -> {key: value}
 //	store_apply_batch {operations|sets,...} -> void
 //	delete_all_ai operation clears every normalized AI workspace in the same transaction
@@ -20,7 +19,6 @@ import (
 	"strings"
 
 	"mincode/app/backend/core"
-	"mincode/app/backend/internal/applockpolicy"
 	"mincode/app/backend/internal/backuppolicy"
 	"mincode/app/backend/internal/filetemplatepolicy"
 	"mincode/app/backend/internal/mcpauthpolicy"
@@ -32,10 +30,12 @@ func init() {
 	core.Register("store_get_many", storeGetManyHandler)
 	core.Register("store_set", storeSetHandler)
 	core.Register("store_del", storeDelHandler)
-	core.Register("store_del_many", storeDelManyHandler)
 	core.Register("store_load_all", storeLoadAllHandler)
 	core.Register("store_apply_batch", storeApplyBatchHandler)
 }
+
+// Keep verifiers from older installations out of the generic store and configuration exports.
+const legacyAppLockKey = "app_lock_v1"
 
 const (
 	maxBatchOperations = 10000
@@ -54,7 +54,7 @@ func reservedKeyError(key string) error {
 	switch key {
 	case filetemplatepolicy.StorageKey:
 		return errors.New("file_template_reserved_key")
-	case applockpolicy.StorageKey:
+	case legacyAppLockKey:
 		return errors.New("app_lock_reserved_key")
 	case mcpauthpolicy.StorageKey:
 		return errors.New("mcp_oauth_reserved_key")
@@ -218,25 +218,6 @@ func storeDelHandler(_, argsJSON string) (string, error) {
 	return core.EncodeResult(nil)
 }
 
-type storeDelManyArgs struct {
-	Keys []string `json:"keys"`
-}
-
-func storeDelManyHandler(_, argsJSON string) (string, error) {
-	var args storeDelManyArgs
-	if err := core.DecodeArgs(argsJSON, &args); err != nil {
-		return "", err
-	}
-	operations := make([]storeBatchOperation, 0, len(args.Keys))
-	for _, key := range args.Keys {
-		operations = append(operations, storeBatchOperation{Type: "delete", Key: key})
-	}
-	if err := applyBatch(operations); err != nil {
-		return "", err
-	}
-	return core.EncodeResult(nil)
-}
-
 type storeBatchOperation struct {
 	Type  string          `json:"type"`
 	Key   string          `json:"key"`
@@ -370,7 +351,7 @@ const storeLoadAllQuery = `SELECT key, value FROM app_kv
 		AND NOT (key >= 'cloud-terminal:' AND key < 'cloud-terminal;')
 		AND key <> 'desktop_window_state_v1'
  AND key <> '` + filetemplatepolicy.StorageKey + `'
- AND key <> '` + applockpolicy.StorageKey + `'
+ AND key <> '` + legacyAppLockKey + `'
  AND key <> '` + mcpauthpolicy.StorageKey + `'
  AND key <> '` + backuppolicy.PasswordStorageKey + `'
 	ORDER BY key`

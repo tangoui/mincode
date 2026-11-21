@@ -1,7 +1,6 @@
 package misc
 
 import (
-	"errors"
 	"os/exec"
 	"strings"
 
@@ -24,17 +23,6 @@ const (
 	windowsClipboardReadTextScript = "$ErrorActionPreference='Stop'; " +
 		"$b=[Text.Encoding]::UTF8.GetBytes([string](Get-Clipboard -Raw)); " +
 		"$o=[Console]::OpenStandardOutput(); $o.Write($b, 0, $b.Length); $o.Flush()"
-
-	// FileDropList 返回 FileInfo 对象，默认输出是格式化表格且受控制台代码页影响；
-	// 只取 FullName，以换行分隔按原始 UTF-8 字节输出。
-	windowsClipboardReadFilesScript = "$ErrorActionPreference='Stop'; " +
-		"$f=@(Get-Clipboard -Format FileDropList | ForEach-Object { $_.FullName }); " +
-		"$b=[Text.Encoding]::UTF8.GetBytes(($f -join [string][char]10)); " +
-		"$o=[Console]::OpenStandardOutput(); $o.Write($b, 0, $b.Length); $o.Flush()"
-
-	// -LiteralPath 不展开通配符；路径以换行分隔经 stdin 传入。
-	windowsClipboardWriteFilesScript = powershellReadStdinUTF8 +
-		"Set-Clipboard -LiteralPath ($s.Split([char]10))"
 )
 
 func windowsPowerShellCommand(script string) *exec.Cmd {
@@ -51,22 +39,4 @@ func windowsClipboardWriteTextCommand(text string) *exec.Cmd {
 
 func windowsClipboardReadTextCommand() *exec.Cmd {
 	return windowsPowerShellCommand(windowsClipboardReadTextScript)
-}
-
-func windowsClipboardReadFilesCommand() *exec.Cmd {
-	return windowsPowerShellCommand(windowsClipboardReadFilesScript)
-}
-
-func windowsClipboardWriteFilesCommand(paths []string) (*exec.Cmd, error) {
-	if len(paths) == 0 {
-		return nil, errors.New("clipboard write files: 路径为空")
-	}
-	for _, p := range paths {
-		if p == "" || strings.ContainsAny(p, "\r\n\x00") {
-			return nil, errors.New("clipboard write files: 路径包含非法字符")
-		}
-	}
-	cmd := windowsPowerShellCommand(windowsClipboardWriteFilesScript)
-	cmd.Stdin = strings.NewReader(strings.Join(paths, "\n"))
-	return cmd, nil
 }

@@ -101,7 +101,7 @@ func TestExtractOpenAIChatAcceptsStringAndPartsContent(t *testing.T) {
 
 func TestConfiguredOutputTokensPrefersExplicitLimit(t *testing.T) {
 	config := &aiStreamConfig{MaxOutputTokens: 4096}
-	if got := configuredOutputTokens(config, inlineCompletionOutputTokens); got != 4096 {
+	if got := configuredOutputTokens(config, 160); got != 4096 {
 		t.Fatalf("configuredOutputTokens = %d, want 4096", got)
 	}
 }

@@ -817,11 +817,11 @@ func dbApplyChangesHandler(callCtx context.Context, _, argsJSON string) (string,
 	if err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(callCtx, time.Duration(dbDMLTimeoutSecs)*time.Second)
 	defer cancel()
 	req := rowsRequest{database: strings.TrimSpace(a.Database), table: strings.TrimSpace(a.Table), changes: a.Changes, namespace: a.Namespace, source: source}

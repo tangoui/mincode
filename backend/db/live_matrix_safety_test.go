@@ -569,11 +569,11 @@ func liveWritingRead(l *liveSafety) error {
 // yields on this server; it never fails the case, a failed EXPLAIN only
 // means "no estimate" (high risk).
 func liveExplain(t *testing.T, l *liveSafety) error {
-	s, release, err := requireSession(l.session)
+	s, err := requireSession(l.session)
 	if err != nil {
 		return err
 	}
-	defer release()
+
 	start := time.Now()
 	n, ok := explainEstimate(context.Background(), s, s.safetyFamily(), l.c.Database, fmt.Sprintf("UPDATE %s SET name = 'x' WHERE id = 1", l.table))
 	t.Logf("EXPLAIN fallback: rows=%d ok=%v in %v (ok=false → Source none)", n, ok, time.Since(start).Round(time.Millisecond))

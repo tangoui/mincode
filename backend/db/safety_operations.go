@@ -411,11 +411,11 @@ func schemaSyncOperation(a schemaSyncArgs) safetyOperation {
 // as execution will, and assesses each DDL statement: structure changes
 // warn, DROP TABLE snapshots the table whole.
 func checkSchemaSync(ctx context.Context, s *dbSession, op safetyOperation, database string) (*sqlsafety.Check, safetyPlan, error) {
-	source, release, err := requireSession(op.SourceSessionID)
+	source, err := requireSession(op.SourceSessionID)
 	if err != nil {
 		return nil, safetyPlan{}, fmt.Errorf("源数据库会话: %w", err)
 	}
-	defer release()
+
 	if source == s {
 		return nil, safetyPlan{}, fmt.Errorf("源连接和目标连接不能相同")
 	}

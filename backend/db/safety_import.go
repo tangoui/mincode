@@ -184,11 +184,11 @@ func requireImportStartCheck(ctx context.Context, planID, key string, checkID, c
 	if err != nil {
 		return err
 	}
-	s, release, err := requireSession(p.SessionID)
+	s, err := requireSession(p.SessionID)
 	if err != nil {
 		return err
 	}
-	defer release()
+
 	_, _, err = consumeCheck(s, checkID, confirmText, strings.TrimSpace(p.Database), operationHash(safetyOperation{Kind: "import", PlanID: planID}))
 	return err
 }

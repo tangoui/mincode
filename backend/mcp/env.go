@@ -95,33 +95,6 @@ func buildStdioProcessEnv(env map[string]string) ([]string, error) {
 	return out, nil
 }
 
-// PluginProcessEnv builds the environment of a plugin MCP server. Unlike
-// buildStdioProcessEnv it never expands ${env:VAR} references: values are
-// used literally, so a plugin cannot read the user's host variables.
-func PluginProcessEnv(env map[string]string) []string {
-	values := make(map[string]string, len(inheritedEnvKeys)+len(env)+2)
-	for _, key := range inheritedEnvKeys {
-		if value, ok := os.LookupEnv(key); ok {
-			values[key] = value
-		}
-	}
-	if runtime.GOOS != "windows" {
-		if loginPath := core.LoginShellPath(); loginPath != "" {
-			values["PATH"] = mergePathLists(loginPath, values["PATH"])
-		}
-	}
-	values["NPM_CONFIG_LOGLEVEL"] = "error"
-	values["NPM_CONFIG_UPDATE_NOTIFIER"] = "false"
-	for key, value := range env {
-		values[key] = value
-	}
-	out := make([]string, 0, len(values))
-	for key, value := range values {
-		out = append(out, key+"="+value)
-	}
-	return out
-}
-
 // resolveStdioCommand 按 MCP 子进程最终 PATH 查找命令，而不是依赖桌面应用启动时的精简 PATH。
 func resolveStdioCommand(command string, processEnv []string) string {
 	if command == "" || strings.ContainsAny(command, `/\\`) {

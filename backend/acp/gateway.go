@@ -310,18 +310,6 @@ func (g *acpGateway) cancel(ctx context.Context, serverID, sessionID string) err
 	})
 }
 
-func (g *acpGateway) setMode(ctx context.Context, serverID, sessionID, modeID string) error {
-	conn, err := g.session(serverID)
-	if err != nil {
-		return err
-	}
-	_, err = conn.csc.SetSessionMode(ctx, acpsdk.SetSessionModeRequest{
-		SessionId: acpsdk.SessionId(sessionID),
-		ModeId:    acpsdk.SessionModeId(modeID),
-	})
-	return err
-}
-
 func (g *acpGateway) setConfigOption(ctx context.Context, serverID, sessionID, configID, value string) ([]acpsdk.SessionConfigOption, error) {
 	conn, err := g.session(serverID)
 	if err != nil {

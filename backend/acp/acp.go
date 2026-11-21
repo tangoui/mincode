@@ -12,7 +12,6 @@
 //	acp_cancel             {serverId, sessionId}                             -> void
 //	acp_respond_permission {requestId, optionId?, cancelled?}                -> void
 //	acp_disconnect         {serverId}                                       -> void
-//	acp_disconnect_all                                                       -> void
 //	acp_list_status                                                          -> [AcpServerStatus]
 package acp
 
@@ -41,10 +40,8 @@ func init() {
 	core.Register("acp_prompt", acpPromptHandler)
 	core.Register("acp_cancel", acpCancelHandler)
 	core.Register("acp_respond_permission", acpRespondPermissionHandler)
-	core.Register("acp_set_mode", acpSetModeHandler)
 	core.Register("acp_set_config_option", acpSetConfigOptionHandler)
 	core.Register("acp_disconnect", acpDisconnectHandler)
-	core.Register("acp_disconnect_all", acpDisconnectAllHandler)
 	core.Register("acp_list_status", acpListStatusHandler)
 }
 
@@ -295,29 +292,6 @@ func acpRespondPermissionHandler(_ string, argsJSON string) (string, error) {
 	return core.EncodeResult(nil)
 }
 
-type acpSetModeArgs struct {
-	ServerID  string `json:"serverId"`
-	SessionID string `json:"sessionId"`
-	ModeID    string `json:"modeId"`
-}
-
-func acpSetModeHandler(_ string, argsJSON string) (string, error) {
-	var a acpSetModeArgs
-	if err := core.DecodeArgs(argsJSON, &a); err != nil {
-		return "", err
-	}
-	if a.SessionID == "" {
-		return "", fmt.Errorf("sessionId is required")
-	}
-	if a.ModeID == "" {
-		return "", fmt.Errorf("modeId is required")
-	}
-	if err := gateway.setMode(context.Background(), a.ServerID, a.SessionID, a.ModeID); err != nil {
-		return "", err
-	}
-	return core.EncodeResult(nil)
-}
-
 type acpSetConfigOptionArgs struct {
 	ServerID  string `json:"serverId"`
 	SessionID string `json:"sessionId"`
@@ -358,11 +332,6 @@ func acpDisconnectHandler(_ string, argsJSON string) (string, error) {
 		return "", err
 	}
 	gateway.disconnect(a.ServerID)
-	return core.EncodeResult(nil)
-}
-
-func acpDisconnectAllHandler(_ string, _ string) (string, error) {
-	gateway.disconnectAll()
 	return core.EncodeResult(nil)
 }
 

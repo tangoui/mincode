@@ -42,37 +42,6 @@ func TestCheckLocalAgentDirectory(t *testing.T) {
 	})
 }
 
-func TestEnsureLocalAgentDefaultDirectory(t *testing.T) {
-	dir := t.TempDir()
-	want := filepath.Join(dir, core.AppDataNamespace, "agent-workspace")
-	for range 2 {
-		got, err := ensureLocalAgentDefaultDirectory(dir)
-		if got != want || err != nil {
-			t.Fatalf("got %q, %v; want %q, nil", got, err, want)
-		}
-		if info, err := os.Stat(got); err != nil || !info.IsDir() {
-			t.Fatalf("default directory was not created: %v", err)
-		}
-	}
-
-	blockedDir := t.TempDir()
-	blocked := filepath.Join(blockedDir, core.AppDataNamespace, "agent-workspace")
-	if err := os.MkdirAll(filepath.Dir(blocked), 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(blocked, []byte("keep"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	for _, root := range []string{"", "relative", blockedDir} {
-		if got, err := ensureLocalAgentDefaultDirectory(root); got != "" || err == nil {
-			t.Errorf("ensureLocalAgentDefaultDirectory(%q) = %q, %v; want empty path and error", root, got, err)
-		}
-	}
-	if content, err := os.ReadFile(blocked); err != nil || string(content) != "keep" {
-		t.Fatalf("occupying file changed: %q, %v", content, err)
-	}
-}
-
 func TestLocalAgentTransportCloseDisconnectsServer(t *testing.T) {
 	exited := make(chan AcpDisconnectedPayload, 1)
 	core.SetEmitter(func(name string, data any) {
@@ -103,27 +72,5 @@ func TestLocalAgentTransportCloseDisconnectsServer(t *testing.T) {
 	}
 	if _, err := g.session(serverID); err == nil {
 		t.Fatal("closed ACP connection is still registered")
-	}
-}
-
-func TestEnsureLocalAgentDefaultDirectoryRejectsSymlinks(t *testing.T) {
-	outside := t.TempDir()
-	for _, name := range []string{core.AppDataNamespace, filepath.Join(core.AppDataNamespace, "agent-workspace")} {
-		t.Run(name, func(t *testing.T) {
-			root := t.TempDir()
-			link := filepath.Join(root, name)
-			if err := os.MkdirAll(filepath.Dir(link), 0700); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.Symlink(outside, link); err != nil {
-				t.Skipf("symlink creation unavailable: %v", err)
-			}
-			if path, err := ensureLocalAgentDefaultDirectory(root); err == nil || path != "" {
-				t.Fatalf("accepted redirected directory %q: %v", path, err)
-			}
-			if entries, err := os.ReadDir(outside); err != nil || len(entries) != 0 {
-				t.Fatalf("default directory creation changed the symlink target: %v, %v", entries, err)
-			}
-		})
 	}
 }

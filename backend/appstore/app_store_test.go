@@ -38,7 +38,7 @@ func TestStoreHandlersAndBatchContract(t *testing.T) {
 	if !reflect.DeepEqual(all, want) {
 		t.Fatalf("store_load_all = %#v, want %#v", all, want)
 	}
-	if _, err := storeDelManyHandler("", `{"keys":["two","three"]}`); err != nil {
+	if _, err := storeApplyBatchHandler("", `{"deletes":["two","three"]}`); err != nil {
 		t.Fatal(err)
 	}
 	missing, err := storeGetHandler("", `{"key":"two"}`)
@@ -392,7 +392,6 @@ func TestStoreRefusesHostOwnedBackupPasswordKey(t *testing.T) {
 		"store_get_many": func() (string, error) { return storeGetManyHandler("", `{"keys":["backup_password_v1"]}`) },
 		"store_set":      func() (string, error) { return storeSetHandler("", `{"key":"backup_password_v1","value":"x"}`) },
 		"store_del":      func() (string, error) { return storeDelHandler("", `{"key":"backup_password_v1"}`) },
-		"store_del_many": func() (string, error) { return storeDelManyHandler("", `{"keys":["backup_password_v1"]}`) },
 		"store_apply_batch": func() (string, error) {
 			return storeApplyBatchHandler("", `{"sets":{"backup_password_v1":"x"}}`)
 		},

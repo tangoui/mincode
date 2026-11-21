@@ -1,11 +1,8 @@
 package ai
 
-// AI 域：编辑器内联补全（非流式）。对齐 Tauri src-tauri/src/ai.rs 的 ai_complete_inline。
 // 流式对话 ai_stream_chat 见 stream.go（经 core.Emit 推送事件到前端）。
 
 import (
-	"mincode/app/backend/core"
-
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -15,11 +12,6 @@ import (
 	"time"
 )
 
-func init() {
-	core.Register("ai_complete_inline", aiCompleteInlineHandler)
-}
-
-// aiStreamConfig 对齐 Tauri AiStreamConfig（camelCase）。inline 补全仅用前 4 字段。
 var supportedAIReasoningEfforts = map[string]struct{}{
 	"none": {}, "minimal": {}, "low": {}, "medium": {}, "high": {}, "xhigh": {}, "max": {}, "ultra": {},
 }
@@ -32,6 +24,7 @@ func normalizeAIReasoningEffort(value string) string {
 	return ""
 }
 
+// aiStreamConfig 对齐 Tauri AiStreamConfig（camelCase）。
 type aiStreamConfig struct {
 	BaseURL           string `json:"baseUrl"`
 	APIKey            string `json:"apiKey"`
@@ -55,31 +48,9 @@ type aiToolDef struct {
 	InputSchema json.RawMessage `json:"inputSchema"`
 }
 
-type aiCompleteInlineArgs struct {
-	Config   aiStreamConfig `json:"config"`
-	Prefix   string         `json:"prefix"`
-	Suffix   string         `json:"suffix"`
-	Language string         `json:"language"`
-	FilePath string         `json:"filePath"`
-}
-
-const inlineCompletionOutputTokens uint32 = 160
-
-// inlineCompletionRequestTimeout 内联补全对延迟敏感，超过该时长的结果已无意义。
-const inlineCompletionRequestTimeout = 45 * time.Second
-
 // aiHTTPClient：整体超时 120s（避免长 think 间隔被切断），复用 AI 连接池与重定向策略。
 func aiHTTPClient() *http.Client {
 	return aiTimeoutHTTPClient(120 * time.Second)
-}
-
-// truncateChars 保留字符串末尾 max 个字符（对齐 Rust truncate_chars：从尾部截取）。
-func truncateChars(s string, max int) string {
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
-	}
-	return string(runes[len(runes)-max:])
 }
 
 // normalizeBaseURL 对齐 Rust：若末段形如 v1/v2… 则原样，否则追加 /v1。
@@ -131,34 +102,6 @@ func stripInlineCompletionFences(text string) string {
 		}
 	}
 	return strings.TrimSpace(t)
-}
-
-func aiCompleteInlineHandler(_ string, argsJson string) (string, error) {
-	var args aiCompleteInlineArgs
-	if err := core.DecodeArgs(argsJson, &args); err != nil {
-		return "", err
-	}
-
-	prefix := truncateChars(args.Prefix, 14_000)
-	suffix := core.TakeChars(args.Suffix, 2_000)
-	fp := strings.TrimSpace(args.FilePath)
-	pathLine := ""
-	if fp != "" {
-		pathLine = fmt.Sprintf("文件路径: %s\n", fp)
-	}
-
-	system := "你是代码补全引擎。用户给出光标前后的源码片段，你必须只输出「紧接在光标后」应插入的续写文本。\n" +
-		"禁止解释、禁止 markdown 代码围栏、禁止前后缀说明；不要重复光标前已有内容。\n" +
-		"若无法合理续写则输出空字符串。续写尽量短（通常一行内或一个语义块），必要时可换行。"
-	user := fmt.Sprintf("语言(Monaco id): %s\n%s--- 光标前 ---\n%s\n--- 光标后 ---\n%s",
-		args.Language, pathLine, prefix, suffix)
-
-	client := aiTimeoutHTTPClient(inlineCompletionRequestTimeout)
-	result, err := completeWithClient(client, &args.Config, system, user, inlineCompletionOutputTokens)
-	if err != nil {
-		return "", err
-	}
-	return core.EncodeResult(result.Content)
 }
 
 // completeWithConfig 按配置的 API 形态分发一次非流式补全。

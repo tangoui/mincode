@@ -149,55 +149,15 @@ func TestMoveSymlinkMovesOnlyLink(t *testing.T) {
 	assertFileContent(t, filepath.Join(outside, "data.txt"), "data")
 }
 
-func TestCopySymlinkCopiesTargetUnderLinkName(t *testing.T) {
-	root, _ := symlinkFixture(t)
-	if err := os.Mkdir(filepath.Join(root, "backup"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := handleCopyTo("", entryOpArgs(t, map[string]any{"projectRoot": root, "srcPath": "current", "destDir": "backup"})); err != nil {
-		t.Fatalf("copy: %v", err)
-	}
-	info, err := os.Lstat(filepath.Join(root, "backup", "current"))
-	if err != nil || !info.IsDir() {
-		t.Fatalf("copied entry is not a real dir: info=%v err=%v", info, err)
-	}
-	assertFileContent(t, filepath.Join(root, "backup", "current", "app.txt"), "app")
-	assertSymlink(t, filepath.Join(root, "current"))
-
-	// 指向根外的链接不能作为复制源。
-	_, err = handleCopyTo("", entryOpArgs(t, map[string]any{"projectRoot": root, "srcPath": "ext", "destDir": "backup"}))
-	assertErrorCode(t, err, "path_escapes_root")
-}
-
-func TestCopyOrMoveRejectsDestinationInsideSource(t *testing.T) {
+func TestMoveRejectsDestinationInsideSource(t *testing.T) {
 	root := t.TempDir()
 	mustWriteFile(t, filepath.Join(root, "a", "b", "file.txt"), "x")
 
-	for _, move := range []bool{false, true} {
-		for _, destDir := range []string{"a", "a/b"} {
-			_, err := handleCopyOrMove(entryOpArgs(t, map[string]any{"projectRoot": root, "srcPath": "a", "destDir": destDir}), move)
-			assertErrorCode(t, err, "dest_inside_source")
-		}
+	for _, destDir := range []string{"a", "a/b"} {
+		_, err := handleMoveTo("", entryOpArgs(t, map[string]any{"projectRoot": root, "srcPath": "a", "destDir": destDir}))
+		assertErrorCode(t, err, "dest_inside_source")
 	}
 	assertNotExists(t, filepath.Join(root, "a", "a"))
 	assertNotExists(t, filepath.Join(root, "a", "b", "a"))
 	assertFileContent(t, filepath.Join(root, "a", "b", "file.txt"), "x")
-
-	// 经 symlink 复制同样拒绝复制到链接目标内部。
-	if err := os.Symlink(filepath.Join(root, "a"), filepath.Join(root, "link")); err != nil {
-		t.Skip("symlinks unavailable")
-	}
-	_, err := handleCopyTo("", entryOpArgs(t, map[string]any{"projectRoot": root, "srcPath": "link", "destDir": "a/b"}))
-	assertErrorCode(t, err, "dest_inside_source")
-	assertNotExists(t, filepath.Join(root, "a", "b", "link"))
-
-	// 同级目录之间的正常复制仍然可用。
-	if err := os.Mkdir(filepath.Join(root, "c"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := handleCopyTo("", entryOpArgs(t, map[string]any{"projectRoot": root, "srcPath": "a", "destDir": "c"})); err != nil {
-		t.Fatalf("copy a -> c: %v", err)
-	}
-	assertFileContent(t, filepath.Join(root, "c", "a", "b", "file.txt"), "x")
 }

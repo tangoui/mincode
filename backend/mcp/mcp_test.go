@@ -7,6 +7,13 @@ import (
 	"testing"
 )
 
+func TestMcpConnectRejectsLegacyPluginServerIDs(t *testing.T) {
+	_, err := mcpConnectHandler("", `{"serverId":"plugin:acme.demo/tools","transport":"stdio"}`)
+	if err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("expected reserved MCP server ID, got %v", err)
+	}
+}
+
 type testTransport struct{}
 
 func (testTransport) callTool(context.Context, string, json.RawMessage) (*McpCallResult, error) {
@@ -17,20 +24,6 @@ func (testTransport) getPrompt(string, json.RawMessage) (*McpPromptResult, error
 	return nil, nil
 }
 func (testTransport) close() {}
-
-func TestMCPReadConfigFileIsDisabled(t *testing.T) {
-	_, err := mcpReadConfigFileHandler("", `{"path":"/tmp/mcp.json"}`)
-	if err == nil || !strings.Contains(err.Error(), "直接读取已禁用") {
-		t.Fatalf("expected disabled config read error, got %v", err)
-	}
-}
-
-func TestMCPReadConfigFileRequiresPath(t *testing.T) {
-	_, err := mcpReadConfigFileHandler("", `{"path":""}`)
-	if err == nil || !strings.Contains(err.Error(), "路径不能为空") {
-		t.Fatalf("expected empty path error, got %v", err)
-	}
-}
 
 func TestMcpGatewayStaleAttemptCannotClearCurrentConnecting(t *testing.T) {
 	gateway := newMcpGateway()

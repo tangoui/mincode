@@ -27,46 +27,6 @@ func stdinOf(t *testing.T, cmd *exec.Cmd) string {
 	return string(data)
 }
 
-func TestWindowsClipboardWriteFilesCommandDoesNotInterpolatePaths(t *testing.T) {
-	paths := []string{
-		`C:\x\a’; calc; ’.txt`,
-		`C:\x\b'; calc; '.txt`,
-		`C:\x\foo[1]*.txt`,
-		`C:\用户\文档 $env:PATH.txt`,
-	}
-	cmd, err := windowsClipboardWriteFilesCommand(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	script := powershellScriptOf(t, cmd)
-	if script != windowsClipboardWriteFilesScript {
-		t.Fatalf("script must be constant, got %q", script)
-	}
-	if !strings.Contains(script, "Set-Clipboard -LiteralPath") || strings.Contains(script, "-Path ") {
-		t.Fatalf("script must use -LiteralPath: %q", script)
-	}
-	if strings.Contains(script, `"`) {
-		t.Fatalf("script must not contain double quotes: %q", script)
-	}
-	if got, want := stdinOf(t, cmd), strings.Join(paths, "\n"); got != want {
-		t.Fatalf("stdin = %q, want %q", got, want)
-	}
-}
-
-func TestWindowsClipboardWriteFilesCommandRejectsSeparators(t *testing.T) {
-	for _, bad := range [][]string{
-		nil,
-		{""},
-		{`C:\a` + "\n" + `C:\b`},
-		{`C:\a` + "\r"},
-		{`C:\a` + "\x00"},
-	} {
-		if _, err := windowsClipboardWriteFilesCommand(bad); err == nil {
-			t.Fatalf("expected error for %q", bad)
-		}
-	}
-}
-
 func TestWindowsClipboardTextCommandsUseUTF8Streams(t *testing.T) {
 	text := "中文 ’quote’ $x `n\r\nline2\n"
 	write := windowsClipboardWriteTextCommand(text)
@@ -86,11 +46,7 @@ func TestWindowsClipboardTextCommandsUseUTF8Streams(t *testing.T) {
 	if !strings.Contains(script, "Get-Clipboard -Raw") || !strings.Contains(script, "[Text.Encoding]::UTF8.GetBytes") {
 		t.Fatalf("read script must emit raw UTF-8: %q", script)
 	}
-	files := powershellScriptOf(t, windowsClipboardReadFilesCommand())
-	if !strings.Contains(files, "Get-Clipboard -Format FileDropList") || !strings.Contains(files, "$_.FullName") || !strings.Contains(files, "[Text.Encoding]::UTF8.GetBytes") {
-		t.Fatalf("read files script must emit full paths as raw UTF-8: %q", files)
-	}
-	for _, s := range []string{windowsClipboardWriteTextScript, windowsClipboardReadTextScript, windowsClipboardReadFilesScript} {
+	for _, s := range []string{windowsClipboardWriteTextScript, windowsClipboardReadTextScript} {
 		if strings.Contains(s, `"`) {
 			t.Fatalf("script must not contain double quotes: %q", s)
 		}

@@ -68,12 +68,11 @@ func connectStdio(ctx context.Context, serverID, command string, args []string, 
 	resolvedCommand := resolveStdioCommand(command, processEnv)
 	cmd := exec.Command(resolvedCommand, args...)
 	cmd.Env = processEnv
-	return startStdio(ctx, serverID, command, cmd, 64*1024, nil)
+	return startStdio(ctx, serverID, command, cmd)
 }
 
-// startStdio starts a prepared command and runs the MCP handshake. beforeStart
-// runs immediately before the process is created; an error refuses the start.
-func startStdio(ctx context.Context, serverID, label string, cmd *exec.Cmd, stderrMax int, beforeStart func() error) (*mcpConnection, error) {
+// startStdio starts a prepared command and runs the MCP handshake.
+func startStdio(ctx context.Context, serverID, label string, cmd *exec.Cmd) (*mcpConnection, error) {
 	core.PrepareProcessTree(cmd)
 
 	stdin, err := cmd.StdinPipe()
@@ -85,16 +84,9 @@ func startStdio(ctx context.Context, serverID, label string, cmd *exec.Cmd, stde
 		_ = stdin.Close()
 		return nil, fmt.Errorf("MCP stdout unavailable: %w", err)
 	}
-	stderr := &limitedBuffer{limit: stderrMax}
+	stderr := &limitedBuffer{limit: 64 * 1024}
 	cmd.Stderr = stderr
 
-	if beforeStart != nil {
-		if err := beforeStart(); err != nil {
-			_ = stdin.Close()
-			_ = stdout.Close()
-			return nil, err
-		}
-	}
 	if err := cmd.Start(); err != nil {
 		_ = stdin.Close()
 		_ = stdout.Close()

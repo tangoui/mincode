@@ -576,13 +576,9 @@ func cleanupTransferTask(task tasks.Task) {
 		if json.Unmarshal(task.Request.Payload, &p) == nil {
 			_ = os.Remove(p.Path)
 		}
-		importLeases.Lock()
-		release := importLeases.releases[task.Request.PreparationID]
-		delete(importLeases.releases, task.Request.PreparationID)
-		importLeases.Unlock()
-		if release != nil {
-			release()
-		}
+		importPreparations.Lock()
+		delete(importPreparations.ids, task.Request.PreparationID)
+		importPreparations.Unlock()
 	}
 }
 

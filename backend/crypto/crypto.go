@@ -7,8 +7,6 @@
 //
 // 命令契约（入参 camelCase，返回裸字符串）：
 //
-//	encrypt_field {plain}   -> string
-//	decrypt_field {cipher}  -> string
 //	encrypt_fields {plains}  -> string[]（与入参一一对应；任一失败则整体失败）
 //	decrypt_fields {ciphers} -> [{value} | {error}]（逐项容错，一个损坏的字段不影响其它字段）
 //	seal_object   {json}    -> string
@@ -43,8 +41,6 @@ const (
 )
 
 func init() {
-	core.Register("encrypt_field", encryptFieldHandler)
-	core.Register("decrypt_field", decryptFieldHandler)
 	core.Register("encrypt_fields", encryptFieldsHandler)
 	core.Register("decrypt_fields", decryptFieldsHandler)
 	core.Register("seal_object", sealObjectHandler)
@@ -53,49 +49,10 @@ func init() {
 
 // ---- 命令处理器 ----
 
-type plainArg struct {
-	Plain string `json:"plain"`
-}
-
-func encryptFieldHandler(_, argsJson string) (string, error) {
-	var a plainArg
-	if err := core.DecodeArgs(argsJson, &a); err != nil {
-		return "", err
-	}
-	if a.Plain == "" || isEncryptedValue(a.Plain) {
-		return core.EncodeResult(a.Plain)
-	}
-	out, err := encryptValue(a.Plain)
-	if err != nil {
-		return "", err
-	}
-	return core.EncodeResult(out)
-}
-
-type cipherArg struct {
-	Cipher string `json:"cipher"`
-}
-
-func decryptFieldHandler(_, argsJson string) (string, error) {
-	var a cipherArg
-	if err := core.DecodeArgs(argsJson, &a); err != nil {
-		return "", err
-	}
-	if a.Cipher == "" {
-		return core.EncodeResult("")
-	}
-	out, err := decryptValue(a.Cipher)
-	if err != nil {
-		return "", err
-	}
-	return core.EncodeResult(out)
-}
-
 type plainsArg struct {
 	Plains []string `json:"plains"`
 }
 
-// encryptFieldsHandler 在一次 IPC 中加密多个字段，语义与逐个调用 encrypt_field 相同。
 func encryptFieldsHandler(_, argsJson string) (string, error) {
 	var a plainsArg
 	if err := core.DecodeArgs(argsJson, &a); err != nil {
@@ -169,6 +126,10 @@ func sealObjectHandler(_, argsJson string) (string, error) {
 		return "", err
 	}
 	return core.EncodeResult(out)
+}
+
+type cipherArg struct {
+	Cipher string `json:"cipher"`
 }
 
 func unsealObjectHandler(_, argsJson string) (string, error) {

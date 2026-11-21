@@ -16,7 +16,6 @@ func init() {
 	core.Register("test_ssh_connection", cmdTestSSHConnection)
 	core.Register("respond_ssh_mfa", cmdRespondSSHMFA)
 	core.Register("shell_session_alive", cmdShellSessionAlive)
-	core.Register("shell_session_in_grace", cmdShellSessionInGrace)
 	core.Register("shell_ssh_try_recover", cmdSSHTryRecover)
 }
 
@@ -73,20 +72,6 @@ func cmdShellSessionAlive(_, args string) (string, error) {
 		proc.mu.Unlock()
 	}
 	return core.EncodeResult(alive)
-}
-func cmdShellSessionInGrace(_, args string) (string, error) {
-	var p ShellSessionIDPayload
-	if err := core.DecodeArgsPayload(args, &p); err != nil {
-		return "", err
-	}
-	proc, ok := sessions.get(p.SessionID)
-	grace := false
-	if ok {
-		proc.mu.Lock()
-		grace = proc.sshLinkState == sshLinkGracePeriod
-		proc.mu.Unlock()
-	}
-	return core.EncodeResult(grace)
 }
 func cmdSSHTryRecover(_, args string) (string, error) {
 	var p ShellSessionIDPayload

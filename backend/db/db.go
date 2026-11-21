@@ -6,7 +6,6 @@
 //	db_connect               {config}                                      -> string(sessionId)
 //	db_detect_file_type      {filePath}                                    -> FileDatabaseInfo
 //	db_disconnect            {sessionId}                                    -> void
-//	db_cleanup_idle_sessions {maxIdleSecs}                                  -> [string]
 //	db_execute_query         {sessionId, query, database?, queryId?, checkId?, confirmText?, source?} -> QueryResult
 //	db_execute_query_stream  {sessionId, query, database?, queryId, checkId?, confirmText?, source?}  -> QueryStreamSummary
 //	                         （非只读语句必须带 checkId，否则 sqlsafety:checkRequired；见 safety_execute.go）
@@ -38,7 +37,6 @@
 //	                         否则 sqlsafety:checkRequired；令牌按 operation 绑定，见 safety_operations.go）
 //	db_check_odbc_drivers                                                  -> [OdbcDriverStatus]
 //	db_detect_install_env                                                  -> InstallEnvInfo
-//	db_install_driver        {driverKey}                                   -> bool
 //	redis_get_key            {sessionId, dbIndex, key}                      -> RedisKeyInfo
 //	redis_set_key            {sessionId, dbIndex, key, keyType, value, checkId?, confirmText?} -> RedisKeyValue
 //	redis_add_key            {sessionId, dbIndex, key, keyType, value, checkId?, confirmText?} -> RedisKeyValue
@@ -71,7 +69,6 @@ func init() {
 	core.Register("db_supported_types", dbSupportedTypesHandler)
 	core.Register("db_connect", dbConnectHandler)
 	core.Register("db_disconnect", dbDisconnectHandler)
-	core.Register("db_cleanup_idle_sessions", dbCleanupIdleSessionsHandler)
 	core.RegisterCtx("db_execute_query", dbExecuteQueryHandler)
 	core.RegisterCtx("db_execute_query_stream", dbExecuteQueryStreamHandler)
 	core.Register("db_cancel_query", dbCancelQueryHandler)
@@ -106,7 +103,6 @@ func init() {
 	core.RegisterCtx("db_import_data", dbImportDataHandler)
 	core.Register("db_check_odbc_drivers", dbCheckOdbcDriversHandler)
 	core.Register("db_detect_install_env", dbDetectInstallEnvHandler)
-	core.Register("db_install_driver", dbInstallDriverHandler)
 	core.Register("redis_get_key", redisGetKeyHandler)
 	core.Register("redis_set_key", redisSetKeyHandler)
 	core.Register("redis_add_key", redisAddKeyHandler)
@@ -147,14 +143,6 @@ func Startup(_ context.Context) {
 	go pruneSafetyRecords()
 }
 
-func cleanupIdleSessions(sessions *sessionRegistry, maxIdle time.Duration, report func([]string)) []string {
-	ids := sessions.removeIdleDuration(maxIdle)
-	if len(ids) > 0 && report != nil {
-		report(ids)
-	}
-	return ids
-}
-
 func registerCancel(queryID string, cancel context.CancelFunc) {
 	if queryID == "" {
 		return
@@ -174,12 +162,12 @@ func unregisterCancel(queryID string) {
 }
 
 // requireSession 取会话，不存在则报错。
-func requireSession(sessionID string) (*dbSession, func(), error) {
-	s, release, ok := registry.acquire(sessionID)
+func requireSession(sessionID string) (*dbSession, error) {
+	s, ok := registry.get(sessionID)
 	if !ok {
-		return nil, nil, fmt.Errorf("会话不存在或已断开")
+		return nil, fmt.Errorf("会话不存在或已断开")
 	}
-	return s, release, nil
+	return s, nil
 }
 
 // ── 会话生命周期 ──
@@ -235,22 +223,6 @@ func dbDisconnectHandler(_, argsJSON string) (string, error) {
 	return core.EncodeResult(nil)
 }
 
-type cleanupArgs struct {
-	MaxIdleSecs int64 `json:"maxIdleSecs"`
-}
-
-func dbCleanupIdleSessionsHandler(_, argsJSON string) (string, error) {
-	var a cleanupArgs
-	if err := core.DecodeArgs(argsJSON, &a); err != nil {
-		return "", err
-	}
-	ids := registry.removeIdle(a.MaxIdleSecs)
-	if ids == nil {
-		ids = []string{}
-	}
-	return core.EncodeResult(ids)
-}
-
 // ── 查询执行 ──
 
 type executeQueryArgs struct {
@@ -299,11 +271,11 @@ func dbExecuteQueryHandler(callCtx context.Context, _, argsJSON string) (string,
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	if s.kind != kindSQL && s.kind != kindHTTP && s.kind != kindCQL && s.kind != kindNeo4j && s.kind != kindMongo {
 		if s.kind != kindVector {
 			return "", fmt.Errorf("该会话类型不支持查询")
@@ -346,11 +318,11 @@ func dbExecuteQueryStreamHandler(callCtx context.Context, _, argsJSON string) (s
 	if a.QueryID == nil || *a.QueryID == "" {
 		return "", fmt.Errorf("流式查询需要 queryId")
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	if s.kind != kindSQL {
 		return "", fmt.Errorf("该会话类型暂不支持流式查询")
 	}
@@ -423,11 +395,11 @@ func dbDestructiveOperationHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	op := safetyOperation{Kind: "destructive", Action: a.Action, Table: optionalString(a.Table)}
 	check, plan, err := consumeCheck(s, a.CheckID, a.ConfirmText, strings.TrimSpace(a.Database), operationHash(op))
 	if err != nil {
@@ -447,11 +419,11 @@ func dbGetSchemaHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	info, err := getSchema(ctx, s)
@@ -466,11 +438,11 @@ func dbGetNavigationSchemaHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	start := time.Now()
@@ -492,11 +464,11 @@ func dbGetDatabaseTablesHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	tables, err := getDatabaseTables(ctx, s, a.Database)
@@ -520,11 +492,11 @@ func dbGetTableColumnsHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	cols, err := getTableColumns(ctx, s, a.Database, a.Table)
@@ -542,11 +514,11 @@ func dbGetPrimaryKeysHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	pk, err := getPrimaryKeys(ctx, s, a.Database, a.Table)
@@ -571,11 +543,11 @@ func dbGetTableRowsHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	var limit, offset uint32
@@ -608,11 +580,11 @@ func dbVectorCreateCollectionHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(dbDMLTimeoutSecs)*time.Second)
 	defer cancel()
 	if err := vectorCreateCollection(ctx, s, vectorCreateCollectionRequest{
@@ -629,11 +601,11 @@ func dbGetTableDDLHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	ddl, err := getTableDDL(ctx, s, a.Database, a.Table)
@@ -648,11 +620,11 @@ func dbListIndexesHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	idx, err := listIndexes(ctx, s, a.Database, a.Table)
@@ -683,27 +655,21 @@ type schemaSyncArgs struct {
 	ConfirmText *string `json:"confirmText"`
 }
 
-func requireSchemaSyncSessions(a schemaCompareArgs) (*dbSession, *dbSession, func(), error) {
-	source, releaseSource, err := requireSession(a.SourceSessionID)
+func requireSchemaSyncSessions(a schemaCompareArgs) (*dbSession, *dbSession, error) {
+	source, err := requireSession(a.SourceSessionID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("源数据库会话: %w", err)
+		return nil, nil, fmt.Errorf("源数据库会话: %w", err)
 	}
-	target, releaseTarget, err := requireSession(a.TargetSessionID)
+	target, err := requireSession(a.TargetSessionID)
 	if err != nil {
-		releaseSource()
-		return nil, nil, nil, fmt.Errorf("目标数据库会话: %w", err)
-	}
-	release := func() {
-		releaseTarget()
-		releaseSource()
+
+		return nil, nil, fmt.Errorf("目标数据库会话: %w", err)
 	}
 	if source == target || a.SourceSessionID == a.TargetSessionID {
-		release()
-		return nil, nil, nil, fmt.Errorf("源连接和目标连接不能相同")
+
+		return nil, nil, fmt.Errorf("源连接和目标连接不能相同")
 	}
-	// Plugin sessions sync in their declared sqlDialect; compareSchemaSessions
-	// checks the dialects and the required metadata features.
-	return source, target, release, nil
+	return source, target, nil
 }
 
 func dbCompareSchemaHandler(_, argsJSON string) (string, error) {
@@ -711,11 +677,11 @@ func dbCompareSchemaHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	source, target, release, err := requireSchemaSyncSessions(a)
+	source, target, err := requireSchemaSyncSessions(a)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	comparison, err := compareSchemaSessions(ctx, source, a.SourceDatabase, target, a.TargetDatabase)
@@ -730,11 +696,11 @@ func dbGenerateSchemaSyncHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	source, target, release, err := requireSchemaSyncSessions(a.schemaCompareArgs)
+	source, target, err := requireSchemaSyncSessions(a.schemaCompareArgs)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	comparison, err := compareSchemaSessions(ctx, source, a.SourceDatabase, target, a.TargetDatabase)
@@ -759,11 +725,11 @@ func dbExecuteSchemaSyncHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	source, target, release, err := requireSchemaSyncSessions(a.schemaCompareArgs)
+	source, target, err := requireSchemaSyncSessions(a.schemaCompareArgs)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	check, plan, err := consumeCheck(target, a.CheckID, a.ConfirmText, strings.TrimSpace(a.TargetDatabase), operationHash(schemaSyncOperation(a)))
 	if err != nil {
 		return "", err
@@ -783,11 +749,11 @@ func dbListForeignKeysHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	fks, err := listForeignKeys(ctx, s, a.Database, a.Table)
@@ -805,11 +771,11 @@ func dbListTriggersHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	trs, err := listTriggers(ctx, s, a.Database, a.Table)
@@ -845,11 +811,11 @@ func dbUpdateCellHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("UPDATE"))
 	defer cancel()
 	if len(a.PrimaryKey) == 0 {
@@ -879,11 +845,11 @@ func dbInsertRowHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("INSERT"))
 	defer cancel()
 	n, err := applySingleRow(ctx, s, a.Database, a.Table, a.Namespace, a.Source, a.CheckID, a.ConfirmText, rowChange{Op: rowOpInsert, Values: a.Fields})
@@ -909,11 +875,11 @@ func dbDeleteRowHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("DELETE"))
 	defer cancel()
 	if len(a.PrimaryKey) == 0 {
@@ -942,11 +908,11 @@ func dbExportTableHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutForQuery("SELECT"))
 	defer cancel()
 	var limit uint32
@@ -976,12 +942,12 @@ func dbImportDataHandler(ctx context.Context, _, argsJSON string) (string, error
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
 	_, _, err = consumeCheck(s, a.CheckID, a.ConfirmText, strings.TrimSpace(a.Database), operationHash(importOperation(a.Table, a.Format, a.Data)))
-	release()
+
 	if err != nil {
 		return "", err
 	}
@@ -1029,10 +995,6 @@ func dbDetectInstallEnvHandler(_, _ string) (string, error) {
 	return core.EncodeResult(detectInstallEnv())
 }
 
-func dbInstallDriverHandler(_, _ string) (string, error) {
-	return "", fmt.Errorf("当前环境暂不支持自动安装数据库驱动，请手动安装")
-}
-
 // ── Redis ──
 
 type redisKeyArgs struct {
@@ -1053,11 +1015,11 @@ func redisGetKeyHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := redisOperationContext()
 	defer cancel()
 	info, err := redisGetKey(ctx, s, a.DBIndex, a.Key)
@@ -1083,11 +1045,11 @@ func redisSetKeyHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	if err := requireRedisCheck(s, a.CheckID, a.ConfirmText, "set", a.DBIndex, a.Key); err != nil {
 		return "", err
 	}
@@ -1105,11 +1067,11 @@ func redisAddKeyHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	if err := requireRedisCheck(s, a.CheckID, a.ConfirmText, "add", a.DBIndex, a.Key); err != nil {
 		return "", err
 	}
@@ -1127,11 +1089,11 @@ func redisDeleteKeyHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	if err := requireRedisCheck(s, a.CheckID, a.ConfirmText, "delete", a.DBIndex, a.Key); err != nil {
 		return "", err
 	}
@@ -1159,11 +1121,11 @@ func redisSetTTLHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	if err := requireRedisCheck(s, a.CheckID, a.ConfirmText, "ttl", a.DBIndex, a.Key); err != nil {
 		return "", err
 	}
@@ -1181,11 +1143,11 @@ func redisGetTTLHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := redisOperationContext()
 	defer cancel()
 	res, err := redisGetTTL(ctx, s, a.DBIndex, a.Key)
@@ -1208,11 +1170,11 @@ func redisListKeysHandler(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgs(argsJSON, &a); err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := redisOperationContext()
 	defer cancel()
 	res, err := redisListKeys(ctx, s, a.DBIndex, a.Pattern, a.Cursor, a.Count)

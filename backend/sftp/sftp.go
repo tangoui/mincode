@@ -6,7 +6,6 @@
 //	sftp_connect          建立独立 SSH 连接并开启 SFTP 子系统（幂等）
 //	sftp_disconnect       关闭会话
 //	sftp_list_dir         列目录（目录在前、名称字母序，rwx 权限字符串）
-//	sftp_mkdir            新建单级远程目录
 //	sftp_mkdirs           递归创建目录（跳过已存在层级）
 //	sftp_upload_file      本地文件流式上传到远程
 //	sftp_upload_bytes     字节数组上传到远程（适合小文件，前端 base64 传入）
@@ -79,7 +78,7 @@ func init() {
 	core.Register("sftp_connect", handleSftpConnect)
 	core.Register("sftp_disconnect", handleSftpDisconnect)
 	core.Register("sftp_list_dir", handleSftpListDir)
-	core.Register("sftp_mkdir", handleSftpMkdir)
+
 	core.Register("sftp_mkdirs", handleSftpMkdirs)
 	core.Register("sftp_upload_file", handleSftpUploadFile)
 	core.Register("sftp_upload_bytes", handleSftpUploadBytes)
@@ -570,27 +569,6 @@ func handleSftpGetHome(_ string, argsJson string) (string, error) {
 		home = "/"
 	}
 	return core.EncodeResult(home)
-}
-
-// ---------- sftp_mkdir ----------
-
-func handleSftpMkdir(_ string, argsJson string) (string, error) {
-	var a struct {
-		SessionID string `json:"sessionId"`
-		Path      string `json:"path"`
-	}
-	if err := core.DecodeArgs(argsJson, &a); err != nil {
-		return "", err
-	}
-	st, release, err := acquireSession(a.SessionID)
-	if err != nil {
-		return "", err
-	}
-	defer release()
-	if err := st.client.Mkdir(a.Path); err != nil {
-		return "", fmt.Errorf("创建目录失败: %w", err)
-	}
-	return "", nil
 }
 
 // ---------- sftp_upload_bytes ----------

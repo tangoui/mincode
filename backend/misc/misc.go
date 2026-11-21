@@ -7,7 +7,6 @@
 //	set_autostart          {value}             -> void
 //	get_app_version                            -> string
 //	get_platform_info                          -> string ("macos"/"windows"/"linux")
-//	get_ssh_build_info                         -> {rsaHostKeyAlgos, os}
 //	check_tcp_port       {host, port}          -> bool
 //	detect_cli_tools                           -> [{name, version, installed}]
 //	list_port_processes  {ports}               -> [{port, pid, process_name, state}]
@@ -54,7 +53,6 @@ func init() {
 	core.Register("get_platform_info", getPlatformInfoHandler)
 	core.Register("get_runtime_platform", getRuntimePlatformHandler)
 	core.Register("get_user_home_dir", getUserHomeDirHandler)
-	core.Register("get_ssh_build_info", getSshBuildInfoHandler)
 	core.Register("focus_main_window", focusMainWindowHandler)
 	core.Register("create_popup_tab_window", createPopupTabWindowHandler)
 	core.Register("get_popup_tab_data", getPopupTabDataHandler)
@@ -204,22 +202,6 @@ func getUserHomeDirHandler(_, _ string) (string, error) {
 		return "", fmt.Errorf("获取用户主目录失败: %w", err)
 	}
 	return core.EncodeResult(home)
-}
-
-// ---- get_ssh_build_info ----
-
-// sshBuildInfo 对齐 Rust SshBuildInfo（serde camelCase）。
-// Go 的 golang.org/x/crypto/ssh 默认支持 rsa-sha2-256/512，故 rsaHostKeyAlgos 恒为 true。
-type sshBuildInfo struct {
-	RsaHostKeyAlgos bool   `json:"rsaHostKeyAlgos"`
-	OS              string `json:"os"`
-}
-
-func getSshBuildInfoHandler(_, _ string) (string, error) {
-	return core.EncodeResult(sshBuildInfo{
-		RsaHostKeyAlgos: true,
-		OS:              runtime.GOOS,
-	})
 }
 
 // ---- main window ----

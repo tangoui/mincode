@@ -345,13 +345,12 @@ func liveScopeProbe(t *testing.T, l *liveSafety, sc liveScope) error {
 		before = n
 	}
 	if sc.SingleConn {
-		if s, release, err := requireSession(l.session); err == nil {
+		if s, err := requireSession(l.session); err == nil {
 			s.db.SetMaxOpenConns(1)
-			release()
+
 			defer func() {
-				if s, release, err := requireSession(l.session); err == nil {
+				if s, err := requireSession(l.session); err == nil {
 					s.db.SetMaxOpenConns(remoteSQLMaxOpen)
-					release()
 				}
 			}()
 		}

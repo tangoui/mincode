@@ -98,17 +98,13 @@ type dbSession struct {
 
 // sessionRegistry 会话注册表，key 为 sessionId。
 type sessionRegistry struct {
-	mu               sync.Mutex
-	sessions         map[string]*dbSession
-	timestamps       map[string]time.Time
-	activeOperations map[string]int
+	mu       sync.Mutex
+	sessions map[string]*dbSession
 }
 
 func newSessionRegistry() *sessionRegistry {
 	return &sessionRegistry{
-		sessions:         map[string]*dbSession{},
-		timestamps:       map[string]time.Time{},
-		activeOperations: map[string]int{},
+		sessions: map[string]*dbSession{},
 	}
 }
 
@@ -119,41 +115,19 @@ func (r *sessionRegistry) put(id string, s *dbSession) {
 	defer r.mu.Unlock()
 	s.sessionID = id
 	r.sessions[id] = s
-	r.timestamps[id] = time.Now()
 }
 
-func (r *sessionRegistry) acquire(id string) (*dbSession, func(), bool) {
+func (r *sessionRegistry) get(id string) (*dbSession, bool) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	s, ok := r.sessions[id]
-	if !ok {
-		r.mu.Unlock()
-		return nil, nil, false
-	}
-	r.activeOperations[id]++
-	r.mu.Unlock()
-
-	var once sync.Once
-	release := func() {
-		once.Do(func() {
-			r.mu.Lock()
-			defer r.mu.Unlock()
-			if r.activeOperations[id] > 0 {
-				r.activeOperations[id]--
-			}
-			if _, exists := r.sessions[id]; exists {
-				r.timestamps[id] = time.Now()
-			}
-		})
-	}
-	return s, release, true
+	return s, ok
 }
 
 func (r *sessionRegistry) remove(id string) {
 	r.mu.Lock()
 	s := r.sessions[id]
 	delete(r.sessions, id)
-	delete(r.timestamps, id)
-	delete(r.activeOperations, id)
 	r.mu.Unlock()
 
 	if s != nil {
@@ -168,38 +142,8 @@ func (r *sessionRegistry) drain() []*dbSession {
 	for id, s := range r.sessions {
 		out = append(out, s)
 		delete(r.sessions, id)
-		delete(r.timestamps, id)
-		delete(r.activeOperations, id)
 	}
 	return out
-}
-
-// removeIdle 移除空闲超过 maxIdleSecs 秒的会话，返回被移除的 id 列表。
-func (r *sessionRegistry) removeIdle(maxIdleSecs int64) []string {
-	return r.removeIdleDuration(time.Duration(maxIdleSecs) * time.Second)
-}
-
-func (r *sessionRegistry) removeIdleDuration(maxIdle time.Duration) []string {
-	r.mu.Lock()
-	now := time.Now()
-	var idle []string
-	closing := make([]*dbSession, 0)
-	for id, ts := range r.timestamps {
-		if r.activeOperations[id] > 0 || now.Sub(ts) < maxIdle {
-			continue
-		}
-		idle = append(idle, id)
-		closing = append(closing, r.sessions[id])
-		delete(r.sessions, id)
-		delete(r.timestamps, id)
-		delete(r.activeOperations, id)
-	}
-	r.mu.Unlock()
-
-	for _, s := range closing {
-		s.close()
-	}
-	return idle
 }
 
 func (s *dbSession) close() {

@@ -991,11 +991,11 @@ func withUndoPlan(callCtx context.Context, argsJSON string, fn func(ctx context.
 	if err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(callCtx, time.Duration(dbDMLTimeoutSecs)*time.Second)
 	defer cancel()
 	p, err := loadUndoPlan(ctx, s, store, strings.TrimSpace(a.ID))

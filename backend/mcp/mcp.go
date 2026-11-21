@@ -3,11 +3,8 @@
 //
 // 命令契约（参数/返回均 camelCase JSON）：
 //
-//	mcp_connect_stdio  {serverId, command, args:[], env:{}}                 -> McpConnectResult
-//	mcp_connect_http   {serverId, url, headers:{}, auth?}                   -> McpConnectResult
 //	mcp_connect        {serverId, transport, command?, args?, env?, url?, headers?, auth?} -> McpConnectResult
 //	mcp_disconnect     {serverId}                                           -> void
-//	mcp_disconnect_all                                                      -> void
 //	mcp_list_tools     {serverId}                                           -> [McpToolDef]
 //	mcp_list_resources {serverId}                                           -> [McpResourceDef]
 //	mcp_list_prompts   {serverId}                                           -> [McpPromptDef]
@@ -15,7 +12,6 @@
 //	mcp_read_resource  {serverId, uri}                                      -> McpResourceContent
 //	mcp_get_prompt     {serverId, name, arguments}                          -> McpPromptResult
 //	mcp_list_status                                                         -> [McpServerStatus]
-//	mcp_read_config_file {path}                                             -> string
 package mcp
 
 import (
@@ -43,11 +39,8 @@ var gateway = newMcpGateway()
 func Shutdown() { gateway.disconnectAll() }
 
 func init() {
-	core.Register("mcp_connect_stdio", mcpConnectStdioHandler)
-	core.Register("mcp_connect_http", mcpConnectHTTPHandler)
 	core.Register("mcp_connect", mcpConnectHandler)
 	core.Register("mcp_disconnect", mcpDisconnectHandler)
-	core.Register("mcp_disconnect_all", mcpDisconnectAllHandler)
 	core.Register("mcp_list_tools", mcpListToolsHandler)
 	core.Register("mcp_list_resources", mcpListResourcesHandler)
 	core.Register("mcp_list_prompts", mcpListPromptsHandler)
@@ -56,7 +49,6 @@ func init() {
 	core.Register("mcp_read_resource", mcpReadResourceHandler)
 	core.Register("mcp_get_prompt", mcpGetPromptHandler)
 	core.Register("mcp_list_status", mcpListStatusHandler)
-	core.Register("mcp_read_config_file", mcpReadConfigFileHandler)
 }
 
 // ─── 数据类型（camelCase JSON，对齐 mcp/types.rs）────────────────────────────
@@ -118,57 +110,12 @@ type McpServerStatus struct {
 
 // ─── 命令处理器 ─────────────────────────────────────────────────────────────
 
-type connectStdioArgs struct {
-	ServerID string            `json:"serverId"`
-	Command  string            `json:"command"`
-	Args     []string          `json:"args"`
-	Env      map[string]string `json:"env"`
-}
-
-func mcpConnectStdioHandler(_ string, argsJSON string) (string, error) {
-	var a connectStdioArgs
-	if err := core.DecodeArgs(argsJSON, &a); err != nil {
-		return "", err
-	}
-	if err := rejectPluginServerID(a.ServerID); err != nil {
-		return "", err
-	}
-	res, err := gateway.connectStdio(a.ServerID, a.Command, a.Args, a.Env)
-	if err != nil {
-		return "", err
-	}
-	return core.EncodeResult(res)
-}
-
-// rejectPluginServerID keeps plugin-owned session ids out of the WebView
-// connect commands; those sessions start only through the plugin host.
+// rejectPluginServerID keeps the historical plugin session namespace reserved.
 func rejectPluginServerID(id string) error {
-	if IsPluginServerID(id) {
+	if strings.HasPrefix(id, "plugin:") {
 		return fmt.Errorf("MCP server id '%s' is reserved for plugin servers", id)
 	}
 	return nil
-}
-
-type connectHTTPArgs struct {
-	ServerID string            `json:"serverId"`
-	URL      string            `json:"url"`
-	Headers  map[string]string `json:"headers"`
-	Auth     string            `json:"auth"`
-}
-
-func mcpConnectHTTPHandler(_ string, argsJSON string) (string, error) {
-	var a connectHTTPArgs
-	if err := core.DecodeArgs(argsJSON, &a); err != nil {
-		return "", err
-	}
-	if err := rejectPluginServerID(a.ServerID); err != nil {
-		return "", err
-	}
-	res, err := gateway.connectHTTP(a.ServerID, a.URL, a.Headers, a.Auth)
-	if err != nil {
-		return "", err
-	}
-	return core.EncodeResult(res)
 }
 
 type connectArgs struct {
@@ -215,11 +162,6 @@ func mcpDisconnectHandler(_ string, argsJSON string) (string, error) {
 		return "", err
 	}
 	gateway.disconnect(a.ServerID)
-	return core.EncodeResult(nil)
-}
-
-func mcpDisconnectAllHandler(_ string, _ string) (string, error) {
-	gateway.disconnectAll()
 	return core.EncodeResult(nil)
 }
 
@@ -418,19 +360,4 @@ func mcpGetPromptHandler(_ string, argsJSON string) (string, error) {
 
 func mcpListStatusHandler(_ string, _ string) (string, error) {
 	return core.EncodeResult(gateway.listStatus())
-}
-
-type readConfigArgs struct {
-	Path string `json:"path"`
-}
-
-func mcpReadConfigFileHandler(_ string, argsJSON string) (string, error) {
-	var a readConfigArgs
-	if err := core.DecodeArgs(argsJSON, &a); err != nil {
-		return "", err
-	}
-	if a.Path == "" {
-		return "", fmt.Errorf("MCP 配置文件路径不能为空")
-	}
-	return "", fmt.Errorf("MCP 配置文件直接读取已禁用，请通过受控配置导入功能选择文件")
 }

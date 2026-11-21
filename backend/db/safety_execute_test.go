@@ -62,7 +62,6 @@ func registerSafetySession(t *testing.T, s *dbSession) string {
 	t.Cleanup(func() {
 		registry.mu.Lock()
 		delete(registry.sessions, id)
-		delete(registry.timestamps, id)
 		registry.mu.Unlock()
 	})
 	return id

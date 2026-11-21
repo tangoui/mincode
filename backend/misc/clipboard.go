@@ -27,7 +27,6 @@ import (
 func init() {
 	core.Register("clipboard_write_text", clipboardWriteTextHandler)
 	core.Register("clipboard_read_text", clipboardReadTextHandler)
-	core.Register("clipboard_state", clipboardStateHandler)
 }
 
 type clipboardTextArg struct {
@@ -43,18 +42,6 @@ func clipboardWriteTextHandler(_, argsJson string) (string, error) {
 		return "", err
 	}
 	return core.EncodeResult(nil)
-}
-
-// clipboardStateHandler reports a change counter and whether the current content
-// is concealed, so watchers can poll cheaply and skip secrets.
-//
-//	clipboard_state -> {changeCount, concealed}
-func clipboardStateHandler(_, _ string) (string, error) {
-	count, concealed, err := clipboardState()
-	if err != nil {
-		return "", err
-	}
-	return core.EncodeResult(map[string]any{"changeCount": count, "concealed": concealed})
 }
 
 func clipboardReadTextHandler(_, _ string) (string, error) {

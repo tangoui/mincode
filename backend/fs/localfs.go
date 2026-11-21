@@ -23,24 +23,19 @@ const (
 	maxLocalFsReadBytes        = 5 * 1024 * 1024  // 5MB
 	maxLocalFsWriteBytes       = 5 * 1024 * 1024  // 5MB
 	maxLocalFsBinaryWriteBytes = 64 * 1024 * 1024 // 64MB，二进制导出（如 .xlsx）
-	maxAIContextTreeEntries    = 5000
+
 )
 
 func init() {
 	core.Register("local_fs_list_dir", handleListDir)
 	core.Register("local_fs_file_info", handleFileInfo)
 	core.Register("local_fs_read_text_file", handleReadTextFile)
-	core.Register("local_fs_read_ai_context_text_file", handleReadAIContextTextFile)
-	core.Register("local_fs_list_ai_context_tree", handleListAIContextTree)
 	core.Register("local_fs_write_text_file", handleWriteTextFile)
 	core.Register("local_fs_read_selected_text_file", handleReadSelectedTextFile)
-	core.Register("local_fs_read_selected_binary_file", handleReadSelectedBinaryFile)
 	core.Register("local_fs_write_selected_text_file", handleWriteSelectedTextFile)
 	core.Register("local_fs_write_selected_binary_file", handleWriteSelectedBinaryFile)
-	core.Register("local_fs_mkdir", handleMkdir)
 	core.Register("local_fs_rename", handleRename)
 	core.Register("local_fs_delete", handleDelete)
-	core.Register("local_fs_show_in_explorer", handleShowInExplorer)
 	core.Register("local_fs_show_in_file_manager", handleShowInFileManager)
 }
 
@@ -55,22 +50,6 @@ type localFsDirEntry struct {
 type localFsFileInfo struct {
 	IsFile bool  `json:"isFile"`
 	Size   int64 `json:"size"`
-}
-
-type localFsAIContextEntry struct {
-	Path  string `json:"path"`
-	IsDir bool   `json:"isDir"`
-}
-
-type localFsAIContextTreeResult struct {
-	Entries   []localFsAIContextEntry `json:"entries"`
-	Truncated bool                    `json:"truncated"`
-}
-
-type localFsAIContextFileResult struct {
-	Content   string `json:"content"`
-	Size      int64  `json:"size"`
-	Truncated bool   `json:"truncated"`
 }
 
 // ---------- 安全辅助 ----------
@@ -345,11 +324,6 @@ func handleWriteTextFile(_ string, argsJson string) (string, error) {
 	if int64(len(a.Content)) > maxLocalFsWriteBytes {
 		return "", fmt.Errorf("content_too_large: %d bytes (max %d)", len(a.Content), maxLocalFsWriteBytes)
 	}
-	oldSub, oldAbs := "", ""
-	if _, err := os.Lstat(p); err == nil {
-		oldSub, oldAbs = a.FilePath, p
-	}
-	success := prepareMutation(root, "write", oldSub, a.FilePath, oldAbs, p, false)
 	if parent := filepath.Dir(p); parent != "" {
 		if err := os.MkdirAll(parent, 0o755); err != nil {
 			return "", fmt.Errorf("create_dir_all: %w", err)
@@ -362,7 +336,6 @@ func handleWriteTextFile(_ string, argsJson string) (string, error) {
 	} else if err := os.WriteFile(p, []byte(a.Content), 0o644); err != nil {
 		return "", fmt.Errorf("write: %w", err)
 	}
-	success()
 	return "", nil
 }
 
@@ -414,36 +387,6 @@ func handleReadSelectedTextFile(_ string, argsJson string) (string, error) {
 		return "", fmt.Errorf("read: %w", err)
 	}
 	return core.EncodeResult(string(data))
-}
-
-// handleReadSelectedBinaryFile 读取由 原生文件选择器明确授权的二进制文件，
-// 以 base64 字符串返回。仅服务于表数据导入（如 .xlsx），限制为普通文件且最大 5MB。
-func handleReadSelectedBinaryFile(_ string, argsJson string) (string, error) {
-	var a struct {
-		Path string `json:"path"`
-	}
-	if err := core.DecodeArgs(argsJson, &a); err != nil {
-		return "", err
-	}
-	p := strings.TrimSpace(a.Path)
-	if p == "" {
-		return "", fmt.Errorf("path_empty")
-	}
-	info, err := os.Stat(p)
-	if err != nil {
-		return "", fmt.Errorf("stat: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("not_a_file")
-	}
-	if info.Size() > maxLocalFsReadBytes {
-		return "", fmt.Errorf("file_too_large: %d bytes (max %d)", info.Size(), maxLocalFsReadBytes)
-	}
-	data, err := os.ReadFile(p)
-	if err != nil {
-		return "", fmt.Errorf("read: %w", err)
-	}
-	return core.EncodeResult(base64.StdEncoding.EncodeToString(data))
 }
 
 // handleWriteSelectedTextFile 写入由 原生保存对话框明确授权的目标文件。
@@ -501,33 +444,6 @@ func handleWriteSelectedBinaryFile(_ string, argsJson string) (string, error) {
 	return "", nil
 }
 
-func handleMkdir(_ string, argsJson string) (string, error) {
-	var a struct {
-		ProjectRoot string `json:"projectRoot"`
-		DirPath     string `json:"dirPath"`
-	}
-	if err := core.DecodeArgs(argsJson, &a); err != nil {
-		return "", err
-	}
-	root, err := canonicalLocalProjectRoot(a.ProjectRoot)
-	if err != nil {
-		return "", err
-	}
-	p, err := resolveCreateTargetUnderRoot(root, a.DirPath)
-	if err != nil {
-		return "", err
-	}
-	if info, statErr := os.Stat(p); statErr == nil && !info.IsDir() {
-		return "", fmt.Errorf("path_is_not_directory")
-	}
-	success := prepareMutation(root, "mkdir", "", a.DirPath, "", p, true)
-	if err := os.MkdirAll(p, 0o755); err != nil {
-		return "", fmt.Errorf("create_dir_all: %w", err)
-	}
-	success()
-	return "", nil
-}
-
 func handleRename(_ string, argsJson string) (string, error) {
 	var a struct {
 		ProjectRoot string `json:"projectRoot"`
@@ -564,13 +480,9 @@ func handleRename(_ string, argsJson string) (string, error) {
 	if _, statErr := os.Stat(newAbs); statErr == nil {
 		return "", fmt.Errorf("already_exists")
 	}
-	info, _ := os.Lstat(oldAbs)
-	requestedNew := filepath.Join(filepath.Dir(a.OldPath), name)
-	success := prepareMutation(root, "rename", a.OldPath, requestedNew, oldAbs, newAbs, info != nil && info.IsDir())
 	if err := os.Rename(oldAbs, newAbs); err != nil {
 		return "", fmt.Errorf("rename: %w", err)
 	}
-	success()
 	return "", nil
 }
 
@@ -593,38 +505,9 @@ func handleDelete(_ string, argsJson string) (string, error) {
 	if abs == root {
 		return "", fmt.Errorf("cannot_delete_project_root")
 	}
-	info, _ := os.Lstat(abs)
-	success := prepareMutation(root, "delete", a.Path, "", abs, "", info != nil && info.IsDir())
 	// abs 为 symlink 时 RemoveAll 只移除链接本身。
 	if err := os.RemoveAll(abs); err != nil {
 		return "", fmt.Errorf("delete: %w", err)
-	}
-	success()
-	return "", nil
-}
-
-func handleShowInExplorer(_ string, argsJson string) (string, error) {
-	var a struct {
-		ProjectRoot string `json:"projectRoot"`
-		Path        string `json:"path"`
-	}
-	if err := core.DecodeArgs(argsJson, &a); err != nil {
-		return "", err
-	}
-	root, err := canonicalLocalProjectRoot(a.ProjectRoot)
-	if err != nil {
-		return "", err
-	}
-	abs, err := resolveUnderRoot(root, a.Path)
-	if err != nil {
-		return "", err
-	}
-	target := abs
-	if info, statErr := os.Stat(abs); statErr == nil && info.Mode().IsRegular() {
-		target = filepath.Dir(abs)
-	}
-	if err := openInFileManager(target); err != nil {
-		return "", err
 	}
 	return "", nil
 }

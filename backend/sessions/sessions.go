@@ -10,14 +10,13 @@ import (
 
 	"bufio"
 	"encoding/json"
-	"fmt"
+
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 )
 
 func init() {
@@ -31,8 +30,6 @@ func init() {
 	core.Register("codex_session_statuses", codexSessionStatusesHandler)
 	core.Register("get_codex_session_messages", getCodexSessionMessagesHandler)
 	core.Register("delete_codex_session", deleteCodexSessionHandler)
-	core.Register("snapshot_claude_sessions", snapshotClaudeSessionsHandler)
-	core.Register("watch_new_claude_session", watchNewClaudeSessionHandler)
 }
 
 // ─── 数据结构（camelCase，对齐前端）──────────────────────────────────────────
@@ -161,134 +158,6 @@ func resolveClaudeSessionFile(encodedDir, uuid string) (string, error) {
 		return "", core.ErrString("只能操作项目目录内的 .jsonl 会话文件")
 	}
 	return target, nil
-}
-
-// collectClaudeJsonlPaths 遍历 ~/.claude/projects/*/ 收集所有 .jsonl 绝对路径。
-func collectClaudeJsonlPaths(projectsDir string) []string {
-	paths := make([]string, 0)
-	projEntries, err := os.ReadDir(projectsDir)
-	if err != nil {
-		return paths
-	}
-	for _, proj := range projEntries {
-		projPath := filepath.Join(projectsDir, proj.Name())
-		files, ferr := os.ReadDir(projPath)
-		if ferr != nil {
-			continue
-		}
-		for _, f := range files {
-			if strings.EqualFold(filepath.Ext(f.Name()), ".jsonl") {
-				paths = append(paths, filepath.Join(projPath, f.Name()))
-			}
-		}
-	}
-	return paths
-}
-
-// ─── snapshot_claude_sessions / watch_new_claude_session ─────────────────────
-
-type claudeSessionFileSnapshot struct {
-	ModifiedAtMs int64 `json:"modifiedAtMs"`
-	Size         int64 `json:"size"`
-}
-
-func collectClaudeJsonlSnapshot(projectsDir string) map[string]claudeSessionFileSnapshot {
-	snapshot := make(map[string]claudeSessionFileSnapshot)
-	for _, path := range collectClaudeJsonlPaths(projectsDir) {
-		info, err := os.Stat(path)
-		if err != nil {
-			continue
-		}
-		snapshot[path] = claudeSessionFileSnapshot{
-			ModifiedAtMs: info.ModTime().UnixMilli(),
-			Size:         info.Size(),
-		}
-	}
-	return snapshot
-}
-
-// snapshot_claude_sessions：返回 ~/.claude/projects/ 下所有 .jsonl 的路径与文件状态。
-func snapshotClaudeSessionsHandler(_, _ string) (string, error) {
-	dir, ok := claudeProjectsDir()
-	if !ok {
-		return core.EncodeResult(map[string]claudeSessionFileSnapshot{})
-	}
-	return core.EncodeResult(collectClaudeJsonlSnapshot(dir))
-}
-
-type watchNewClaudeSessionArgs struct {
-	SnapshotBefore json.RawMessage `json:"snapshotBefore"`
-	TimeoutSecs    uint64          `json:"timeoutSecs"`
-}
-
-func decodeClaudeSessionSnapshot(raw json.RawMessage) map[string]claudeSessionFileSnapshot {
-	snapshot := make(map[string]claudeSessionFileSnapshot)
-	if len(raw) == 0 {
-		return snapshot
-	}
-	if err := json.Unmarshal(raw, &snapshot); err == nil {
-		return snapshot
-	}
-	// 兼容旧前端传入的路径数组；这些条目只用于识别“新路径”。
-	var paths []string
-	if err := json.Unmarshal(raw, &paths); err != nil {
-		return snapshot
-	}
-	for _, path := range paths {
-		snapshot[path] = claudeSessionFileSnapshot{}
-	}
-	return snapshot
-}
-
-func changedClaudeSessionPath(before, current map[string]claudeSessionFileSnapshot) string {
-	var newestPath string
-	var newest claudeSessionFileSnapshot
-	for path, state := range current {
-		previous, existed := before[path]
-		if existed && state.Size <= previous.Size && state.ModifiedAtMs <= previous.ModifiedAtMs {
-			continue
-		}
-		if newestPath == "" || state.ModifiedAtMs > newest.ModifiedAtMs ||
-			(state.ModifiedAtMs == newest.ModifiedAtMs && state.Size > newest.Size) {
-			newestPath = path
-			newest = state
-		}
-	}
-	return newestPath
-}
-
-// watch_new_claude_session：轮询新出现的 .jsonl，返回其文件名去扩展名（session UUID）。
-func watchNewClaudeSessionHandler(_, argsJson string) (string, error) {
-	var a watchNewClaudeSessionArgs
-	if err := core.DecodeArgs(argsJson, &a); err != nil {
-		return "", err
-	}
-	dir, ok := claudeProjectsDir()
-	if !ok {
-		return "", fmt.Errorf("无法读取 HOME/USERPROFILE")
-	}
-
-	secs := a.TimeoutSecs
-	if secs < 5 {
-		secs = 5
-	}
-	if secs > 120 {
-		secs = 120
-	}
-
-	before := decodeClaudeSessionSnapshot(a.SnapshotBefore)
-
-	deadline := time.Now().Add(time.Duration(secs) * time.Second)
-	for {
-		if time.Now().After(deadline) {
-			return "", fmt.Errorf("超时：未检测到新 claude session 文件")
-		}
-		if path := changedClaudeSessionPath(before, collectClaudeJsonlSnapshot(dir)); path != "" {
-			stem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-			return core.EncodeResult(stem)
-		}
-		time.Sleep(400 * time.Millisecond)
-	}
 }
 
 // codexHomeDir 优先使用用户覆盖目录，其次 CODEX_HOME，最后 ~/.codex。

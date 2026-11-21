@@ -23,8 +23,6 @@ type mcpConnection struct {
 	resources []McpResourceDef
 	prompts   []McpPromptDef
 	transport
-	// plugin is set for sessions started from a plugin's contributes.mcpServers.
-	plugin *pluginSessionInfo
 }
 
 func (c *mcpConnection) connectResult() *McpConnectResult {
@@ -167,27 +165,7 @@ func (g *mcpGateway) session(serverID string) (*mcpConnection, error) {
 	if !ok {
 		return nil, fmt.Errorf("MCP server '%s' is not connected", serverID)
 	}
-	// A plugin session whose owner no longer offers this exact launch
-	// (disabled, uninstalled, upgraded, changed entry) is stopped on use.
-	if conn.plugin != nil && conn.plugin.valid != nil && !conn.plugin.valid() {
-		g.disconnectIf(serverID, conn)
-		return nil, fmt.Errorf("MCP server '%s' is no longer available", serverID)
-	}
 	return conn, nil
-}
-
-// disconnectIf closes serverID only while it still holds conn.
-func (g *mcpGateway) disconnectIf(serverID string, conn *mcpConnection) bool {
-	g.mu.Lock()
-	if g.sessions[serverID] != conn {
-		g.mu.Unlock()
-		return false
-	}
-	g.revisions[serverID] = g.revisions[serverID] + 1
-	delete(g.sessions, serverID)
-	g.mu.Unlock()
-	conn.close()
-	return true
 }
 
 func (g *mcpGateway) listStatus() []McpServerStatus {

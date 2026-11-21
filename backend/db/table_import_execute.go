@@ -41,26 +41,21 @@ type preparedImport struct {
 	ColumnsHash string `json:"columnsHash"`
 }
 
-var importLeases = struct {
+// Import preparation IDs from this process are tied to its live sessions.
+var importPreparations = struct {
 	sync.Mutex
-	releases map[string]func()
-}{releases: map[string]func(){}}
+	ids map[string]struct{}
+}{ids: make(map[string]struct{})}
 
 func prepareTableImport(ctx context.Context, a importPrepareRequest) (string, error) {
 	_, store, err := databaseTransferManager()
 	if err != nil {
 		return "", err
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	keep := false
-	defer func() {
-		if !keep {
-			release()
-		}
-	}()
 	if s.kind != kindSQL {
 		return "", fmt.Errorf("import_engine_unsupported")
 	}
@@ -110,24 +105,22 @@ func prepareTableImport(ctx context.Context, a importPrepareRequest) (string, er
 	if err := store.Prepare(ctx, tasks.Preparation{ID: id, Kind: tasks.KindImport, Fingerprint: transferSchemaHash(string(payload)), ExpiresAt: time.Now().Add(defaultTransferLimits().Expiry).UnixMilli(), Payload: payload}); err != nil {
 		return "", err
 	}
-	importLeases.Lock()
-	importLeases.releases[id] = release
-	importLeases.Unlock()
+	importPreparations.Lock()
+	importPreparations.ids[id] = struct{}{}
+	importPreparations.Unlock()
 	time.AfterFunc(defaultTransferLimits().Expiry, func() {
 		released, err := store.ReleasePreparation(context.Background(), id)
 		if err != nil || !released {
 			return
 		}
-		importLeases.Lock()
-		r := importLeases.releases[id]
-		delete(importLeases.releases, id)
-		importLeases.Unlock()
-		if r != nil {
-			r()
+		importPreparations.Lock()
+		_, tracked := importPreparations.ids[id]
+		delete(importPreparations.ids, id)
+		importPreparations.Unlock()
+		if tracked {
 			_ = os.Remove(path)
 		}
 	})
-	keep = true
 	ok = true
 	return id, nil
 }
@@ -159,19 +152,19 @@ func executeTableImport(ctx context.Context, task tasks.Task, r *tasks.Reporter)
 		return tasks.Result{}, err
 	}
 	defer os.Remove(p.Path)
-	importLeases.Lock()
-	release := importLeases.releases[task.Request.PreparationID]
-	delete(importLeases.releases, task.Request.PreparationID)
-	importLeases.Unlock()
-	if release == nil {
+	importPreparations.Lock()
+	_, tracked := importPreparations.ids[task.Request.PreparationID]
+	delete(importPreparations.ids, task.Request.PreparationID)
+	importPreparations.Unlock()
+	if !tracked {
 		return tasks.Result{}, fmt.Errorf("import_session_expired")
 	}
-	defer release()
-	s, unlease, err := requireSession(p.SessionID)
+
+	s, err := requireSession(p.SessionID)
 	if err != nil {
 		return tasks.Result{}, err
 	}
-	defer unlease()
+
 	if err := validateImportTarget(ctx, s); err != nil {
 		return tasks.Result{}, err
 	}

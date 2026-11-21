@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"mime"
 	"os"
-	"os/exec"
+
 	"path/filepath"
-	"runtime"
+
 	"strings"
 	"unicode/utf8"
 
@@ -33,8 +33,6 @@ func init() {
 	core.Register("local_fs_inspect_external_file", handleInspectExternalFile)
 	core.Register("local_fs_read_external_text_file", handleReadExternalTextFile)
 	core.Register("local_fs_read_external_data_url", handleReadExternalDataURL)
-	core.Register("local_fs_write_external_text_file", handleWriteExternalTextFile)
-	core.Register("local_fs_open_external_file", handleOpenExternalFile)
 }
 
 func handleInspectExternalFile(_, argsJSON string) (string, error) {
@@ -112,47 +110,6 @@ func handleReadExternalDataURL(_, argsJSON string) (string, error) {
 		mimeType = "application/octet-stream"
 	}
 	return core.EncodeResult("data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data))
-}
-
-func handleWriteExternalTextFile(_, argsJSON string) (string, error) {
-	var args struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
-	}
-	if err := core.DecodeArgs(argsJSON, &args); err != nil {
-		return "", err
-	}
-	path, info, err := externalRegularFile(args.Path)
-	if err != nil {
-		return "", err
-	}
-	if info.Size() > maxLocalFsWriteBytes || int64(len(args.Content)) > maxLocalFsWriteBytes {
-		return "", fmt.Errorf("content_too_large: %d bytes (max %d)", len(args.Content), maxLocalFsWriteBytes)
-	}
-	if err := os.WriteFile(path, []byte(args.Content), info.Mode().Perm()); err != nil {
-		return "", fmt.Errorf("write: %w", err)
-	}
-	return "", nil
-}
-
-func handleOpenExternalFile(_, argsJSON string) (string, error) {
-	path, _, err := decodeExternalRegularFile(argsJSON)
-	if err != nil {
-		return "", err
-	}
-	var command *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		command = exec.Command("open", path)
-	case "windows":
-		command = exec.Command("rundll32", "url.dll,FileProtocolHandler", path)
-	default:
-		command = exec.Command("xdg-open", path)
-	}
-	if err := command.Start(); err != nil {
-		return "", fmt.Errorf("open_external_file: %w", err)
-	}
-	return "", nil
 }
 
 func decodeExternalRegularFile(argsJSON string) (string, os.FileInfo, error) {

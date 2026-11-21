@@ -162,11 +162,11 @@ func dbSafetyCheckHandler(callCtx context.Context, _, argsJSON string) (string, 
 	if !safetySources[source] {
 		return "", fmt.Errorf("db_safety_check: 未知的来源 %q", source)
 	}
-	s, release, err := requireSession(a.SessionID)
+	s, err := requireSession(a.SessionID)
 	if err != nil {
 		return "", err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(callCtx, safetyCheckTimeout)
 	defer cancel()
 	start := time.Now()

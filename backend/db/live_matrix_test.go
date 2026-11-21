@@ -250,11 +250,11 @@ func clone(m map[string]any) map[string]any {
 // liveBackup dumps the case's database through the session backup source,
 // the path a scheduled SQL backup takes, and checks the row is in it.
 func liveBackup(t *testing.T, session string, c liveCase) error {
-	s, release, err := requireSession(session)
+	s, err := requireSession(session)
 	if err != nil {
 		return err
 	}
-	defer release()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	src, err := newSessionBackupSource(ctx, s)
