@@ -1,14 +1,4 @@
-import { APP_LOCK_STORAGE_KEY } from "@/domain/security/app-lock";
-import {
-  isConfigSyncStorageKey,
-  isSecretFieldName,
-  type ConfigSyncStorageMode,
-} from "@/domain/settings/config-sync";
-import {
-  DEVICE_LOCAL_HISTORY_STORAGE_KEYS,
-  isKnownSecureStorageKey,
-  sanitizePortableValue,
-} from "@/services/config-sync-persistence";
+import { HTTP_RESOURCES_STORAGE_KEY, HTTP_STATE_STORAGE_KEY, sanitizeHttpStateForBrowser } from "@/services/http-state-persistence";
 import {
   applyPersistedBatch,
   loadAllPersistedValues,
@@ -20,6 +10,7 @@ import {
 } from "@/services/secure-persistent-store";
 import {
   SETTINGS_STORAGE_KEY,
+  sanitizeSettingsForSync,
   updateSettingsRuntimeSnapshot,
 } from "@/services/settings-persistence";
 import { decryptField, encryptField } from "@/services/field-crypto";
@@ -29,19 +20,109 @@ import { isRetiredAiHistoryStorageKey } from "@/services/ai-conversation-persist
 export const CONFIG_EXPORT_FORMAT = "mincode-config";
 export const CONFIG_EXPORT_VERSION = 2;
 
+// Socket.IO events share the HTTP storage rules.
+const HTTP_SOCKETIO_EVENTS_STORAGE_KEY = "app_http_socketio_events_v1";
+const KNOWN_SECURE_STORAGE_KEYS = new Set([
+  SETTINGS_STORAGE_KEY,
+  "app_ai_approval_policy_v1",
+  "app_ai_tool_authorizations_v1",
+  HTTP_RESOURCES_STORAGE_KEY,
+]);
+
+function isHttpStorageKey(key: string) {
+  return key === HTTP_RESOURCES_STORAGE_KEY
+    || key === HTTP_SOCKETIO_EVENTS_STORAGE_KEY
+    || key === HTTP_STATE_STORAGE_KEY
+    || key.startsWith(`${HTTP_STATE_STORAGE_KEY}__workspace__`);
+}
+
+function isKnownSecureStorageKey(key: string) {
+  return KNOWN_SECURE_STORAGE_KEYS.has(key) || isHttpStorageKey(key);
+}
+
+/**
+ * 「最近打开」是本机使用记录（SSH 主机最近打开时间、数据库最近列表清空时间），
+ * 只存本机：不进入配置导出。
+ */
+const DEVICE_LOCAL_HISTORY_STORAGE_KEYS: ReadonlySet<string> = new Set([
+  "app_ssh_recent_v1",
+  "app_db_recent_cleared_at_v1",
+]);
+
+function sanitizePortableValue(key: string, value: unknown) {
+  if (key === SETTINGS_STORAGE_KEY && isRecord(value)) {
+    return sanitizeSettingsForSync(value);
+  }
+  if (isHttpStorageKey(key)) return sanitizeHttpStateForBrowser(value);
+  return redactConfigSecrets(value);
+}
+
+const SECRET_FIELD_NAMES = new Set([
+  "password",
+  "passphrase",
+  "token",
+  "authtoken",
+  "accesstoken",
+  "refreshtoken",
+  "apikey",
+  "apikeyvalue",
+  "clientsecret",
+  "oauth2clientsecret",
+  "oauth2password",
+  "oauth2accesstoken",
+  "privatekey",
+  "totpuri",
+  "licensekey",
+  "authorization",
+  "cookie",
+]);
+
+function normalizedFieldName(value: string) {
+  return value.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
+/** 判断某个字段名是否承载凭据，导出/导入需要据此决定脱敏或重新加密。 */
+function isSecretFieldName(value: string) {
+  return SECRET_FIELD_NAMES.has(normalizedFieldName(value));
+}
+
+function redactSecretValue(value: unknown): unknown {
+  if (typeof value === "string") return "";
+  if (Array.isArray(value)) return value.map(redactSecretValue);
+  if (isRecord(value)) {
+    return Object.fromEntries(Object.keys(value).map((key) => [key, redactSecretValue(value[key])]));
+  }
+  return value === undefined ? undefined : null;
+}
+
+/** Removes portable credential material while retaining the surrounding configuration shape. */
+function redactConfigSecrets(value: unknown): unknown {
+  if (typeof value === "string") return value.startsWith("enc:v2:") ? "" : value;
+  if (Array.isArray(value)) return value.map(redactConfigSecrets);
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      key,
+      SECRET_FIELD_NAMES.has(normalizedFieldName(key))
+        ? redactSecretValue(child)
+        : redactConfigSecrets(child),
+    ])
+  );
+}
+
 const SECURE_VALUE_PREFIX = "enc:v2:";
 
 /**
  * 授权记录与锁屏口令只对当前设备有意义：导出授权等于分发许可证，导入锁屏配置
  * 则可能用别人的口令把本机用户挡在门外，两者都不进入配置文件。
  */
-const NON_PORTABLE_KEYS = new Set(["app_license", "mincode_license", APP_LOCK_STORAGE_KEY]);
+const NON_PORTABLE_KEYS = new Set(["app_license", "mincode_license", "app_lock_v1"]);
 
 /** 这两个键内部逐字段加密，导出要解密成明文、导入要用本机密钥重新加密。 */
 const FIELD_ENCRYPTED_KEYS = new Set(["app_ssh_credentials_v1", "app_db_connections"]);
 
 export interface ConfigExportEntry {
-  storage: ConfigSyncStorageMode;
+  storage: "plain" | "secure";
   value: unknown;
 }
 
@@ -78,7 +159,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function isPortableConfigKey(key: string) {
-  return isConfigSyncStorageKey(key)
+  return key.startsWith("app_")
+    && key !== "app_file_templates_custom_v1"
+    && !key.startsWith("app_config_sync_")
     && !NON_PORTABLE_KEYS.has(key)
     && !DEVICE_LOCAL_HISTORY_STORAGE_KEYS.has(key)
     && !isRetiredAiHistoryStorageKey(key);

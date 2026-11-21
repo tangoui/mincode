@@ -10,9 +10,8 @@ const [app, project, preview, styles] = await Promise.all([
   readFile(new URL("../src/styles/workspaces/project/workspace.css", import.meta.url), "utf8"),
 ]);
 
-test("native drops and operating-system file opens route through the app shell", () => {
+test("native drops route through the app shell", () => {
   assert.match(app, /listenAppEvent<NativeFileDropEvent>\("native-files-dropped"/);
-  assert.match(app, /app_consume_opened_files/);
 });
 
 test("project editor opens external text, image, PDF, and binary files without copying", () => {

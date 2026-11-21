@@ -96,7 +96,7 @@ describe("debug commands", () => {
     const stepOver = vi.spyOn(sessions, "stepOver").mockResolvedValue(undefined);
     const opts = options();
     disposers = registerDebugCommands(opts);
-    const uninstall = installKeybindingDispatcher({ isLocked: () => false });
+    const uninstall = installKeybindingDispatcher();
     disposers.push(uninstall);
 
     const pane = document.createElement("div");

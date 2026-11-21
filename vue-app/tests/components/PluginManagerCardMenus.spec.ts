@@ -49,35 +49,6 @@ vi.mock("@/services/cloud-companion-service", async (importOriginal) => ({
   cloudStatus: mocks.cloudStatus,
 }));
 
-vi.mock("@/services/market-service", () => ({
-  listMarketPlugins: async () => ({
-    items: [
-      {
-        product_key: "demo.cloud",
-        name: "Demo Cloud Plugin",
-        slug: "demo-cloud-plugin",
-        description: "A published plugin used by the sign-in redirect test.",
-        homepage: "",
-        icon: "",
-        category: "other",
-        tags: [],
-        author: null,
-        cover_url: "",
-        latest_published_version: "1.2.3",
-        updated_at: 1,
-        requires_paid_host: false,
-        min_host_version: "",
-        max_host_version_exclusive: "",
-        host_compatibility: "compatible",
-        compatible_version: "1.2.3",
-        download_count: 0,
-        like_count: 0,
-      },
-    ],
-    truncated: false,
-  }),
-  previewMarketPluginInstall: mocks.installPreview,
-}));
 
 vi.mock("@/services/plugin-service", () => ({
   getPluginLogs: vi.fn(),

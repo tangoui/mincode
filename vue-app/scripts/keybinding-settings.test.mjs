@@ -76,15 +76,15 @@ test("rows list every catalog command with labels, sources and availability", ()
 test("user overrides mark rows as user / removed and bound plugin commands get a row", () => {
   const overrides = [
     { command: "builtin:ai", key: "cmd+j", platform: "mac" },
-    { command: "builtin:lock-app", remove: true, platform: "mac" },
+    { command: "builtin:settings", remove: true, platform: "mac" },
     { command: "plugin:x:y", key: "cmd+shift+9" },
   ];
   const rows = rowsFor("mac", overrides);
   assert.equal(row(rows, "builtin:ai").source, "user");
   assert.equal(row(rows, "builtin:ai").bindings[0].label, "⌘J");
   assert.equal(row(rows, "builtin:ai").modified, true);
-  assert.equal(row(rows, "builtin:lock-app").source, "removed");
-  assert.equal(row(rows, "builtin:lock-app").bindings.length, 0);
+  assert.equal(row(rows, "builtin:settings").source, "removed");
+  assert.equal(row(rows, "builtin:settings").bindings.length, 0);
   assert.equal(row(rows, "plugin:x:y").source, "user");
 });
 
@@ -94,7 +94,7 @@ test("search matches title, id, key label and key text; filters by modified / co
   const titleOf = (item) => (item.titleKey ?? item.title ?? item.id).toString();
   const ids = (query) => filterKeybindingRows(rows, { filter: "all", text: "", ...query }, titleOf, "mac").map((item) => item.id);
 
-  assert.ok(ids({ text: "lock-app" }).includes("builtin:lock-app"));
+  assert.ok(ids({ text: "builtin:settings" }).includes("builtin:settings"));
   assert.ok(ids({ text: "⌘K" }).includes("builtin:command-palette"));
   assert.ok(ids({ text: "cmd+k" }).includes("builtin:command-palette"));
   assert.deepEqual(ids({ filter: "modified" }), ["builtin:ai"]);
@@ -104,7 +104,7 @@ test("search matches title, id, key label and key text; filters by modified / co
   // Key search: exact sequence or chord prefix (⌘K matches ⌘K ⌘S style chords too).
   const byKey = ids({ keySequence: sequenceId(parseKeySequence("cmd+k", "mac")) });
   assert.ok(byKey.includes("builtin:command-palette") && byKey.includes("builtin:ai"));
-  assert.ok(!byKey.includes("builtin:lock-app"));
+  assert.ok(!byKey.includes("builtin:settings"));
 });
 
 test("recorder builds a two-chord sequence only within the timeout", () => {

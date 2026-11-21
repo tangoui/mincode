@@ -68,27 +68,13 @@ export async function aiCatalogsScenario(config: SmokeConfig, log: { done(step: 
     await until(() => !activeSmokeDialog(document), "add dialog closed");
     await until(() => (readSettingsSnapshot().mcpServers as Array<{ id: string }> | undefined)?.some(server => server.id === itemId), "saved connector");
     log.done("Discover searched through real process; cancel saved nothing; confirmed connector added");
-    await choose(dialog, ".el-segmented__item", "settings.ai.skills");
-    await choose(dialog, ".el-segmented__item", "settings.ai.subtabDiscover");
-    const skillInput = await until(() => dialog.querySelector<HTMLInputElement>(".settings-ai-search-line input"), "skill search input");
-    skillInput.value = "showcase";
-    skillInput.dispatchEvent(new Event("input", { bubbles: true }));
-    await choose(dialog, ".settings-ai-search-line button", "common.search");
-    const skillCard = await card(dialog, itemId);
-    await choose(skillCard, "button", "common.add");
-    confirm = await until(() => activeSmokeDialog(document), "skill confirmation");
-    await choose(confirm, "button", "common.add");
-    await until(() => !activeSmokeDialog(document), "add dialog closed");
-    await until(() => (readSettingsSnapshot().aiSkills as Array<{ name: string }> | undefined)?.some(skill => skill.name === itemId), "saved skill");
-    log.done("confirmed SKILL.md added as ordinary user configuration");
     await uninstallPlugin(pluginId, true);
     await until(() => !store.catalogs.some(catalog => catalog.pluginId === pluginId), "catalog removed after uninstall");
     await nextTick();
     if ([...dialog.querySelectorAll(".settings-ai-entry-card")].some(element => element.textContent?.includes(`plugin:${pluginId}/`))) throw new Error("uninstalled catalog result stayed visible");
     const saved = readSettingsSnapshot();
-    if (!(saved.mcpServers as Array<{ id: string }>).some(server => server.id === itemId) ||
-      !(saved.aiSkills as Array<{ name: string }>).some(skill => skill.name === itemId)) throw new Error("uninstall removed user configuration");
-    log.done("uninstall immediately removed catalog results and retained both installed entries");
+    if (!(saved.mcpServers as Array<{ id: string }>).some(server => server.id === itemId)) throw new Error("uninstall removed user configuration");
+    log.done("uninstall immediately removed catalog results and retained the installed connector");
   } finally {
     await uninstallPlugin(pluginId, true).catch(() => undefined);
   }

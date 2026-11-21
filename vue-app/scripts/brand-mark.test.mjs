@@ -6,7 +6,6 @@ const surfaces = [
   "views/DashboardView.vue",
   "views/SettingsWorkspaceView.vue",
   "components/layout/AppTabBar.vue",
-  "components/layout/AppLockScreen.vue",
 ];
 
 for (const surface of surfaces) {

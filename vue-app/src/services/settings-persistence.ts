@@ -43,68 +43,6 @@ function blankRecordValues(value: unknown) {
   return Object.fromEntries(Object.keys(value).map((key) => [key, ""]));
 }
 
-function recordById(value: unknown): Map<string, SettingsRecord> {
-  if (!Array.isArray(value)) return new Map();
-  return new Map(
-    value.flatMap((item) =>
-      isRecord(item) && typeof item.id === "string"
-        ? ([[item.id, item]] as Array<[string, SettingsRecord]>)
-        : []
-    )
-  );
-}
-
-function localSecretRecord(remote: unknown, local: unknown): SettingsRecord {
-  const remoteRecord = isRecord(remote) ? remote : {};
-  const localRecord = isRecord(local) ? local : {};
-  return Object.fromEntries(
-    Object.keys(remoteRecord).map((key) => [
-      key,
-      typeof localRecord[key] === "string" ? localRecord[key] : "",
-    ])
-  );
-}
-
-/**
- * Applies a remote, deliberately redacted settings snapshot while retaining
- * device-local credentials. Remote payloads are never allowed to introduce
- * AI or MCP secret values, even if a repository was edited outside MinCode.
- */
-export function mergeSettingsWithLocalSecrets(
-  remoteValue: SettingsRecord,
-  localValue: SettingsRecord
-): SettingsRecord {
-  const merged = clonePersistable(remoteValue);
-  for (const key of RUNTIME_PERFORMANCE_SETTING_KEYS) {
-    if (key in localValue) merged[key] = clonePersistable(localValue[key]);
-  }
-  const localProfiles = recordById(localValue.aiProfiles);
-  if (Array.isArray(merged.aiProfiles)) {
-    merged.aiProfiles = merged.aiProfiles.map((profile) => {
-      if (!isRecord(profile)) return profile;
-      const local = typeof profile.id === "string" ? localProfiles.get(profile.id) : undefined;
-      return {
-        ...profile,
-        apiKey: local && typeof local.apiKey === "string" ? local.apiKey : "",
-      };
-    });
-  }
-
-  const localServers = recordById(localValue.mcpServers);
-  if (Array.isArray(merged.mcpServers)) {
-    merged.mcpServers = merged.mcpServers.map((server) => {
-      if (!isRecord(server)) return server;
-      const local = typeof server.id === "string" ? localServers.get(server.id) : undefined;
-      return {
-        ...server,
-        env: localSecretRecord(server.env, local?.env),
-        headers: localSecretRecord(server.headers, local?.headers),
-      };
-    });
-  }
-  return merged;
-}
-
 function clonePersistable<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }

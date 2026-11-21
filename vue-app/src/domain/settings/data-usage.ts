@@ -30,8 +30,6 @@ const ITEM_LABELS: Record<string, MessageKey> = {
   plugins: "settings.data.usage.item.plugins",
   pluginData: "settings.data.usage.item.pluginData",
   terminal: "settings.data.usage.item.terminal",
-  configSync: "settings.data.usage.item.configSync",
-  externalMcp: "settings.data.usage.item.externalMcp",
   other: "settings.data.usage.item.other",
   updates: "settings.data.usage.item.updates",
   agentWorktrees: "settings.data.usage.item.agentWorktrees",

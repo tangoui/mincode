@@ -11,8 +11,6 @@ import { saveTextFileToDisk } from "@/services/file-download";
 import PluginViewUnavailable from "@/components/plugins/PluginViewUnavailable.vue";
 import PluginViewSkeleton from "@/components/plugins/PluginViewSkeleton.vue";
 import { aiConfigReviewRows, type AiConfigReviewRow } from "@/domain/plugin-ui/ai-config";
-import type { AiConfigLoginTarget } from "@/domain/plugin-ui/ai-config-login";
-import type { McpDeviceCode } from "@/services/mcp-auth-service";
 import {
   classifyPluginUISessionFailure,
   findPluginUIViewFailure,
@@ -111,7 +109,6 @@ import {
 
 // ai.config: the host confirmation and the sync logic load only when a page proposes AI settings.
 const PluginAiConfigConfirm = defineAsyncComponent(() => import("@/components/plugins/PluginAiConfigConfirm.vue"));
-const PluginMcpSignIn = defineAsyncComponent(() => import("@/components/plugins/PluginMcpSignIn.vue"));
 
 const props = defineProps<{
   pluginId: string;
@@ -422,7 +419,6 @@ function closeTransport() {
   saveBuffer = undefined;
   rejectPendingSaveRequests(t("pluginContrib.customEditors.unavailable"));
   dismissAiConfigConfirm();
-  dismissMcpSignIn();
   // Old requests retain their own set and cannot release slots in a new session.
   activeRequestIds.value = new Set<string>();
 }
@@ -717,7 +713,6 @@ function rejectRequest(
 const WARM_BLOCKED_HOST_REQUESTS = new Set<string>([
   "mincode.plugin.confirm",
   "mincode.plugin.ai-config.apply",
-  "mincode.plugin.ai-config.login",
   "mincode.plugin.clipboard.write-text",
   "mincode.plugin.configuration.open",
   "mincode.plugin.floating.activate",
@@ -985,14 +980,6 @@ async function handleHostRequest(request: NonNullable<ReturnType<typeof parsePlu
       await handleAiConfigRequest(request, session);
       return;
     }
-    if (request.type === "mincode.plugin.ai-config.login") {
-      await handleAiConfigLogin(request, session);
-      return;
-    }
-    if (request.type === "mincode.plugin.ai-config.auth-status") {
-      await handleAiConfigAuthStatus(request, session);
-      return;
-    }
     // Plugin settings: the sandboxed page only ever receives non-secret values
     // (bridgeConfigurationValues); secrets stay with the plugin process.
     if (request.type === "mincode.plugin.configuration.get") {
@@ -1196,147 +1183,6 @@ async function handleAiConfigRequest(request: AiConfigRequest, session: PluginUI
   } finally {
     release();
   }
-}
-
-type AiConfigLoginRequest = Extract<PluginUIHostRequest, { type: "mincode.plugin.ai-config.login" }>;
-type McpAuthService = typeof import("@/services/mcp-auth-service");
-interface McpSignInView {
-  pluginName: string;
-  connector: string;
-  host: string;
-  /** "confirm": asking before anything opens; "signing-in": the browser or device flow is running. */
-  phase: "confirm" | "signing-in";
-  deviceCode: McpDeviceCode | null;
-  controller: AbortController;
-  /** Set while phase is "confirm". */
-  answer?: (approved: boolean) => void;
-}
-const mcpSignIn = shallowRef<McpSignInView>();
-
-/** Asks in the host before every plugin-started sign-in; false on cancel or session end. */
-function requestMcpSignInConfirm(pluginName: string, target: AiConfigLoginTarget) {
-  return new Promise<boolean>((answer) => {
-    mcpSignIn.value = {
-      pluginName,
-      connector: target.id,
-      host: target.host,
-      phase: "confirm",
-      deviceCode: null,
-      controller: new AbortController(),
-      answer,
-    };
-  });
-}
-
-function continueMcpSignIn() {
-  const view = mcpSignIn.value;
-  if (view?.phase !== "confirm") return;
-  // Stays open (as waiting) until runMcpSignIn takes over, so the dialog does not flicker.
-  mcpSignIn.value = { ...view, phase: "signing-in", answer: undefined };
-  view.answer?.(true);
-}
-
-/** Ends a plugin-started sign-in (cancel, session end, parked tab): declines a pending question, aborts the backend login. */
-function dismissMcpSignIn() {
-  const view = mcpSignIn.value;
-  mcpSignIn.value = undefined;
-  view?.answer?.(false);
-  view?.controller.abort();
-}
-
-/** The host sign-in with its own dialog (waiting, device code, cancel); resolves with the sign-in outcome. */
-async function runMcpSignIn(
-  auth: McpAuthService,
-  pluginName: string,
-  target: AiConfigLoginTarget,
-  onError: (error: unknown) => void,
-) {
-  const controller = new AbortController();
-  mcpSignIn.value = { pluginName, connector: target.id, host: target.host, phase: "signing-in", deviceCode: null, controller };
-  const stopDeviceCode = auth.onMcpDeviceCode(target.id, (deviceCode) => {
-    const view = mcpSignIn.value;
-    if (view?.controller === controller) mcpSignIn.value = { ...view, deviceCode };
-  });
-  try {
-    return await auth.signInMcpServer(target, { signal: controller.signal, onError });
-  } finally {
-    stopDeviceCode();
-    if (mcpSignIn.value?.controller === controller) mcpSignIn.value = undefined;
-  }
-}
-
-// ai.config login (ruling R4): sign in to a connector this plugin installed.
-// Only { status, reason? } goes back; tokens stay in the Go backend and the
-// error text, connector address and settings stay in the host.
-async function handleAiConfigLogin(request: AiConfigLoginRequest, session: PluginUISession) {
-  if (!aiConfigAllowed(session)) {
-    rejectRequest(request.id, "not-allowed", t("plugins.actionNotAllowed"));
-    return;
-  }
-  const [{ runAiConfigLogin }, sync, auth] = await Promise.all([
-    import("@/domain/plugin-ui/ai-config-login"),
-    import("@/services/ai-external-sync"),
-    import("@/services/mcp-auth-service"),
-  ]);
-  const live = () => currentSession === session && connected;
-  if (!live()) return;
-  // One review, write or sign-in per plugin at a time, across all its frames.
-  const release = sync.claimExternalSyncReview(session.pluginId);
-  if (!release) {
-    rejectRequest(request.id, "busy", t("plugins.actionBusy"));
-    return;
-  }
-  try {
-    // A connector just edited in Settings is looked up as saved.
-    await sync.flushPendingSettingsEdits();
-    const [servers, pluginName] = await Promise.all([
-      sync.loadSavedMcpServers(),
-      pluginDisplayName(session.pluginId),
-    ]);
-    if (!live()) return;
-    if (props.warm) {
-      rejectWarm(request.id);
-      return;
-    }
-    const result = await runAiConfigLogin(servers, session.pluginId, request.sourceId, {
-      // Always asked: host-window activation cannot tell a page click from a click on the host's own Cancel.
-      approve: (target) => requestMcpSignInConfirm(pluginName, target),
-      // The session may have ended, or the tab been parked, while the user decided.
-      signIn: (target, onError) => (live() && !props.warm ? runMcpSignIn(auth, pluginName, target, onError) : Promise.resolve("cancelled")),
-      markOauth: (target) => sync.markSyncedMcpServerOauth(session.pluginId, request.sourceId, target.url),
-    });
-    if (live()) safePost({ type: "mincode.host.response", id: request.id, ok: true, result });
-  } finally {
-    release();
-  }
-}
-
-type AiConfigAuthStatusRequest = Extract<PluginUIHostRequest, { type: "mincode.plugin.ai-config.auth-status" }>;
-
-// ai.config auth-status: read-only, so a warm page may ask too and no review
-// slot is taken. Only { statuses } goes back, one word per asked sourceId.
-async function handleAiConfigAuthStatus(request: AiConfigAuthStatusRequest, session: PluginUISession) {
-  if (!aiConfigAllowed(session)) {
-    rejectRequest(request.id, "not-allowed", t("plugins.actionNotAllowed"));
-    return;
-  }
-  const [{ aiConfigAuthStatuses }, sync, auth] = await Promise.all([
-    import("@/domain/plugin-ui/ai-config-login"),
-    import("@/services/ai-external-sync"),
-    import("@/services/mcp-auth-service"),
-  ]);
-  const live = () => currentSession === session && connected;
-  if (!live()) return;
-  let servers: Awaited<ReturnType<typeof sync.loadSavedMcpServers>>;
-  try {
-    servers = await sync.loadSavedMcpServers();
-  } catch {
-    // Settings could not be read: a generic failure, never the error text.
-    if (live()) rejectRequest(request.id, "invoke-failed", t("plugins.hostOperationFailed"));
-    return;
-  }
-  const { statuses } = await aiConfigAuthStatuses(servers, session.pluginId, request.sourceIds, auth.mcpAuthStatus);
-  if (live()) safePost({ type: "mincode.host.response", id: request.id, ok: true, result: { statuses } });
 }
 
 let pathPickerBusy = false;
@@ -1672,7 +1518,6 @@ function handleWarmChange(warm: boolean, wasWarm: boolean | undefined) {
   if (warm) {
     // A closed tab cannot keep a write confirmation or a sign-in open.
     dismissAiConfigConfirm();
-    dismissMcpSignIn();
     reuseSequence += 1;
     reusePending.value = false;
     sendVisibility();
@@ -2069,16 +1914,6 @@ onBeforeUnmount(() => {
       :rows="aiConfigReview.rows"
       @confirm="settleAiConfigConfirm(true, $event)"
       @cancel="settleAiConfigConfirm(false)"
-    />
-    <PluginMcpSignIn
-      v-if="mcpSignIn"
-      :plugin-name="mcpSignIn.pluginName"
-      :connector="mcpSignIn.connector"
-      :host="mcpSignIn.host"
-      :phase="mcpSignIn.phase"
-      :device-code="mcpSignIn.deviceCode"
-      @continue="continueMcpSignIn"
-      @cancel="dismissMcpSignIn"
     />
   </div>
 </template>

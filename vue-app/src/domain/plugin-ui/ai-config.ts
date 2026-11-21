@@ -7,14 +7,13 @@
 // hide or reorder part of a command line or name.
 import type { SyncChoice, SyncItem, SyncPreviewEntry } from "@/domain/ai/external-sync";
 
-export const AI_CONFIG_SKILL_EXCERPT_LENGTH = 300;
 /**
  * Field names the host preview reports in changedFields (domain/ai/external-sync
  * writtenFields); each has a plugins.aiConfig.field.* label.
  */
 export const AI_CONFIG_FIELD_NAMES = [
   "provider", "baseUrl", "model", "apiFormat", "anthropicAuth", "commonModels", "subagentModel", "reasoningEffort",
-  "contextWindow", "transport", "command", "args", "url", "env", "headers", "auth", "content", "description", "docsUrl",
+  "contextWindow", "transport", "command", "args", "url", "env", "headers",
 ] as const;
 export type AiConfigFieldName = (typeof AI_CONFIG_FIELD_NAMES)[number];
 
@@ -72,19 +71,8 @@ export type AiConfigReviewRow =
       headerKeys: string[];
       /** env/header values: set on add; update or keep on overwrite; none when the source has no values. */
       secretValues: "set" | "update" | "keep" | "none";
-      /** oauth: the connector needs a sign-in before it can connect. */
-      auth: "oauth" | "none";
       /** Values the dialog asks for; filled: this device's synced object already has a non-empty value. */
       prompts: AiConfigReviewPrompt[];
-    })
-  | (AiConfigReviewBase & {
-      kind: "skill";
-      description: string;
-      excerpt: string;
-      truncated: boolean;
-      /** The whole skill text, for the dialog's expandable full view. */
-      fullText: string;
-      extraFiles: boolean;
     });
 
 // Same character set, marker and quoting as visibleTerminalText / formatTerminalArgv
@@ -210,7 +198,6 @@ export function aiConfigReviewRows(
             : action === "add"
               ? "set"
               : "keep",
-        auth: mcp.auth === "oauth" ? "oauth" : "none",
         prompts: (mcp.prompts ?? []).map((prompt) => ({
           target: prompt.target,
           name: visibleReviewText(prompt.name),
@@ -218,17 +205,6 @@ export function aiConfigReviewRows(
           secret: prompt.secret,
           filled: hasLocalValue(local, prompt.target === "env" ? "env" : "headers", prompt.name),
         })),
-      });
-    } else {
-      const characters = Array.from(item.skill.content);
-      rows.push({
-        ...base,
-        kind: "skill",
-        description: visibleReviewText(item.skill.description ?? ""),
-        excerpt: visibleReviewText(characters.slice(0, AI_CONFIG_SKILL_EXCERPT_LENGTH).join(""), { multiline: true }),
-        truncated: characters.length > AI_CONFIG_SKILL_EXCERPT_LENGTH,
-        fullText: visibleReviewText(item.skill.content, { multiline: true }),
-        extraFiles: item.skill.hasExtraFiles,
       });
     }
   }

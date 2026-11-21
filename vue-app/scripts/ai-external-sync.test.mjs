@@ -74,7 +74,7 @@ function mcpItem(fields = {}) {
   };
 }
 
-const emptyLists = () => ({ aiProfiles: [], mcpServers: [], aiSkills: [] });
+const emptyLists = () => ({ aiProfiles: [], mcpServers: [] });
 
 function idFactory() {
   let next = 0;
@@ -129,10 +129,10 @@ test("new item gets a syncSource and default name", () => {
 });
 
 test("unchanged after apply", () => {
-  const items = [profileItem(), mcpItem(), skillItem()];
+  const items = [profileItem(), mcpItem()];
   const { lists, secrets } = addAll(items);
   const entries = previewSync(PLUGIN, items, lists, secrets);
-  assert.deepEqual(entries.map((entry) => entry.status), ["unchanged", "unchanged", "unchanged"]);
+  assert.deepEqual(entries.map((entry) => entry.status), ["unchanged", "unchanged"]);
   for (const entry of entries) {
     assert.deepEqual(entry.changedFields, []);
     assert.equal(entry.needsSecret, false);
@@ -178,20 +178,19 @@ test("local edit plus source change is a conflict", () => {
 });
 
 test("a local rename is not a MinCode edit", () => {
-  const { lists, secrets } = addAll([profileItem(), skillItem()]);
+  const { lists, secrets } = addAll([profileItem()]);
   lists.aiProfiles[0].name = "my gateway";
-  lists.aiSkills[0].name = "my-review";
   const entries = previewSync(
     PLUGIN,
-    [profileItem({}, { model: "m2" }), skillItem({ description: "Review carefully" })],
+    [profileItem({}, { model: "m2" })],
     lists,
     secrets,
   );
-  assert.deepEqual(entries.map((entry) => entry.status), ["update", "update"]);
+  assert.deepEqual(entries.map((entry) => entry.status), ["update"]);
   assert.equal(entries[0].targetName, "my gateway");
   const result = applySync(
     PLUGIN,
-    [profileItem({}, { model: "m2" }), skillItem({ description: "Review carefully" })],
+    [profileItem({}, { model: "m2" })],
     entries.map((entry) => ({ key: entry.key, action: "overwrite" })),
     lists,
     secrets,
@@ -199,7 +198,6 @@ test("a local rename is not a MinCode edit", () => {
   );
   assert.equal(result.lists.aiProfiles[0].name, "my gateway");
   assert.equal(result.lists.aiProfiles[0].model, "m2");
-  assert.equal(result.lists.aiSkills[0].name, "my-review");
 });
 
 test("missing local secret is an update, not a conflict", () => {
@@ -332,19 +330,16 @@ test("an overwrite with an unchanged secret keeps the local secret values", () =
 });
 
 test("overwrite keeps MinCode-only fields", () => {
-  const first = addAll([profileItem(), skillItem()]);
+  const first = addAll([profileItem()]);
   const lists = first.lists;
   lists.aiProfiles[0].maxOutputTokens = 1234;
   lists.aiProfiles[0].failoverModels = ["backup"];
-  lists.aiSkills[0].enabled = false;
   const profileId = lists.aiProfiles[0].id;
-  const skillId = lists.aiSkills[0].id;
   const changed = [
     profileItem({}, { baseUrl: "https://new.example.com", contextWindow: 200000 }),
-    skillItem({ content: `${SKILL_TEXT}\nThen the tests.` }),
   ];
   const entries = previewSync(PLUGIN, changed, lists, first.secrets);
-  assert.deepEqual(entries.map((entry) => entry.status), ["update", "update"]);
+  assert.deepEqual(entries.map((entry) => entry.status), ["update"]);
   const result = applySync(
     PLUGIN,
     changed,
@@ -353,21 +348,17 @@ test("overwrite keeps MinCode-only fields", () => {
     first.secrets,
     idFactory(),
   );
-  assert.equal(result.overwritten, 2);
+  assert.equal(result.overwritten, 1);
   assert.equal(result.added, 0);
   const [profile] = result.lists.aiProfiles;
-  const [skill] = result.lists.aiSkills;
   assert.equal(profile.id, profileId);
   assert.equal(profile.maxOutputTokens, 1234);
   assert.deepEqual(profile.failoverModels, ["backup"]);
   assert.equal(profile.baseUrl, "https://new.example.com");
   assert.equal(profile.contextWindow, 200000);
-  assert.equal(skill.id, skillId);
-  assert.equal(skill.enabled, false);
-  assert.match(skill.content, /Then the tests\.$/);
   assert.deepEqual(
     previewSync(PLUGIN, changed, result.lists, result.secrets).map((entry) => entry.status),
-    ["unchanged", "unchanged"],
+    ["unchanged"],
   );
 });
 
@@ -462,20 +453,6 @@ test("an mcp overwrite keeps the enabled flag the user set", () => {
   assert.equal(result.lists.mcpServers[0].enabled, true);
 });
 
-test("skills are added enabled and note extra files", () => {
-  const item = skillItem({ hasExtraFiles: true, docsUrl: "https://example.com/review" });
-  const [entry] = previewSync(PLUGIN, [item], emptyLists(), {});
-  assert.ok(entry.notes.includes("extra-files"));
-  const { lists, secrets } = addAll([item]);
-  const [skill] = lists.aiSkills;
-  assert.equal(skill.id, "skill-1");
-  assert.equal(skill.name, "review");
-  assert.equal(skill.enabled, true);
-  assert.equal(skill.content, SKILL_TEXT);
-  assert.equal(skill.description, "Review code");
-  assert.equal(skill.docsUrl, "https://example.com/review");
-  assert.deepEqual(secrets, {});
-});
 
 test("invalid choices are reported", () => {
   const lists = emptyLists();
@@ -504,7 +481,7 @@ test("invalid choices are reported", () => {
 });
 
 test("parseSyncItems rejects bad input", () => {
-  const valid = [profileItem(), mcpItem(), skillItem({ docsUrl: "https://example.com" })];
+  const valid = [profileItem(), mcpItem()];
   valid[0].profile.contextWindow = 200000;
   valid[0].profile.reasoningEffort = "high";
   assert.deepEqual(parseSyncItems(structuredClone(valid)), valid);
@@ -639,45 +616,12 @@ test("prompts must name an empty env or header of the item", () => {
     prompt({ secret: "yes" }),
     prompt({ valuePrefix: "x".repeat(33) }),
     promptedItem({ prompts: "FS_TOKEN" }),
-    promptedItem({ auth: "basic" }),
   ];
   for (const item of bad) assert.equal(parseSyncItems([item]), undefined, JSON.stringify(item.mcp.prompts ?? item.mcp.auth));
   assert.ok(parseSyncItems([prompt({ label: "x".repeat(200), valuePrefix: "x".repeat(32) })]));
-  assert.deepEqual(parseSyncItems([mcpItem({ auth: "oauth" })])[0].mcp.auth, "oauth");
 });
 
-test("auth is written only when present and fingerprinted", () => {
-  const signIn = mcpItem({ auth: "oauth" });
-  const { lists: withAuth } = addAll([signIn]);
-  assert.equal(withAuth.mcpServers[0].auth, "oauth");
-  const { lists, secrets } = addAll([mcpItem()]);
-  assert.equal("auth" in lists.mcpServers[0], false);
 
-  // CC Switch objects synced before this field existed keep their fingerprint.
-  assert.equal(lists.mcpServers[0].syncSource.fingerprint, "5ea18284f0a68732");
-  const [kept] = previewSync(PLUGIN, [mcpItem()], lists, secrets);
-  assert.equal(kept.status, "unchanged");
-
-  const [added] = previewSync(PLUGIN, [signIn], lists, secrets);
-  assert.equal(added.status, "update");
-  assert.deepEqual(added.changedFields, ["auth"]);
-  const result = applySync(PLUGIN, [signIn], [{ key: added.key, action: "overwrite" }], lists, secrets, idFactory());
-  assert.equal(result.lists.mcpServers[0].auth, "oauth");
-  assert.equal(previewSync(PLUGIN, [signIn], result.lists, result.secrets)[0].status, "unchanged");
-});
-
-test("a source that drops auth clears the local marker", () => {
-  const signIn = mcpItem({ auth: "oauth" });
-  const { lists, secrets } = addAll([signIn]);
-  const [entry] = previewSync(PLUGIN, [mcpItem()], lists, secrets);
-  assert.equal(entry.status, "update");
-  assert.deepEqual(entry.changedFields, ["auth"]);
-  const result = applySync(PLUGIN, [mcpItem()], [{ key: entry.key, action: "overwrite" }], lists, secrets, idFactory(), [entry]);
-  assert.equal(result.overwritten, 1);
-  assert.equal("auth" in result.lists.mcpServers[0], false);
-  assert.equal(result.lists.mcpServers[0].syncSource.fingerprint, "5ea18284f0a68732");
-  assert.equal(previewSync(PLUGIN, [mcpItem()], result.lists, result.secrets)[0].status, "unchanged");
-});
 
 test("prompted values already set locally are kept on overwrite", () => {
   const item = promptedItem({ headers: {}, prompts: [{ target: "env", name: "FS_TOKEN", label: "Token", secret: true }] });

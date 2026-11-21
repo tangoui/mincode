@@ -28,7 +28,6 @@ import type {
   SchemaTable,
 } from "@/domain/database/types";
 import { createDatabaseMetadataCache, type DatabaseMetadataKind } from "@/domain/database/metadata-cache";
-import { onBackupRestored } from "@/domain/backup/restored-event";
 import { createRequestGenerationGate } from "@/domain/database/request-generation";
 import {
   databaseConnectionCapabilities,
@@ -59,7 +58,7 @@ import type { RowChange } from "@/domain/database/grid-pending-changes";
 import { tableStructureCapabilities } from "@/domain/database/table-structure-capabilities";
 import { resolvePrimaryKeyColumns } from "@/domain/database/table-index";
 import { normalizeConnectionGroupOrder } from "@/domain/connections/group-order";
-import { isPersistedWriteFrozen, loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
+import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 import { decryptField, encryptField } from "@/services/field-crypto";
 import { invokeBackend, isDesktopRuntime, listenAppEvent } from "@/services/desktop-bridge";
 import {
@@ -236,7 +235,6 @@ async function loadPersistedConnections() {
 }
 
 async function persistConnections(connections: DatabaseConnection[]) {
-  if (isPersistedWriteFrozen(DATABASE_CONNECTIONS_KEY)) return;
   localStorage.setItem(
     browserStorageKey,
     JSON.stringify(connections.map(sanitizeConnectionForBrowser))
@@ -253,8 +251,6 @@ async function persistConnections(connections: DatabaseConnection[]) {
       return { ...connection, password, token, tunnel };
     })
   );
-  // Re-checked after encrypting: a backup restore may have frozen the key meanwhile.
-  if (isPersistedWriteFrozen(DATABASE_CONNECTIONS_KEY)) return;
   await invokeBackend<void>("store_set", { key: DATABASE_CONNECTIONS_KEY, value: persisted });
   // 已删除连接的凭据释放授权不能残留；授权本身从不随连接持久化或导出。
   await pruneDatabaseDriverGrants(connections.map((connection) => connection.id)).catch(() => undefined);
@@ -798,34 +794,6 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
       loading.value = false;
     }
   }
-
-  /**
-   * A backup restore rewrote the saved connections: reload them (and drop a
-   * pending deferred save of the old list). Before the first load nothing is
-   * loaded yet, and that load reads the restored data.
-   */
-  async function reloadSavedConnections() {
-    if (!initialized.value) return;
-    await initializing;
-    if (deferredConnectionPersistenceTimer !== undefined) {
-      clearTimeout(deferredConnectionPersistenceTimer);
-      deferredConnectionPersistenceTimer = undefined;
-      deferredConnectionPersistenceSnapshot = undefined;
-    }
-    try {
-      const [storedConnections, storedGroupOrder] = await Promise.all([
-        loadPersistedConnections(),
-        loadPersistedValue<unknown>(DATABASE_CONNECTION_GROUP_ORDER_KEY),
-      ]);
-      connections.value = storedConnections;
-      connectionGroupOrder.value = normalizeConnectionGroupOrder(storedGroupOrder);
-      connectionsStatus.value = "ready";
-    } catch (cause) {
-      error.value = String(cause);
-      connectionsStatus.value = "failed";
-    }
-  }
-  onBackupRestored([DATABASE_CONNECTIONS_KEY, DATABASE_CONNECTION_GROUP_ORDER_KEY], reloadSavedConnections);
 
   async function saveConnectionGroupOrder(order: string[]) {
     const normalized = normalizeConnectionGroupOrder(order);

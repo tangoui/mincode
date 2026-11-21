@@ -4,7 +4,6 @@
 // writes them. The comparison and merge rules live in domain/ai/external-sync.
 import { shallowRef } from "vue";
 import { applySync, previewSync } from "@/domain/ai/external-sync";
-import { findSynced } from "@/domain/ai/sync-source";
 import type {
   SecretHashes,
   SyncChoice,
@@ -98,7 +97,6 @@ function settingsLists(snapshot: SettingsRecord): SyncSettingsLists {
   return {
     aiProfiles: recordList(snapshot.aiProfiles),
     mcpServers: recordList(snapshot.mcpServers),
-    aiSkills: recordList(snapshot.aiSkills),
   };
 }
 
@@ -201,41 +199,6 @@ export function applyExternalSync(
   reviewed?: readonly SyncReviewedEntry[]
 ): Promise<{ added: number; overwritten: number; failed: { key: string; reason: string }[] }> {
   const run = applyQueue.then(() => applyNow(pluginId, items, choices, reviewed));
-  applyQueue = run.catch(() => undefined);
-  return run;
-}
-
-async function markOauthNow(pluginId: string, sourceId: string, url: string) {
-  await settingsFlush?.();
-  await hydrateSettingsSnapshot();
-  const current = readSettingsSnapshot();
-  const lists = settingsLists(current);
-  const index = findSynced(lists.mcpServers, pluginId, { kind: "mcp", sourceId });
-  const server = lists.mcpServers[index];
-  // Changed or removed since the sign-in started: leave it as the user has it.
-  if (!server || server.auth === "oauth" || typeof server.url !== "string" || server.url.trim() !== url) return false;
-  const mcpServers = lists.mcpServers.map((entry, position) => (position === index ? { ...entry, auth: "oauth" } : entry));
-  try {
-    await persistSettingsSnapshot({ ...current, mcpServers }, { strict: true });
-  } catch (error) {
-    updateSettingsRuntimeSnapshot(current);
-    throw error;
-  }
-  writtenLists = JSON.parse(JSON.stringify({ ...lists, mcpServers })) as SyncSettingsLists;
-  aiSettingsExternalRevision.value += 1;
-  return true;
-}
-
-/**
- * After a plugin-started sign-in (ai.config login): adds the auth "oauth"
- * marker to the connector this plugin installed for sourceId, as Settings
- * does after its own sign-in, so connecting sends the host token. The marker
- * is not a secret; nothing else changes. Queued with the external writes and
- * published to the open Settings page the same way. Resolves false when the
- * connector is gone, already marked, or now has another address.
- */
-export function markSyncedMcpServerOauth(pluginId: string, sourceId: string, url: string): Promise<boolean> {
-  const run = applyQueue.then(() => markOauthNow(pluginId, sourceId, url));
   applyQueue = run.catch(() => undefined);
   return run;
 }

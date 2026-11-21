@@ -58,8 +58,8 @@ test("规则设置和两条 AI 注入链统一使用会话工作区作用域", a
   assert.match(settings, /rule\.workspaceId = workspaceId/);
   assert.match(settings, /workspaceId,/);
   assert.match(settings, /const workspaceId = ruleScope\.value === "workspace" \? availableRuleWorkspaceId\(\) : undefined/);
-  assert.match(drawer, /enabledAiContext\(workspaceId: string, prompt: string, includeRules = true\)/);
-  assert.match(drawer, /enabledAiContext\(runContext\.workspaceId, text\)/);
+  assert.match(drawer, /enabledAiContext\(workspaceId: string, includeRules = true\)/);
+  assert.match(drawer, /enabledAiContext\(runContext\.workspaceId\)/);
   assert.match(drawer, /acpPromptText\(text, conversationId, runContext\.workspaceId\)/);
   assert.match(zh, /工作区规则仅对所选工作区生效/);
   assert.match(zh, /"settings\.rules\.workspace": "工作区"/);

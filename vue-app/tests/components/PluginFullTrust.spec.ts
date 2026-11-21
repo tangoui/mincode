@@ -272,17 +272,6 @@ describe("PluginFullTrust", () => {
     expect(mocks.setFullTrust).not.toHaveBeenCalled();
   });
 
-  it("is disabled while MinCode is locked", async () => {
-    const { useAppLockStore } = await import("@/stores/app-lock");
-    useAppLockStore().locked = true;
-    await open();
-    expect(switchEl().classList.contains("is-disabled")).toBe(true);
-    const reason = document.body.querySelector(".plugin-full-trust__reason");
-    expect(reason?.textContent).toContain("锁定");
-    const input = switchEl().querySelector("input");
-    expect(reason?.id).toBeTruthy();
-    expect(input?.getAttribute("aria-describedby")).toBe(reason?.id);
-  });
 
   it("revokes legacy trust on a disabled plugin but cannot grant", async () => {
     mocks.getFullTrust.mockResolvedValue(status({ legacyDangerous: true }, { eligible: false, reason: "disabled" }));

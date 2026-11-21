@@ -52,19 +52,6 @@ const toolAuthorizationPersistence = await importTypeScriptSource(
   replaceSecureStore
 );
 
-const configSyncService = await importTypeScriptSource(
-  "../src/services/config-sync-service.ts",
-  (source) => replaceSecureStore(source)
-    .replace(
-      /import \{[^}]*\} from "@\/domain\/settings\/config-sync";/,
-      "const normalizeConfigSyncRepository = (value) => ({ ...(value ?? {}) });"
-    )
-    .replace(
-      'import { invokeBackend } from "@/services/desktop-bridge";',
-      "const invokeBackend = async () => { throw new Error('invokeBackend must not be called'); };"
-    )
-);
-
 function reset() {
   globalThis.__secureSaveStrictMocks.saved = [];
   globalThis.__secureSaveStrictMocks.failure = null;
@@ -118,29 +105,4 @@ test("revoking a global authorization that fails to persist rejects and keeps th
   globalThis.__secureSaveStrictMocks.failure = null;
   await toolAuthorizationPersistence.clearGlobalToolAuthorizations();
   assert.deepEqual(toolAuthorizationPersistence.globalToolAuthorizations.value, []);
-});
-
-test("saving the config-sync repository rejects when secure persistence fails", async () => {
-  reset();
-  const repository = {
-    remoteUrl: "https://example.com/config.git",
-    branch: "main",
-    authMode: "https-token",
-    username: "me",
-    token: "secret-token",
-    encryptionPassword: "pw",
-    rememberPassword: false,
-  };
-
-  globalThis.__secureSaveStrictMocks.failure = new Error("seal failed");
-  await assert.rejects(configSyncService.saveConfigSyncRepository(repository), /seal failed/);
-  const [key, value, options] = globalThis.__secureSaveStrictMocks.saved.at(-1);
-  assert.equal(key, configSyncService.CONFIG_SYNC_REPOSITORY_KEY);
-  assert.deepEqual(options, { strict: true });
-  assert.equal(value.encryptionPassword, "", "unremembered password must not be persisted");
-  assert.equal(globalThis.__secureSaveStrictMocks.stored.has(key), false);
-
-  globalThis.__secureSaveStrictMocks.failure = null;
-  await configSyncService.saveConfigSyncRepository(repository);
-  assert.equal(globalThis.__secureSaveStrictMocks.stored.get(key)?.token, "secret-token");
 });

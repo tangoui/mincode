@@ -16,8 +16,8 @@ interface Labels {
   placeholder: string; addAttachment: string; sendHint: string; send: string; stop: string; model: string;
   modelGroup: string; profileGroup: string; chooseModel: string; noModels: string; reasoning: string; removeAttachment: string;
   previewAttachment: string; suggestionList: string; suggestionHint: string;
-  suggestionSkill: string; suggestionTool: string; suggestionFile: string; optimizePrompt: string; cancelOptimization: string;
-  suggestionPrompt: string; suggestionPluginSkill: string;
+  suggestionTool: string; suggestionFile: string; optimizePrompt: string; cancelOptimization: string;
+  suggestionPrompt: string;
   /** Kind label of a plugin context provider (@mention) suggestion. */
   suggestionContext?: string;
 }
@@ -77,14 +77,12 @@ watch(() => props.history, () => {
 });
 
 function suggestionIcon(suggestion: AiPromptSuggestion) {
-  if (suggestion.kind === "skill") return MagicStick;
   if (suggestion.kind === "prompt") return ChatLineSquare;
   if (suggestion.kind === "context") return Collection;
   return suggestion.kind === "file" ? Document : Tools;
 }
 
 function suggestionKindLabel(suggestion: AiPromptSuggestion) {
-  if (suggestion.kind === "skill") return suggestion.source ? props.labels.suggestionPluginSkill : props.labels.suggestionSkill;
   if (suggestion.kind === "prompt") return props.labels.suggestionPrompt;
   if (suggestion.kind === "context") return props.labels.suggestionContext ?? props.labels.suggestionFile;
   return suggestion.kind === "file" ? props.labels.suggestionFile : props.labels.suggestionTool;

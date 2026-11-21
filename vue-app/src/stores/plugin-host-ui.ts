@@ -1,6 +1,5 @@
 import { acceptHMRUpdate, defineStore } from "pinia";
 import { ref } from "vue";
-import type { BackupDialogRequest } from "@/domain/backup/requests";
 import type { PluginPrompt } from "@/domain/plugins/host-prompts";
 import type { PluginDiffRequest } from "@/domain/plugins/host-ui";
 
@@ -12,13 +11,11 @@ const MAX_QUEUED_PROMPTS = 20;
 /**
  * Plugin requests that need a host dialog: prompts (host.quickPick /
  * host.inputBox) are shown one at a time in arrival order; diffs
- * (host.diff.open) stack as read-only dialogs; backup dialogs (backup
- * password, restore confirmation; services/backup-host.ts) queue like prompts.
+ * (host.diff.open) stack as read-only dialogs.
  */
 export const usePluginHostUiStore = defineStore("plugin-host-ui", () => {
   const prompts = ref<PluginPrompt[]>([]);
   const diffs = ref<Array<PluginDiffRequest & { key: number }>>([]);
-  const backupDialogs = ref<BackupDialogRequest[]>([]);
   let diffSequence = 0;
 
   function pushPrompt(prompt: PluginPrompt) {
@@ -39,17 +36,7 @@ export const usePluginHostUiStore = defineStore("plugin-host-ui", () => {
     diffs.value = diffs.value.filter((item) => item.key !== key);
   }
 
-  function pushBackupDialog(request: BackupDialogRequest) {
-    if (backupDialogs.value.some((item) => item.id === request.id) || backupDialogs.value.length >= MAX_QUEUED_PROMPTS) return false;
-    backupDialogs.value = [...backupDialogs.value, request];
-    return true;
-  }
-
-  function removeBackupDialog(id: string) {
-    backupDialogs.value = backupDialogs.value.filter((item) => item.id !== id);
-  }
-
-  return { prompts, diffs, backupDialogs, pushPrompt, removePrompt, pushDiff, closeDiff, pushBackupDialog, removeBackupDialog };
+  return { prompts, diffs, pushPrompt, removePrompt, pushDiff, closeDiff };
 });
 
 if (import.meta.hot) {

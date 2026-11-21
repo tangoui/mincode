@@ -16,7 +16,6 @@ import { useWorkbenchStore } from "@/stores/workbench";
 import { useAiAssistantShellStore } from "@/stores/ai-assistant-shell";
 import { useKeybindingsStore } from "@/stores/keybindings";
 import { useAppUpdateStore } from "@/stores/app-update";
-import { usePluginUpdatesStore } from "@/stores/plugin-updates";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
 import {
   sidebarItemIsActive,
@@ -134,10 +133,6 @@ const appUpdate = useAppUpdateStore();
 const settingsLabel = computed(() => appUpdate.pendingVersion
   ? t("nav.settingsUpdate", { version: appUpdate.pendingVersion })
   : t("nav.settings"));
-const pluginUpdates = usePluginUpdatesStore();
-const pluginManagerLabel = computed(() => pluginUpdates.count
-  ? t("nav.pluginsUpdate", { count: pluginUpdates.count })
-  : t(pluginManagerItem.labelKey));
 const order = ref(loadOrder());
 const labelsVisible = sidebarLabelsVisible();
 const visibility = ref(createDefaultSidebarVisibility());
@@ -319,7 +314,7 @@ onBeforeUnmount(() => {
     </el-scrollbar>
     <div v-if="visibility.plugins" class="app-activity-bar__plugin-manager">
       <el-tooltip
-        :content="pluginManagerLabel"
+        :content="t('nav.plugins')"
         placement="right"
         :disabled="labelsVisible"
         @before-show="showSidebarTooltip('plugins')"
@@ -330,7 +325,7 @@ onBeforeUnmount(() => {
           text
           native-type="button"
           :class="{ 'is-active': isItemActive(pluginManagerItem) }"
-          :aria-label="pluginManagerLabel"
+          :aria-label="t('nav.plugins')"
           :aria-current="isItemActive(pluginManagerItem) ? 'page' : undefined"
           @pointerenter="warmItem(pluginManagerItem)"
           @pointerdown="warmItem(pluginManagerItem)"
@@ -339,9 +334,8 @@ onBeforeUnmount(() => {
         >
           <span class="app-activity-button__icon">
             <el-icon><component :is="pluginManagerItem.icon" /></el-icon>
-            <span v-if="pluginUpdates.count" class="app-activity-button__dot" data-testid="plugin-updates-dot" aria-hidden="true" />
           </span>
-          <span v-if="labelsVisible" class="app-activity-button__label" :title="pluginManagerLabel">{{ t(pluginManagerItem.labelKey) }}</span>
+          <span v-if="labelsVisible" class="app-activity-button__label" :title="t('nav.plugins')">{{ t(pluginManagerItem.labelKey) }}</span>
         </el-button>
       </el-tooltip>
     </div>

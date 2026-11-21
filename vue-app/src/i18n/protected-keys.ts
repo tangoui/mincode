@@ -1,8 +1,8 @@
 /**
  * Host message keys that a language pack (contributes.localizations) may
  * never translate. They cover approval and grant dialogs, capability and
- * install/upgrade disclosures, destructive confirmations, secrets, the app
- * lock, host fingerprints, paste confirmation, shared `common.*` buttons and
+ * install/upgrade disclosures, destructive confirmations, secrets, SSH
+ * host fingerprints, paste confirmation, shared `common.*` buttons and
  * the language setting row itself (so the user can always switch back). A
  * protected key always renders in the user's base language (zh or en).
  *
@@ -17,11 +17,7 @@
 /** Every key starting with one of these is protected. */
 export const PROTECTED_MESSAGE_PREFIXES: readonly string[] = [
   "common.",
-  "security.",
-  "settings.security.",
   "settings.language",
-  "settings.data.configSyncPassword",
-  "settings.data.envPassword",
   "settings.ai.dangerous",
   "settings.ai.clearAuthorizations",
   "settings.ai.revokeAuthorization",
@@ -51,9 +47,6 @@ export const PROTECTED_MESSAGE_PREFIXES: readonly string[] = [
   "plugins.development.approve",
   "plugins.development.trustWarning",
   "plugins.install",
-  "plugins.marketConfirmUpgrade",
-  "plugins.marketUnsigned",
-  "plugins.marketVerified",
   "plugins.preview",
   "plugins.declarativePreviewNotice",
   "plugins.confirmInstall",

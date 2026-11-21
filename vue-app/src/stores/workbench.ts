@@ -1,7 +1,6 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { acceptHMRUpdate, defineStore } from "pinia";
 import { loadPersistedValue, savePersistedValue } from "@/services/persistent-store";
-import { useQuotaStore } from "@/stores/quota";
 import type {
   WorkspaceDefinition,
   WorkspaceTab,
@@ -89,21 +88,13 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       lastActiveTabByWorkspace.value[activeWorkspaceId.value] = activeTabId.value;
   }
 
-  const quota = useQuotaStore();
   // Every path that adds an active workspace or a workspace tab must pass through these two checks.
-  function admitTab(workspaceId: string) {
-    return quota.admit("tab", tabs.value.filter((tab) => tab.workspaceId === workspaceId).length);
-  }
-  function admitWorkspace() {
-    return quota.admit("workspace", workspaces.value.length);
-  }
 
   function createTab(view: WorkspaceView, title?: string) {
     if (view === "dashboard") {
       activeTabId.value = "";
       return undefined;
     }
-    if (!admitTab(activeWorkspaceId.value)) return undefined;
 
     const tab: WorkspaceTab = {
       id: createId(`${activeWorkspaceId.value}:${view}`),
@@ -133,7 +124,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       rememberActiveTab();
       return existing;
     }
-    if (!admitTab(activeWorkspaceId.value)) return undefined;
 
     const tab: WorkspaceTab = {
       id,
@@ -162,7 +152,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       rememberActiveTab();
       return existing;
     }
-    if (!admitTab(activeWorkspaceId.value)) return undefined;
     const tab: WorkspaceTab = {
       id,
       workspaceId: activeWorkspaceId.value,
@@ -193,7 +182,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       rememberActiveTab();
       return existing;
     }
-    if (!admitTab(activeWorkspaceId.value)) return undefined;
     const tab: WorkspaceTab = {
       id: serviceResultTabId(activeWorkspaceId.value, normalizedResultId),
       workspaceId: activeWorkspaceId.value,
@@ -235,7 +223,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
       rememberActiveTab();
       return source;
     }
-    if (!admitTab(source.workspaceId)) return undefined;
     const index = tabs.value.indexOf(source);
     const copy: WorkspaceTab = {
       ...source,
@@ -339,11 +326,9 @@ export const useWorkbenchStore = defineStore("workbench", () => {
         rememberActiveTab();
         return existing;
       }
-      if (!admitTab(workspaceId)) return undefined;
       tab.workspaceId = workspaceId;
       tab.id = pluginViewTabId(workspaceId, pluginId, viewId);
     } else {
-      if (!admitTab(workspaceId)) return undefined;
       tab.workspaceId = workspaceId;
       tab.id = createId(`${workspaceId}:${tab.view}`);
     }
@@ -399,7 +384,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
   function createWorkspace(name: string, worktree?: WorkspaceWorktreeBinding) {
     const trimmed = name.trim();
     if (!trimmed) return undefined;
-    if (!admitWorkspace()) return undefined;
     const timestamp = now();
     const binding = normalizeWorktreeBinding(worktree);
     const workspace: WorkspaceDefinition = {
@@ -485,7 +469,6 @@ export const useWorkbenchStore = defineStore("workbench", () => {
     if (workspaces.value.some((item) => item.id === id)) return undefined;
     const index = deletedWorkspaces.value.findIndex((item) => item.workspace.id === id);
     if (index < 0) return undefined;
-    if (!admitWorkspace()) return undefined;
     const restored = deletedWorkspaces.value[index]!;
     const existingTabIds = new Set(tabs.value.map((tab) => tab.id));
     const restoredTabs = restored.tabs.filter((tab) => !existingTabIds.has(tab.id));

@@ -5,7 +5,6 @@ import { Close } from "@element-plus/icons-vue";
 import PluginViewFrame from "@/components/plugins/PluginViewFrame.vue";
 import { hidePluginFloatingView, type PluginState } from "@/services/plugin-service";
 import { isDesktopRuntime, listenAppEvent } from "@/services/desktop-bridge";
-import { useAppLockStore } from "@/stores/app-lock";
 import { useVueI18n } from "@/i18n/messages";
 import "@/styles/workspaces/plugins/workspace.css";
 import "@/styles/workspaces/plugins/floating-window.css";
@@ -18,7 +17,6 @@ import "@/styles/workspaces/plugins/floating-window.css";
 const props = defineProps<{ pluginId: string; viewId: string }>();
 
 const { t } = useVueI18n();
-const appLock = useAppLockStore();
 const frameKey = ref(0);
 const frame = ref<InstanceType<typeof PluginViewFrame>>();
 let frameDown = false;
@@ -62,21 +60,17 @@ function handlePluginState(event: { id?: string; state?: PluginState | "uninstal
 }
 
 onMounted(() => {
-  appLock.ensureListening();
-  void appLock.hydrate();
   if (isDesktopRuntime()) stopStateListener = listenAppEvent("plugin:state-changed", handlePluginState);
 });
 
 onBeforeUnmount(() => {
   stopStateListener?.();
-  appLock.dispose();
 });
 </script>
 
 <template>
   <div class="plugin-floating-window" @pointerdown="handlePointerDown" @click="handleClick">
     <PluginViewFrame
-      v-if="!appLock.locked"
       ref="frame"
       :key="frameKey"
       :plugin-id="pluginId"

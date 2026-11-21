@@ -149,11 +149,6 @@ test("configuration sync entry carries only global plugin values", () => {
   assert.equal(pluginConfigurationSyncEntry(undefined), undefined);
 });
 
-test("config sync routes the synthetic entry through the Go host", async () => {
-  const persistence = await source("../src/services/config-sync-persistence.ts");
-  assert.match(persistence, /pluginConfigurationSyncEntry\(await exportPluginConfigurationSync\(\)\)/);
-  assert.match(persistence, /key === PLUGIN_CONFIGURATION_SYNC_KEY[\s\S]*importPluginConfigurationSync\(data\)[\s\S]*continue;/);
-});
 
 test("settings fields resolve plugin-owned text over the locale chain", () => {
   const chained = {

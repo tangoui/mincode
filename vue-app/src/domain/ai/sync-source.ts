@@ -3,7 +3,7 @@
 // only needs to find a plugin's entry, such as the ai.config login, does not
 // load the comparison and merge rules.
 
-export type SyncKind = "profile" | "mcp" | "skill";
+export type SyncKind = "profile" | "mcp";
 
 /** Stored on every synced settings object; travels with config sync, so it holds no secret. */
 export interface SyncSource {

@@ -5,41 +5,23 @@
  */
 import { onBeforeUnmount } from "vue";
 import type { CommandPaletteOpenRequest } from "@/domain/commands/command-palette";
-import { registerKeybindingContext } from "@/domain/keybindings/context";
 import { useVueI18n } from "@/i18n/messages";
 import { registerCommand } from "@/services/command-registry";
 import { useAiAssistantShellStore } from "@/stores/ai-assistant-shell";
-import { useAppLockStore } from "@/stores/app-lock";
 
 export interface AppCommandsOptions {
   openPalette: (request: Omit<CommandPaletteOpenRequest, "seq">) => void;
   openSettings: (category?: "shortcuts") => void;
-  /** Pop-out windows render no palette, settings or AI drawer: only the lock command applies. */
+  /** Pop-out windows render no palette, settings or AI drawer. */
   popup?: boolean;
 }
 
 export function useAppCommands(options: AppCommandsOptions): void {
   const { t } = useVueI18n();
   const assistant = useAiAssistantShellStore();
-  const appLock = useAppLockStore();
+  if (options.popup) return;
 
-  const lockDisposers = [
-    registerKeybindingContext("app.lock.available", () => appLock.configured && !appLock.locked),
-    registerCommand({
-      id: "builtin:lock-app",
-      source: "builtin",
-      title: () => t("commandPalette.lockApp"),
-      subtitle: () => t("commandPalette.source.builtin"),
-      keywords: ["lock", "security", "锁定"],
-      priority: 2,
-      when: "app.lock.available",
-      execute: () => {
-        appLock.lock();
-      },
-    }),
-  ];
-  const disposers = options.popup ? lockDisposers : [
-    ...lockDisposers,
+  const disposers = [
     registerCommand({
       id: "builtin:command-palette",
       source: "builtin",

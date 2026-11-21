@@ -8,7 +8,6 @@ import {
   normalizeLinterPrompts,
   recordLinterPrompt,
 } from "../src/domain/plugins/linter-prompts.ts";
-import { CONFIG_SYNC_STORAGE_PREFIX } from "../src/domain/settings/config-sync.ts";
 
 const base = { title: "T", action: "lint", triggers: ["open", "save"], debounceMs: 750 };
 
@@ -68,7 +67,7 @@ test("a selected linter whose workspace setting is off is offered again only for
 });
 
 test("prompt answers are machine-local, bounded and normalized", () => {
-  assert.equal(LINTER_PROMPTS_STORAGE_KEY.startsWith(CONFIG_SYNC_STORAGE_PREFIX), false);
+  assert.equal(LINTER_PROMPTS_STORAGE_KEY.startsWith("app_"), false);
   assert.deepEqual(normalizeLinterPrompts({ version: 1, byWorkspace: { w1: { "a/b": "enabled", "a/c": "maybe", bad: "enabled" } } }).byWorkspace, { w1: { "a/b": "enabled" } });
   let prompts = normalizeLinterPrompts(null);
   for (let index = 0; index < 300; index++) prompts = recordLinterPrompt(prompts, `w${index}`, "a/b", "dismissed");

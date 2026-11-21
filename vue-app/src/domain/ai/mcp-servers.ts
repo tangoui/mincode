@@ -1,7 +1,5 @@
 // MCP connector definitions and the helpers that turn a stored server into
-// its runtime form. Kept apart from settings-integrations.ts, which also
-// carries the skill repository parsers, so the always-loaded settings service
-// stays small.
+// its runtime form. Kept apart from settings-integrations.ts, so the always-loaded settings service stays small.
 
 // “连接器”是面向用户的产品名称；MCP 类型与字段继续保留以兼容标准协议和既有配置。
 export type McpTransport = "stdio" | "http";
@@ -16,19 +14,6 @@ export interface StoredMcpServer {
   enabled: boolean;
   env: Record<string, string>;
   headers: Record<string, string>;
-  /**
-   * "oauth": the host signs in to this remote connector and sends the token
-   * itself (mcpauth). Only the marker is stored and synced; tokens stay in the
-   * Go backend.
-   */
-  auth?: McpAuthMode;
-}
-
-export type McpAuthMode = "oauth";
-
-/** The stored auth marker, or undefined for anything that is not one. */
-export function normalizeMcpAuth(value: unknown): McpAuthMode | undefined {
-  return value === "oauth" ? value : undefined;
 }
 
 const MCP_PATH_PLACEHOLDERS = ["<repository_path>", "<path>"] as const;

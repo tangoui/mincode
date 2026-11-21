@@ -67,7 +67,6 @@ export const TERMINAL_PASSTHROUGH_COMMANDS: ReadonlySet<string> = new Set([
   "workbench:prev-tab",
   "workbench:close-tab",
   "builtin:settings",
-  "builtin:lock-app",
   "builtin:ai",
 ]);
 
@@ -107,7 +106,7 @@ export function admitsBinding(
     case "other":
       return true;
     case "dialog":
-      return binding.command === "builtin:lock-app" || clausesName(binding, "dialog.focus");
+      return clausesName(binding, "dialog.focus");
     case "terminal":
       if (TERMINAL_PASSTHROUGH_COMMANDS.has(binding.command)) return true;
       return platform === "mac" && Boolean(chord?.meta);

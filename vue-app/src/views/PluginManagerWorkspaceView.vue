@@ -9,11 +9,10 @@ import PluginCallGrants from "@/components/plugins/PluginCallGrants.vue";
 import PluginDatabaseSchemaGrants from "@/components/plugins/PluginDatabaseSchemaGrants.vue";
 import PluginWalkthroughList from "@/components/plugins/PluginWalkthroughList.vue";
 import PluginProvidedServices from "@/components/plugins/PluginProvidedServices.vue";
-import { mergePluginCatalog, filterPluginCatalog, countPluginCategories, pluginCanStart, pluginCategories, catalogUpgradeVersion, upgradablePluginIds, type CatalogFilter, type PluginCategory } from "@/domain/plugins/catalog";
-import { usePluginUpdatesStore } from "@/stores/plugin-updates";
+import { mergePluginCatalog, filterPluginCatalog, countPluginCategories, pluginCanStart, pluginCategories, type CatalogFilter, type PluginCategory } from "@/domain/plugins/catalog";
 import type { PluginInstallPreview } from "@/domain/plugins/install-preview";
 import { pluginCapabilityTone } from "@/domain/plugins/capability-tone";
-import { describePluginInstallError, parsePluginQuotaError, type PluginInstallErrorInfo } from "@/domain/plugins/install-error";
+import { describePluginInstallError, type PluginInstallErrorInfo } from "@/domain/plugins/install-error";
 import { dynamicStatusBarItemIds } from "@/domain/plugins/status-bar";
 import { languagePreviewSummary } from "@/domain/editor/language-contributions";
 import { aiPromptPreviewSummary } from "@/domain/ai/plugin-prompts";
@@ -53,16 +52,12 @@ import { aiProviderPreviewCount } from "@/domain/plugins/ai-providers";
 import { uriHandlerPreviewSummary } from "@/domain/plugins/uri-handlers";
 import { trayPreviewTitles } from "@/domain/plugins/tray";
 import { settingsPagePreviewTitle } from "@/domain/plugins/settings-pages";
-import { isNewerPluginVersion } from "@/domain/plugins/market-version";
-import { hostRangeMessage, marketCompatibility } from "@/domain/plugins/market-compatibility";
-import { listMarketPlugins, previewMarketPluginInstall, type MarketPlugin } from "@/services/market-service";
-import { cloudStatus } from "@/services/cloud-companion-service";
 import { useRoute, useRouter } from "vue-router";
 import "@/styles/workspaces/plugins/workspace.css";
 import { ElCheckbox, ElMessage, ElMessageBox } from "element-plus";
-import { ArrowDown, Check, CircleCheckFilled, DArrowLeft, DArrowRight, Delete, Download, InfoFilled, Refresh, Setting, Star, Tickets, TopRight, Upload, WarningFilled } from "@element-plus/icons-vue";
+import { ArrowDown, Check, DArrowLeft, DArrowRight, Delete, Download, InfoFilled, Refresh, Setting, Tickets, TopRight, Upload, WarningFilled } from "@element-plus/icons-vue";
 import { listConfigurablePlugins } from "@/services/plugin-configuration-service";
-import { openCloudAccount, openPluginSettings } from "@/services/settings-navigation";
+import { openPluginSettings } from "@/services/settings-navigation";
 import { localizedPluginTitle } from "@/services/plugin-titles";
 import { pluginViewIcon } from "@/services/plugin-view-icon";
 import { useVueI18n } from "@/i18n/messages";
@@ -90,11 +85,9 @@ import {
   type PluginScope,
   type PluginState,
 } from "@/services/plugin-service";
-import { chooseNativeDirectory, chooseNativeFile, chooseNativeSaveFile, isDesktopRuntime, listenAppEvent } from "@/services/desktop-bridge";
+import { chooseNativeDirectory, chooseNativeFile, chooseNativeSaveFile, isDesktopRuntime, nativeErrorMessage, listenAppEvent } from "@/services/desktop-bridge";
 import { openPluginViewTab } from "@/domain/workspace/open-plugin-view";
 import { useWorkbenchStore } from "@/stores/workbench";
-import { useQuotaStore } from "@/stores/quota";
-import { evaluateQuota } from "@/domain/workspace/quota";
 
 import { loadPluginMenu, savePluginMenu, PLUGIN_CATALOG_EVENT } from "@/services/plugin-menu-preferences";
 const menuPlugins = ref<string[]>([]);
@@ -134,33 +127,14 @@ const plugins = ref<PluginMeta[]>([]);
 const pluginNamesById = computed(() => Object.fromEntries(plugins.value.map((item) => [item.id, item.name])));
 // Plugins that declare contributes.configuration get a "Settings" link.
 const configurablePluginIds = ref(new Set<string>());
-const quota = useQuotaStore();
-// Every installed plugin, declarative (data-only) ones included, counts toward the plan's enabled-plugin cap,
-// as in the backend; only plugins built into the host never do.
-function usesPluginQuota(plugin: Pick<PluginMeta, "source">) {
-  return plugin.source !== "builtin";
-}
-const enabledPluginCount = computed(() => plugins.value.filter((item) => item.enabled && usesPluginQuota(item)).length);
-const pluginQuota = computed(() => evaluateQuota(quota.effective?.limits, "plugin", enabledPluginCount.value));
 const officialPlugins = ref<OfficialPlugin[]>([]);
-const cloudPlugins = ref<MarketPlugin[]>([]);
-const marketLoading = ref(false);
-const marketError = ref("");
-const marketTruncated = ref(false);
-let marketGeneration = 0;
 function searchFromQuery(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, 64) : "";
 }
 
 const filters = ref<CatalogFilter>({ category: "all", source: "all", status: "all", search: searchFromQuery(route.query.search) });
 const categories = ref<PluginCategory[]>([]);
-const allEntries = computed(() => mergePluginCatalog(plugins.value, officialPlugins.value, cloudPlugins.value));
-// Share what this page knows with the activity bar dot, once both lists loaded at least once.
-const pluginUpdates = usePluginUpdatesStore();
-let marketLoaded = false, pluginsLoaded = false;
-function publishPluginUpdates() {
-  if (marketLoaded && pluginsLoaded) pluginUpdates.publish(upgradablePluginIds(allEntries.value));
-}
+const allEntries = computed(() => mergePluginCatalog(plugins.value, officialPlugins.value));
 const catalogEntries = computed(() => filterPluginCatalog(allEntries.value, filters.value));
 const page = ref(1);
 const pageSize = 24;
@@ -168,7 +142,6 @@ const pageEntries = computed(() => catalogEntries.value.slice((page.value - 1) *
 const pageCount = computed(() => Math.max(1, Math.ceil(catalogEntries.value.length / pageSize)));
 watch(catalogEntries, () => { page.value = 1; });
 const categoryCounts = computed(() => countPluginCategories(allEntries.value, filters.value));
-// Manifest categories always show; marketplace-only ones appear once a listing uses them, in catalog order.
 const visibleCategories = computed(() => {
   const used = new Set<PluginCategory>([...categories.value, ...allEntries.value.map(entry => entry.category)]);
   return pluginCategories.filter(category => used.has(category));
@@ -176,6 +149,7 @@ const visibleCategories = computed(() => {
 const detailId = ref("");
 const detail = computed(() => allEntries.value.find(entry => entry.id === detailId.value));
 const detailsVisible = ref(false);
+const previewPath = ref("");
 const preview = ref<PluginInstallPreview>();
 const previewVisible = ref(false);
 const previewLoading = ref(false);
@@ -184,20 +158,6 @@ const previewHasNonReadActions = computed(() => preview.value?.manifest.contribu
   ?.some(action => action.risk !== "read") === true);
 const previewError = ref<PluginInstallErrorInfo>();
 /** Supported MinCode range of a catalog entry's latest release, for display. */
-function hostRangeText(cloud: MarketPlugin): string {
-  const { key, params } = hostRangeMessage(cloud.min_host_version, cloud.max_host_version_exclusive);
-  return t(key as Parameters<typeof t>[0], params);
-}
-/** Short warning when the latest release needs a different MinCode, e.g. "v2.0.0 需要 MinCode 0.3.0 及以上". */
-function latestNeedsText(cloud: MarketPlugin): string {
-  return t("plugins.hostLatestNeeds", { version: cloud.latest_published_version ?? "", range: hostRangeText(cloud) });
-}
-const previewErrorTitle = computed(() => {
-  const kind = previewError.value?.kind;
-  return !kind || kind === "unknown" ? t("plugins.previewFailed") : t(`plugins.installError.${kind}.title`);
-});
-const previewPath = ref("");
-const marketInstall = ref<{ key: string; version: string; sha256: string; upgrade: boolean; requiresPaidHost: boolean }>();
 let previewGeneration = 0;
 let refreshGeneration = 0;
 let logsGeneration = 0;
@@ -215,13 +175,11 @@ function invalidatePreview() {
   previewGeneration++;
   preview.value = undefined;
   previewPath.value = "";
-  marketInstall.value = undefined;
   previewLoading.value = false;
   previewError.value = undefined;
 }
 
 watch(previewVisible, visible => { if (!visible) invalidatePreview(); }, { flush: "sync" });
-const failedCovers = ref<Record<string, string>>({});
 const officialError = ref("");
 const officialBusy = ref("");
 const pluginViews = ref<PluginView[]>([]);
@@ -270,31 +228,12 @@ function stateLabel(state: PluginState) {
   return t(`plugins.state.${state}` as Parameters<typeof t>[0]);
 }
 
-async function refreshMarket() {
-  const generation = ++marketGeneration;
-  marketLoading.value = true;
-  marketError.value = "";
-  try {
-    const result = await listMarketPlugins(() => !disposed && generation === marketGeneration);
-    if (disposed || generation !== marketGeneration) return;
-    cloudPlugins.value = result.items;
-    marketTruncated.value = result.truncated;
-    marketLoaded = true;
-    publishPluginUpdates();
-  } catch (error) {
-    if (!disposed && generation === marketGeneration) marketError.value = String(error);
-  } finally {
-    if (!disposed && generation === marketGeneration) marketLoading.value = false;
-  }
-}
-
 async function refresh() {
   if (loading.value) return;
   if (!isDesktopRuntime()) {
     listError.value = t("common.desktopRequired");
     return;
   }
-  void refreshMarket();
   loading.value = true;
   listError.value = "";
   try {
@@ -312,8 +251,6 @@ async function refresh() {
     categories.value = categoryList;
     officialPlugins.value = [];
     officialError.value = "";
-    pluginsLoaded = true;
-    publishPluginUpdates();
     window.dispatchEvent(new Event(PLUGIN_CATALOG_EVENT));
   } catch (error) {
     if (!disposed) listError.value = String(error);
@@ -352,69 +289,9 @@ function changeScopeWorkspaces(plugin: PluginMeta, value: unknown) {
   void persistScope(plugin, "workspace", workspaces);
 }
 
-/** Refuses early when the resolved plan is known to be unpaid; the backend enforces the same rule. */
-function paidHostBlocked(plugin: PluginMeta) {
-  const plan = quota.effective?.plan ?? (quota.effective ? "free" : undefined);
-  if (!plugin.requiresPaidHost || !plan || plan === "annual" || plan === "perpetual") return false;
-  ElMessage.warning({ message: t("plugins.installError.paidHostRequired.hint"), grouping: true, showClose: true, duration: 5000 });
-  return true;
-}
-
-function pluginErrorMessage(error: unknown) {
-  const info = describePluginInstallError(String(error));
-  if (info.kind === "paidHostRequired") return t("plugins.installError.paidHostRequired.hint");
-  if (info.kind === "pluginQuota") {
-    // The backend had newer limits than the cached ones; resync so the tab badge matches.
-    void quota.refresh();
-    const parsed = parsePluginQuotaError(info.detail);
-    if (!parsed) return t("plugins.installError.pluginQuota.title");
-    const plan = ["free", "annual", "perpetual"].includes(parsed.plan)
-      ? t(`settings.pro.cloudPlan.${parsed.plan}` as Parameters<typeof t>[0])
-      : parsed.plan;
-    return parsed.limit > 0 ? t("quota.pluginLimit", { plan, limit: parsed.limit }) : t("quota.pluginsNotAllowed", { plan });
-  }
-  return info.detail;
-}
-
-function isPluginQuotaError(error: unknown) {
-  return describePluginInstallError(String(error)).kind === "pluginQuota";
-}
-
-/** The separate high-risk explanation for the backup capability; false when the user cancels. */
-async function confirmBackupCapability() {
-  try {
-    await ElMessageBox.confirm(t("plugins.backupRisk.body"), t("plugins.backupRisk.title"), {
-      type: "warning",
-      confirmButtonText: t("plugins.enable"),
-      cancelButtonText: t("common.cancel"),
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Records from older hosts may lack a capabilities list; that means "no backup capability". */
-function declaresBackupCapability(plugin: Pick<PluginMeta, "capabilities">) {
-  return Array.isArray(plugin.capabilities) && plugin.capabilities.includes("backup");
-}
-
 async function toggle(plugin: PluginMeta, enabled: boolean) {
   if (busyId.value || officialBusy.value || (enabled && !pluginCanStart(plugin))) return;
   const previous = plugin.enabled;
-  if (enabled && !previous && paidHostBlocked(plugin)) {
-    plugin.enabled = previous;
-    return;
-  }
-  // The backend enforces the cap too; checking here avoids asking for capability approval first.
-  if (enabled && !previous && usesPluginQuota(plugin) && !quota.admit("plugin", enabledPluginCount.value)) {
-    plugin.enabled = previous;
-    return;
-  }
-  if (enabled && !previous && declaresBackupCapability(plugin) && !(await confirmBackupCapability())) {
-    plugin.enabled = previous;
-    return;
-  }
   if (enabled && plugin.source === "local") {
     try {
       await ElMessageBox.confirm(
@@ -427,7 +304,6 @@ async function toggle(plugin: PluginMeta, enabled: boolean) {
           plugin.capabilities.includes("remote.context") ? t("plugins.capabilityRemoteContext") : "",
           plugin.capabilities.includes("ui.wasm") ? t("plugins.capabilityUiWasm") : "",
           plugin.capabilities.includes("ai.config") ? t("plugins.capabilityAiConfig") : "",
-          plugin.capabilities.includes("backup") ? t("plugins.capability.backup") : "",
         ]
           .filter(Boolean)
           .join(" "),
@@ -446,11 +322,7 @@ async function toggle(plugin: PluginMeta, enabled: boolean) {
     await refresh();
   } catch (error) {
     plugin.enabled = previous;
-    if (isPluginQuotaError(error)) {
-      ElMessage.warning({ message: pluginErrorMessage(error), grouping: true, showClose: true, duration: 5000 });
-    } else {
-      ElMessage.error(pluginErrorMessage(error));
-    }
+    ElMessage.error(nativeErrorMessage(error));
   } finally {
     busyId.value = "";
   }
@@ -536,11 +408,6 @@ const previewGlobalShortcutsChanged = computed(() =>
 );
 
 // Marketplace popularity on cards, compact for large numbers (1.2k / 1.2万).
-const countFormatter = computed(() => new Intl.NumberFormat(locale.value === "zh" ? "zh-CN" : "en", { notation: "compact", maximumFractionDigits: 1 }));
-function formatCount(value: number) {
-  return countFormatter.value.format(value);
-}
-
 async function chooseSourceZip() {
   if (choosingSource.value || installing.value || previewLoading.value || disposed) return;
   if (!isDesktopRuntime()) {
@@ -586,57 +453,6 @@ async function install() {
   } catch (error) {
     if (disposed || generation !== previewGeneration) return;
     const info = describePluginInstallError(String(error));
-    if (info.kind === "signInRequired") {
-      redirectToCloudSignIn();
-      return;
-    }
-    previewError.value = info;
-  } finally {
-    if (generation === previewGeneration) previewLoading.value = false;
-  }
-}
-
-/**
- * 云端安装需要会员会话：后端在下载前直接拒绝，留在预检弹窗里报错没有出路。
- * 关闭弹窗并切到「设置 → 云账号」登录页，登录后回到插件管理重新点击安装即可。
- */
-function redirectToCloudSignIn() {
-  // Closing the dialog runs `invalidatePreview`, so the failed request leaves no stale state.
-  previewVisible.value = false;
-  ElMessage.warning({ message: t("plugins.marketSignInRequired"), grouping: true, showClose: true, duration: 6000 });
-  openCloudAccount();
-}
-
-async function installFromMarket(productKey: string) {
-  if (installing.value || previewLoading.value || choosingSource.value || !!busyId.value || disposed) return;
-  if (!isDesktopRuntime()) {
-    ElMessage.warning(t("common.desktopRequired"));
-    return;
-  }
-  invalidatePreview();
-  const generation = previewGeneration;
-  previewVisible.value = true;
-  previewLoading.value = true;
-  try {
-    // Check before release/paid-plan preflight: otherwise a signed-out user can hit the
-    // paid-host gate (or a network error) without ever reaching the download login gate.
-    const account = await cloudStatus();
-    if (disposed || generation !== previewGeneration || !previewVisible.value) return;
-    if (!account.signedIn) {
-      redirectToCloudSignIn();
-      return;
-    }
-    const result = await previewMarketPluginInstall(productKey);
-    if (disposed || generation !== previewGeneration || !previewVisible.value) return;
-    preview.value = result.preview;
-    marketInstall.value = { key: productKey, version: result.version, sha256: result.sha256, upgrade: result.versionChange === "upgrade", requiresPaidHost: result.requiresPaidHost };
-  } catch (error) {
-    if (disposed || generation !== previewGeneration) return;
-    const info = describePluginInstallError(String(error));
-    if (info.kind === "signInRequired") {
-      redirectToCloudSignIn();
-      return;
-    }
     previewError.value = info;
   } finally {
     if (generation === previewGeneration) previewLoading.value = false;
@@ -696,18 +512,8 @@ const previewServiceSurfaces = computed(() => servicePreviewSurfaces(preview.val
 // aiCatalogs：安装预览列出“设置 → AI → 发现”中新增的连接器/技能来源（搜索时把关键词发送给插件，添加前需用户确认）。
 const previewAiCatalogs = computed(() => aiCatalogPreviewSummary(preview.value?.manifest.contributes));
 const previewAiProviders = computed(() => aiProviderPreviewCount(preview.value?.manifest.contributes));
-// A new plugin of any kind is refused before installing once the enabled-plugin cap is full (the backend refuses it
-// too); upgrades never take a new slot.
-const previewQuotaMessage = computed(() => {
-  if (!preview.value || preview.value.installed || marketInstall.value?.upgrade) return "";
-  const decision = pluginQuota.value;
-  if (decision.allowed) return "";
-  const plan = t(`settings.pro.cloudPlan.${quota.effective?.plan ?? "free"}` as Parameters<typeof t>[0]);
-  return t(decision.forbidden ? "quota.pluginsNotAllowed" : "quota.pluginLimit", { plan, limit: decision.limit });
-});
 const canConfirmInstall = computed(() => {
-  if (!preview.value || previewLoading.value || installing.value || previewQuotaMessage.value) return false;
-  if (marketInstall.value) return marketInstall.value.upgrade || !preview.value.installed;
+  if (!preview.value || previewLoading.value || installing.value) return false;
   return !preview.value.installed && previewPath.value === sourcePath.value.trim();
 });
 
@@ -716,17 +522,14 @@ async function confirmInstall() {
   if (!isDesktopRuntime()) { ElMessage.warning(t("common.desktopRequired")); return; }
   const path = preview.value.sourcePath;
   const installedId = preview.value.manifest.id;
-  const market = marketInstall.value;
   installing.value = true;
   try {
-    if (market?.upgrade) await upgradeLocalPlugin(market.key, path);
-    else await installLocalPlugin(path);
+    await installLocalPlugin(path);
     if (disposed) return;
     previewVisible.value = false;
-    if (!market) sourcePath.value = "";
+    sourcePath.value = "";
     await refresh();
-    if (market?.upgrade) ElMessage.success(t("plugins.marketUpgradeSuccess"));
-    else await enableAfterInstall(installedId);
+    await enableAfterInstall(installedId);
   } catch (error) {
     if (!disposed) {
       invalidatePreview();
@@ -745,21 +548,12 @@ async function enableAfterInstall(id: string) {
     ElMessage.success(t("plugins.installSuccess"));
     return;
   }
-  if (paidHostBlocked(plugin) || (usesPluginQuota(plugin) && !quota.admit("plugin", enabledPluginCount.value))) {
-    ElMessage.info(t("plugins.installedNotEnabled"));
-    return;
-  }
-  // The backup capability gets its own high-risk explanation, also here.
-  if (declaresBackupCapability(plugin) && !(await confirmBackupCapability())) {
-    ElMessage.info(t("plugins.installedNotEnabled"));
-    return;
-  }
   busyId.value = plugin.id;
   try {
     await setPluginEnabled(plugin.id, true);
     ElMessage.success(t("plugins.installedAndEnabled"));
   } catch (error) {
-    ElMessage.warning(t("plugins.installedEnableFailed", { error: pluginErrorMessage(error) }));
+    ElMessage.warning(t("plugins.installedEnableFailed", { error: nativeErrorMessage(error) }));
   } finally {
     busyId.value = "";
     await refresh();
@@ -994,7 +788,7 @@ const fullTrustToken = ref(0);
 onBeforeUnmount(() => {
   stopWorkspaceWatch?.();
   stopFullTrustWatch?.();
-  disposed = true; refreshGeneration++; marketGeneration++; logsGeneration++; invalidatePreview();
+  disposed = true; refreshGeneration++; logsGeneration++; invalidatePreview();
 });
 onMounted(() => {
   void refresh();
@@ -1037,12 +831,6 @@ onMounted(() => {
             <span class="plugin-manager-tab-label">
               <span>{{ t("plugins.tab.plugins") }}</span>
               <span class="plugin-manager-tab-label__count">{{ t("plugins.count", { count: allEntries.length }) }}</span>
-              <span v-if="pluginQuota.forbidden" class="plugin-manager-tab-label__count is-full">{{ t("plugins.planNoPlugins") }}</span>
-              <span
-                v-else-if="pluginQuota.limit > 0"
-                class="plugin-manager-tab-label__count"
-                :class="{ 'is-full': !pluginQuota.allowed }"
-              >{{ t("plugins.enabledQuota", { count: pluginQuota.current, limit: pluginQuota.limit }) }}</span>
             </span>
           </template>
         <div class="plugin-manager-plugins-pane">
@@ -1060,11 +848,9 @@ onMounted(() => {
       <div class="plugin-manager-catalog-content">
         <div class="plugin-manager-catalog-alerts">
           <el-alert v-if="officialError" :title="officialError" type="warning" :closable="false" />
-          <el-alert v-if="marketError" :title="t('plugins.marketFailed')" type="warning" :closable="false" />
-          <el-alert v-if="marketTruncated" :title="t('plugins.marketTruncated')" type="warning" :closable="false" />
           <el-alert v-if="listError" :title="listError" type="warning" :closable="false" />
         </div>
-        <div class="app-plugin-catalog" :aria-busy="loading || marketLoading">
+        <div class="app-plugin-catalog" :aria-busy="loading">
           <el-scrollbar class="app-plugin-category-scroll">
             <el-menu class="app-plugin-categories" :default-active="filters.category" :aria-label="t('plugins.category')" @select="filters.category = $event">
               <el-menu-item v-for="category in (['all', ...visibleCategories] as const)" :key="category" :index="category">
@@ -1075,7 +861,6 @@ onMounted(() => {
           <div class="plugin-manager-results">
             <el-scrollbar class="plugin-manager-scroll">
               <div class="plugin-manager-grid">
-        <el-skeleton v-if="marketLoading && !catalogEntries.length" :rows="4" animated />
         <template v-for="entry in pageEntries" :key="entry.id">
         <el-card
           v-for="plugin in entry.plugin ? [entry.plugin] : []"
@@ -1101,24 +886,17 @@ onMounted(() => {
                   <strong :title="plugin.name">{{ plugin.name }}</strong>
                   <el-tag disable-transitions v-if="entry.official" size="small" effect="plain">{{ locale === 'zh' ? '官方' : 'Official' }}</el-tag>
                   <el-tag disable-transitions v-else size="small" effect="plain">{{ t(`plugins.source.${plugin.source}` as Parameters<typeof t>[0]) }}</el-tag>
-                  <el-tag disable-transitions v-if="entry.cloud" size="small" effect="plain">{{ t('plugins.catalogSource.cloud') }}</el-tag>
                   <el-tag disable-transitions v-if="plugin.runtime === 'declarative' && plugin.enabled && plugin.state === 'stopped'" size="small" effect="plain" type="success" :title="t('plugins.declarativeActiveHelp')">{{ t('plugins.state.declarativeActive') }}</el-tag>
                   <el-tag disable-transitions v-else size="small" effect="plain" :type="stateType(plugin.state)" :title="plugin.enabled && plugin.state === 'stopped' ? t('plugins.dormantHelp') : undefined">{{ plugin.enabled && plugin.state === 'stopped' ? t('plugins.state.dormant') : stateLabel(plugin.state) }}</el-tag>
                   <el-tag disable-transitions v-if="plugin.enabled && !plugin.activeInWorkspace" size="small" type="warning" effect="plain">{{ t('plugins.inactiveInWorkspace') }}</el-tag>
-                  <el-tag disable-transitions v-if="plugin.requiresPaidHost || entry.cloud?.requires_paid_host" size="small" type="warning" effect="plain" :title="t('plugins.requiresPaidHostHelp')">{{ t('plugins.requiresPaidHost') }}</el-tag>
                   <el-tag disable-transitions v-if="plugin.fullTrust" type="danger" effect="plain" size="small" :title="t('plugins.fullTrust.badgeHelp')">{{ t('plugins.fullTrust.badge') }}</el-tag>
                 </div>
               </div>
               <div class="plugin-manager-meta__identity">
                 <code>{{ plugin.id }}</code>
                 <small>{{ t('plugins.installedVersion') }}: v{{ plugin.version }}</small>
-                <small>{{ t('plugins.author') }}: {{ plugin.author || entry.cloud?.author || t('plugins.unknown') }}</small>
-                <small v-if="entry.cloud">{{ t('plugins.latestPublishedVersion') }}: {{ entry.cloud.latest_published_version || t('plugins.noPublishedVersion') }}</small>
+                <small>{{ t('plugins.author') }}: {{ plugin.author || t('plugins.unknown') }}</small>
                 <small :title="`${plugin.runtime} · API v${plugin.apiVersion}`">API v{{ plugin.apiVersion }}</small>
-                <small
-                  v-if="plugin.source === 'local' && entry.cloud && marketCompatibility(entry.cloud).latestUnsupported && isNewerPluginVersion(entry.cloud.latest_published_version, plugin.version)"
-                  class="plugin-manager-host-warning"
-                >{{ latestNeedsText(entry.cloud) }}</small>
               </div>
               <p :title="plugin.description || plugin.id">{{ plugin.description || plugin.id }}</p>
               <div v-if="plugin.capabilities.length" class="plugin-manager-capabilities">
@@ -1215,20 +993,7 @@ onMounted(() => {
             </div>
             <p v-if="scheduleLine(plugin.id)" class="plugin-manager-schedules">{{ t('pluginContrib.schedules.cardLine', { schedules: scheduleLine(plugin.id) }) }}</p>
             <div class="plugin-manager-secondary-actions">
-              <span v-if="entry.cloud" class="plugin-manager-stats">
-                <span :title="t('plugins.downloadCount', { count: entry.cloud.download_count })"><el-icon aria-hidden="true"><Download /></el-icon>{{ formatCount(entry.cloud.download_count) }}</span>
-                <span :title="t('plugins.likeCount', { count: entry.cloud.like_count })"><el-icon aria-hidden="true"><Star /></el-icon>{{ formatCount(entry.cloud.like_count) }}</span>
-              </span>
               <el-button text @click="detailId = entry.id; detailsVisible = true">{{ t('plugins.details') }}</el-button>
-              <el-button
-                v-if="catalogUpgradeVersion(entry)"
-                text
-                type="primary"
-                :disabled="!!busyId || !!officialBusy || loading || previewLoading || installing"
-                @click="installFromMarket(plugin.id)"
-              >
-                {{ t('plugins.marketUpgrade', { version: catalogUpgradeVersion(entry) ?? '' }) }}
-              </el-button>
               <el-button v-if="plugin.source === 'local'" text :icon="Upload" :title="t('plugins.upgradeFromPackage')" :aria-label="t('plugins.upgradeFromPackage')" :disabled="!!busyId || !!officialBusy || loading" @click="upgrade(plugin)">{{ t('plugins.upgrade') }}</el-button>
               <el-button
                 v-if="configurablePluginIds.has(plugin.id)"
@@ -1278,74 +1043,9 @@ onMounted(() => {
             </div>
           </div>
         </el-card>
-        <el-card v-if="!entry.plugin && entry.cloud" shadow="never" class="plugin-manager-card" body-class="plugin-manager-card__body">
-          <img
-            v-if="entry.cloud.cover_url && failedCovers[entry.id] !== entry.cloud.cover_url"
-            :src="entry.cloud.cover_url"
-            :alt="entry.cloud.name"
-            class="plugin-manager-cover"
-            loading="lazy"
-            referrerpolicy="no-referrer"
-            @error="failedCovers[entry.id] = entry.cloud.cover_url"
-          />
-          <div class="plugin-manager-card__scroll">
-            <div class="plugin-manager-card__content plugin-manager-meta">
-              <div class="plugin-manager-meta__title">
-                <el-icon class="plugin-manager-icon" aria-hidden="true"><component :is="pluginViewIcon(entry.cloud.icon)" /></el-icon>
-                <strong :title="entry.cloud.name">{{ entry.cloud.name }}</strong>
-                <el-tag disable-transitions size="small" effect="plain">{{ t('plugins.catalogSource.cloud') }}</el-tag>
-                <el-tag disable-transitions v-if="entry.cloud.requires_paid_host" size="small" type="warning" effect="plain" :title="t('plugins.requiresPaidHostHelp')">{{ t('plugins.requiresPaidHost') }}</el-tag>
-              </div>
-              <div class="plugin-manager-meta__identity">
-                <code>{{ entry.cloud.product_key }}</code>
-                <small>{{ t('plugins.author') }}: {{ entry.cloud.author || t('plugins.unknown') }}</small>
-                <small>{{ t('plugins.latestPublishedVersion') }}: {{ entry.cloud.latest_published_version || t('plugins.noPublishedVersion') }}</small>
-                <small>{{ t('plugins.installedVersion') }}: {{ t('plugins.notInstalled') }}</small>
-                <small v-if="entry.cloud.latest_published_version">{{ t('plugins.hostSupported') }}: {{ hostRangeText(entry.cloud) }}</small>
-              </div>
-              <p>{{ entry.cloud.description || entry.cloud.product_key }}</p>
-              <div class="plugin-manager-capabilities">
-                <el-tag disable-transitions v-for="tag in entry.cloud.tags" :key="tag" size="small" effect="plain" :data-tone="pluginCapabilityTone(tag)">{{ tag }}</el-tag>
-              </div>
-              <el-alert v-if="!entry.cloud.latest_published_version" :title="t('plugins.marketNotInstallable')" type="info" :closable="false" />
-              <el-alert
-                v-else-if="marketCompatibility(entry.cloud).latestUnsupported"
-                :title="marketCompatibility(entry.cloud).offered
-                  ? t('plugins.hostOlderOffered', { offered: marketCompatibility(entry.cloud).offered ?? '', latest: latestNeedsText(entry.cloud) })
-                  : t(marketCompatibility(entry.cloud).reason === 'host_too_new' ? 'plugins.hostTooNewBlocked' : 'plugins.hostTooOldBlocked', { range: hostRangeText(entry.cloud) })"
-                :type="marketCompatibility(entry.cloud).offered ? 'info' : 'warning'"
-                :closable="false"
-              />
-            </div>
-          </div>
-          <div class="plugin-manager-actions">
-            <div class="plugin-manager-primary-actions">
-              <el-button
-                v-if="marketCompatibility(entry.cloud).offered"
-                type="primary"
-                plain
-                size="small"
-                :disabled="!!busyId || !!officialBusy || loading || previewLoading || installing"
-                @click="installFromMarket(entry.cloud.product_key)"
-              >
-                {{ t('plugins.marketInstall', { version: marketCompatibility(entry.cloud).offered ?? '' }) }}
-              </el-button>
-              <el-button v-else-if="entry.cloud.latest_published_version" size="small" disabled>
-                {{ t(marketCompatibility(entry.cloud).reason === 'host_too_new' ? 'plugins.hostTooNewButton' : 'plugins.hostTooOldButton') }}
-              </el-button>
-            </div>
-            <div class="plugin-manager-secondary-actions">
-              <span class="plugin-manager-stats">
-                <span :title="t('plugins.downloadCount', { count: entry.cloud.download_count })"><el-icon aria-hidden="true"><Download /></el-icon>{{ formatCount(entry.cloud.download_count) }}</span>
-                <span :title="t('plugins.likeCount', { count: entry.cloud.like_count })"><el-icon aria-hidden="true"><Star /></el-icon>{{ formatCount(entry.cloud.like_count) }}</span>
-              </span>
-              <el-button text @click="detailId = entry.id; detailsVisible = true">{{ t('plugins.details') }}</el-button>
-            </div>
-          </div>
-        </el-card>
         </template>
 
-        <section v-if="!loading && !marketLoading && !catalogEntries.length" class="plugin-manager-runtime-empty">
+        <section v-if="!loading && !catalogEntries.length" class="plugin-manager-runtime-empty">
           <el-empty :image-size="92" :description="t('plugins.empty')" />
         </section>
               </div>
@@ -1373,39 +1073,8 @@ onMounted(() => {
     </div>
 
     <el-drawer v-model="detailsVisible" class="app-plugin-detail-drawer" :title="t('plugins.details')" size="min(560px, 90vw)" append-to-body destroy-on-close>
-      <template v-if="detail?.cloud && !detail.plugin">
-        <img
-          v-if="detail.cloud.cover_url && failedCovers[detail.id] !== detail.cloud.cover_url"
-          :src="detail.cloud.cover_url"
-          :alt="detail.cloud.name"
-          class="plugin-manager-cover"
-          referrerpolicy="no-referrer"
-          @error="failedCovers[detail.id] = detail.cloud.cover_url"
-        />
-        <el-descriptions :column="1" :label-width="120" border size="small" class="app-plugin-metadata">
-          <el-descriptions-item :label="t('plugins.name')">{{ detail.cloud.name }}</el-descriptions-item>
-          <el-descriptions-item :label="t('plugins.id')">{{ detail.cloud.product_key }}</el-descriptions-item>
-          <el-descriptions-item :label="t('plugins.author')">{{ detail.cloud.author || t('plugins.unknown') }}</el-descriptions-item>
-          <el-descriptions-item :label="t('plugins.latestPublishedVersion')">{{ detail.cloud.latest_published_version || t('plugins.noPublishedVersion') }}</el-descriptions-item>
-          <el-descriptions-item :label="t('plugins.installedVersion')">{{ t('plugins.notInstalled') }}</el-descriptions-item>
-          <el-descriptions-item v-if="detail.cloud.latest_published_version" :label="t('plugins.hostSupported')">{{ hostRangeText(detail.cloud) }}</el-descriptions-item>
-          <el-descriptions-item :label="t('plugins.category')">{{ t(`plugins.category.${detail.cloud.category}`) }}</el-descriptions-item>
-          <el-descriptions-item v-if="detail.cloud.requires_paid_host" :label="t('plugins.license')">{{ t('plugins.requiresPaidHost') }}</el-descriptions-item>
-          <el-descriptions-item :label="t('plugins.description')">{{ detail.cloud.description }}</el-descriptions-item>
-          <el-descriptions-item :label="t('plugins.tags')">
-            <el-tag v-for="tag in detail.cloud.tags" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
-            <span v-if="!detail.cloud.tags?.length">{{ t('plugins.noCapabilities') }}</span>
-          </el-descriptions-item>
-        </el-descriptions>
-        <el-alert v-if="!detail.cloud.latest_published_version" :title="t('plugins.marketNotInstallable')" type="info" :closable="false" />
-        <el-alert v-if="detail.cloud.requires_paid_host" :title="t('plugins.requiresPaidHostHelp')" type="warning" :closable="false" />
-      </template>
-      <template v-else-if="detail?.plugin || detail?.official">
+      <template v-if="detail?.plugin || detail?.official">
         <PluginMetadata :metadata="(detail.plugin ?? detail.official)!" :source="detail.official ? 'official' : 'local'" />
-        <el-descriptions v-if="detail.plugin && detail.cloud" :column="1" :label-width="120" border size="small" class="app-plugin-metadata">
-          <el-descriptions-item :label="t('plugins.latestPublishedVersion')">{{ detail.cloud.latest_published_version || t('plugins.noPublishedVersion') }}</el-descriptions-item>
-          <el-descriptions-item v-if="detail.cloud.latest_published_version" :label="t('plugins.hostSupported')">{{ hostRangeText(detail.cloud) }}</el-descriptions-item>
-        </el-descriptions>
         <PluginProvidedServices v-if="detail.plugin" :plugin-id="detail.plugin.id" />
         <PluginWalkthroughList v-if="detail.plugin" :plugin-id="detail.plugin.id" />
       </template>
@@ -1413,14 +1082,6 @@ onMounted(() => {
       <el-alert v-if="detail?.plugin?.lastError" :title="detail.plugin.lastError" type="error" :closable="false" />
       <template #footer>
         <el-button @click="detailsVisible = false">{{ t('common.close') }}</el-button>
-        <el-button
-          v-if="detail?.cloud && !detail.plugin && marketCompatibility(detail.cloud).offered"
-          type="primary"
-          :disabled="!!busyId || !!officialBusy || loading || previewLoading || installing"
-          @click="detailsVisible = false; installFromMarket(detail.cloud.product_key)"
-        >
-          {{ t('plugins.marketInstall', { version: marketCompatibility(detail.cloud).offered ?? '' }) }}
-        </el-button>
       </template>
     </el-drawer>
     <el-dialog v-model="previewVisible" class="app-plugin-preview-dialog" :title="t('plugins.preview')" width="min(680px, 92vw)" :close-on-click-modal="false" :close-on-press-escape="!installing" :show-close="!installing" append-to-body destroy-on-close>
@@ -1429,7 +1090,7 @@ onMounted(() => {
         <el-alert v-if="previewError" :title="previewErrorTitle" type="error" show-icon :closable="false">
           <p v-if="previewError.kind === 'unknown'">{{ previewError.detail }}</p>
           <template v-else>
-            <p>{{ t(`plugins.installError.${previewError.kind}.hint`, { platform: previewError.platform ?? '', version: previewError.version ?? '', current: previewError.current ?? '' }) }}</p>
+            <p>{{ t(`plugins.installError.${previewError.kind}.hint`, { version: previewError.version ?? '', current: previewError.current ?? '' }) }}</p>
             <p class="app-plugin-preview__error-detail">{{ t('plugins.installError.detail', { detail: previewError.detail }) }}</p>
           </template>
         </el-alert>
@@ -1440,7 +1101,7 @@ onMounted(() => {
               <div class="app-plugin-preview__title">
                 <strong>{{ preview.manifest.name }}</strong>
                 <el-tag size="small" effect="plain" round>v{{ preview.manifest.version }}</el-tag>
-                <el-tag size="small" :type="marketInstall ? 'primary' : 'info'" effect="light" round>{{ marketInstall ? t('plugins.previewFromMarket') : t('plugins.catalogSource.local') }}</el-tag>
+                <el-tag size="small" type="info" effect="light" round>{{ t('plugins.catalogSource.local') }}</el-tag>
               </div>
               <code>{{ preview.manifest.id }}</code>
             </div>
@@ -1449,27 +1110,15 @@ onMounted(() => {
               <span><strong>{{ formatBytes(preview.totalBytes) }}</strong>{{ t('plugins.previewExpandedSize') }}</span>
             </div>
           </section>
+          <el-alert v-if="preview.installed" :title="t('plugins.alreadyInstalled')" type="warning" show-icon :closable="false" />
 
-          <el-alert v-if="marketInstall?.upgrade" :title="t('plugins.marketUpgradeNotice')" type="warning" show-icon :closable="false" />
-          <el-alert v-if="marketInstall?.requiresPaidHost" :title="t('plugins.requiresPaidHostIncluded')" type="info" show-icon :closable="false" />
-          <el-alert v-else-if="preview.installed" :title="t('plugins.alreadyInstalled')" type="warning" show-icon :closable="false" />
 
-          <section v-if="marketInstall" class="app-plugin-preview__verified">
-            <el-icon class="app-plugin-preview__verified-icon"><CircleCheckFilled /></el-icon>
-            <div>
-              <strong>{{ t('plugins.marketVerifiedTitle', { version: marketInstall.version }) }}</strong>
-              <code :title="marketInstall.sha256">SHA-256 {{ marketInstall.sha256 }}</code>
-              <span>{{ t('plugins.marketUnsigned') }}</span>
-            </div>
-          </section>
-
-          <!-- A market package is a temporary download; its path means nothing to the user. -->
-          <div v-if="!marketInstall" class="app-plugin-preview__source" :title="t('plugins.previewSource', { path: preview.sourcePath })">
+          <div class="app-plugin-preview__source" :title="t('plugins.previewSource', { path: preview.sourcePath })">
             <span>{{ t('plugins.previewSourceLabel') }}</span>
             <code>{{ `\u200e${preview.sourcePath}\u200e` }}</code>
           </div>
 
-          <PluginMetadata :metadata="preview.manifest" :source="marketInstall ? 'market' : 'local'" />
+          <PluginMetadata :metadata="preview.manifest" source="local" />
 
           <section class="app-plugin-preview__notes" :aria-label="t('plugins.previewNotes')">
             <strong>{{ t('plugins.previewNotes') }}</strong>
@@ -1522,7 +1171,6 @@ onMounted(() => {
             <p v-if="preview.manifest.capabilities?.includes('remote.context')" class="is-warning"><el-icon><WarningFilled /></el-icon><span>{{ t('plugins.capabilityRemoteContext') }}</span></p>
             <p v-if="preview.manifest.capabilities?.includes('ui.wasm')" class="is-warning"><el-icon><WarningFilled /></el-icon><span>{{ t('plugins.capabilityUiWasm') }}</span></p>
             <p v-if="preview.manifest.capabilities?.includes('ai.config')" class="is-warning"><el-icon><WarningFilled /></el-icon><span>{{ t('plugins.capabilityAiConfig') }}</span></p>
-            <p v-if="preview.manifest.capabilities?.includes('backup')" class="is-warning"><el-icon><WarningFilled /></el-icon><span>{{ t('plugins.capability.backup') }}</span></p>
             <p v-if="previewSearchProviders.length" class="is-warning"><el-icon><WarningFilled /></el-icon><span>{{ t('pluginContrib.searchProviders.previewSummary', { count: previewSearchProviders.length, prefixes: previewSearchProviders.map((item) => `${item.prefix}: (${item.title})`).join('; ') }) }} {{ t('pluginContrib.searchProviders.previewSendsQuery') }}</span></p>
             <p v-if="previewServiceSurfaces.length" class="is-warning" data-testid="plugin-preview-service-surfaces"><el-icon><WarningFilled /></el-icon><span>{{ t('pluginContrib.services.previewSurfaces', { surfaces: previewServiceSurfaces.map((surface) => t(`plugins.services.surface.${surface}`)).join('; ') }) }}</span></p>
             <p v-if="previewAiCatalogs.length" class="is-warning"><el-icon><WarningFilled /></el-icon><span>{{ t('pluginContrib.aiCatalogs.previewSummary', { count: previewAiCatalogs.length, catalogs: previewAiCatalogs.map((item) => `${item.title} (${t(item.kind === 'mcp' ? 'pluginContrib.aiCatalogs.kindMcp' : 'pluginContrib.aiCatalogs.kindSkill')})`).join('; ') }) }} {{ t('pluginContrib.aiCatalogs.previewSendsQuery') }}</span></p>
@@ -1530,13 +1178,12 @@ onMounted(() => {
             <p v-if="preview.manifest.runtime?.type === 'declarative'"><el-icon><InfoFilled /></el-icon><span>{{ t('plugins.declarativePreviewNotice') }}</span></p>
             <p v-else class="is-warning"><el-icon><WarningFilled /></el-icon><span>{{ t('plugins.localTrustWarning') }}</span></p>
           </section>
-          <el-alert v-if="previewQuotaMessage" type="warning" :title="previewQuotaMessage" :closable="false" show-icon />
           <p v-if="previewHasNonReadActions" class="app-plugin-preview__trust-hint"><el-icon><InfoFilled /></el-icon><span>{{ t('plugins.fullTrust.previewHint') }}</span></p>
         </div>
       </el-scrollbar>
       <template #footer>
         <el-button :disabled="installing" @click="previewVisible = false">{{ previewError ? t('common.close') : t('common.cancel') }}</el-button>
-        <el-button v-if="!previewError" type="primary" :loading="installing" :disabled="!canConfirmInstall" @click="confirmInstall">{{ marketInstall?.upgrade ? t('plugins.marketConfirmUpgrade') : t('plugins.confirmInstall') }}</el-button>
+        <el-button v-if="!previewError" type="primary" :loading="installing" :disabled="!canConfirmInstall" @click="confirmInstall">{{ t('plugins.confirmInstall') }}</el-button>
       </template>
     </el-dialog>
     <el-dialog v-model="logsVisible" :title="logsTitle" width="min(720px, 88vw)" destroy-on-close append-to-body>

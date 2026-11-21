@@ -4,7 +4,6 @@ import { RouterView, useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
 import AppTabBar from "@/components/layout/AppTabBar.vue";
-import AppLockScreen from "@/components/layout/AppLockScreen.vue";
 import PoppedOutTabPlaceholder from "@/components/layout/PoppedOutTabPlaceholder.vue";
 import {
   closePoppedOutWorkbenchTab,
@@ -26,7 +25,6 @@ import { usePluginHostUiStore } from "@/stores/plugin-host-ui";
 import { usePluginTakeoverStore } from "@/stores/plugin-takeover";
 import { usePluginViewWarmPoolStore } from "@/stores/plugin-view-warm-pool";
 import { settingsNavigationRequest, type SettingsNavigationCategory } from "@/services/settings-navigation";
-import { enqueueCloudPayload, type CloudPayloadEvent } from "@/services/cloud-payload-bridge";
 import { enqueuePluginAiTurn, notifyPluginAiTurnApproval, notifyPluginAiTurnCancelled, refreshPendingPluginAiTurns } from "@/services/plugin-ai-turns";
 import {
   enqueueDatabaseFiles,
@@ -45,14 +43,10 @@ import { useStatusBarStore } from "@/stores/status-bar";
 import { useNotificationsStore } from "@/stores/notifications";
 import { useSshMfaStore } from "@/stores/ssh-mfa";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
-import { useLicenseStore } from "@/stores/license";
-import { useAppLockStore } from "@/stores/app-lock";
 import { useAppUpdateStore } from "@/stores/app-update";
-import { usePluginUpdatesStore } from "@/stores/plugin-updates";
 import { useBrowserWorkspaceStore, type BrowserAiTabRequest } from "@/stores/browser-workspace";
 import { useLocalProjectStore } from "@/stores/local-project";
 import { useLinkedNotesDrawer } from "@/stores/linked-notes-drawer";
-import { refreshExternalMcp, startExternalMcpScopeSync } from "@/services/external-mcp-service";
 import { switchDatabaseWorkspaceScope } from "@/stores/database-workspace-shell";
 import { useWorkspaceStatePreferencesStore } from "@/stores/workspace-state-preferences";
 import { resolveWorkspaceRouteInstanceScope } from "@/domain/workspace/route-state-scope";
@@ -162,8 +156,6 @@ let pendingEdits: ReturnType<typeof import("@/stores/ai-pending-edits").useAiPen
 const notifications = useNotificationsStore();
 const sshMfa = useSshMfaStore();
 const sshConnections = useSshConnectionsStore();
-const license = useLicenseStore();
-const appLock = useAppLockStore();
 const browserWorkspace = useBrowserWorkspaceStore();
 const localProject = useLocalProjectStore();
 const workspaceStatePreferences = useWorkspaceStatePreferencesStore();
@@ -218,15 +210,6 @@ async function routeOpenedFiles(files: string[], targetId?: string) {
     enqueueDatabaseFiles(databaseFiles);
     workbench.openView("database");
     await router.push({ name: "database" });
-  }
-}
-async function routeSystemOpenedFiles(files: string[]) {
-  try {
-    await workbenchRestorePromise;
-    const remaining = await invokeBackend<string[]>("plugin_host_external_files", { files });
-    await routeOpenedFiles(remaining);
-  } catch {
-    notifications.push({ source: "system", level: "warning", title: t("pluginContrib.externalOpenHandlers.failed") });
   }
 }
 const commandPalette = useCommandPaletteStore();
@@ -310,14 +293,13 @@ const pluginLayerVisible = computed(
   () => routeSyncReady.value && !activePopupLabel.value && route.name === "plugin-view"
 );
 
-// 弹出窗口不渲染命令面板与侧栏，授权校验由主窗口负责。
+// 弹出窗口不渲染命令面板与侧栏。
 if (!popupWindow) {
-  void license.hydrate();
   void commandPalette.hydrate();
 }
-// 快捷键在弹出窗口也需要（锁屏命令），因此两类窗口都加载键位并安装唯一的键盘分发器。
+// 快捷键在弹出窗口也需要，因此两类窗口都加载键位并安装唯一的键盘分发器。
 void keybindings.hydrate();
-const uninstallKeybindingDispatcher = installKeybindingDispatcher({ isLocked: () => appLock.locked });
+const uninstallKeybindingDispatcher = installKeybindingDispatcher();
 // 插件贡献、插件命令和宿主事件都不是首屏绘制所需；首帧后再安装，避免把几十个
 // contribution consumer 和宿主桥接同步压进根组件启动路径。每个 loader 自己处理
 // 桌面 / 浏览器差异，协调器负责取消与卸载。
@@ -365,14 +347,11 @@ if (!popupWindow) scheduleIdleTask(() => (pluginServicesReady.value = true));
 const AppStatusBar = defineAsyncComponent(() => import("@/components/layout/AppStatusBar.vue"));
 const statusBarStore = useStatusBarStore();
 // 锁屏在主窗口与弹出窗口都必须生效，因此不放进 popupWindow 分支。
-appLock.ensureListening();
-void appLock.hydrate();
 void hydrateUiAppearance().catch(() => {
   // Feature entry points surface a localized recovery message when credentials are needed.
 });
 if (!popupWindow) void hydrateSidebarLabels();
 if (!popupWindow) useAppUpdateStore().startAutoCheck();
-if (!popupWindow) usePluginUpdatesStore().startAutoCheck();
 // 一级侧栏文字标签显隐驱动轨道宽度，类名挂在 app-frame 供全局 CSS 级联。
 const sidebarLabels = sidebarLabelsVisible();
 
@@ -393,7 +372,7 @@ const commandPaletteOpenRequest = ref<CommandPaletteOpenRequest>({ seq: 0 });
 const commandPaletteShortcut = computed(() => keybindings.label("builtin:command-palette"));
 
 function openCommandPalette(request: Omit<CommandPaletteOpenRequest, "seq">) {
-  if (popupWindow || appLock.locked) return;
+  if (popupWindow) return;
   // 项目工作区默认搜索项目文件（与旧 ⌘K 行为一致）；显式指定的范围优先。
   const preferFiles = activeWorkspaceView.value === "projects" && Boolean(localProject.projectRoot);
   commandPaletteOpenRequest.value = {
@@ -404,25 +383,6 @@ function openCommandPalette(request: Omit<CommandPaletteOpenRequest, "seq">) {
 }
 
 useAppCommands({ openPalette: openCommandPalette, openSettings: (category) => openSettings(category), popup: popupWindow });
-
-const APP_LOCK_ACTIVITY_EVENTS = [
-  "pointerdown",
-  "keydown",
-  "wheel",
-  "touchstart",
-  "mousemove",
-] as const;
-const APP_LOCK_POLL_MS = 15_000;
-let appLockTimer: ReturnType<typeof setInterval> | undefined;
-
-function noteAppLockActivity() {
-  if (!appLock.locked) appLock.noteActivity();
-}
-
-for (const eventName of APP_LOCK_ACTIVITY_EVENTS) {
-  window.addEventListener(eventName, noteAppLockActivity, { passive: true });
-}
-appLockTimer = setInterval(() => appLock.evaluateAutoLock(), APP_LOCK_POLL_MS);
 
 function syncAiWorkspaceDirectory(aiStore: AiAssistantStore | undefined = peekAiAssistantStore()) {
   aiStore?.setWorkspaceDirectory(workbench.workspaces.map((workspace) => {
@@ -526,7 +486,6 @@ const stopNotificationNavigation = popupWindow
 // Restore the persisted shell before route changes are allowed to create new
 // tabs. The router starts at dashboard, so treating that initial route as a
 // user navigation would otherwise erase the restored active tab.
-let stopExternalMcpSync: (() => void) | undefined;
 async function restoreWorkbenchSession() {
   try {
     await Promise.all([workbench.hydrate(), workspaceStatePreferences.hydrate()]);
@@ -536,10 +495,6 @@ async function restoreWorkbenchSession() {
     await localProject.hydrate(scopeId);
     localProject.switchWorkspace(scopeId);
     switchDatabaseWorkspaceScope(scopeId);
-    if (isDesktopRuntime()) {
-      stopExternalMcpSync = startExternalMcpScopeSync();
-      void refreshExternalMcp().catch(() => undefined);
-    }
     const restoredTab = workbench.activeTab;
     const restoredView = restoredTab?.view ?? "dashboard";
     if (route.name !== restoredView || restoredView === "plugin-view") {
@@ -575,9 +530,7 @@ let stopBrowserOpen: (() => void) | undefined;
 let stopBrowserTabRequest: (() => void) | undefined;
 let stopBeforeQuit: (() => void) | undefined;
 let stopNativeFileDrop: (() => void) | undefined;
-let stopAppOpenFiles: (() => void) | undefined;
 let stopDesktopNavigate: (() => void) | undefined;
-let stopCloudPayload: (() => void) | undefined;
 let stopPluginAiTurn: (() => void) | undefined;
 let stopPluginAiTurnCancel: (() => void) | undefined;
 let stopPluginAiTurnApproval: (() => void) | undefined;
@@ -695,7 +648,6 @@ if (!popupWindow) {
         }
         return;
       }
-      // A route whose tab the quota refused must not render without a tab; fall back to the active tab.
       if (workbench.activeTab?.view !== routeName && !workbench.openView(routeName as WorkspaceView) && routeName !== "dashboard") {
         void router.replace(workspaceTabRoute(workbench.activeTab));
       }
@@ -704,19 +656,10 @@ if (!popupWindow) {
   );
 
   if (isDesktopRuntime()) {
-    // 顶层 await 会把 App.vue 编译成异步 setup 组件，没有 <Suspense> 时根组件不会渲染，导致白屏。
-    void invokeBackend<string[] | null>("app_consume_opened_files")
-      .catch(() => [])
-      .then((pendingOpenedFiles) => {
-        if (pendingOpenedFiles?.length) void routeSystemOpenedFiles(pendingOpenedFiles);
-      });
     stopNativeFileDrop = listenAppEvent<NativeFileDropEvent>("native-files-dropped", (event) => {
       // The AI drawer turns drops on its panel into chat attachments itself.
       if (event?.targetId === AI_ASSISTANT_DROP_TARGET_ID) return;
       if (Array.isArray(event?.files)) void routeOpenedFiles(event.files, event.targetId);
-    });
-    stopAppOpenFiles = listenAppEvent<{ files?: string[] }>("app-open-files", (event) => {
-      if (Array.isArray(event?.files)) void routeSystemOpenedFiles(event.files);
     });
     // Desktop navigation (notification clicks, tray items, mincode:// links): live
     // desktop:navigate events and the targets queued before these listeners existed.
@@ -749,7 +692,7 @@ if (!popupWindow) {
         return;
       }
       // A system tray plugin item (menus.tray): the host raised this window;
-      // ignored while locked, the runner looks the command up again.
+      // the runner looks the command up again.
       if (target?.kind === "plugin-command") {
         // A chunk that fails to load is reported like a command that cannot run.
         const unavailable = (error: unknown) => ElMessage({
@@ -759,7 +702,7 @@ if (!popupWindow) {
         });
         void import("@/domain/plugins/tray").then(({ handlePluginCommandTarget }) =>
           handlePluginCommandTarget(target.value, {
-            locked: appLock.locked,
+            locked: false,
             run: (origin, pluginId, commandId) =>
               import("@/services/plugin-shell-commands")
                 .then((module) => module.runShellCommand(origin, pluginId, commandId))
@@ -780,10 +723,6 @@ if (!popupWindow) {
       }
     };
     stopDesktopNavigate = listenAppEvent<{ kind?: string; value?: string }>("desktop:navigate", handleDesktopTarget);
-    stopCloudPayload = listenAppEvent<CloudPayloadEvent>("cloud:payload", (event) => {
-      if (!event?.channel?.startsWith("ai.") && event?.channel !== "approval.decision") return;
-      if (enqueueCloudPayload(event)) void ensureAssistantLoaded();
-    });
     // Plugins with the "ai" capability (team-chat bots) ask the assistant to answer;
     // the drawer owns the agent loop, so make sure it is loaded.
     stopPluginAiTurn = listenAppEvent<{ id?: string }>("plugin:ai-turn", (event) => {
@@ -899,22 +838,15 @@ if (!popupWindow) {
 }
 
 onBeforeUnmount(() => {
-  for (const eventName of APP_LOCK_ACTIVITY_EVENTS) {
-    window.removeEventListener(eventName, noteAppLockActivity);
-  }
   uninstallKeybindingDispatcher();
-  if (appLockTimer) clearInterval(appLockTimer);
-  appLock.dispose();
   if (!popupWindow) {
     window.removeEventListener("pagehide", flushPersistentUiState);
     window.removeEventListener("beforeunload", flushPersistentUiState);
     void flushPersistentUiState();
   }
   stopNativeFileDrop?.();
-  stopAppOpenFiles?.();
   stopDesktopNavigate?.();
   stopNotificationNavigation?.();
-  stopCloudPayload?.();
   stopPluginAiTurn?.();
   stopPluginAiTurnCancel?.();
   stopPluginAiTurnApproval?.();
@@ -926,7 +858,6 @@ onBeforeUnmount(() => {
   stopBrowserOpen?.();
   stopBrowserTabRequest?.();
   stopTerminalSessionFlusher?.();
-  stopExternalMcpSync?.();
   notifications.dispose();
   sshMfa.dispose();
 });
@@ -993,7 +924,7 @@ onBeforeUnmount(() => {
     <PluginServicesRoot v-if="pluginServicesReady" />
     <PluginImmersiveExit v-if="pluginTakeover.immersive" />
     <PluginPublishHost v-if="pluginPublishPending" />
-    <PluginHostUiLayer v-if="pluginHostUi.prompts.length || pluginHostUi.diffs.length || pluginHostUi.backupDialogs.length" />
+    <PluginHostUiLayer v-if="pluginHostUi.prompts.length || pluginHostUi.diffs.length" />
     <AiAssistantDrawer v-if="assistantLoaded" @open-settings="openSettings('ai')" />
     <LinkedNotesDrawer v-if="linkedNotesDrawer.rendered" />
     <SettingsWorkspaceView
@@ -1004,5 +935,4 @@ onBeforeUnmount(() => {
     />
   </div>
   <SshMfaDialog v-if="sshMfa.current" />
-  <AppLockScreen v-if="appLock.locked" />
 </template>

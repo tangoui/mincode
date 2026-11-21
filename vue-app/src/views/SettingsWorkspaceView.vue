@@ -8,11 +8,7 @@ import AiConversationSidebarPosition from "@/components/ai/AiConversationSidebar
 import SettingsNavigation from "@/components/settings/SettingsNavigation.vue";
 import GeneralSettingsPanel from "@/components/settings/GeneralSettingsPanel.vue";
 import TerminalSettingsPanel from "@/components/settings/TerminalSettingsPanel.vue";
-import CloudCompanionPanel from "@/components/settings/CloudCompanionPanel.vue";
-import ExternalMcpPanel from "@/components/settings/ExternalMcpPanel.vue";
-import EnvironmentPackDialog from "@/components/settings/EnvironmentPackDialog.vue";
 import DataStorageUsagePanel from "@/components/settings/DataStorageUsagePanel.vue";
-import ConfigSyncDialog from "@/components/settings/ConfigSyncDialog.vue";
 import AppHintIcon from "@/components/ui/AppHintIcon.vue";
 import {
   ArrowDown,
@@ -30,7 +26,6 @@ import {
   FullScreen,
   Lock,
   Postcard,
-  Connection,
   Grid,
   MagicStick,
   Monitor,
@@ -59,12 +54,10 @@ import { openSystemBrowser } from "@/services/web-automation-service";
 import {
   chooseSettingsDirectory,
   chooseSettingsJsonFile,
-  chooseSettingsMarkdownFile,
   connectMcpServer,
   disconnectMcpServer,
   downloadAndOpenUpdate,
   fetchAiModels,
-  findSettingsSkillFiles,
   testAiConnection,
   getAppVersion,
   getAutostartEnabled,
@@ -77,29 +70,21 @@ import {
   type UpdateInfo,
 } from "@/services/settings-service";
 import {
-  aiSkillSource,
-  createManualAiSkill,
   describeMcpServersForReview,
   findMcpPathPlaceholder,
   getBuiltinMcpCatalog,
-  hasAiSkillNamed,
   keepSyncMetadata,
   loadMcpRegistryEntry,
-  loadSkillRegistryEntry,
   mergeMcpServersById,
   normalizeDocumentationUrl,
   normalizeStoredMcpServer,
-  parseAiSkillMarkdown,
   parseMcpConfig,
   parseEditableMcpConfig,
   resolveMcpPathPlaceholder,
   serializeEditableMcpConfig,
   searchMcpRegistry,
-  searchSkillRegistry,
   withoutSyncMetadata,
-  type AiSkillSource,
   type RegistryEntry,
-  type StoredAiSkill,
   type StoredMcpServer,
 } from "@/domain/ai/settings-integrations";
 import { usePluginAiCatalogsStore } from "@/stores/plugin-ai-catalogs";
@@ -118,7 +103,6 @@ import {
 import { confirmPluginRegistryInstall } from "@/services/settings-plugin-catalog-review";
 import { resolvePluginRegistryEntry, searchPluginAiCatalogs } from "@/services/plugin-ai-catalog-service";
 import { normalizeAiApiFormat, type AiApiFormat } from "@/domain/ai/api-format";
-import { isMcpAuthRequired, mcpAuthErrorCode } from "@/domain/ai/mcp-auth";
 import { normalizeAnthropicAuth, type AiAnthropicAuth } from "@/domain/ai/anthropic-auth";
 import {
   applicableAiRules,
@@ -132,8 +116,6 @@ import {
   withoutRetiredAiModels,
   type AiReasoningEffortChoice,
 } from "@/domain/ai/model-selection";
-import type { ConfigSyncSnapshot } from "@/domain/settings/config-sync";
-import type { QuotaLimits } from "@/domain/workspace/quota";
 import {
   DEFAULT_AI_MAX_LOOPS,
   MAX_AI_MAX_LOOPS,
@@ -171,14 +153,6 @@ import {
   type ParsedConfigImport,
   type PluginDataImportResult,
 } from "@/services/config-portability";
-import {
-  APP_LOCK_AUTO_LOCK_CHOICES,
-  APP_LOCK_MAX_PASSCODE_LENGTH,
-  APP_LOCK_MIN_PASSCODE_LENGTH,
-  validateAppLockPasscode,
-  type AppLockPasscodeIssue,
-} from "@/domain/security/app-lock";
-import { useAppLockStore } from "@/stores/app-lock";
 import { useAppUpdateStore } from "@/stores/app-update";
 import AppUpdateNotes from "@/components/settings/AppUpdateNotes.vue";
 import {
@@ -187,14 +161,9 @@ import {
 } from "@/composables/use-secret-export-confirm";
 import { usePluginSettingsAvailability } from "@/composables/use-plugin-settings-availability";
 import {
-  applyConfigSyncSnapshot as applyPersistedConfigSyncSnapshot,
-  createConfigSyncSnapshot,
-} from "@/services/config-sync-persistence";
-import {
   hydrateSettingsSnapshot,
   persistSettingsSnapshot,
   readSettingsSnapshot,
-  SETTINGS_STORAGE_KEY,
 } from "@/services/settings-persistence";
 import {
   aiSettingsExternalRevision,
@@ -215,9 +184,7 @@ import {
 import {
   createDefaultSidebarVisibility,
   loadSidebarVisibility,
-  normalizeSidebarVisibility,
   saveSidebarVisibility,
-  SIDEBAR_VISIBILITY_KEY,
   type SidebarItemId,
   type SidebarVisibility,
 } from "@/services/sidebar-preferences";
@@ -242,45 +209,35 @@ import {
   type UiFontFamily,
 } from "@/services/ui-appearance";
 import { applyUiTheme, readStoredUiTheme, type UiTheme, type UiThemeKind } from "@/services/ui-theme";
-import { cloudStatus, fetchFrameworkPlans, fetchMemberQuota, redeemMemberCode, type CloudStatus, type FrameworkPlan, type MemberQuotaResult } from "@/services/cloud-companion-service";
 import { useWorkbenchStore } from "@/stores/workbench";
 import { useWorkspaceStatePreferencesStore } from "@/stores/workspace-state-preferences";
 import { useAiAssistantStore, type AiAssistantPlacement } from "@/stores/ai-assistant";
-import { useQuotaStore } from "@/stores/quota";
 import {
   useAiConversationPreferencesStore,
   type AiConversationScopeMode,
 } from "@/stores/ai-conversation-preferences";
 
-// Monaco is several MB; load it only when one of the JSON/Skill editor dialogs opens.
+// Monaco is several MB; load it only when the JSON editor opens.
 const MonacoTextEditor = defineAsyncComponent(() => import("@/components/projects/MonacoTextEditor.vue"));
 // The keybinding table (resolver, presets, recorder) loads only when the shortcuts page opens.
 const KeybindingSettingsPanel = defineAsyncComponent(() => import("@/components/settings/KeybindingSettingsPanel.vue"));
 // Plugin settings (contributes.configuration) load only when the plugins page opens.
 const PluginSettingsPanel = defineAsyncComponent(() => import("@/components/settings/PluginSettingsPanel.vue"));
 const DatabaseSafetySettingsSection = defineAsyncComponent(() => import("@/components/settings/DatabaseSafetySettingsSection.vue"));
-// Plugin-contributed AI prompts and skills (contributes.aiPrompts).
-const AiMarketDiscoverBanner = defineAsyncComponent(() => import("@/components/settings/AiMarketDiscoverBanner.vue"));
-const PluginAiPromptsSection = defineAsyncComponent(() => import("@/components/settings/PluginAiPromptsSection.vue"));
 const PluginMcpServersSection = defineAsyncComponent(() => import("@/components/settings/PluginMcpServersSection.vue"));
 // Plugin-contributed ACP agents (contributes.acpAgents) load only when a plugin offers one or one is selected.
 const PluginAcpAgentsGroup = defineAsyncComponent(() => import("@/components/settings/PluginAcpAgentsGroup.vue"));
-const McpServerAuthControls = defineAsyncComponent(() => import("@/components/settings/McpServerAuthControls.vue"));
 
 type Category =
   | "general"
   | "terminal"
   | "shortcuts"
   | "ai"
-  | "pro"
-  | "cloud"
-  | "external-mcp"
   | "plugins"
   | "database"
-  | "security"
   | "data"
   | "about";
-type AiTab = "connection" | "permissions" | "mcp" | "skills" | "rules" | "local-agent";
+type AiTab = "connection" | "permissions" | "mcp" | "rules" | "local-agent";
 type AiRegistrySubTab = "installed" | "discover";
 
 const builtinMcpTemplates = getBuiltinMcpCatalog();
@@ -341,7 +298,6 @@ interface AiProviderPreset {
   maxOutputTokens: number;
 }
 type McpServer = StoredMcpServer;
-type AiSkill = StoredAiSkill;
 interface AcpAgent {
   id: string;
   name: string;
@@ -381,7 +337,6 @@ interface VueSettings extends RuntimePerformanceSettings {
   activeAiProfileId: string;
   aiProfiles: AiProfile[];
   mcpServers: McpServer[];
-  aiSkills: AiSkill[];
   aiRules: AiRule[];
   acpAdapterId: string;
   acpInjectRules: boolean;
@@ -407,44 +362,19 @@ const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
 const fullscreen = ref(false);
 const importInput = ref<HTMLInputElement>();
 const exportPluginData = ref(true);
-const environmentPackOpen = ref(false);
-const configSyncOpen = ref(false);
 const { t, locale, setLocale, intlLocale } = useVueI18n();
 const commandPalette = useCommandPaletteStore();
 const aiAssistant = useAiAssistantStore();
 const aiConversationPreferences = useAiConversationPreferencesStore();
 void aiConversationPreferences.hydrate();
 void commandPalette.hydrate();
-const cloudAccount = ref<CloudStatus>();
-const proLoading = ref(false);
-const proError = ref("");
-const memberQuota = ref<MemberQuotaResult>();
-const quotaLoading = ref(false);
-const publicPlans = ref<FrameworkPlan[]>([]);
-const plansLoading = ref(false);
-const plansError = ref("");
-const redemptionCode = ref("");
-const redeeming = ref(false);
-let proRequestRevision = 0;
-let quotaExpiryTimer: ReturnType<typeof setTimeout> | undefined;
-function clearQuotaExpiryTimer() {
-  if (quotaExpiryTimer) clearTimeout(quotaExpiryTimer);
-  quotaExpiryTimer = undefined;
-}
 const workbench = useWorkbenchStore();
 const workspaceStatePreferences = useWorkspaceStatePreferencesStore();
 void workspaceStatePreferences.hydrate();
 const active = ref<Category>("general");
-const cloudTab = ref<"account" | "pro">("account");
 const pluginSettings = usePluginSettingsAvailability();
 function selectCategory(category: Category) {
-  if (category === "pro") {
-    cloudTab.value = "pro";
-    active.value = "cloud";
-  } else {
-    if (category === "cloud") cloudTab.value = "account";
-    active.value = category;
-  }
+  active.value = category;
 }
 const aiTab = ref<AiTab>("connection");
 const approvalMode = ref<AiApprovalMode>(DEFAULT_AI_APPROVAL_MODE);
@@ -460,11 +390,8 @@ const updateChecking = computed(() => appUpdate.checking);
 const updateDownloading = ref(false);
 const updateError = ref("");
 const mcpStatuses = ref<McpStatus[]>([]);
-/** Connectors whose last connect from this page failed with [MCP_AUTH_REQUIRED]. */
-const mcpAuthRequiredIds = ref<ReadonlySet<string>>(new Set());
 const acpStatuses = ref<McpStatus[]>([]);
 const mcpSubTab = ref<AiRegistrySubTab>("installed");
-const skillSubTab = ref<AiRegistrySubTab>("installed");
 const mcpAdvanced = ref(false);
 const aiAdvanced = ref(false);
 const mcpJsonEditorOpen = ref(false);
@@ -473,14 +400,9 @@ const mcpSearch = ref("");
 const mcpSearchResults = ref<RegistryEntry[]>([]);
 const mcpSearching = ref(false);
 const installingMcpId = ref<string>();
-const skillSearch = ref("");
-const skillSearchResults = ref<RegistryEntry[]>([]);
-const skillSearching = ref(false);
-const installingSkillId = ref<string>();
 const pluginAiCatalogs = usePluginAiCatalogsStore();
 const pluginAiProviders = usePluginAiProvidersStore();
 let mcpSearchController: AbortController | undefined;
-let skillSearchController: AbortController | undefined;
 function catalogEntryAvailable(entry: RegistryEntry) {
   if (entry.source !== "plugin") return true;
   const origin = entry.plugin;
@@ -491,12 +413,7 @@ function catalogEntryAvailable(entry: RegistryEntry) {
 }
 watch(() => pluginAiCatalogs.catalogs, () => {
   mcpSearchResults.value = mcpSearchResults.value.filter(catalogEntryAvailable);
-  skillSearchResults.value = skillSearchResults.value.filter(catalogEntryAvailable);
 }, { flush: "sync" });
-const skillEditorOpen = ref(false);
-const skillEditorText = ref("");
-const editingSkillId = ref<string>();
-const skillEditorSaving = ref(false);
 const ruleScope = ref<AiRuleScope>("global");
 const ruleWorkspaceId = ref(workbench.activeWorkspaceId);
 async function setAiConversationScopeMode(value: AiConversationScopeMode) {
@@ -507,7 +424,7 @@ const ruleScopeOptions = computed(() => [
   { label: t("settings.rules.global"), value: "global" },
   { label: t("settings.rules.workspace"), value: "workspace" },
 ]);
-// 连接器/技能面板把「已安装」与「可发现」拆成内部子 tab，避免已安装列表
+// 连接器面板把「已安装」与「可发现」拆成内部子 tab，避免已安装列表
 // 和注册表搜索结果混在一屏里难以区分。
 const installedSubTabOptions = computed(() => [
   { label: t("settings.ai.subtabInstalled"), value: "installed" },
@@ -524,11 +441,6 @@ function registrySourceText(entry: RegistryEntry) {
     ? t("settings.registry.source.pluginNamed", { name: entry.plugin.pluginName })
     : t(REGISTRY_SOURCE_LABELS[entry.source]);
 }
-const SKILL_SOURCE_LABELS: Record<AiSkillSource, MessageKey> = {
-  manual: "settings.skills.sourceManual",
-  local: "settings.skills.sourceLocal",
-  registry: "settings.skills.sourceRegistry",
-};
 const ruleWorkspaceOptions = computed(() =>
   workbench.workspaces.map((workspace) => ({
     label: workspace.name,
@@ -543,107 +455,6 @@ function availableRuleWorkspaceId(workspaceId?: string) {
     return ruleWorkspaceId.value;
   }
   return workbench.activeWorkspaceId || workbench.workspaces[0]?.id || "";
-}
-async function refreshProAccount() {
-  const revision = ++proRequestRevision;
-  clearQuotaExpiryTimer();
-  cloudAccount.value = undefined;
-  memberQuota.value = undefined;
-  proError.value = "";
-  quotaLoading.value = false;
-  publicPlans.value = [];
-  plansError.value = "";
-  plansLoading.value = false;
-  if (!isDesktopRuntime()) return;
-  plansLoading.value = true;
-  void fetchFrameworkPlans().then((items) => {
-    if (revision === proRequestRevision) publicPlans.value = items;
-  }).catch((error: unknown) => {
-    if (revision === proRequestRevision) plansError.value = nativeErrorMessage(error);
-  }).finally(() => {
-    if (revision === proRequestRevision) plansLoading.value = false;
-  });
-  proLoading.value = true;
-  try {
-    const status = await cloudStatus();
-    if (revision !== proRequestRevision) return;
-    cloudAccount.value = status;
-    if (!status.signedIn || !status.accountId) return;
-    quotaLoading.value = true;
-    try {
-      const result = await fetchMemberQuota(status.accountId);
-      if (revision === proRequestRevision && result.snapshot?.accountId !== undefined && result.snapshot.accountId !== status.accountId) {
-        memberQuota.value = { status: "failed", message: t("settings.pro.accountChanged") };
-      } else if (revision === proRequestRevision) {
-        memberQuota.value = result;
-        if (result.status === "verified" && result.snapshot) {
-          const remaining = result.snapshot.snapshotExpiresAt * 1000 - Date.now();
-          if (remaining <= 0) memberQuota.value = { status: "expired" };
-          else quotaExpiryTimer = setTimeout(() => {
-            if (revision === proRequestRevision) memberQuota.value = { status: "expired" };
-          }, remaining);
-        }
-      }
-    } catch (error) {
-      if (revision === proRequestRevision) memberQuota.value = { status: "failed", message: nativeErrorMessage(error) };
-    } finally {
-      if (revision === proRequestRevision) quotaLoading.value = false;
-    }
-  } catch (error) {
-    if (revision === proRequestRevision) proError.value = nativeErrorMessage(error);
-  } finally {
-    if (revision === proRequestRevision) proLoading.value = false;
-  }
-}
-
-async function redeemCode() {
-  if (!isDesktopRuntime() || !cloudAccount.value?.signedIn || !cloudAccount.value.accountId || redeeming.value) return;
-  if (!/^[A-Z0-9-]{16,128}$/.test(redemptionCode.value)) {
-    ElMessage.warning(t("settings.pro.codeInvalid"));
-    return;
-  }
-  redeeming.value = true;
-  try {
-    await redeemMemberCode(redemptionCode.value, cloudAccount.value.accountId);
-    redemptionCode.value = "";
-    ElMessage.success(t("settings.pro.redeemSubmitted"));
-    void refreshProAccount();
-    void useQuotaStore().refresh();
-  } catch (error) {
-    ElMessage.error(t("settings.pro.redeemFailed", { message: nativeErrorMessage(error) }));
-  } finally {
-    redeeming.value = false;
-  }
-}
-const verifiedProPlan = computed(() =>
-  memberQuota.value?.status === "verified" && memberQuota.value.snapshot?.accountId === cloudAccount.value?.accountId
-    ? memberQuota.value.snapshot
-    : undefined,
-);
-function planLimitItems(limits: QuotaLimits) {
-  return [
-    { key: "devices", label: t("settings.cloud.limitDevices"), value: limits.max_devices },
-    { key: "workspaces", label: t("settings.cloud.limitWorkspaces"), value: limits.max_active_workspaces },
-    { key: "windows", label: t("settings.cloud.limitWindows"), value: limits.max_windows_per_workspace },
-    { key: "plugins", label: t("settings.cloud.limitPlugins"), value: limits.max_enabled_plugins ?? 0, forbidden: limits.plugins_disabled === true },
-  ].map((item) => ({
-    ...item,
-    text: "forbidden" in item && item.forbidden ? t("settings.cloud.pluginsNotAllowed") : item.value === 0 ? t("settings.pro.noLimit") : String(item.value),
-  }));
-}
-function formatPlanPrice(minor: number, currency: string) {
-  const formatter = new Intl.NumberFormat(intlLocale.value, {
-    style: "currency",
-    currency,
-  });
-  const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
-  return formatter.format(minor / 10 ** fractionDigits);
-}
-function planDiscount(plan: FrameworkPlan) {
-  const original = plan.original_price_minor;
-  if (!original || plan.price_minor <= 0 || original <= plan.price_minor) return "";
-  const ratio = plan.price_minor / original;
-  return t("settings.pro.planDiscount", { tenths: Math.round(ratio * 100) / 10, percent: Math.round((1 - ratio) * 100) });
 }
 function formatUpdateDate(value?: string) {
   if (!value) return "—";
@@ -889,7 +700,6 @@ const defaults: VueSettings = {
   activeAiProfileId: defaultProfile.id,
   aiProfiles: [defaultProfile],
   mcpServers: [],
-  aiSkills: [],
   aiRules: [],
   acpAdapterId: "claude-code",
   acpInjectRules: true,
@@ -958,25 +768,6 @@ function normalizeSettings(raw: Partial<VueSettings> & { fontSize?: unknown }): 
     mcpServers: Array.isArray(raw.mcpServers)
       ? raw.mcpServers.map(normalizeStoredMcpServer)
       : [],
-    aiSkills: Array.isArray(raw.aiSkills)
-      ? raw.aiSkills
-          .map((skill) =>
-            typeof skill === "string"
-              ? {
-                  id: createId("skill"),
-                  name: skill,
-                  content: skill,
-                  description: "",
-                  docsUrl: "",
-                  enabled: true,
-                }
-              : {
-                  ...skill,
-                  docsUrl: normalizeDocumentationUrl(skill?.docsUrl),
-                }
-          )
-          .filter((skill) => Boolean(skill) && typeof skill === "object")
-      : [],
     aiRules: Array.isArray(raw.aiRules) ? raw.aiRules : [],
     acpAgents: Array.isArray(raw.acpAgents) ? raw.acpAgents : [],
     workspaceCacheLimit: normalizeWorkspaceCacheLimit(raw.workspaceCacheLimit),
@@ -1011,15 +802,6 @@ function ruleScopeChipLabel(rule: AiRule) {
 }
 const settingsHydrated = ref(false);
 const sidebarVisibility = ref<SidebarVisibility>(createDefaultSidebarVisibility());
-async function createCurrentConfigSyncSnapshot(): Promise<ConfigSyncSnapshot> {
-  await Promise.all([
-    // Strict: pushing must not upload a settings snapshot that failed to persist.
-    persistSettingsSnapshot({ ...settings, locale: locale.value }, { strict: true }),
-    saveSidebarVisibility(sidebarVisibility.value),
-    workspaceStatePreferences.flushPersistence(),
-  ]);
-  return createConfigSyncSnapshot();
-}
 const activeProfile = computed(
   () =>
     settings.aiProfiles.find((profile) => profile.id === settings.activeAiProfileId) ??
@@ -1030,11 +812,8 @@ const categoryList: Array<{ id: Category; label: MessageKey; icon: typeof Settin
   { id: "terminal", label: "settings.cat.terminal", icon: Monitor },
   { id: "shortcuts", label: "settings.cat.shortcuts", icon: Document },
   { id: "ai", label: "settings.cat.ai", icon: MagicStick },
-  { id: "cloud", label: "settings.cat.cloud", icon: Connection },
-  { id: "external-mcp", label: "settings.externalMcp.title", icon: Connection },
   { id: "plugins", label: "pluginContrib.configuration.category", icon: Grid },
   { id: "database", label: "settings.cat.database", icon: DataAnalysis },
-  { id: "security", label: "settings.cat.security", icon: Lock },
   { id: "data", label: "settings.cat.data", icon: DataBoard },
   { id: "about", label: "settings.cat.about", icon: Postcard },
 ];
@@ -1066,7 +845,6 @@ const aiTabs: Array<{ id: AiTab; label: MessageKey }> = [
   { id: "connection", label: "settings.ai.connection" },
   { id: "permissions", label: "settings.ai.permissions" },
   { id: "mcp", label: "settings.ai.mcp" },
-  { id: "skills", label: "settings.ai.skills" },
   { id: "rules", label: "settings.ai.rules" },
   { id: "local-agent", label: "settings.ai.localAgent" },
 ];
@@ -1125,24 +903,6 @@ function ensureHydrated() {
   hydration ??= hydrateSettings();
   return hydration;
 }
-async function applyConfigSyncSnapshot(snapshot: ConfigSyncSnapshot) {
-  const applied = await applyPersistedConfigSyncSnapshot(snapshot);
-  const appliedSettings = applied.persistedValues[SETTINGS_STORAGE_KEY];
-  if (appliedSettings && typeof appliedSettings === "object" && !Array.isArray(appliedSettings)) {
-    const normalized = normalizeSettings(appliedSettings as Partial<VueSettings>);
-    Object.assign(settings, normalized);
-    setLocale(normalized.locale);
-  }
-
-  if (SIDEBAR_VISIBILITY_KEY in applied.persistedValues) {
-    const nextSidebarVisibility = normalizeSidebarVisibility(
-      applied.persistedValues[SIDEBAR_VISIBILITY_KEY]
-    );
-    sidebarVisibility.value = nextSidebarVisibility;
-    await saveSidebarVisibility(nextSidebarVisibility);
-  }
-}
-
 async function updateWorkspaceStateIsolation(enabled: boolean) {
   await workspaceStatePreferences.setIsolationEnabled(enabled, workbench.activeWorkspaceId);
 }
@@ -1172,10 +932,9 @@ watch(aiSettingsExternalRevision, () => {
   const external = normalizeSettings(lists as unknown as Partial<VueSettings>);
   settings.aiProfiles = external.aiProfiles;
   settings.mcpServers = external.mcpServers;
-  settings.aiSkills = external.aiSkills;
   persist();
 });
-// Language pack selection: settings (hydration, config sync) drive the
+// Language pack selection: settings (hydration) drive the
 // runtime; the language row changes the runtime selection, stored here.
 watch(() => [settings.uiLocale, settings.uiLocalePlugin], () => {
   if (settingsHydrated.value) setLocalePackSelection(localePackSelectionFromSettings(settings));
@@ -1245,27 +1004,6 @@ watch(settingsNavigationRequest, (request) => {
   selectCategory(request.category);
   if (request.category === "plugins") pluginSettingsTarget.value = request.pluginId;
 });
-watch([() => props.modelValue, active, cloudTab], ([open, category, tab]) => {
-  if (open && category === "cloud" && tab === "pro") void refreshProAccount();
-  else {
-    ++proRequestRevision;
-    clearQuotaExpiryTimer();
-    cloudAccount.value = undefined;
-    memberQuota.value = undefined;
-    publicPlans.value = [];
-    plansError.value = "";
-    plansLoading.value = false;
-    proLoading.value = false;
-    quotaLoading.value = false;
-    redemptionCode.value = "";
-  }
-});
-watch(aiTab, (tab) => {
-  if (tab === "skills" && !skillSearchResults.value.length && !skillSearching.value) {
-    void searchSkills();
-  }
-});
-
 async function init() {
   if (settings.locale !== locale.value) setLocale(settings.locale);
 
@@ -1711,167 +1449,6 @@ async function installMcpEntry(entry: RegistryEntry) {
     installingMcpId.value = undefined;
   }
 }
-function openSkillEditor(skill: AiSkill) {
-  editingSkillId.value = skill.id;
-  skillEditorText.value = skill.content;
-  skillEditorOpen.value = true;
-}
-function openNewSkillEditor() {
-  editingSkillId.value = undefined;
-  skillEditorText.value = t("settings.skills.template");
-  skillEditorOpen.value = true;
-}
-/** Writes the skill list immediately; `rollback` restores it when the write fails. */
-async function persistSkillChange(rollback: () => void) {
-  await nextTick();
-  if (persistTimer) clearTimeout(persistTimer);
-  persistTimer = undefined;
-  try {
-    await persistSettingsSnapshot({ ...settings, locale: locale.value }, { strict: true });
-    return true;
-  } catch (error) {
-    rollback();
-    ElMessage.error(t("settings.skills.saveFailed", { message: nativeErrorMessage(error) }));
-    return false;
-  }
-}
-async function saveSkillEditor() {
-  if (skillEditorSaving.value) return;
-  if (!editingSkillId.value) return createSkillFromEditor();
-  const index = settings.aiSkills.findIndex((skill) => skill.id === editingSkillId.value);
-  if (index < 0) return;
-
-  const original = settings.aiSkills[index]!;
-  let parsed: AiSkill;
-  try {
-    parsed = parseAiSkillMarkdown(
-      skillEditorText.value,
-      original.sourcePath || `skill:${original.id}`,
-      original.name
-    );
-  } catch (error) {
-    ElMessage.error(t("settings.skills.saveFailed", { message: nativeErrorMessage(error) }));
-    return;
-  }
-  if (parsed.name !== original.name && hasAiSkillNamed(settings.aiSkills, parsed.name, original.id)) {
-    ElMessage.warning(t("settings.skills.nameExists", { name: parsed.name }));
-    return;
-  }
-
-  const updated: AiSkill = {
-    ...original,
-    name: parsed.name,
-    description: parsed.description,
-    content: parsed.content,
-  };
-  skillEditorSaving.value = true;
-  settings.aiSkills.splice(index, 1, updated);
-  try {
-    if (!(await persistSkillChange(() => settings.aiSkills.splice(index, 1, original)))) return;
-    skillEditorText.value = updated.content;
-    skillEditorOpen.value = false;
-    ElMessage.success(t("settings.skills.saved", { name: updated.name }));
-  } finally {
-    skillEditorSaving.value = false;
-  }
-}
-async function createSkillFromEditor() {
-  let skill: AiSkill;
-  try {
-    skill = createManualAiSkill(skillEditorText.value, createId("skill"));
-  } catch (error) {
-    if (error instanceof Error && error.message === "skill_name_required") {
-      ElMessage.warning(t("settings.skills.nameRequired"));
-    } else {
-      ElMessage.error(t("settings.skills.saveFailed", { message: nativeErrorMessage(error) }));
-    }
-    return;
-  }
-  if (hasAiSkillNamed(settings.aiSkills, skill.name)) {
-    ElMessage.warning(t("settings.skills.nameExists", { name: skill.name }));
-    return;
-  }
-
-  skillEditorSaving.value = true;
-  settings.aiSkills.push(skill);
-  try {
-    const removeCreated = () => {
-      const index = settings.aiSkills.findIndex((item) => item.id === skill.id);
-      if (index >= 0) settings.aiSkills.splice(index, 1);
-    };
-    if (!(await persistSkillChange(removeCreated))) return;
-    skillEditorOpen.value = false;
-    ElMessage.success(t("settings.skills.created", { name: skill.name }));
-  } finally {
-    skillEditorSaving.value = false;
-  }
-}
-async function importSkill(fromDirectory = false) {
-  if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
-  try {
-    const selected = fromDirectory
-      ? await chooseSettingsDirectory(t("settings.skills.importFolder"))
-      : await chooseSettingsMarkdownFile(t("settings.skills.importFile"));
-    if (!selected) return;
-    const paths = fromDirectory ? await findSettingsSkillFiles(selected) : [selected];
-    if (!paths.length) throw new Error("skill_file_not_found");
-
-    const imported: AiSkill[] = [];
-    for (const path of paths) {
-      imported.push(parseAiSkillMarkdown(await readSelectedText(path), path));
-    }
-    for (const skill of imported) {
-      const index = settings.aiSkills.findIndex(
-        (item) => item.id === skill.id || item.sourcePath === skill.sourcePath
-      );
-      if (index >= 0) settings.aiSkills.splice(index, 1, skill);
-      else settings.aiSkills.push(skill);
-    }
-    ElMessage.success(
-      imported.length === 1
-        ? t("settings.skills.imported", { name: imported[0]!.name })
-        : t("settings.skills.importedCount", { count: imported.length })
-    );
-  } catch (error) {
-    ElMessage.error(t("settings.skills.importFailed", { message: String(error) }));
-  }
-}
-async function searchSkills() {
-  skillSearchController?.abort();
-  const controller = new AbortController();
-  skillSearchController = controller;
-  skillSearching.value = true;
-  try {
-    const results = await searchSkillRegistry(skillSearch.value, (query) =>
-      searchPluginAiCatalogs("skill", query, locale.value, controller.signal)
-    );
-    if (controller.signal.aborted) return;
-    skillSearchResults.value = results.filter(catalogEntryAvailable);
-    if (!skillSearchResults.value.length) ElMessage.info(t("settings.registry.empty"));
-  } catch (error) {
-    if (!controller.signal.aborted) ElMessage.error(t("settings.registry.searchFailed", { message: String(error) }));
-  } finally {
-    if (!controller.signal.aborted) skillSearching.value = false;
-  }
-}
-async function installSkillEntry(entry: RegistryEntry) {
-  installingSkillId.value = entry.id;
-  try {
-    const skill = await loadSkillRegistryEntry(await resolvePluginRegistryEntry(entry, locale.value));
-    const summary = [skill.name, skill.description].filter(Boolean).join("\n");
-    if (!(await confirmPluginRegistryInstall(entry, summary, t))) return;
-    const index = settings.aiSkills.findIndex(
-      (item) => item.id === skill.id || item.sourcePath === skill.sourcePath
-    );
-    if (index >= 0) settings.aiSkills.splice(index, 1, skill);
-    else settings.aiSkills.push(skill);
-    ElMessage.success(t("settings.skills.imported", { name: skill.name }));
-  } catch (error) {
-    ElMessage.error(t("settings.registry.installFailed", { message: String(error) }));
-  } finally {
-    installingSkillId.value = undefined;
-  }
-}
 async function openDocumentation(url: string) {
   const safeUrl = normalizeDocumentationUrl(url);
   if (!safeUrl) return ElMessage.warning(t("settings.documentation.invalid"));
@@ -1907,47 +1484,13 @@ async function connectMcp(server: McpServer) {
   if (!isDesktopRuntime()) return ElMessage.warning(t("common.desktopRequired"));
   try {
     await connectMcpServer(server);
-    setMcpAuthRequired(server.id, false);
     await loadProtocolStatus();
     ElMessage.success(t("settings.mcp.connected"));
   } catch (error) {
-    // A refused sign-in is authoritative even when a stored token reads as signed in.
-    if (isMcpAuthRequired(error)) {
-      setMcpAuthRequired(server.id, true);
-      ElMessage.warning(t("settings.mcp.auth.connectNeedsSignIn", { name: server.id }));
-    } else if (mcpAuthErrorCode(error) === "MCP_AUTH_NETWORK") {
-      ElMessage.error(t("settings.mcp.auth.error.network"));
-    } else {
-      ElMessage.error(String(error));
-    }
+    ElMessage.error(nativeErrorMessage(error));
   }
 }
-function setMcpAuthRequired(id: string, required: boolean) {
-  if (mcpAuthRequiredIds.value.has(id) === required) return;
-  const next = new Set(mcpAuthRequiredIds.value);
-  if (required) next.add(id);
-  else next.delete(id);
-  mcpAuthRequiredIds.value = next;
-}
-function mcpNeedsSignIn(server: McpServer) {
-  return server.transport === "http" && mcpAuthRequiredIds.value.has(server.id);
-}
-/** Remote connectors marked for host sign-in, or one a connect found needs it. */
-function showMcpAuth(server: McpServer) {
-  return server.transport === "http" && (server.auth === "oauth" || mcpNeedsSignIn(server));
-}
-function onMcpSignedIn(server: McpServer) {
-  // Signing in to a connector that was not marked (its server asked for a
-  // sign-in) marks it, so connecting sends the host token.
-  if (server.auth !== "oauth") server.auth = "oauth";
-  setMcpAuthRequired(server.id, false);
-}
-async function onMcpSignedOut(server: McpServer) {
-  // A live connection still holds the old token; signing out ends it too.
-  if (mcpStatus(server.id)?.state === "connected") await disconnectMcp(server);
-}
 function mcpStatusText(server: McpServer) {
-  if (mcpNeedsSignIn(server)) return t("settings.mcp.auth.needsSignIn");
   const status = mcpStatus(server.id);
   return status?.error || status?.state || t("settings.mcp.notConnected");
 }
@@ -2122,82 +1665,6 @@ async function resetDefaults() {
   approvalMode.value = DEFAULT_AI_APPROVAL_MODE;
   active.value = "general";
 }
-const appLock = useAppLockStore();
-const lockPasscodeDialogOpen = ref(false);
-const lockCurrentPasscode = ref("");
-const lockNewPasscode = ref("");
-const lockConfirmPasscode = ref("");
-const lockBusy = ref(false);
-const autoLockOptions = computed(() =>
-  APP_LOCK_AUTO_LOCK_CHOICES.map((minutes) => ({
-    value: minutes,
-    label: minutes
-      ? t("settings.security.autoLockMinutes", { minutes })
-      : t("settings.security.autoLockOff"),
-  }))
-);
-
-function lockPasscodeIssueMessage(issue: AppLockPasscodeIssue) {
-  if (issue === "too-short") {
-    return t("settings.security.passcodeTooShort", { min: APP_LOCK_MIN_PASSCODE_LENGTH });
-  }
-  if (issue === "too-long") {
-    return t("settings.security.passcodeTooLong", { max: APP_LOCK_MAX_PASSCODE_LENGTH });
-  }
-  if (issue === "mismatch") return t("settings.security.passcodeMismatch");
-  return t("settings.security.passcodeEmpty");
-}
-
-function openLockPasscodeDialog() {
-  lockCurrentPasscode.value = "";
-  lockNewPasscode.value = "";
-  lockConfirmPasscode.value = "";
-  lockPasscodeDialogOpen.value = true;
-}
-
-async function submitLockPasscode() {
-  const issue = validateAppLockPasscode(lockNewPasscode.value, lockConfirmPasscode.value);
-  if (issue) return ElMessage.warning(lockPasscodeIssueMessage(issue));
-  lockBusy.value = true;
-  try {
-    if (appLock.configured) {
-      const changed = await appLock.changePasscode(lockCurrentPasscode.value, lockNewPasscode.value);
-      if (!changed) return ElMessage.error(t("settings.security.passcodeWrong"));
-      ElMessage.success(t("settings.security.passcodeUpdated"));
-    } else {
-      await appLock.enable(lockNewPasscode.value);
-      ElMessage.success(t("settings.security.enabled"));
-    }
-    lockPasscodeDialogOpen.value = false;
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : String(error));
-  } finally {
-    lockBusy.value = false;
-  }
-}
-
-async function disableAppLock() {
-  let current: string;
-  try {
-    const prompt = await ElMessageBox.prompt(
-      t("settings.security.disableHint"),
-      t("settings.security.disable"),
-      {
-        inputType: "password",
-        confirmButtonText: t("common.confirm"),
-        cancelButtonText: t("common.cancel"),
-      }
-    );
-    current = prompt.value ?? "";
-  } catch {
-    // 用户取消输入口令。
-    return;
-  }
-  const removed = await appLock.disable(current);
-  if (!removed) return ElMessage.error(t("settings.security.passcodeWrong"));
-  ElMessage.success(t("settings.security.disabled"));
-}
-
 async function exportConfig() {
   const choice = await confirmSecretExport();
   if (!choice) return;
@@ -2329,9 +1796,6 @@ async function clearAiHistory() {
 onMounted(() => void ensureHydrated());
 onBeforeUnmount(() => {
   mcpSearchController?.abort();
-  skillSearchController?.abort();
-  ++proRequestRevision;
-  clearQuotaExpiryTimer();
   if (persistTimer) persist();
 });
 </script>
@@ -2404,8 +1868,6 @@ onBeforeUnmount(() => {
           :settings="settings"
           @change="Object.assign(settings, $event)"
         />
-
-        <ExternalMcpPanel v-else-if="active === 'external-mcp'" />
 
         <PluginSettingsPanel
           v-else-if="active === 'plugins'"
@@ -3064,13 +2526,6 @@ onBeforeUnmount(() => {
                       <i :class="{ 'is-online': mcpStatus(server.id)?.state === 'connected' }" />
                       <span>{{ mcpStatusText(server) }}</span>
                     </p>
-                    <McpServerAuthControls
-                      v-if="showMcpAuth(server)"
-                      :server="server"
-                      :auth-required="mcpNeedsSignIn(server)"
-                      @signed-in="onMcpSignedIn(server)"
-                      @signed-out="onMcpSignedOut(server)"
-                    />
                     <footer class="settings-ai-entry-card__foot">
                       <span class="settings-ai-entry-card__chip">{{
                         server.transport === "http" ? "HTTP" : "stdio"
@@ -3137,7 +2592,6 @@ onBeforeUnmount(() => {
               </section>
             </template>
             <template v-else>
-              <AiMarketDiscoverBanner @navigate="close()" />
               <section class="settings-ai-card settings-ai-intro-card">
                 <div>
                   <span class="app-inline-label">
@@ -3263,160 +2717,6 @@ onBeforeUnmount(() => {
                 </article>
               </div>
             </section>
-            </template>
-          </div>
-
-          <div v-else-if="aiTab === 'skills'" class="settings-ai-panel">
-            <el-segmented
-              v-model="skillSubTab"
-              class="settings-ai-scope-tabs"
-              :options="installedSubTabOptions"
-              :aria-label="t('settings.ai.skills')"
-            />
-            <template v-if="skillSubTab === 'installed'">
-              <section class="settings-ai-installed">
-                <div class="settings-ai-installed__title">
-                  <strong>{{ t("settings.skills.installed") }}</strong>
-                  <div class="settings-ai-installed__tools">
-                    <el-button text size="small" :icon="Plus" @click="openNewSkillEditor">{{
-                      t("settings.skills.new")
-                    }}</el-button>
-                    <span>{{ settings.aiSkills.length }}</span>
-                  </div>
-                </div>
-                <div v-if="!settings.aiSkills.length" class="settings-ai-empty">
-                  {{ t("settings.skills.empty") }}
-                </div>
-                <div v-else class="settings-ai-card-grid">
-                  <article
-                    v-for="skill in settings.aiSkills"
-                    :key="skill.id"
-                    class="settings-ai-entry-card"
-                  >
-                    <header class="settings-ai-entry-card__head">
-                      <span
-                        class="settings-ai-entry-card__avatar"
-                        :data-tone="entryAvatarTone(skill.name)"
-                        aria-hidden="true"
-                        >{{ entryAvatarInitial(skill.name) }}</span
-                      >
-                      <div class="settings-ai-entry-card__title">
-                        <strong :title="skill.name">{{ skill.name }}</strong>
-                        <small :title="skill.sourcePath || 'SKILL.md'">{{
-                          skill.sourcePath || "SKILL.md"
-                        }}</small>
-                      </div>
-                      <el-switch v-model="skill.enabled" size="small" />
-                    </header>
-                    <p class="settings-ai-entry-card__desc">{{
-                      skill.description || t("settings.skills.noDescription")
-                    }}</p>
-                    <footer class="settings-ai-entry-card__foot">
-                      <span class="settings-ai-entry-card__chip">{{
-                        t(SKILL_SOURCE_LABELS[aiSkillSource(skill)])
-                      }}</span>
-                      <div class="settings-ai-entry-card__actions">
-                        <el-button
-                          v-if="skill.docsUrl"
-                          text
-                          size="small"
-                          :icon="TopRight"
-                          :title="t('settings.documentation')"
-                          :aria-label="t('settings.documentation')"
-                          @click="openDocumentation(skill.docsUrl)"
-                        />
-                        <el-button
-                          text
-                          size="small"
-                          :icon="EditPen"
-                          :title="t('settings.skills.edit')"
-                          :aria-label="t('settings.skills.edit')"
-                          @click="openSkillEditor(skill)"
-                        />
-                        <el-button
-                          text
-                          :icon="Delete"
-                          :title="t('common.delete')"
-                          :aria-label="t('common.delete')"
-                          @click="settings.aiSkills.splice(settings.aiSkills.indexOf(skill), 1)"
-                        />
-                      </div>
-                    </footer>
-                  </article>
-                </div>
-              </section>
-              <PluginAiPromptsSection />
-            </template>
-            <template v-else>
-              <AiMarketDiscoverBanner @navigate="close()" />
-              <section class="settings-ai-card settings-ai-skills-import">
-                <p>{{ t("settings.skills.importHint") }}</p>
-                <div>
-                  <el-button @click="importSkill()">{{ t("settings.skills.importFile") }}</el-button
-                  ><el-button @click="importSkill(true)">{{
-                    t("settings.skills.importFolder")
-                  }}</el-button>
-                </div>
-              </section>
-              <div class="settings-ai-search-line">
-                <el-input
-                  v-model="skillSearch"
-                  :placeholder="t('settings.skills.searchPlaceholder')"
-                  @keyup.enter="searchSkills"
-                /><el-button type="primary" :loading="skillSearching" @click="searchSkills">{{
-                  t("common.search")
-                }}</el-button>
-              </div>
-              <div v-if="skillSearchResults.length" class="settings-ai-card-grid">
-                <article
-                  v-for="entry in skillSearchResults"
-                  :key="entry.id"
-                  class="settings-ai-entry-card"
-                >
-                  <header class="settings-ai-entry-card__head">
-                    <span
-                      class="settings-ai-entry-card__avatar"
-                      :data-tone="entryAvatarTone(entry.name)"
-                      aria-hidden="true"
-                      >{{ entryAvatarInitial(entry.name) }}</span
-                    >
-                    <div class="settings-ai-entry-card__title">
-                      <strong :title="entry.name">{{ entry.name }}</strong>
-                      <small :title="entry.id">{{ entry.id }}</small>
-                    </div>
-                  </header>
-                  <p class="settings-ai-entry-card__desc">{{ entry.description }}</p>
-                  <footer class="settings-ai-entry-card__foot">
-                    <span class="settings-ai-entry-card__chip">{{
-                      registrySourceText(entry)
-                    }}</span>
-                    <div class="settings-ai-entry-card__actions">
-                      <el-button
-                        v-if="entry.docsUrl"
-                        text
-                        size="small"
-                        :icon="TopRight"
-                        :title="t('settings.documentation')"
-                        :aria-label="t('settings.documentation')"
-                        @click="openDocumentation(entry.docsUrl)"
-                      />
-                      <el-button
-                        type="primary"
-                        size="small"
-                        :loading="installingSkillId === entry.id"
-                        @click="installSkillEntry(entry)"
-                        >{{ t("common.add") }}</el-button
-                      >
-                    </div>
-                  </footer>
-                </article>
-              </div>
-              <div
-                v-else-if="!skillSearching"
-                class="settings-ai-empty settings-ai-empty--plain"
-              >
-                {{ t("settings.skills.importEmpty") }}
-              </div>
             </template>
           </div>
 
@@ -3658,196 +2958,10 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <div v-else-if="active === 'cloud'" class="settings-cloud-tabs">
-          <el-tabs v-model="cloudTab" :aria-label="t('settings.cat.cloud')">
-            <el-tab-pane name="account" :label="t('settings.cloud.title')" lazy>
-              <CloudCompanionPanel v-if="cloudTab === 'account'" />
-            </el-tab-pane>
-            <el-tab-pane name="pro" :label="t('settings.cat.pro')" lazy>
-              <section class="settings-flat-page settings-pro-page">
-                <el-alert v-if="!isDesktopRuntime()" type="warning" :closable="false" :title="t('settings.pro.desktopOnly')" />
-
-                <div class="settings-ai-card settings-pro-card">
-                  <div class="settings-pro-card-head">
-                    <div class="settings-pro-card-title">
-                      <strong>{{ t("settings.pro.currentPlan") }}</strong>
-                      <small v-if="cloudAccount?.signedIn">{{ cloudAccount.email || String(cloudAccount.accountId) }}</small>
-                    </div>
-                    <el-button size="small" :loading="proLoading || quotaLoading" :disabled="!isDesktopRuntime()" @click="refreshProAccount">
-                      {{ t("common.refresh") }}
-                    </el-button>
-                  </div>
-                  <el-alert v-if="proError" type="error" :closable="false" :title="t('settings.pro.accountFailed', { message: proError })" />
-                  <p v-else-if="proLoading && !cloudAccount" class="settings-page-note">{{ t("settings.pro.loading") }}</p>
-                  <p v-else-if="!cloudAccount?.signedIn" class="settings-page-note">{{ t("settings.pro.signInHint") }}</p>
-                  <template v-else>
-                    <template v-if="verifiedProPlan">
-                      <div class="settings-pro-plan-line">
-                        <el-tag :type="verifiedProPlan.plan === 'free' ? 'info' : 'success'" effect="light">
-                          {{ t(`settings.pro.cloudPlan.${verifiedProPlan.plan}`) }}
-                        </el-tag>
-                        <el-tag type="success" effect="plain" size="small">{{ t("settings.pro.verifiedBadge") }}</el-tag>
-                        <span>
-                          {{ verifiedProPlan.expiresAt
-                            ? t("settings.pro.expiresOn", { date: formatUpdateDate(new Date(verifiedProPlan.expiresAt * 1000).toISOString()) })
-                            : t("settings.pro.noExpiry") }}
-                        </span>
-                      </div>
-                      <div class="settings-pro-limits">
-                        <div v-for="item in planLimitItems(verifiedProPlan.limits)" :key="item.key" class="settings-pro-limit">
-                          <span>{{ item.label }}</span>
-                          <strong>{{ item.text }}</strong>
-                        </div>
-                      </div>
-                      <p class="settings-page-note settings-pro-footnote">{{ t("settings.pro.quotaDisplayOnly") }}</p>
-                    </template>
-                    <p v-else-if="quotaLoading" class="settings-page-note">{{ t("settings.pro.quotaLoading") }}</p>
-                    <el-alert v-else-if="memberQuota?.status === 'signed_out'" type="warning" :closable="false" :title="t('settings.pro.accountChanged')" />
-                    <el-alert v-else-if="memberQuota?.status === 'unconfigured'" type="warning" :closable="false" :title="t('settings.pro.entitlementPending')" />
-                    <el-alert v-else-if="memberQuota?.status === 'expired'" type="warning" :closable="false" :title="t('settings.pro.quotaExpired')" />
-                    <el-alert v-else-if="memberQuota?.status === 'failed'" type="error" :closable="false" :title="t('settings.pro.quotaFailed', { message: memberQuota.message || '—' })" />
-                  </template>
-                </div>
-
-                <div v-if="cloudAccount?.signedIn && memberQuota?.status !== 'signed_out'" class="settings-ai-card settings-pro-card settings-pro-redeem">
-                  <strong>{{ t("settings.pro.redemptionCode") }}</strong>
-                  <form class="settings-pro-redeem-row" @submit.prevent="redeemCode">
-                    <el-input v-model="redemptionCode" type="password" show-password autocomplete="off" :disabled="redeeming" :aria-label="t('settings.pro.redemptionCode')" :placeholder="t('settings.pro.codePlaceholder')" />
-                    <el-button type="primary" native-type="submit" :loading="redeeming" :disabled="!redemptionCode || proLoading">
-                      {{ t("settings.pro.redeem") }}
-                    </el-button>
-                  </form>
-                  <p class="settings-page-note">{{ t("settings.pro.cloudDescription") }}</p>
-                </div>
-
-                <div class="settings-pro-section-head">
-                  <strong>{{ t("settings.pro.publicPlans") }}</strong>
-                  <small>{{ t("settings.pro.publicPlansHint") }}</small>
-                </div>
-                <p v-if="plansLoading" class="settings-page-note">{{ t("settings.pro.plansLoading") }}</p>
-                <el-alert v-else-if="plansError" type="warning" :closable="false" :title="t('settings.pro.plansFailed', { message: plansError })" />
-                <p v-else-if="isDesktopRuntime() && !publicPlans.length" class="settings-page-note">{{ t("settings.pro.plansEmpty") }}</p>
-                <div v-else-if="publicPlans.length" class="settings-pro-public-plans">
-                  <div
-                    v-for="plan in publicPlans"
-                    :key="plan.plan"
-                    class="settings-ai-card settings-pro-public-plan"
-                    :class="{ 'is-current': verifiedProPlan?.plan === plan.plan }"
-                  >
-                    <div class="settings-pro-public-plan__head">
-                      <strong>{{ t(`settings.pro.cloudPlan.${plan.plan}`) }}</strong>
-                      <el-tag v-if="verifiedProPlan?.plan === plan.plan" size="small" type="primary" effect="light">{{ t("settings.pro.currentPlanBadge") }}</el-tag>
-                    </div>
-                    <div class="settings-pro-public-plan__price">
-                      <b>{{ formatPlanPrice(plan.price_minor, plan.currency) }}</b>
-                      <span>{{ plan.duration_days ? t("settings.pro.catalogDuration", { days: plan.duration_days }) : t("settings.pro.noExpiry") }}</span>
-                      <template v-if="planDiscount(plan)">
-                        <s class="settings-pro-public-plan__original">{{ formatPlanPrice(plan.original_price_minor!, plan.currency) }}</s>
-                        <el-tag size="small" type="danger" effect="light">{{ planDiscount(plan) }}</el-tag>
-                      </template>
-                    </div>
-                    <ul class="settings-pro-public-plan__limits">
-                      <li v-for="item in planLimitItems(plan.limits)" :key="item.key">
-                        <span>{{ item.label }}</span>
-                        <strong>{{ item.text }}</strong>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </section>
-            </el-tab-pane>
-          </el-tabs>
-        </div>
-
         <DatabaseSafetySettingsSection v-else-if="active === 'database'" />
-
-        <section v-else-if="active === 'security'" class="settings-flat-page">
-          <div class="settings-section-label">{{ t("settings.security.lock") }}</div>
-          <el-alert
-            v-if="!appLock.available"
-            class="settings-inline-alert"
-            type="info"
-            show-icon
-            :closable="false"
-            :title="t('settings.security.desktopOnly')"
-          />
-          <div class="settings-data-row">
-            <span class="app-inline-label"
-              ><strong>{{ t("settings.security.lock") }}</strong
-              ><AppHintIcon :text="t('settings.security.lockHint')" /></span
-            >
-            <div class="settings-lock-actions">
-              <el-button
-                :disabled="!appLock.available"
-                @click="openLockPasscodeDialog"
-              >
-                {{
-                  appLock.configured
-                    ? t("settings.security.changePasscode")
-                    : t("settings.security.setPasscode")
-                }}
-              </el-button>
-              <el-button
-                v-if="appLock.configured"
-                type="danger"
-                plain
-                @click="disableAppLock"
-              >
-                {{ t("settings.security.disable") }}
-              </el-button>
-            </div>
-          </div>
-          <div class="settings-data-row">
-            <span class="app-inline-label"
-              ><strong>{{ t("settings.security.autoLock") }}</strong
-              ><AppHintIcon :text="t('settings.security.autoLockHint')" /></span
-            >
-            <el-select
-              :model-value="appLock.autoLockMinutes"
-              class="settings-inline-select"
-              :disabled="!appLock.configured"
-              @update:model-value="appLock.setAutoLockMinutes"
-            >
-              <el-option
-                v-for="option in autoLockOptions"
-                :key="option.value"
-                :label="option.label"
-                :value="option.value"
-              />
-            </el-select>
-          </div>
-          <div class="settings-data-row">
-            <span class="app-inline-label"
-              ><strong>{{ t("settings.security.lockOnLaunch") }}</strong
-              ><AppHintIcon :text="t('settings.security.lockOnLaunchHint')" /></span
-            >
-            <el-switch
-              :model-value="appLock.lockOnLaunch"
-              :disabled="!appLock.configured"
-              @update:model-value="appLock.setLockOnLaunch"
-            />
-          </div>
-          <div class="settings-data-row">
-            <span class="app-inline-label"
-              ><strong>{{ t("settings.security.lockNow") }}</strong
-              ><AppHintIcon :text="t('settings.security.lockNowHint')" /></span
-            >
-            <el-button :disabled="!appLock.configured" @click="appLock.lock()">
-              {{ t("settings.security.lockNow") }}
-            </el-button>
-          </div>
-        </section>
 
         <section v-else-if="active === 'data'" class="settings-flat-page">
           <div class="settings-section-label">{{ t("settings.data.management") }}</div>
-          <div class="settings-data-row">
-            <span class="app-inline-label"
-              ><strong>{{ t("settings.data.configSync") }}</strong
-              ><AppHintIcon :text="t('settings.data.configSyncHint')" /></span
-            ><el-button @click="configSyncOpen = true">{{
-              t("settings.data.configSyncOpen")
-            }}</el-button>
-          </div>
           <div class="settings-data-row">
             <span class="app-inline-label"
               ><strong>{{ t("settings.data.export") }}</strong
@@ -3877,16 +2991,6 @@ onBeforeUnmount(() => {
               ><strong>{{ t("settings.data.aiHistory") }}</strong
               ><AppHintIcon :text="t('settings.data.aiHistoryHint')" /></span
             ><el-button @click="clearAiHistory">{{ t("common.clear") }}</el-button>
-          </div>
-          <div class="settings-divider" />
-          <div class="settings-section-label">{{ t("settings.data.envPack") }}</div>
-          <div class="settings-data-row">
-            <span class="app-inline-label"
-              ><strong>{{ t("settings.data.exportEnv") }}</strong
-              ><AppHintIcon :text="t('settings.data.exportEnvHint')" /></span
-            ><el-button @click="environmentPackOpen = true">{{
-              t("settings.data.openEnv")
-            }}</el-button>
           </div>
           <div class="settings-divider" />
           <DataStorageUsagePanel />
@@ -4030,81 +3134,6 @@ onBeforeUnmount(() => {
       <el-button @click="mcpJsonEditorOpen = false">{{ t("common.cancel") }}</el-button>
       <el-button @click="formatMcpJson">{{ t("settings.mcp.formatJson") }}</el-button>
       <el-button type="primary" @click="saveMcpJson">{{ t("common.save") }}</el-button>
-    </template>
-  </el-dialog>
-  <el-dialog
-    v-model="skillEditorOpen"
-    append-to-body
-    class="settings-mcp-json-dialog settings-skill-editor-dialog"
-    width="min(920px, calc(100vw - 40px))"
-    :close-on-click-modal="false"
-    :title="editingSkillId ? t('settings.skills.editTitle') : t('settings.skills.new')"
-  >
-    <p class="settings-mcp-json-dialog__hint">{{
-      editingSkillId ? t("settings.skills.editHint") : t("settings.skills.newHint")
-    }}</p>
-    <div class="settings-mcp-json-dialog__editor">
-      <MonacoTextEditor
-        v-if="skillEditorOpen"
-        v-model="skillEditorText"
-        :path="settings.aiSkills.find((skill) => skill.id === editingSkillId)?.sourcePath || 'SKILL.md'"
-        :open-paths="[settings.aiSkills.find((skill) => skill.id === editingSkillId)?.sourcePath || 'SKILL.md']"
-        :preferences="DEFAULT_EDITOR_PREFERENCES"
-        @save="saveSkillEditor"
-      />
-    </div>
-    <template #footer>
-      <el-button :disabled="skillEditorSaving" @click="skillEditorOpen = false">{{
-        t("common.cancel")
-      }}</el-button>
-      <el-button type="primary" :loading="skillEditorSaving" @click="saveSkillEditor">{{
-        t("common.save")
-      }}</el-button>
-    </template>
-  </el-dialog>
-  <EnvironmentPackDialog v-model="environmentPackOpen" />
-  <ConfigSyncDialog
-    v-model="configSyncOpen"
-    :create-snapshot="createCurrentConfigSyncSnapshot"
-    :apply-snapshot="applyConfigSyncSnapshot"
-  />
-  <el-dialog
-    v-model="lockPasscodeDialogOpen"
-    append-to-body
-    width="min(420px, calc(100vw - 48px))"
-    :title="
-      appLock.configured
-        ? t('settings.security.changePasscode')
-        : t('settings.security.setPasscode')
-    "
-  >
-    <el-form label-position="top">
-      <el-form-item v-if="appLock.configured" :label="t('settings.security.currentPasscode')">
-        <el-input v-model="lockCurrentPasscode" type="password" show-password />
-      </el-form-item>
-      <el-form-item :label="t('settings.security.newPasscode')">
-        <el-input
-          v-model="lockNewPasscode"
-          type="password"
-          show-password
-          :maxlength="APP_LOCK_MAX_PASSCODE_LENGTH"
-        />
-      </el-form-item>
-      <el-form-item :label="t('settings.security.confirmPasscode')">
-        <el-input
-          v-model="lockConfirmPasscode"
-          type="password"
-          show-password
-          :maxlength="APP_LOCK_MAX_PASSCODE_LENGTH"
-          @keyup.enter="submitLockPasscode"
-        />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="lockPasscodeDialogOpen = false">{{ t("common.cancel") }}</el-button>
-      <el-button type="primary" :loading="lockBusy" @click="submitLockPasscode">
-        {{ t("common.confirm") }}
-      </el-button>
     </template>
   </el-dialog>
 </template>

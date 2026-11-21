@@ -15,7 +15,6 @@ import {
   updateFormatterPreference,
   utf8ByteLength,
 } from "../src/domain/plugins/formatters.ts";
-import { CONFIG_SYNC_STORAGE_PREFIX } from "../src/domain/settings/config-sync.ts";
 import { runEditorSaveParticipants } from "../src/services/editor-save-participants.ts";
 import {
   FORMAT_DOCUMENT_WITH_ACTION_ID,
@@ -61,7 +60,7 @@ test("formatters: entries are re-validated; only active process plugins contribu
 });
 
 test("formatters: preferences are machine-local and normalized", () => {
-  assert.ok(!PLUGIN_FORMATTERS_STORAGE_KEY.startsWith(CONFIG_SYNC_STORAGE_PREFIX), "never synced or exported");
+  assert.ok(!PLUGIN_FORMATTERS_STORAGE_KEY.startsWith("app_"), "never synced or exported");
   const byLanguage = JSON.parse(
     '{"typescript":{"formatter":"z.fmt/prettier","formatOnSave":true},"go":{"formatOnSave":true},"Bad Lang":{"formatter":"z.fmt/prettier"},"json":{"formatter":"nope"},"__proto__":{"formatter":"z.fmt/prettier"}}',
   );

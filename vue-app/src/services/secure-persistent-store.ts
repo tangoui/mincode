@@ -1,7 +1,6 @@
 import {
   clearDesktopBrowserSnapshot,
   enqueuePersistedWrite,
-  isPersistedWriteFrozen,
   writePersistedBrowserSnapshot as writeBrowserSnapshot,
   writesDesktopBrowserSnapshot,
 } from "@/services/persistent-store";
@@ -21,10 +20,8 @@ function parseBrowserValue<T>(key: string): T | null {
 async function sealAndStore(key: string, value: unknown): Promise<void> {
   const json = JSON.stringify(value);
   if (json === undefined) throw new Error(`无法序列化安全存储值: ${key}`);
-  if (isPersistedWriteFrozen(key)) return;
   const cipher = await invokeBackend<string>("seal_object", { json });
   // Re-checked: a restore may have frozen the key while sealing.
-  if (isPersistedWriteFrozen(key)) return;
   await invokeBackend<void>("store_set", { key, value: cipher });
 }
 
@@ -72,7 +69,6 @@ export async function saveSecurePersistedValue(
   browserSnapshot: unknown,
   options: { strict?: boolean } = {}
 ): Promise<void> {
-  if (isPersistedWriteFrozen(key)) return;
   const desktopRuntime = isDesktopRuntime();
   const keepBrowserSnapshot = !desktopRuntime || writesDesktopBrowserSnapshot(key);
   if (keepBrowserSnapshot) writeBrowserSnapshot(key, browserSnapshot);

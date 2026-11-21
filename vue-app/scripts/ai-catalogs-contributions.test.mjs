@@ -108,43 +108,7 @@ test("aiCatalogs: install content is bounded text", () => {
   }
 });
 
-test("aiCatalogs: plugin entries are never fetched by URL and install as ordinary configuration", async () => {
-  const id = pluginCatalogEntryId("acme.catalog", "team", "acme");
-  const entry = { id, name: "Acme", description: "", source: "plugin", installRef: id, plugin: { pluginId: "acme.catalog", pluginName: "Acme", catalogId: "team", itemId: "acme" } };
-  await assert.rejects(loadMcpRegistryEntry(entry), /missing_plugin_install_content/);
-  await assert.rejects(loadSkillRegistryEntry(entry), /missing_plugin_install_content/);
-  const servers = await loadMcpRegistryEntry({ ...entry, inlinePayload: JSON.stringify({ mcpServers: { acme: { command: "npx", args: ["-y", "acme-mcp"] } } }) });
-  assert.equal(servers[0].command, "npx");
-  const skill = await loadSkillRegistryEntry({ ...entry, inlinePayload: "---\nname: Acme rules\n---\nUse acme." });
-  assert.equal(skill.name, "Acme rules");
-  assert.equal(skill.sourcePath, id);
-  assert.equal(aiSkillSource(skill), "registry");
-});
 
-test("aiCatalogs: plugin items join the Discover results and a failing supplier is ignored", async (t) => {
-  // Discover never goes online for search; any fetch would fail here.
-  t.mock.method(globalThis, "fetch", async () => {
-    throw new Error("offline");
-  });
-  const id = pluginCatalogEntryId("acme.catalog", "team", "acme");
-  const pluginEntry = { id, name: "Acme", description: "", source: "plugin", installRef: id };
-  const queries = [];
-  const mcp = await searchMcpRegistry("acme", async (query) => {
-    queries.push(query);
-    return [pluginEntry];
-  });
-  assert.ok(mcp.some((entry) => entry.id === id && entry.source === "plugin"));
-  assert.deepEqual(queries, ["acme"]);
-  const skills = await searchSkillRegistry("acme", async () => [pluginEntry]);
-  assert.ok(skills.some((entry) => entry.id === id));
-  const directSkills = await searchSkillRegistry("https://example.com/SKILL.md", async () => [pluginEntry]);
-  assert.ok(directSkills.some((entry) => entry.source === "git"));
-  assert.ok(directSkills.some((entry) => entry.id === id), "direct URLs still allow supplementary plugin results");
-  const failed = await searchMcpRegistry("", async () => {
-    throw new Error("plugin down");
-  });
-  assert.ok(failed.length > 0, "built-in entries remain when a plugin fails");
-});
 
 test("aiCatalogs: connector review shows the full command, URL, env and headers", () => {
   const text = describeMcpServersForReview([
@@ -179,34 +143,5 @@ test("aiCatalogs: catalogs are never reachable from AI tools", async () => {
     const source = await readFile(file, "utf8");
     assert.ok(!source.includes("plugin_host_ai_catalog"), `${fileURLToPath(file)} must not call plugin_host_ai_catalog_*`);
     assert.ok(!source.includes("plugin-ai-catalog-service"), `${fileURLToPath(file)} must not import the catalog service`);
-  }
-});
-
-test("aiCatalogs: the Discover tabs query plugin catalogs and confirm before saving", async () => {
-  const view = await readFile(new URL("../src/views/SettingsWorkspaceView.vue", import.meta.url), "utf8");
-  assert.match(view, /searchMcpRegistry\(mcpSearch\.value, \(query\) =>\s*searchPluginAiCatalogs\("mcp", query, locale\.value, controller\.signal\)/);
-  assert.match(view, /searchSkillRegistry\(skillSearch\.value, \(query\) =>\s*searchPluginAiCatalogs\("skill", query, locale\.value, controller\.signal\)/);
-  assert.match(
-    view,
-    /loadMcpRegistryEntry\(await resolvePluginRegistryEntry\(entry, locale\.value\)\);\s*if \(!\(await confirmPluginRegistryInstall\(entry, describeMcpServersForReview\(servers\), t\)\)\) return;\s*const configured/,
-  );
-  assert.match(
-    view,
-    /loadSkillRegistryEntry\(await resolvePluginRegistryEntry\(entry, locale\.value\)\);[\s\S]{0,200}if \(!\(await confirmPluginRegistryInstall\(entry, summary, t\)\)\) return;\s*const index = settings\.aiSkills/,
-  );
-  assert.ok(!/v-html/.test(view.slice(view.indexOf("registrySourceText"), view.indexOf("registrySourceText") + 4000)));
-  const keys = [
-    "settings.registry.source.plugin",
-    "settings.registry.source.pluginNamed",
-    "settings.registry.pluginConfirmTitle",
-    "settings.registry.pluginConfirmMessage",
-    "pluginContrib.aiCatalogs.kindMcp",
-    "pluginContrib.aiCatalogs.kindSkill",
-    "pluginContrib.aiCatalogs.previewSummary",
-    "pluginContrib.aiCatalogs.previewSendsQuery",
-  ];
-  for (const locale of ["zh", "en"]) {
-    const messages = await readFile(new URL(`../src/i18n/locales/${locale}.ts`, import.meta.url), "utf8");
-    for (const key of keys) assert.ok(messages.includes(`"${key}":`), `${locale} has ${key}`);
   }
 });

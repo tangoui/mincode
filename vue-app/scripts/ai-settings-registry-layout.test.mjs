@@ -11,10 +11,10 @@ const styles = await readFile(
   "utf8",
 );
 
-// Registry results (MCP search, MCP templates, skill search) render as market-style
+// Registry results (MCP search and templates) render as market-style
 // cards since c6f9c9be; each card owns a footer action row built from Element Plus buttons.
 function registryCards() {
-  return ["mcpSearchResults", "builtinMcpTemplates", "skillSearchResults"].map((source) => {
+  return ["mcpSearchResults", "builtinMcpTemplates"].map((source) => {
     const start = view.indexOf(`v-for="entry in ${source}"`);
     assert.ok(start >= 0, `missing registry result list ${source}`);
     const end = view.indexOf("</article>", start);

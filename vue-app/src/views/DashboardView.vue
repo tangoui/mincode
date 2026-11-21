@@ -59,35 +59,6 @@ interface ActivityItem {
   count: number;
 }
 
-type EnvironmentCheckId = "shell" | "git" | "node" | "packageManager" | "docker";
-
-interface EnvironmentCheck {
-  id: EnvironmentCheckId;
-  available: boolean;
-  command?: string;
-  path?: string;
-}
-
-interface EnvironmentStatus {
-  platform: string;
-  architecture: string;
-  checks: EnvironmentCheck[];
-}
-
-interface CliToolInfo {
-  name: string;
-  version: string;
-  installed: boolean;
-}
-
-interface EnvironmentRow {
-  id: string;
-  label: string;
-  value: string;
-  ready: boolean;
-  detail?: string;
-}
-
 const router = useRouter();
 const workbench = useWorkbenchStore();
 const database = useDatabaseWorkspaceStore();
@@ -97,9 +68,6 @@ const { t, intlLocale } = useVueI18n();
 
 const loading = ref(false);
 // Probes are deferred past the first paint; start in the loading state so the card reads "checking".
-const environmentLoading = ref(isDesktopRuntime());
-const environmentStatus = ref<EnvironmentStatus | null>(null);
-const cliTools = ref<CliToolInfo[]>([]);
 const recentActivity = ref<ActivityItem[]>([]);
 const recentLoading = ref(isDesktopRuntime());
 const refreshedAt = ref(0);
@@ -132,66 +100,6 @@ const activeTabs = computed(() =>
 );
 const connectedDatabaseCount = computed(() => database.connectedConnections.length);
 const projectName = computed(() => basename(project.projectRoot) || t("dashboard.project.none"));
-const environmentCheckLabels: Record<EnvironmentCheckId, MessageKey> = {
-  shell: "dashboard.environment.shell",
-  git: "dashboard.environment.git",
-  node: "dashboard.environment.node",
-  packageManager: "dashboard.environment.packageManager",
-  docker: "dashboard.environment.docker",
-};
-const environmentRows = computed<EnvironmentRow[]>(() => {
-  const desktopRow = {
-    id: "desktop",
-    label: t("dashboard.environment.desktop"),
-    value: isDesktopRuntime() ? t("dashboard.environment.ready") : t("dashboard.environment.browser"),
-    ready: isDesktopRuntime(),
-  };
-
-  if (!isDesktopRuntime()) return [desktopRow];
-  if (environmentLoading.value && !environmentStatus.value) {
-    return [
-      desktopRow,
-      {
-        id: "checking",
-        label: t("dashboard.environment.tools"),
-        value: t("dashboard.environment.checking"),
-        ready: false,
-      },
-    ];
-  }
-  if (!environmentStatus.value) {
-    return [
-      desktopRow,
-      {
-        id: "unavailable",
-        label: t("dashboard.environment.tools"),
-        value: t("dashboard.environment.checkFailed"),
-        ready: false,
-      },
-    ];
-  }
-
-  return [
-    desktopRow,
-    ...environmentStatus.value.checks.map((check) => ({
-      id: check.id,
-      label: t(environmentCheckLabels[check.id]),
-      value: check.available
-        ? t("dashboard.environment.available", { command: check.command ?? check.id })
-        : t("dashboard.environment.unavailable"),
-      ready: check.available,
-      detail: check.path,
-    })),
-    ...cliTools.value.map((tool) => ({
-      id: `cli:${tool.name}`,
-      label: tool.name,
-      value: tool.installed ? tool.version : t("dashboard.environment.unavailable"),
-      ready: tool.installed,
-      detail: tool.version,
-    })),
-  ];
-});
-
 const quickActions: Array<{
   view: WorkspaceView;
   titleKey: MessageKey;
@@ -278,29 +186,6 @@ function closeTab(tab: WorkspaceTab) {
   void router.push(workspaceTabRoute(next));
 }
 
-async function loadEnvironmentChecks(force = false) {
-  if (!isDesktopRuntime()) {
-    environmentStatus.value = null;
-    cliTools.value = [];
-    return;
-  }
-
-  environmentLoading.value = true;
-  try {
-    const [status, tools] = await Promise.all([
-      invokeBackend<EnvironmentStatus>("system_get_environment_checks", {}),
-      invokeBackend<CliToolInfo[]>("detect_cli_tools", { force }).catch(() => []),
-    ]);
-    environmentStatus.value = status;
-    cliTools.value = tools;
-  } catch {
-    environmentStatus.value = null;
-    cliTools.value = [];
-  } finally {
-    environmentLoading.value = false;
-  }
-}
-
 async function loadRecentActivity() {
   if (!isDesktopRuntime()) {
     recentActivity.value = [];
@@ -356,7 +241,7 @@ function refresh(force = false): Promise<void> {
     ssh.hydrate(),
     // 环境探测会拉起 shell/git/node/docker 子进程并扫描 ~/.codex、~/.claude；首次激活放到首帧之后。
     (firstLoad ? afterIdle() : Promise.resolve()).then(() =>
-      Promise.all([loadEnvironmentChecks(force), loadRecentActivity()])
+      loadRecentActivity()
     ),
   ])
     .then(() => {
@@ -593,32 +478,6 @@ onBeforeUnmount(stopClock);
             </div>
           </article>
 
-          <article class="dashboard-card dashboard-card--environment">
-            <header class="dashboard-card__header">
-              <div>
-                <h2>{{ t("dashboard.environment.title") }}</h2>
-                <p>{{ t("dashboard.environment.description") }}</p>
-              </div>
-              <div class="dashboard-card__header-actions">
-                <el-button
-                  text
-                  native-type="button"
-                  class="dashboard-text-button"
-                  :disabled="!isDesktopRuntime() || environmentLoading"
-                  @click="loadEnvironmentChecks(true)"
-                >
-                  {{ t("dashboard.environment.detectAgain") }} <el-icon><Refresh /></el-icon>
-                </el-button>
-              </div>
-            </header>
-            <div class="dashboard-environment-list">
-              <div v-for="row in environmentRows" :key="row.id">
-                <span class="dashboard-health-dot" :class="{ 'is-ready': row.ready }" />
-                <span>{{ row.label }}</span>
-                <strong :title="row.detail">{{ row.value }}</strong>
-              </div>
-            </div>
-          </article>
         </div>
       </div>
 
@@ -1135,29 +994,6 @@ onBeforeUnmount(stopClock);
 }
 .dashboard-card-empty svg {
   width: 17px;
-}
-.dashboard-environment-list {
-  display: grid;
-  gap: 0;
-  padding: 0 18px 10px;
-}
-.dashboard-environment-list > div {
-  display: grid;
-  grid-template-columns: 8px minmax(90px, 1fr) minmax(0, 1.5fr);
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  border-bottom: 1px solid var(--app-border);
-  font-size: 11px;
-}
-.dashboard-environment-list strong {
-  overflow: hidden;
-  color: var(--app-text-regular);
-  font-size: 10px;
-  font-weight: 500;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .dashboard-health-dot {
   width: 7px;
