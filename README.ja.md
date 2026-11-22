@@ -6,6 +6,8 @@
 
 このリポジトリは MinCode のオープンソース版であり、中規模の Tango アプリの完全な実例でもあります。Go のバックエンドと Vue のフロントエンドを Tango のシステム WebView で動かし、`tan` でパッケージ化し、GitHub Releases から自動更新します。
 
+**Tango**：[GitHub リポジトリ](https://github.com/tangoui/tango) · [ドキュメント（英語）](https://tangoui.github.io/tango/en/)
+
 ## ダウンロード
 
 OS とプロセッサーに合ったインストーラーを選んでください。[GitHub Releases](https://github.com/tangoui/mincode/releases/latest)

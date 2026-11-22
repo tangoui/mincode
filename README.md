@@ -6,6 +6,8 @@ A desktop developer workspace built with [Tango](https://github.com/tangoui/tang
 
 This repository is the open source edition of MinCode, and a complete example of a mid-sized Tango app: a Go backend and a Vue frontend hosted in Tango's system WebView, packaged with `tan` and updated from GitHub Releases.
 
+**Tango**: [GitHub repository](https://github.com/tangoui/tango) · [Documentation](https://tangoui.github.io/tango/en/)
+
 ## Download
 
 Choose the installer for your system and processor. [GitHub Releases](https://github.com/tangoui/mincode/releases/latest)

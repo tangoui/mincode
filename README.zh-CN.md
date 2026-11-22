@@ -6,6 +6,8 @@
 
 这个仓库是 MinCode 的开源精简版，也是一个"中等规模的 Tango 应用长什么样"的完整例子：Go 后端加 Vue 前端，由 Tango 的系统 WebView 承载，用 `tan` 打包，并通过 GitHub Releases 自动更新。
 
+**Tango**：[GitHub 仓库](https://github.com/tangoui/tango) · [文档](https://tangoui.github.io/tango/)
+
 ## 下载
 
 按系统和处理器选择安装包。[GitHub Releases](https://github.com/tangoui/mincode/releases/latest)
