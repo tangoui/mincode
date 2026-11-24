@@ -885,6 +885,7 @@ export const messagesZh = {
   "ai.tool.workspaceSearchCode": "代码搜索",
   "ai.tool.mcpLoadTools": "加载连接器工具",
   "ai.taskProgress.waitingApproval": "等待操作审批",
+  "ai.question.waiting": "等待你回答",
   "ai.timeline.delegationReports": "子会话回报",
   "ai.timeline.delegationProgress": "{settled}/{total} 已结束",
   "ai.timeline.delegationsCompleted": "{count} 个子会话已完成",

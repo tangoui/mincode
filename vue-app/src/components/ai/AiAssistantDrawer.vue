@@ -165,7 +165,9 @@ import { loadSidebarVisibility, saveSidebarVisibility, sidebarItemIds } from "@/
 import { applyUiTheme, normalizeUiTheme } from "@/services/ui-theme";
 import { getUserHomeDirectory, setAutostart, setMinimizeToTray } from "@/services/settings-service";
 import { aiCapabilityRegistry, type AiCapabilityExecutionResult } from "@/domain/ai/capability-registry";
-import { runWithAbort, throwIfAborted } from "@/domain/async/abort";
+import { createAbortError, runWithAbort, throwIfAborted } from "@/domain/async/abort";
+import { ASK_USER_SKIPPED_RESULT, ASK_USER_TOOL_NAME, askUserGuidance, formatAiQuestionAnswers } from "@/domain/ai/ask-user";
+import { createQuestionQueue } from "@/domain/ai/question-queue";
 import { callMcpToolCancellable } from "@/services/mcp-tool-call";
 import { precedingUserMessage } from "@/domain/ai/conversation-rewind";
 import { adjacentConversationId } from "@/domain/ai/drawer-shortcuts";
@@ -197,6 +199,7 @@ import { createAiTerminalSessionReuseRegistry } from "@/domain/ai/terminal-sessi
 import {
   registerNativeAiCapabilities,
   syncNativeAiResources,
+  type NativeAiCapabilityDependencies,
 } from "@/services/ai-native-tools";
 import {
   isTerminalLeafPane,
@@ -734,6 +737,7 @@ const currentApprovalModeLabel = computed(() =>
     ?? t("ai.approvalMode.ask")
 );
 const toolApprovalQueue = createToolApprovalQueue();
+const questionQueue = createQuestionQueue();
 const toolApprovals = ref<ToolApprovalQueueItem[]>([]);
 
 // Screen readers hear run state changes from one status region; the streamed text
@@ -1354,6 +1358,7 @@ async function deleteConversation(conversation: AiConversation) {
   }
 }
 async function releaseDeletedConversation(conversation: AiConversation) {
+  questionQueue.cancelConversation(conversation.id);
   // 持久化删除成功后再清理外部状态，避免落盘失败回滚出一个已被取消的会话。
   if (conversation.pendingPermission) {
     await invokeBackend("acp_respond_permission", {
@@ -2418,6 +2423,7 @@ const unregisterNativeAiCapabilities = registerNativeAiCapabilities({
   registry: aiResourceRegistry,
   invoke: invokeBackend,
   listResources: nativeResourceList,
+  askUser: askNativeAiQuestion,
   runSubagentPlan: isDesktopRuntime() ? executeSubagentPlanForAi : undefined,
   createTerminalTab: isDesktopRuntime() ? createTerminalTabForAi : undefined,
   closeTerminalPane: isDesktopRuntime() ? closeTerminalPaneForAi : undefined,
@@ -2674,6 +2680,28 @@ function releaseConversationRun(conversationId: string) {
   activeRunPhases.delete(conversationId);
   activeRunSummaries.delete(conversationId);
   failedRunUpdateKeys.delete(conversationId);
+}
+
+async function askNativeAiQuestion({
+  conversationId, toolOrigin, questions, signal,
+}: Parameters<NonNullable<NativeAiCapabilityDependencies["askUser"]>>[0]): Promise<string> {
+  if (!conversationId || !assistant.conversationById(conversationId)) throw createAbortError();
+  throwIfAborted(signal);
+  await reportConversationRun(conversationId, "waiting_approval", t("ai.question.waiting"));
+  throwIfAborted(signal);
+  if (!assistant.conversationById(conversationId)) throw createAbortError();
+  const ticket = questionQueue.enqueue({
+    conversationId,
+    source: "native",
+    toolCallId: toolOrigin?.toolCallId,
+    triggerMessageId: toolOrigin?.triggerMessageId,
+    questions,
+  }, signal);
+  const outcome = await ticket.outcome;
+  if (outcome.kind === "cancelled" || outcome.kind === "withdrawn") throw createAbortError();
+  throwIfAborted(signal);
+  await reportConversationRun(conversationId, "thinking", t("ai.taskProgress.thinking"));
+  return outcome.kind === "answered" ? formatAiQuestionAnswers(questions, outcome.answers) : ASK_USER_SKIPPED_RESULT;
 }
 
 // Every await can outlive a stop: the signal is checked after each one, and an
@@ -3048,7 +3076,7 @@ async function executeAgentTool(
         }
       : result;
     return {
-      content: safeAiText(safeResult),
+      content: call.name === ASK_USER_TOOL_NAME && typeof result.result === "string" ? result.result : safeAiText(safeResult),
       status: "completed" as const,
       ...(attachments ? { attachments } : {}),
       source: {
@@ -3666,8 +3694,8 @@ async function sendAgentic(request?: QueuedSendRequest) {
       availableModules,
       historicalModules,
     }).filter((tool) =>
-      runContext.workspaceId === workbench.activeWorkspaceId
-      || !ACTIVE_WORKSPACE_UI_TOOL_NAMES.has(tool.name),
+      (!externalSource || tool.name !== ASK_USER_TOOL_NAME)
+      && (runContext.workspaceId === workbench.activeWorkspaceId || !ACTIVE_WORKSPACE_UI_TOOL_NAMES.has(tool.name)),
     );
     const mcpServerIds = isolatedExternal || browserLocalAi
       ? []
@@ -3692,9 +3720,12 @@ async function sendAgentic(request?: QueuedSendRequest) {
         + "Choose a configured model per task when the user specifies a model or asks you to choose. Use only exact IDs from this list, and omit the model when the default suits the task. Configured delegation models: "
         + JSON.stringify(availableModels.value.map(({ value, label, profileLabel }) => ({ id: value, name: label, profile: profileLabel })))
       : "";
+    const questionGuidance = selectedTools.some((tool) => tool.name === ASK_USER_TOOL_NAME)
+      ? `\n\n${askUserGuidance()}`
+      : "";
     const uncompactedHistory: AiLoopMessage[] = [
       ...(context ? [{ role: "system" as const, content: context }] : []),
-      { role: "system" as const, content: systemPrompt + delegationGuidance },
+      { role: "system" as const, content: systemPrompt + delegationGuidance + questionGuidance },
       ...conversationHistory,
     ];
     if (superseded()) return;
@@ -3743,7 +3774,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
       // MCP tools and every mutation remain serialized. Native capabilities explicitly
       // classified as read-only can be run together because they have no same-turn
       // dependency and the loop preserves the provider's tool-result order.
-      canExecuteToolInParallel: (call) => aiCapabilityRegistry.get(call.name)?.risk === "read",
+      canExecuteToolInParallel: (call) => call.name !== ASK_USER_TOOL_NAME && aiCapabilityRegistry.get(call.name)?.risk === "read",
       systemReminder: conversationPlanModeReminder(conversationId),
       signal: abortController.signal,
       streamTurn: (config, messages, tools, onEvent, signal) => {
@@ -4426,6 +4457,7 @@ async function cancelConversation(
   if (options.resumeQueue) resumeQueueAfterCancellation.add(conversationId);
   else resumeQueueAfterCancellation.delete(conversationId);
   toolApprovalQueue.rejectConversation(conversationId);
+  questionQueue.cancelConversation(conversationId);
   if (conversation.mode === "agentic") {
     const controller = agenticAborts.get(conversationId);
     if (!controller) {
@@ -4615,6 +4647,7 @@ async function recoverStalledQueueInterruption(conversationId: string, runQueue 
   if (prompt) void invokeBackend("acp_cancel", prompt).catch(() => {});
 
   toolApprovalQueue.rejectConversation(conversationId);
+  questionQueue.cancelConversation(conversationId);
   agenticSendGate.release(conversationId);
   acpSendGate.release(conversationId);
   assistant.settleRunningAgentEvents(conversationId, "cancelled");
@@ -4985,6 +5018,7 @@ onBeforeUnmount(() => {
   stopToolApprovalUpdates();
   stopGlobalToolAuthorizationUpdates();
   toolApprovalQueue.dispose();
+  questionQueue.dispose();
   stopSessionUpdate?.();
   stopPermissionRequest?.();
   stopNativeFileDrop?.();

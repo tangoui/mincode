@@ -1,7 +1,9 @@
 import type {
   AiCapability,
   AiCapabilityRegistry,
+  AiCapabilityToolOrigin,
 } from "@/domain/ai/capability-registry";
+import { ASK_USER_TOOL_NAME, askUserInputSchema, parseAskUserInput, type AiQuestion } from "@/domain/ai/ask-user";
 import type { AiResourceRegistry } from "@/domain/ai/resource-registry";
 import type { SshRuntimeCredentials } from "@/domain/ssh/types";
 import {
@@ -107,6 +109,12 @@ export interface NativeAiDatabaseSnapshot {
 
 export interface NativeAiCapabilityDependencies
   extends NativeAiToolDependencies {
+  askUser?(request: {
+    conversationId?: string;
+    toolOrigin?: AiCapabilityToolOrigin;
+    questions: AiQuestion[];
+    signal: AbortSignal;
+  }): Promise<string>;
   nativeRuntime?: boolean;
   capabilities: AiCapabilityRegistry;
   listResources(capability: string): unknown[];
@@ -385,7 +393,20 @@ function globalCapabilities(
     },
   });
 
+  const askUser = dependencies.askUser;
   return [
+    ...(askUser ? [global({
+      module: "global",
+      discovery: true,
+      mode: "read",
+      risk: "read",
+      tool: tool(ASK_USER_TOOL_NAME, "Ask the user to choose or enter answers when their input is needed.", askUserInputSchema().properties, ["questions"]),
+      execute: async ({ input, conversationId, toolOrigin, signal }) => {
+        const questions = parseAskUserInput(input);
+        if (!toolOrigin?.triggerMessageId) throw new Error("子代理不能向用户提问，请把问题交回主会话");
+        return askUser({ conversationId, toolOrigin, questions, signal });
+      },
+    })] : []),
     ...workspaceCapabilities(dependencies),
     ...(dependencies.runSubagentPlan
       ? subagentCapabilities({

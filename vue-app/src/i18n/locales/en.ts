@@ -931,6 +931,7 @@ export const messagesEn = {
   "ai.tool.workspaceSearchCode": "Code search",
   "ai.tool.mcpLoadTools": "Load connector tools",
   "ai.taskProgress.waitingApproval": "Waiting for approval",
+  "ai.question.waiting": "Waiting for your answer",
   "ai.timeline.delegationReports": "Child conversation reports",
   "ai.timeline.delegationProgress": "{settled}/{total} finished",
   "ai.timeline.delegationsCompleted": "Child conversations completed ({count})",
