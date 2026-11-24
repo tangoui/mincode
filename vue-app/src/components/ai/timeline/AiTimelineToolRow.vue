@@ -73,8 +73,8 @@ const diff = computed(() => {
     >
       <component :is="icon" class="ai-timeline__icon" :class="{ 'is-spinning': running }" aria-hidden="true" />
       <span class="ai-timeline__title">
-        <strong>{{ labels.activity[activity.kind] }}</strong>
-        <code v-if="activity.target" :title="activity.target">{{ activity.target }}</code>
+        <strong :class="{ 'ai-timeline__shimmer': running }">{{ labels.activity[activity.kind] }}</strong>
+        <code v-if="activity.target" :class="{ 'ai-timeline__shimmer': running }" :title="activity.target">{{ activity.target }}</code>
       </span>
       <span class="ai-timeline__meta">
         <span v-if="diff" class="ai-timeline__diff">

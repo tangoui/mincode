@@ -1,5 +1,6 @@
 import { mount } from "@vue/test-utils";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import { nextTick } from "vue";
 import AiMessageThread from "@/components/ai/AiMessageThread.vue";
 import { AI_MESSAGE_FIRST_PAINT_SIZE } from "@/domain/ai/message-render-window";
 import type { AiAssistantEvent, AiAssistantMessage } from "@/stores/ai-assistant";
@@ -17,8 +18,8 @@ const approvalLabels = {
   reject: "Reject", feedbackPlaceholder: "Reason", rejectWithFeedback: "Reject with note",
 };
 
-function thread(props = {}) {
-  return mount(AiMessageThread, { props: {
+function thread(props = {}, attachTo?: HTMLElement) {
+  return mount(AiMessageThread, { attachTo, props: {
     messages: [message], events: [], mode: "agentic", title: "", hint: "", running: false,
     permission: null, composerHasDraft: false, loadEarlierLabel: "Load earlier",
     activityLabels: activity, eventStatusLabels: activity, taskStepStatusLabels: activity,
@@ -31,6 +32,49 @@ function thread(props = {}) {
     copyMessageLabel: "Copy reply", approvalLabels, ...props,
   } as never });
 }
+
+it("keeps the pinned prompt outside the scroll viewport and restores it on return", async () => {
+  const stage = document.createElement("div");
+  const header = document.createElement("div");
+  const viewport = document.createElement("div");
+  stage.append(header, viewport);
+  stage.className = "ai-assistant-messages";
+  viewport.className = "el-scrollbar__wrap";
+  document.body.append(stage);
+  const user: AiAssistantMessage = { id: "prompt", role: "user", content: "Check the workspace" };
+  const wrapper = thread({ messages: [user, message], events: [event("thought", undefined, { kind: "thought" })], pinnedUserTarget: header }, viewport);
+  try {
+    const prompt = wrapper.get(".ai-message-bubble.is-user").element;
+    const marker = wrapper.get('[data-ai-message-id="prompt"]').element;
+    const body = wrapper.get<HTMLElement>(".ai-message-card__content").element;
+    Object.defineProperty(body, "scrollHeight", { value: 24 });
+    vi.spyOn(prompt, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, 0, 120, 40));
+    vi.spyOn(header, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, 0, 300, header.contains(prompt) ? 40 : 0));
+    vi.spyOn(marker, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, (header.contains(prompt) ? 40 : 0) + 16 - viewport.scrollTop, 300, 40));
+    await nextTick();
+    expect(viewport.contains(prompt)).toBe(true);
+
+    viewport.scrollTop = 25;
+    viewport.dispatchEvent(new Event("scroll"));
+    await nextTick();
+    await nextTick();
+    expect(header.contains(prompt)).toBe(true);
+    expect(viewport.scrollTop).toBe(65);
+    expect(viewport.contains(wrapper.get(".ai-timeline-thought button").element)).toBe(true);
+    await wrapper.get(".ai-timeline-thought button").trigger("click");
+    expect(wrapper.get(".ai-timeline-thought button").attributes("aria-expanded")).toBe("true");
+
+    viewport.scrollTop = 45;
+    viewport.dispatchEvent(new Event("scroll"));
+    await nextTick();
+    await nextTick();
+    expect(viewport.contains(prompt)).toBe(true);
+    expect(viewport.scrollTop).toBe(5);
+  } finally {
+    wrapper.unmount();
+    stage.remove();
+  }
+});
 
 it("places activity, text and native approval in one ordered timeline", async () => {
   const wrapper = thread({ events: [
@@ -109,5 +153,23 @@ it("keeps a pending approval and its call visible outside the latest activity wi
     }] });
   expect(wrapper.get(".ai-timeline-approval").element.previousElementSibling?.classList.contains("ai-timeline-tool")).toBe(true);
   expect(wrapper.findAll(".ai-timeline-tool").length).toBeLessThanOrEqual(AI_MESSAGE_FIRST_PAINT_SIZE + 1);
+  wrapper.unmount();
+});
+
+it("puts turn metadata only on the final assistant message, including when it is an error", () => {
+  const usage = { inputTokens: 8, outputTokens: 3, cachedInputTokens: 0, cacheWriteTokens: 0,
+    reasoningTokens: 0, requestCount: 1, attemptedRequestCount: 1 };
+  const wrapper = thread({
+    messages: [message, { ...message, id: "first-final", content: "Finished the first turn", tokenUsage: usage },
+      { id: "prompt", role: "user", content: "Run again" },
+      { ...message, id: "second-start", tokenUsage: usage },
+      { ...message, id: "second-error", presentation: "error", content: "Provider unavailable", tokenUsage: usage }],
+    errorLabels: { title: "Failed", hint: "Try again", retry: "Retry", settings: "Settings" },
+  });
+  const replies = wrapper.findAll(".ai-message-bubble.is-assistant");
+  expect(replies.map(reply => reply.find(".ai-message-bubble__footer").exists())).toEqual([false, true, false, true]);
+  expect(replies[3]?.get(".ai-message-bubble__token-usage").text()).toContain("22");
+  expect(replies[3]?.get(".ai-timeline-error").text()).toContain("Provider unavailable");
+  expect(wrapper.get(".ai-message-bubble.is-user").find(".ai-message-bubble__footer").exists()).toBe(true);
   wrapper.unmount();
 });

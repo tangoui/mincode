@@ -13,7 +13,7 @@ import {
   normalizeAiMessageTimestamp,
 } from "@/domain/ai/message-time";
 import { copyRichContent } from "@/services/clipboard";
-import { aiReplyModel, compactTokenCount, unreportedAiTokenRequestCount } from "@/domain/ai/token-usage";
+import { aiReplyModel, compactTokenCount, unreportedAiTokenRequestCount, type AiTokenUsage } from "@/domain/ai/token-usage";
 import { aiMessageExpansion } from "@/domain/ai/message-expansion";
 import { useVueI18n } from "@/i18n/messages";
 import type { AiAssistantMessage } from "@/stores/ai-assistant";
@@ -29,8 +29,11 @@ const MAX_STICKY_USER_TURN_HEIGHT = 96;
 
 const props = defineProps<{
   message: AiAssistantMessage;
+  hideMetadata?: boolean;
+  turnTokenUsage?: AiTokenUsage;
   streaming?: boolean;
   pinned?: boolean;
+  pinnedTarget?: HTMLElement;
   emptyMessageLabel: string;
   metadataLabel: string;
   expandLabel: string;
@@ -49,8 +52,9 @@ const props = defineProps<{
 const emit = defineEmits<{ edit: [message: AiAssistantMessage]; regenerate: [message: AiAssistantMessage] }>();
 const { t } = useVueI18n();
 
+const tokenUsage = computed(() => props.turnTokenUsage ?? props.message.tokenUsage);
 const tokenUsageLabel = computed(() => {
-  const usage = props.message.tokenUsage;
+  const usage = tokenUsage.value;
   if (!usage) return "";
   const label = t("ai.message.tokenUsage", {
     total: compactTokenCount(usage.inputTokens + usage.outputTokens),
@@ -61,17 +65,17 @@ const tokenUsageLabel = computed(() => {
     ? t("ai.message.tokenUsagePartial", { label, reported: usage.requestCount, attempted: usage.attemptedRequestCount })
     : label;
 });
-const replyModel = computed(() => aiReplyModel(props.message.tokenUsage));
+const replyModel = computed(() => aiReplyModel(tokenUsage.value));
 const replyModelTitle = computed(() => {
   const model = replyModel.value;
   if (!model) return "";
-  const others = (props.message.tokenUsage?.models ?? []).filter((item) => item !== model);
+  const others = (tokenUsage.value?.models ?? []).filter((item) => item !== model);
   return others.length
     ? t("ai.message.answeredByWithAttempts", { model, others: others.join(", ") })
     : t("ai.message.answeredBy", { model });
 });
 const tokenUsageTitle = computed(() => {
-  const usage = props.message.tokenUsage;
+  const usage = tokenUsage.value;
   if (!usage) return "";
   return t("ai.message.tokenUsageDetail", {
     input: usage.inputTokens,
@@ -88,15 +92,20 @@ const tokenUsageTitle = computed(() => {
 const markdownHeadingPattern = /^(#{1,6})\s+(.+?)\s*$/;
 const metadataHeadings = new Set(["attachment", "last-prompt", "permission-mode"]);
 const body = ref<HTMLElement>();
+const bubble = ref<HTMLElement>();
+const anchor = ref<HTMLElement>();
+const pinnedHeight = ref(0);
 const expanded = ref(aiMessageExpansion.initiallyExpanded(props.message, Boolean(props.streaming)));
 const collapsible = ref(false);
 const contentHeight = ref(0);
 const collapsedMessageHeight = ref(DEFAULT_COLLAPSED_MESSAGE_HEIGHT);
 const shouldPinUserTurn = computed(
-  () => props.pinned && contentHeight.value > 0 && contentHeight.value <= MAX_STICKY_USER_TURN_HEIGHT,
+  () => props.pinned && props.pinnedTarget
+    && contentHeight.value > 0 && contentHeight.value <= MAX_STICKY_USER_TURN_HEIGHT,
 );
 let resizeObserver: ResizeObserver | undefined;
 let messageViewport: HTMLElement | undefined;
+let movingPinnedMessage = false;
 
 function messagePresentation(content = "") {
   // Metadata sections always start with a markdown heading.
@@ -138,6 +147,8 @@ const canCopyMessage = computed(() => Boolean(
 const timestamp = computed(() => normalizeAiMessageTimestamp(props.message.createdAt));
 const shortTime = computed(() => formatAiMessageShortTime(timestamp.value));
 const fullTime = computed(() => formatAiMessageFullTime(timestamp.value));
+const showMetadata = computed(() => !props.hideMetadata
+  && (timestamp.value || replyModel.value || tokenUsageLabel.value || canCopyMessage.value || props.editable || props.regenerable));
 const failedImageAttachmentIds = ref(new Set<string>());
 const previewImageAttachments = computed(() =>
   (props.message.attachments ?? []).filter(
@@ -175,7 +186,50 @@ function measureMessage() {
   contentHeight.value = body.value.scrollHeight;
   const nextCollapsible = contentHeight.value > collapsedMessageHeight.value + 2;
   collapsible.value = nextCollapsible;
+  if (props.pinned || pinnedHeight.value) syncPinnedMessage();
 }
+
+function syncPinnedMessage() {
+  const host = messageViewport;
+  const marker = anchor.value;
+  const card = bubble.value;
+  const target = props.pinnedTarget;
+  if (!host || !marker || !card || !target || movingPinnedMessage) return;
+  const header = target.getBoundingClientRect();
+  const height = card.getBoundingClientRect().height;
+  const viewportHeight = host.clientHeight + header.height;
+  const pin = shouldPinUserTurn.value && height > 0
+    && (!viewportHeight || height <= viewportHeight / 2)
+    && marker.getBoundingClientRect().top < header.top;
+  const wasPinned = pinnedHeight.value > 0;
+  if (Boolean(pin) === wasPinned) {
+    if (wasPinned) pinnedHeight.value = height;
+    return;
+  }
+
+  const active = document.activeElement;
+  const focused = active instanceof HTMLElement && card.contains(active) ? active : undefined;
+  movingPinnedMessage = true;
+  pinnedHeight.value = pin ? height : 0;
+  void nextTick(() => {
+    if (card.isConnected) {
+      // The marker keeps its place in the transcript. Offset the viewport's
+      // change in height so the reader stays at the same scroll position.
+      host.scrollTop += target.getBoundingClientRect().height - header.height;
+      focused?.focus({ preventScroll: true });
+    }
+    movingPinnedMessage = false;
+  });
+}
+
+watch(shouldPinUserTurn, (enabled, _, onCleanup) => {
+  if (enabled && messageViewport) {
+    const host = messageViewport;
+    host.addEventListener("scroll", syncPinnedMessage, { passive: true });
+    onCleanup(() => host.removeEventListener("scroll", syncPinnedMessage));
+  }
+  syncPinnedMessage();
+}, { flush: "post" });
 
 function toggleExpanded() {
   expanded.value = !expanded.value;
@@ -220,15 +274,21 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <div
+    ref="anchor" class="ai-message-anchor" :data-ai-message-id="message.role === 'user' ? message.id : undefined"
+    :style="pinnedHeight ? { height: `${pinnedHeight}px` } : undefined"
+  >
+  <Teleport :to="pinnedTarget ?? 'body'" :disabled="!pinnedHeight">
   <article
+    ref="bubble"
     :class="[
       'ai-message-bubble',
       `is-${message.role}`,
-      { 'is-pinned-user-turn': shouldPinUserTurn },
     ]"
-    :data-ai-message-id="message.role === 'user' ? message.id : undefined"
   >
+    <slot v-if="$slots.body" name="body" />
     <component
+      v-else
       :is="message.role === 'assistant' ? 'div' : ElCard" :class="['ai-message-card', `is-${message.role}`]"
       :shadow="message.role === 'assistant' ? undefined : 'never'"
     >
@@ -301,7 +361,7 @@ onBeforeUnmount(() => {
       </div>
     </component>
 
-    <footer v-if="collapsible || timestamp || replyModel || tokenUsageLabel || canCopyMessage || editable || regenerable" class="ai-message-bubble__footer">
+    <footer v-if="collapsible || showMetadata" class="ai-message-bubble__footer">
       <el-button
         v-if="collapsible"
         text
@@ -312,37 +372,41 @@ onBeforeUnmount(() => {
       >
         {{ expanded ? collapseLabel : expandLabel }}
       </el-button>
-      <time v-if="timestamp" :datetime="new Date(timestamp).toISOString()" :title="fullTime">
-        {{ shortTime }}
-      </time>
-      <span v-if="replyModel" class="ai-message-bubble__model" :title="replyModelTitle">{{ replyModel }}</span>
-      <span v-if="tokenUsageLabel" class="ai-message-bubble__token-usage" :title="tokenUsageTitle">
-        {{ tokenUsageLabel }}
-      </span>
-      <el-button
-        v-if="editable"
-        text
-        :icon="EditPen"
-        :aria-label="editLabel"
-        :title="editLabel"
-        @click="emit('edit', message)"
-      />
-      <el-button
-        v-if="regenerable"
-        text
-        :icon="RefreshRight"
-        :aria-label="regenerateLabel"
-        :title="regenerateLabel"
-        @click="emit('regenerate', message)"
-      />
-      <el-button
-        v-if="canCopyMessage"
-        text
-        class="ai-message-bubble__copy"
-        :icon="CopyDocument"
-        :aria-label="copyLabel"
-        @click="copyMessage"
-      />
+      <div v-if="showMetadata" class="ai-message-bubble__actions">
+        <time v-if="timestamp" :datetime="new Date(timestamp).toISOString()" :title="fullTime">
+          {{ shortTime }}
+        </time>
+        <span v-if="replyModel" class="ai-message-bubble__model" :title="replyModelTitle">{{ replyModel }}</span>
+        <span v-if="tokenUsageLabel" class="ai-message-bubble__token-usage" :title="tokenUsageTitle">
+          {{ tokenUsageLabel }}
+        </span>
+        <el-button
+          v-if="editable"
+          text
+          :icon="EditPen"
+          :aria-label="editLabel"
+          :title="editLabel"
+          @click="emit('edit', message)"
+        />
+        <el-button
+          v-if="regenerable"
+          text
+          :icon="RefreshRight"
+          :aria-label="regenerateLabel"
+          :title="regenerateLabel"
+          @click="emit('regenerate', message)"
+        />
+        <el-button
+          v-if="canCopyMessage"
+          text
+          class="ai-message-bubble__copy"
+          :icon="CopyDocument"
+          :aria-label="copyLabel"
+          @click="copyMessage"
+        />
+      </div>
     </footer>
   </article>
+  </Teleport>
+  </div>
 </template>

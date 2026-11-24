@@ -4,20 +4,57 @@
   gap: 0.5rem;
   width: 100%;
   min-width: 0;
-  min-height: 28px;
-  padding: 2px 0;
+  min-height: 24px;
+  padding: 1px 0;
   border: 0;
   background: transparent;
   color: var(--el-text-color-regular);
   font: inherit;
   font-size: 0.8125rem;
+  line-height: 1.35;
   text-align: start;
 }
 
 button.ai-timeline__row,
 .ai-timeline__icon-button,
-.ai-timeline__parameters summary {
+.ai-timeline__parameters > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
+  list-style: none;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.ai-timeline__parameters > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The same thin chevron the timeline rows use: right when closed, down when open. */
+.ai-timeline__parameters > summary::before {
+  content: "";
+  flex: none;
+  width: 0.38em;
+  height: 0.38em;
+  margin-inline: 0.12em 0.08em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.ai-timeline__parameters[open] > summary::before {
+  transform: translateY(-0.12em) rotate(45deg);
+}
+
+.ai-timeline__parameters > summary:hover {
+  color: var(--el-text-color-primary);
+}
+
+.ai-timeline__parameters > summary:focus-visible {
+  outline: 1px solid var(--el-color-primary);
+  outline-offset: 2px;
 }
 
 button.ai-timeline__row:hover,
@@ -41,13 +78,20 @@ button.ai-timeline__row:hover,
 }
 
 .ai-timeline__title strong {
-  flex-shrink: 0;
+  flex: none;
   max-width: 100%;
 }
 
+.ai-timeline-tool .ai-timeline__title strong,
+.ai-timeline-summary .ai-timeline__title {
+  font-weight: 400;
+}
+
 .ai-timeline__title code {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
-  color: var(--el-text-color-secondary);
+  color: var(--app-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -63,6 +107,32 @@ button.ai-timeline__row:hover,
 
 .ai-timeline__meta {
   font-size: 0.75rem;
+}
+
+@container ai-message-thread (max-width: 360px) {
+  .ai-timeline-tool > .ai-timeline__row {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .ai-timeline-tool .ai-timeline__title {
+    flex-basis: min(9rem, calc(100% - 22px));
+  }
+
+  .ai-timeline__meta {
+    max-width: 100%;
+    margin-inline-start: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    overflow-wrap: anywhere;
+  }
+}
+
+@container ai-message-thread (max-width: 150px) {
+  .ai-timeline-tool .ai-timeline__title {
+    flex-direction: column;
+    gap: 2px;
+  }
 }
 
 .ai-timeline__diff > :first-child { color: var(--el-color-success); }
@@ -90,7 +160,7 @@ button.ai-timeline__row:hover,
   align-items: center;
   justify-content: center;
   width: 26px;
-  height: 28px;
+  height: 24px;
   border: 0;
   background: transparent;
   color: var(--el-text-color-secondary);
@@ -161,6 +231,18 @@ button.ai-timeline__row:hover,
   margin-block: 0 6px;
 }
 
+.ai-timeline__approval-actions .el-button,
+.ai-timeline__feedback .el-button {
+  max-width: 100%;
+  height: auto;
+  min-height: var(--el-component-size-small);
+  padding-block: 3px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ai-timeline__approval-actions .el-button > span,
+.ai-timeline__feedback .el-button > span { min-width: 0; }
 .ai-timeline__approval-actions .el-button + .el-button { margin-inline-start: 0; }
 .ai-timeline__feedback .el-input { flex: 1 1 12rem; }
 .ai-timeline__parameters dd { margin-inline-start: 1rem; }
@@ -173,4 +255,40 @@ button.ai-timeline__row:hover,
 .ai-timeline__error-detail {
   margin: 0 0 6px;
   white-space: pre-wrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (background-clip: text) {
+    .ai-timeline__shimmer {
+      background-image: linear-gradient(100deg, currentColor 40%, var(--app-accent) 50%, currentColor 60%);
+      background-size: 240% 100%;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: ai-timeline-shimmer 1.8s linear infinite;
+    }
+  }
+}
+
+@keyframes ai-timeline-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -40% 0; }
+}
+
+.ai-timeline__output-toggle {
+  display: block;
+  min-height: 24px;
+  margin-block-end: 2px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--app-text-muted);
+  font: inherit;
+  cursor: pointer;
+  white-space: normal;
+  text-align: start;
+}
+.ai-timeline__output-toggle:hover,
+.ai-timeline__output-toggle:focus-visible {
+  color: var(--app-accent);
 }

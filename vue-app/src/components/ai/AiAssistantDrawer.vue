@@ -526,6 +526,7 @@ const messageNavigatorIds = computed(() =>
 );
 
 const messageThread = ref<AiMessageThreadInstance>();
+const pinnedUserTarget = ref<HTMLElement>();
 const messageScrollbar = ref<ScrollbarInstance>();
 const scrollHost = computed(() => messageScrollbar.value?.wrapRef);
 const activeMessageNavigatorId = ref("");
@@ -751,6 +752,18 @@ const toolApprovals = ref<ToolApprovalQueueItem[]>([]);
 // Screen readers hear run state changes from one status region; the streamed text
 // itself is not live, or every chunk would be read aloud.
 const drawerPanel = ref<HTMLElement>();
+const drawerPanelWidth = ref(0);
+const conversationSidebarLimit = computed(() => drawerPanelWidth.value > 0
+  ? Math.min(AI_CONVERSATION_SIDEBAR_MAX_WIDTH, Math.max(0, Math.floor(drawerPanelWidth.value) - AI_CONVERSATION_CONTENT_MIN_WIDTH))
+  : AI_CONVERSATION_SIDEBAR_MAX_WIDTH);
+watch(drawerPanel, (panel, _, onCleanup) => {
+  if (!panel) return;
+  const updateWidth = () => { drawerPanelWidth.value = panel.clientWidth; };
+  updateWidth();
+  const observer = new ResizeObserver(updateWidth);
+  observer.observe(panel);
+  onCleanup(() => observer.disconnect());
+}, { flush: "post" });
 const liveAnnouncement = ref("");
 function announce(message: string) {
   liveAnnouncement.value = "";
@@ -5170,9 +5183,9 @@ onBeforeUnmount(() => {
         :class="{ 'has-left-conversations': conversationListOnLeft }"
         :reverse="conversationListOnLeft"
         side="second"
-        :model-value="assistant.conversationSidebarWidth"
-        :min="AI_CONVERSATION_SIDEBAR_MIN_WIDTH"
-        :max="AI_CONVERSATION_SIDEBAR_MAX_WIDTH"
+        :model-value="Math.min(assistant.conversationSidebarWidth, conversationSidebarLimit)"
+        :min="Math.min(AI_CONVERSATION_SIDEBAR_MIN_WIDTH, conversationSidebarLimit)"
+        :max="conversationSidebarLimit"
         :second-min="AI_CONVERSATION_CONTENT_MIN_WIDTH"
         :collapsed="!conversationSidebarOpen"
         :resizable="conversationSidebarOpen"
@@ -5186,6 +5199,7 @@ onBeforeUnmount(() => {
             class="ai-assistant-message-stage"
             :class="{ 'has-message-navigator': messageNavigatorItems.length }"
           >
+            <div ref="pinnedUserTarget" class="ai-assistant-pinned-prompt" />
             <el-scrollbar
               ref="messageScrollbar"
               class="ai-assistant-messages"
@@ -5202,6 +5216,7 @@ onBeforeUnmount(() => {
               <AiMessageThread
                 :key="assistant.activeConversationId"
                 ref="messageThread"
+                :pinned-user-target="pinnedUserTarget"
                 :messages="assistant.messages"
                 :events="visibleAgentEvents"
                 :approvals="activeToolApprovals"

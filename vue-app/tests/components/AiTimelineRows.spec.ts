@@ -1,11 +1,19 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import AiAgentEventDetail from "@/components/ai/AiAgentEventDetail.vue";
+import AiTimelineNoticeRow from "@/components/ai/timeline/AiTimelineNoticeRow.vue";
 import AiTimelinePlanRow from "@/components/ai/timeline/AiTimelinePlanRow.vue";
 import AiTimelineThoughtRow from "@/components/ai/timeline/AiTimelineThoughtRow.vue";
 import AiTimelineToolRow from "@/components/ai/timeline/AiTimelineToolRow.vue";
 import AiTimelineToolSummaryRow from "@/components/ai/timeline/AiTimelineToolSummaryRow.vue";
 import type { AiAssistantEvent } from "@/stores/ai-assistant";
+
+import { copyText } from "@/services/desktop-bridge";
+
+vi.mock("@/services/desktop-bridge", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/services/desktop-bridge")>(),
+  copyText: vi.fn().mockResolvedValue(undefined),
+}));
 
 type Labels = InstanceType<typeof AiTimelineToolRow>["$props"]["labels"];
 const text = new Proxy<Record<string, string>>({}, { get: (_target, key) => String(key) });
@@ -35,11 +43,13 @@ describe("inline tool row", () => {
   it("opens for live output and folds when the command succeeds", async () => {
     const row = mountTool();
     expect(row.find(".is-spinning").exists()).toBe(true);
+    expect(row.get(".ai-timeline__shimmer").exists()).toBe(true);
     expect(row.get("button[aria-expanded]").attributes("aria-expanded")).toBe("true");
     expect(row.getComponent(AiAgentEventDetail).text()).toContain("current output");
     await row.setProps({ event: tool({ status: "completed" }) });
     expect(row.get("button[aria-expanded]").attributes("aria-expanded")).toBe("false");
     expect(row.findComponent(AiAgentEventDetail).exists()).toBe(false);
+    expect(row.find(".ai-timeline__shimmer").exists()).toBe(false);
   });
 
   it("opens when the command fails and renders the reason as an error", async () => {
@@ -66,9 +76,32 @@ describe("inline tool row", () => {
     expect(row.find(".el-card, .el-collapse, .el-scrollbar").exists()).toBe(false);
   });
 
+  it.each([
+    { status: "completed", toolName: "workspace.run_command" },
+    { status: "failed", toolName: "workspace.run_command" },
+    { status: "completed", toolName: "workspace.read_file", toolInput: '{"path":"demo.ts"}' },
+  ])("tails long $status $toolName output, with full copy and reversible expansion", async (overrides) => {
+    const lines = [...Array.from({ length: 17 }, (_, i) => `output line ${i + 1}`), "Final result"];
+    const detail = lines.join("\n");
+    const row = mountTool(tool({ detail, ...overrides }));
+    if (overrides.status === "completed") await row.get("button[aria-expanded]").trigger("click");
+    const preview = () => row.get(".ai-agent-event-detail pre code").element.textContent;
+    const toggle = () => row.get(".ai-timeline__output-toggle");
+    expect(preview()).toBe(lines.slice(-12).join("\n"));
+    expect(toggle().text()).toContain("18");
+    await row.get('button[aria-label="Copy result"]').trigger("click");
+    expect(copyText).toHaveBeenLastCalledWith(detail);
+    await toggle().trigger("click");
+    expect(preview()).toBe(detail);
+    await toggle().trigger("click");
+    expect(preview()).toBe(lines.slice(-12).join("\n"));
+    row.unmount();
+  });
+
   it("shows the waiting approval label on the tool row", () => {
     const row = mountTool(tool(), { awaitingApproval: true });
     expect(row.text()).toContain("等待操作审批");
+    expect(row.find(".ai-timeline__shimmer").exists()).toBe(false);
   });
 
   it.each([undefined, "running"])("marks legacy %s calls interrupted", (status) => {
@@ -101,10 +134,24 @@ describe("inline activity rows", () => {
     expect(row.findAllComponents(AiTimelineToolRow)).toHaveLength(4);
   });
 
-  it("shows a spinner and exploring text for live summaries", () => {
+  it("animates exploring text only while a summary is live", async () => {
     const row = mount(AiTimelineToolSummaryRow, { props: { events, labels, running: true, conversationRunning: true } });
-    expect(row.text()).toContain("正在查看");
+    expect(row.get(".ai-timeline__shimmer").text()).toContain("正在查看");
     expect(row.find(".is-spinning").exists()).toBe(true);
+    await row.setProps({ running: false });
+    expect(row.find(".ai-timeline__shimmer, .is-spinning").exists()).toBe(false);
+  });
+
+  it("animates thought text and the pending notice only while running", async () => {
+    const event = tool({ kind: "thought", startedAt: 1000 });
+    const thought = mount(AiTimelineThoughtRow, { props: { event, labels, conversationRunning: true } });
+    const notice = mount(AiTimelineNoticeRow, { props: { text: "Thinking", spinning: true } });
+    expect(thought.find(".ai-timeline__shimmer").exists()).toBe(true);
+    expect(notice.get(".ai-timeline__shimmer").text()).toBe("Thinking");
+    await thought.setProps({ event: { ...event, status: "completed", finishedAt: 2000 } });
+    await notice.setProps({ spinning: false });
+    expect(thought.find(".ai-timeline__shimmer, .is-spinning").exists()).toBe(false);
+    expect(notice.find(".ai-timeline__shimmer, .is-spinning").exists()).toBe(false);
   });
 
   it("shows the thought duration with its text collapsed", async () => {

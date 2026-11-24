@@ -17,7 +17,7 @@ test("failed requests are stored as error presentations and rendered inline", ()
   assert.match(store, /export type AiAssistantMessagePresentation = "task-summary" \| "error" \| "loop-limit";/);
   assert.match(store, /value === "task-summary" \|\| value === "error" \|\| value === "loop-limit"/);
   assert.match(drawer, /content: streamTimedOut \? message : t\("ai\.agentic\.failed", \{ error: message \}\),\s*presentation: "error",/);
-  assert.match(thread, /<AiTimelineErrorRow\s+v-if="item\.kind === 'message' && item\.message\.role === 'assistant' && item\.message\.presentation === 'error' && errorLabels"/);
+  assert.match(thread, /<template v-if="item\.message\.role === 'assistant' && item\.message\.presentation === 'error' && errorLabels" #body>\s+<AiTimelineErrorRow/);
   assert.match(thread, /:can-retry="Boolean\(canRewind\) && isLastMessage\(item\.index\)"/);
   assert.match(drawer, /@retry="resendTurnOf"/);
   assert.match(drawer, /@open-settings="emit\('open-settings'\)"/);
@@ -67,6 +67,6 @@ test("streamed text is not a live region; run state changes are announced once",
 test("the composer shows context usage and bubbles show the answering model", () => {
   assert.match(drawer, /const estimate = estimateAiContextUsage\(assistant\.agentHistory, config\);/);
   assert.match(drawer, /:context-usage="contextUsage"/);
-  assert.match(bubble, /const replyModel = computed\(\(\) => aiReplyModel\(props\.message\.tokenUsage\)\);/);
+  assert.match(bubble, /const replyModel = computed\(\(\) => aiReplyModel\(tokenUsage\.value\)\);/);
   assert.match(drawer, /const answeredBy = attemptedModels\[attemptedModels\.length - 1\];/);
 });

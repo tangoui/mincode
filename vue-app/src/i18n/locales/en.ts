@@ -931,6 +931,8 @@ export const messagesEn = {
   "ai.tool.workspaceSearchCode": "Code search",
   "ai.tool.mcpLoadTools": "Load connector tools",
   "ai.taskProgress.waitingApproval": "Waiting for approval",
+  "ai.timeline.showFullOutput": "Show all ({count} lines)",
+  "ai.timeline.showOutputTail": "Show last 12 lines",
   "ai.timeline.interrupted": "Interrupted",
   "ai.timeline.exploring": "Exploring…",
   "ai.timeline.explored": "{files}, {searches}",

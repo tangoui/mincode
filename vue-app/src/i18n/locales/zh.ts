@@ -885,6 +885,8 @@ export const messagesZh = {
   "ai.tool.workspaceSearchCode": "代码搜索",
   "ai.tool.mcpLoadTools": "加载连接器工具",
   "ai.taskProgress.waitingApproval": "等待操作审批",
+  "ai.timeline.showFullOutput": "显示全部（{count} 行）",
+  "ai.timeline.showOutputTail": "仅显示最后 12 行",
   "ai.timeline.interrupted": "已中断",
   "ai.timeline.exploring": "正在查看…",
   "ai.timeline.explored": "{files}，{searches}",

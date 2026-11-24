@@ -13,6 +13,7 @@ import { aiTimelineExpansion, type AiTimelineLabels } from "@/components/ai/time
 import { groupAiEventsForTimeline } from "@/domain/ai/agent-event-groups";
 import type { AiAgentActivityKind } from "@/domain/ai/agent-event-activity";
 import type { AiTaskStepStatus } from "@/domain/ai/event-presentations";
+import { mergeAiTokenUsage, type AiTokenUsage } from "@/domain/ai/token-usage";
 import { buildAiTimelineItems } from "@/domain/ai/timeline-items";
 import type { ToolApprovalDecision, ToolApprovalQueueItem } from "@/domain/ai/tool-approval-queue";
 import {
@@ -26,6 +27,7 @@ import { useVueI18n } from "@/i18n/messages";
 import type { AiAssistantEvent, AiAssistantMessage, AiAssistantMode, AiAssistantPermission } from "@/stores/ai-assistant";
 
 const props = defineProps<{
+  pinnedUserTarget?: HTMLElement;
   messages: AiAssistantMessage[];
   events: AiAssistantEvent[];
   approvals?: ToolApprovalQueueItem[];
@@ -182,6 +184,24 @@ const continueAt = computed(() => {
 const visibleMessages = computed(() => props.messages.flatMap((message, index) =>
   shouldRenderMessage(message, index) ? [{ message, index }] : [],
 ));
+const finalReplyMetadata = computed(() => {
+  const metadata = new Map<number, AiTokenUsage | undefined>();
+  const renderedIndexes = new Set(visibleMessages.value.map(({ index }) => index));
+  let finalIndex: number | undefined;
+  let usage: AiTokenUsage | undefined;
+  for (const [index, message] of props.messages.entries()) {
+    if (message.role === "user") {
+      if (finalIndex !== undefined) metadata.set(finalIndex, usage);
+      finalIndex = undefined;
+      usage = undefined;
+    } else if (message.role === "assistant") {
+      if (renderedIndexes.has(index)) finalIndex = index;
+      if (message.tokenUsage) usage = mergeAiTokenUsage(usage, message.tokenUsage);
+    }
+  }
+  if (finalIndex !== undefined) metadata.set(finalIndex, usage);
+  return metadata;
+});
 const timelineItems = computed(() => buildAiTimelineItems({
   messages: visibleMessages.value,
   groupsByAnchor: timelineEventGroupsByAnchor.value,
@@ -327,22 +347,14 @@ const labels: AiTimelineLabels = {
       {{ loadEarlierLabel }}
     </el-button>
     <template v-for="item in visibleItems" :key="item.key">
-      <AiTimelineErrorRow
-        v-if="item.kind === 'message' && item.message.role === 'assistant' && item.message.presentation === 'error' && errorLabels"
-        :title="errorLabels.title"
-        :detail="item.message.content"
-        :hint="errorLabels.hint"
-        :retry-label="errorLabels.retry"
-        :settings-label="errorLabels.settings"
-        :can-retry="Boolean(canRewind) && isLastMessage(item.index)"
-        @retry="emit('retry', item.message)"
-        @open-settings="emit('open-settings')"
-      />
       <AiMessageBubble
-        v-else-if="item.kind === 'message'"
+        v-if="item.kind === 'message'"
         :message="item.message"
+        :hide-metadata="item.message.role === 'assistant' && !finalReplyMetadata.has(item.index)"
+        :turn-token-usage="finalReplyMetadata.get(item.index)"
         :streaming="isStreamingAssistantMessage(item.message, item.index)"
         :pinned="item.index === pinnedUserMessageIndex"
+        :pinned-target="pinnedUserTarget"
         :empty-message-label="emptyMessageLabel"
         :metadata-label="metadataLabel"
         :expand-label="expandMessageLabel"
@@ -359,7 +371,20 @@ const labels: AiTimelineLabels = {
         :regenerate-label="regenerateLabel"
         @edit="emit('edit-failed', $event)"
         @regenerate="emit('regenerate', $event)"
-      />
+      >
+        <template v-if="item.message.role === 'assistant' && item.message.presentation === 'error' && errorLabels" #body>
+          <AiTimelineErrorRow
+            :title="errorLabels.title"
+            :detail="item.message.content"
+            :hint="errorLabels.hint"
+            :retry-label="errorLabels.retry"
+            :settings-label="errorLabels.settings"
+            :can-retry="Boolean(canRewind) && isLastMessage(item.index)"
+            @retry="emit('retry', item.message)"
+            @open-settings="emit('open-settings')"
+          />
+        </template>
+      </AiMessageBubble>
       <div
         v-else-if="item.kind === 'continue'"
         class="ai-message-thread__continue"
@@ -376,7 +401,10 @@ const labels: AiTimelineLabels = {
         v-else-if="item.kind === 'toolSummary'" :events="item.events" :running="item.running"
         :conversation-running="Boolean(generating || running)" :labels="labels"
       />
-      <AiTimelineThoughtRow v-else-if="item.kind === 'thought'" :event="item.event" :labels="labels" />
+      <AiTimelineThoughtRow
+        v-else-if="item.kind === 'thought'" :event="item.event" :labels="labels"
+        :conversation-running="Boolean(generating || running)"
+      />
       <AiTimelinePlanRow
         v-else-if="item.kind === 'plan'" :event="item.event" :labels="labels" @dismiss="emit('dismiss-event', item.event)"
       />
