@@ -78,10 +78,11 @@ test("the task summary follows the user's language", async () => {
   assert.match(loop, /Write the summary in the language the user wrote in/);
 });
 
-test("plain assistant replies are not framed like the green summary card", async () => {
+test("assistant replies and task summaries share the plain message body", async () => {
   const css = await readFile(new URL("../src/styles/workspaces/ai/drawer.css", import.meta.url), "utf8");
+  const bubble = await readFile(new URL("../src/components/ai/AiMessageBubble.vue", import.meta.url), "utf8");
   const rule = css.match(/\.ai-message-card\.is-assistant\s*\{([^}]*)\}/)?.[1] ?? "";
-  assert.match(rule, /border-color: transparent/);
+  assert.match(bubble, /:is="message\.role === 'assistant' \? 'div' : ElCard"/);
   assert.match(rule, /background: transparent/);
   assert.doesNotMatch(rule, /success|green/);
 });

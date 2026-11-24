@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowDown, ArrowUp, CopyDocument, Document, EditPen, RefreshRight } from "@element-plus/icons-vue";
-import { ElMessage } from "element-plus";
+import { ElCard, ElMessage } from "element-plus";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AiImagePreviewToolbar from "@/components/ai/AiImagePreviewToolbar.vue";
 import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
@@ -228,7 +228,10 @@ onBeforeUnmount(() => {
     ]"
     :data-ai-message-id="message.role === 'user' ? message.id : undefined"
   >
-    <el-card :class="['ai-message-card', `is-${message.role}`]" shadow="never">
+    <component
+      :is="message.role === 'assistant' ? 'div' : ElCard" :class="['ai-message-card', `is-${message.role}`]"
+      :shadow="message.role === 'assistant' ? undefined : 'never'"
+    >
       <div
         ref="body"
         class="ai-message-card__content"
@@ -296,7 +299,7 @@ onBeforeUnmount(() => {
           :image-size="36"
         />
       </div>
-    </el-card>
+    </component>
 
     <footer v-if="collapsible || timestamp || replyModel || tokenUsageLabel || canCopyMessage || editable || regenerable" class="ai-message-bubble__footer">
       <el-button

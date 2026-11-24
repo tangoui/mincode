@@ -3,7 +3,6 @@ import { nextTick } from "vue";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AiAssistantDrawer from "@/components/ai/AiAssistantDrawer.vue";
 import AiMessageThread from "@/components/ai/AiMessageThread.vue";
-import AiPermissionCard from "@/components/ai/AiPermissionCard.vue";
 import AiPromptComposer from "@/components/ai/AiPromptComposer.vue";
 import AiQueuedMessages from "@/components/ai/AiQueuedMessages.vue";
 import { useAiAssistantStore } from "@/stores/ai-assistant";
@@ -113,7 +112,6 @@ async function mountAssistant(boundRoot = "") {
     assistant, conversation, thread, composer,
     folderButton: () => wrapper.get(`button[title="${defaultPath}"]`),
     queue: () => wrapper.getComponent(AiQueuedMessages),
-    permission: () => wrapper.getComponent(AiPermissionCard),
     finishPrompt: () => finishPrompt?.(),
     restoreProject: () => { projectAvailable = true; },
     removeProject: () => { projectAvailable = false; },

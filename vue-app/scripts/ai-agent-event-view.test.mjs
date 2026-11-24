@@ -43,13 +43,13 @@ test("formatted detail is computed lazily and pretty-prints JSON results", () =>
   assert.equal(view.formattedDetail, view.formattedDetail);
 });
 
-test("the event group reads cached views and leaves the per-second clock to a child", async () => {
-  const [group, elapsed] = await Promise.all([
-    readFile(new URL("../src/components/ai/AiAgentEventGroup.vue", import.meta.url), "utf8"),
+test("the timeline tool row reads cached views and leaves the per-second clock to a child", async () => {
+  const [row, elapsed] = await Promise.all([
+    readFile(new URL("../src/components/ai/timeline/AiTimelineToolRow.vue", import.meta.url), "utf8"),
     readFile(new URL("../src/components/ai/AiAgentEventElapsed.vue", import.meta.url), "utf8"),
   ]);
-  assert.doesNotMatch(group, /parseAiEventPresentation\(|describeAiAgentEventActivity\(|formatAiAgentEventDetail\(/);
-  assert.doesNotMatch(group, /setInterval|timingNow/);
-  assert.match(group, /aiAgentEventView\(event\)/);
+  assert.doesNotMatch(row, /parseAiEventPresentation\(|describeAiAgentEventActivity\(|formatAiAgentEventDetail\(/);
+  assert.doesNotMatch(row, /setInterval|timingNow/);
+  assert.match(row, /aiAgentEventView\(props\.event\)/);
   assert.match(elapsed, /watch\(running,[\s\S]*?setInterval/);
 });

@@ -19,6 +19,7 @@ const { t } = useVueI18n();
 const loading = ref(true);
 const error = ref("");
 const aiWindow = ref(false);
+const timelineExpansion = ref<Array<[string, boolean]>>();
 // Keep the message key (not translated text) so the title follows locale changes.
 const popupTitle = ref<{ key: MessageKey } | { text: string }>();
 const popupTitleText = computed(() => {
@@ -39,6 +40,7 @@ onMounted(async () => {
     }
     if (!isPopupTabData(data)) {
       aiWindow.value = true;
+      timelineExpansion.value = data.timelineExpansion;
       assistant.restoreSnapshot(data.snapshot);
       assistant.show(data.snapshot.mode);
       assistant.fullscreen = true;
@@ -70,7 +72,7 @@ onMounted(async () => {
       <main v-if="loading" class="popup-tab-status">{{ t("app.popup.loading") }}</main>
       <main v-else-if="error" class="popup-tab-status is-error">{{ error }}</main>
       <template v-else-if="aiWindow">
-        <AiAssistantDrawer />
+        <AiAssistantDrawer :initial-timeline-expansion="timelineExpansion" />
       </template>
       <RouterView v-else v-slot="{ Component, route }">
         <KeepAlive include="TerminalWorkspaceView">

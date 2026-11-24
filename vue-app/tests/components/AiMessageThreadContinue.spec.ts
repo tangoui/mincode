@@ -19,6 +19,8 @@ function mountThread(messages: AiAssistantMessage[], canContinue: boolean) {
       title: "",
       hint: "",
       running: false,
+      permission: null,
+      composerHasDraft: false,
       canContinue,
       continueLabel: "Continue",
     } as never,

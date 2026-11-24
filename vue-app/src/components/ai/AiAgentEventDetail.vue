@@ -12,17 +12,21 @@ const props = defineProps<{
   event: AiAssistantEvent;
   content: string;
   failed?: boolean;
+  inline?: boolean;
+  diff?: boolean;
 }>();
 
 const presentation = computed<AiAgentEventDetailPresentation>(() =>
-  presentAiAgentEventDetail(props.event, props.content),
+  props.diff
+    ? { kind: "code", language: "diff", content: props.content }
+    : presentAiAgentEventDetail(props.event, props.content),
 );
 </script>
 
 <template>
   <div
     class="ai-agent-event-detail"
-    :class="[`is-${presentation.kind}`, { 'is-failed': failed }]"
+    :class="[`is-${presentation.kind}`, { 'is-failed': failed, 'is-inline': inline }]"
     :data-kind="presentation.kind"
     :data-language="presentation.language"
   >
@@ -38,6 +42,7 @@ const presentation = computed<AiAgentEventDetailPresentation>(() =>
       inline
       :content="presentation.content"
     />
+    <pre v-else-if="inline"><code :class="`language-${presentation.language}`">{{ presentation.content }}</code></pre>
     <ElScrollbar v-else class="ai-agent-event-detail__scroll" max-height="220px">
       <pre><code :class="`language-${presentation.language}`">{{ presentation.content }}</code></pre>
     </ElScrollbar>

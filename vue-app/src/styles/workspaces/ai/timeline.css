@@ -1,0 +1,176 @@
+.ai-timeline__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: start;
+}
+
+button.ai-timeline__row,
+.ai-timeline__icon-button,
+.ai-timeline__parameters summary {
+  cursor: pointer;
+}
+
+button.ai-timeline__row:hover,
+.ai-timeline__icon-button:hover {
+  color: var(--el-text-color-primary);
+}
+
+.ai-timeline__row:focus-visible,
+.ai-timeline__icon-button:focus-visible {
+  outline: 1px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.ai-timeline__title {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-timeline__title strong {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.ai-timeline__title code {
+  overflow: hidden;
+  color: var(--el-text-color-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-timeline__meta,
+.ai-timeline__diff {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-timeline__meta {
+  font-size: 0.75rem;
+}
+
+.ai-timeline__diff > :first-child { color: var(--el-color-success); }
+.ai-timeline__diff > :last-child,
+.ai-timeline-tool.is-failed [role='status'] { color: var(--el-color-danger); }
+.ai-timeline-tool.is-attention [role='status'] { color: var(--el-color-warning); }
+
+.ai-timeline__icon,
+.ai-timeline__icon-button svg {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.ai-timeline__action-row,
+.ai-timeline__result {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.ai-timeline__icon-button {
+  display: inline-flex;
+  flex: 0 0 26px;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+}
+
+.ai-timeline__contents {
+  min-width: 0;
+  margin-inline-start: 22px;
+  padding-block: 2px 6px;
+  color: var(--el-text-color-regular);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.ai-timeline__result > .ai-agent-event-detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-timeline__contents :is(.ai-agent-event-detail.is-inline, .ai-artifact-card, .ai-artifact-card__preview),
+.ai-timeline__contents .ai-agent-event-detail.is-inline pre {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.ai-timeline__contents .ai-agent-event-detail.is-inline {
+  padding: 0;
+  color: inherit;
+}
+
+.ai-timeline__contents .ai-agent-event-detail.is-failed {
+  color: var(--el-color-danger);
+}
+
+.ai-timeline__contents :is(.ai-agent-event-detail.is-inline, .ai-timeline__parameters) pre {
+  margin-block: 4px;
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ai-timeline__metadata,
+.ai-timeline__parameters {
+  margin-block-end: 4px;
+  color: var(--el-text-color-secondary);
+}
+
+.ai-timeline-approval {
+  scroll-margin-block: 12px;
+}
+
+.ai-timeline-approval > .ai-timeline__row {
+  color: var(--el-color-warning);
+}
+
+.ai-timeline-approval .ai-timeline__contents > p {
+  margin: 0 0 6px;
+}
+
+.ai-timeline-approval .ai-timeline__metadata,
+.ai-timeline__approval-actions,
+.ai-timeline__feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-block: 0 6px;
+}
+
+.ai-timeline__approval-actions .el-button + .el-button { margin-inline-start: 0; }
+.ai-timeline__feedback .el-input { flex: 1 1 12rem; }
+.ai-timeline__parameters dd { margin-inline-start: 1rem; }
+
+.ai-timeline-error > .ai-timeline__row,
+.ai-timeline__error-detail {
+  color: var(--app-danger);
+}
+
+.ai-timeline__error-detail {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}

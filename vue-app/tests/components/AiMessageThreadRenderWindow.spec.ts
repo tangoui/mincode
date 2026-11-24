@@ -12,7 +12,7 @@ function conversation(turns: number): AiAssistantMessage[] {
 
 function mountThread(messages: AiAssistantMessage[]) {
   return mount(AiMessageThread, {
-    props: { messages, events: [], mode: "agentic", title: "", hint: "", running: false } as never,
+    props: { messages, events: [], mode: "agentic", title: "", hint: "", running: false, permission: null, composerHasDraft: false } as never,
     global: { stubs: { AiMessageBubble: { props: ["message"], template: "<div class='bubble' :data-id='message.id' />" } } },
   });
 }

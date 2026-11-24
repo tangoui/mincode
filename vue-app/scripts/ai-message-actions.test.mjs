@@ -13,24 +13,24 @@ const [drawer, thread, bubble, store, markdown, zh, en] = await Promise.all([
   read("../src/i18n/locales/en.ts"),
 ]);
 
-test("failed requests are stored as error presentations and rendered as error cards", () => {
+test("failed requests are stored as error presentations and rendered inline", () => {
   assert.match(store, /export type AiAssistantMessagePresentation = "task-summary" \| "error" \| "loop-limit";/);
   assert.match(store, /value === "task-summary" \|\| value === "error" \|\| value === "loop-limit"/);
   assert.match(drawer, /content: streamTimedOut \? message : t\("ai\.agentic\.failed", \{ error: message \}\),\s*presentation: "error",/);
-  assert.match(thread, /<AiErrorCard\s+v-else-if="message\.role === 'assistant' && message\.presentation === 'error' && errorLabels"/);
-  assert.match(thread, /:can-retry="Boolean\(canRewind\) && isLastMessage\(index\)"/);
+  assert.match(thread, /<AiTimelineErrorRow\s+v-if="item\.kind === 'message' && item\.message\.role === 'assistant' && item\.message\.presentation === 'error' && errorLabels"/);
+  assert.match(thread, /:can-retry="Boolean\(canRewind\) && isLastMessage\(item\.index\)"/);
   assert.match(drawer, /@retry="resendTurnOf"/);
   assert.match(drawer, /@open-settings="emit\('open-settings'\)"/);
 });
 
-test("error cards and event anchors never enter the rebuilt model context", () => {
+test("error messages and event anchors never enter the rebuilt model context", () => {
   assert.match(drawer, /\.filter\(\(message\) => message\.presentation !== "error" && !message\.eventAnchor\)/);
 });
 
 test("the last reply can be regenerated and any sent message edited in idle non-ACP conversations", () => {
   assert.match(drawer, /const canRewindActiveConversation = computed\(\(\) =>\s*assistant\.mode !== "agent" && !assistant\.activeConversation\?\.running && !assistant\.awaitingResponse,/);
-  assert.match(thread, /:regenerable="Boolean\(canRewind\) && message\.role === 'assistant' && isLastMessage\(index\)"/);
-  assert.match(thread, /:editable="message\.role === 'user' && \(canRewind \|\| \(failed && index === pinnedUserMessageIndex\)\)"/);
+  assert.match(thread, /:regenerable="Boolean\(canRewind\) && item\.message\.role === 'assistant' && isLastMessage\(item\.index\)"/);
+  assert.match(thread, /:editable="item\.message\.role === 'user' && \(canRewind \|\| \(failed && item\.index === pinnedUserMessageIndex\)\)"/);
   assert.match(bubble, /v-if="regenerable"[\s\S]*?@click="emit\('regenerate', message\)"/);
   assert.match(drawer, /const removed = assistant\.rewindConversationTo\(conversationId, messageId\);\s*if \(!removed\) \{[\s\S]*?return;\s*\}\s*await sendAgentic\(\{/);
   assert.match(drawer, /function send\(\) \{\s*if \(activeParallelDelegationPending\.value\) return;\s*if \(editingMessageId\.value\) return resendEditedMessage\(\);/);
@@ -38,10 +38,8 @@ test("the last reply can be regenerated and any sent message edited in idle non-
   assert.match(store, /function rewindConversationTo\(id: string, messageId: string\) \{\s*const conversation = conversationById\(id\);\s*if \(!conversation \|\| conversation\.running \|\| conversation\.detailsLoaded === false\) return undefined;/);
 });
 
-test("AI markdown code blocks get a language label and a delegated copy button", async () => {
-  for (const file of [bubble, await read("../src/components/ai/AiTaskSummaryCard.vue")]) {
-    assert.match(file, /<MarkdownPreview[^>]*\bcode-copy\b/);
-  }
+test("AI markdown code blocks get a language label and a delegated copy button", () => {
+  assert.match(bubble, /<MarkdownPreview[^>]*\bcode-copy\b/);
   assert.match(markdown, /codeCopy\?: boolean;/);
   assert.match(markdown, /if \(!props\.codeCopy \|\| !root\) return;/);
   assert.match(markdown, /if \(pre\.parentElement\?\.classList\.contains\("markdown-code-block"\)\) continue;/);
@@ -60,7 +58,7 @@ test("streamed text is not a live region; run state changes are announced once",
   assert.doesNotMatch(thread, /class="ai-message-thread" aria-live/);
   assert.match(drawer, /<p class="sr-only" role="status" aria-live="polite">\{\{ liveAnnouncement \}\}<\/p>/);
   assert.match(drawer, /announce\(t\("ai\.live\.replying"\)\)/);
-  assert.match(drawer, /announce\(t\("ai\.live\.approvalNeeded"\)\);[\s\S]*?if \(focusInPanel\) panel\?\.querySelector<HTMLElement>\("\.ai-inline-tool-approval-card button"\)\?\.focus\(\);/);
+  assert.match(drawer, /announce\(t\("ai\.live\.approvalNeeded"\)\)/);
   for (const key of ["ai.live.replying", "ai.live.completed", "ai.live.failed", "ai.live.stopped", "ai.live.approvalNeeded", "ai.context.usage", "ai.context.usageDetail", "ai.context.usageEstimateDetail", "ai.message.tokenUsagePartial", "ai.message.answeredBy"]) {
     assert.ok(zh.includes(`"${key}":`) && en.includes(`"${key}":`), `missing ${key}`);
   }

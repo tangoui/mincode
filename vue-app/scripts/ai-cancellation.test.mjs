@@ -150,10 +150,7 @@ test("abort releases a model turn without waiting for a transport close event", 
 });
 
 test("the response indicator follows visible replies and later agent activity", async () => {
-  const [storeSource, styles] = await Promise.all([
-    source("../src/stores/ai-assistant.ts"),
-    source("../src/styles/workspaces/ai/drawer.css"),
-  ]);
+  const storeSource = await source("../src/stores/ai-assistant.ts");
 
   assert.match(
     storeSource,
@@ -171,14 +168,13 @@ test("the response indicator follows visible replies and later agent activity", 
     storeSource,
     /function upsertAgentEventForConversation[\s\S]*if \(conversation\.running\) setConversationAwaitingResponse\(id, true\)/,
   );
-  assert.match(styles, /\.ai-thinking-card > \.el-card__body\s*\{[^}]*padding:\s*5px 8px;/s);
-  assert.match(styles, /\.ai-thinking-card__content\s*\{[^}]*font-size:\s*11px;/s);
 });
 
 test("ACP prompts abort immediately and await authoritative terminal progress", async () => {
-  const [drawerSource, threadSource] = await Promise.all([
+  const [drawerSource, threadSource, noticeSource] = await Promise.all([
     source("../src/components/ai/AiAssistantDrawer.vue"),
     source("../src/components/ai/AiMessageThread.vue"),
+    source("../src/components/ai/timeline/AiTimelineNoticeRow.vue"),
   ]);
 
   assert.match(
@@ -197,10 +193,9 @@ test("ACP prompts abort immediately and await authoritative terminal progress", 
   // 不再只在等待首个输出时出现，因而也不会每来一个事件就闪一次。
   assert.match(drawerSource, /:running="assistant\.loading"/);
   assert.match(drawerSource, /:running-label="runStatusText"/);
-  assert.match(threadSource, /v-if="running"/);
-  assert.match(threadSource, /class="ai-thinking-card__content"/);
+  assert.match(threadSource, /<AiTimelineNoticeRow v-else-if="item.kind === 'thinking'" :text="runningLabel[^\"]*" spinning/);
   // 文字随每个工具变化，不作为实时播报区域；播报只经由 liveAnnouncement。
-  assert.doesNotMatch(threadSource, /class="ai-thinking-card"[\s\S]{0,120}role="status"/);
+  assert.doesNotMatch(noticeSource, /role="status"|aria-live=/);
 });
 
 test("backend AI Stream cancels the provider when frontend delivery fails", async () => {

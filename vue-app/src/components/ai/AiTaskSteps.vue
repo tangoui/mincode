@@ -12,6 +12,7 @@ const props = withDefaults(defineProps<{
   dismissible?: boolean;
   dismissLabel?: string;
   defaultExpanded?: boolean;
+  inline?: boolean;
 }>(), {
   summary: "",
   dismissible: false,
@@ -38,8 +39,8 @@ const progressColor = computed(() => {
 </script>
 
 <template>
-  <ElCard class="ai-task-steps" shadow="never">
-    <header class="ai-task-steps__header">
+  <component :is="inline ? 'section' : ElCard" class="ai-task-steps" :shadow="inline ? undefined : 'never'">
+    <header v-if="!inline" class="ai-task-steps__header">
       <ElButton
         text
         class="ai-task-steps__toggle"
@@ -70,7 +71,7 @@ const progressColor = computed(() => {
       </ElTooltip>
     </header>
 
-    <ElCollapseTransition>
+    <component :is="inline ? 'div' : ElCollapseTransition">
       <div v-show="expanded" class="ai-task-steps__content">
         <p v-if="summary" class="ai-task-steps__summary">{{ summary }}</p>
         <ol>
@@ -87,6 +88,6 @@ const progressColor = computed(() => {
           </li>
         </ol>
       </div>
-    </ElCollapseTransition>
-  </ElCard>
+    </component>
+  </component>
 </template>

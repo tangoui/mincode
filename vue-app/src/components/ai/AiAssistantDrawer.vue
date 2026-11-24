@@ -40,7 +40,6 @@ import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
 
 type AiMessageThreadInstance = InstanceType<typeof AiMessageThread>;
 import AiMessageNavigator from "@/components/ai/AiMessageNavigator.vue";
-import AiPermissionCard from "@/components/ai/AiPermissionCard.vue";
 import AiPromptComposer from "@/components/ai/AiPromptComposer.vue";
 import AiConversationSidebarPosition from "@/components/ai/AiConversationSidebarPosition.vue";
 import AiConversationSidebar from "@/components/ai/AiConversationSidebar.vue";
@@ -380,6 +379,8 @@ const tabSurfaceActive = computed(() => !isPopupWindow() && route.name === "ai")
 const conversationListOnLeft = computed(() => tabSurfaceActive.value && conversationPreferences.sidebarPosition === "left");
 const shellFullscreen = computed(() => assistant.fullscreen || tabSurfaceActive.value);
 const emit = defineEmits<{ "open-settings": [] }>();
+const props = defineProps<{ initialTimelineExpansion?: Array<[string, boolean]> }>();
+const timelineExpansion = shallowReactive(new Map(props.initialTimelineExpansion));
 const { t, setLocale, intlLocale } = useVueI18n();
 const visibleAgentEvents = computed(() =>
   assistant.agentEvents.filter((event) => event.kind !== "thought" || Boolean(event.detail.trim())),
@@ -775,26 +776,12 @@ watch(
     );
   },
 );
-// An approval card takes focus only when focus is already in the AI panel, and
-// focus returns to the composer once the last approval is answered.
-const activeApprovalCount = computed(() =>
-  toolApprovals.value.filter((item) => item.conversationId === assistant.activeConversationId).length,
-);
-watch(activeApprovalCount, async (count, previous) => {
-  const panel = drawerPanel.value;
-  const focusInPanel = Boolean(panel && document.activeElement && panel.contains(document.activeElement));
-  if (count > previous) {
-    announce(t("ai.live.approvalNeeded"));
-    await nextTick();
-    if (focusInPanel) panel?.querySelector<HTMLElement>(".ai-inline-tool-approval-card button")?.focus();
-  } else if (count === 0 && previous > 0 && focusInPanel) {
-    await nextTick();
-    panel?.querySelector<HTMLTextAreaElement>(".ai-assistant-composer textarea")?.focus();
-  }
-});
 const activeToolApprovals = computed(() =>
   toolApprovals.value.filter((approval) => approval.conversationId === assistant.activeConversationId),
 );
+watch(() => activeToolApprovals.value[0]?.id, (id) => {
+  if (id) announce(t("ai.live.approvalNeeded"));
+});
 // What the running conversation is doing now, shown at the end of the thread for the whole run.
 const runStatusText = computed(() => {
   const conversationId = assistant.activeConversationId;
@@ -806,7 +793,7 @@ const runStatusText = computed(() => {
     live: liveRunStatus.value[conversationId],
     runningToolTitle: runningTool?.title,
   }, {
-    processing: t("ai.taskProgress.processing"),
+    processing: t("ai.timeline.thinking"),
     waitingApproval: t("ai.taskProgress.waitingApproval"),
     runningTool: (tool) => t("ai.taskProgress.runningTool", { tool }),
   });
@@ -4027,7 +4014,7 @@ async function popOutWindow() {
     return;
   }
   try {
-    await popOutAiAssistant(t("ai.drawer.windowTitle"), assistant.snapshot());
+    await popOutAiAssistant(t("ai.drawer.windowTitle"), assistant.snapshot(), [...timelineExpansion]);
     assistant.close();
     if (tabSurfaceActive.value) void router.push({ name: "dashboard" }).catch(() => undefined);
   } catch {
@@ -4487,15 +4474,6 @@ async function switchAdjacentConversation(direction: -1 | 1) {
   const id = adjacentConversationId(ids, assistant.activeConversationId, direction);
   if (id) await switchConversation(id);
 }
-function pendingPermissionTitle() {
-  const toolCall = assistant.pendingPermission?.toolCall;
-  if (toolCall && typeof toolCall === "object" && "title" in toolCall) {
-    const title = (toolCall as { title?: unknown }).title;
-    if (typeof title === "string" && title.trim()) return title.trim();
-  }
-  return t("ai.permissionHint");
-}
-
 async function handleProtocolPermissionRequest(request: AiAssistantPermission) {
   let conversation = findConversationByAcpSession(request.serverId, request.sessionId);
   if (!conversation) return;
@@ -5221,12 +5199,15 @@ onBeforeUnmount(() => {
                   {{ delegationParent.title || t('ai.conversation.untitled') }}
                 </el-button>
               </div>
-                                                                      <AiMessageThread
+              <AiMessageThread
                 :key="assistant.activeConversationId"
                 ref="messageThread"
                 :messages="assistant.messages"
                 :events="visibleAgentEvents"
                 :approvals="activeToolApprovals"
+                :permission="assistant.pendingPermission ?? null"
+                :composer-has-draft="input.length > 0"
+                :expansion-choices="timelineExpansion"
                 :approval-labels="{
                   title: t('ai.agentic.inlineApprovalTitle'),
                   tool: t('ai.agentic.approvalTool'),
@@ -5250,11 +5231,6 @@ onBeforeUnmount(() => {
                 :mode="assistant.mode"
                 :title="assistant.mode === 'agent' ? t('ai.agent') : t('ai.chat')"
                 :hint="assistant.mode === 'agent' ? t('ai.drawerHint') : browserLocalAi ? t('ai.agentic.browserHint') : t('ai.agentic.hint')"
-                :thought-label="t('ai.thought')"
-                :tool-label="t('ai.toolCall')"
-                :plan-label="t('ai.plan')"
-                :mode-label="t('ai.mode')"
-                :activity-label="t('ai.activity')"
                 :activity-labels="activityLabels"
                 :task-steps-label="t('ai.taskSteps')"
                 :dismiss-task-steps-label="t('ai.taskSteps.dismiss')"
@@ -5275,20 +5251,13 @@ onBeforeUnmount(() => {
                 :collapse-message-label="t('ai.message.collapse')"
                 :copy-message-label="t('ai.message.copy')"
                 :copied-message-label="t('ai.message.copied')"
-                                                :copy-message-failed-label="t('ai.message.copyFailed', { message: '{message}' })"
+                :copy-message-failed-label="t('ai.message.copyFailed', { message: '{message}' })"
                 :copy-image-label="t('ai.image.copy')"
                 :copied-image-label="t('ai.image.copied')"
                 :copy-image-failed-label="t('ai.image.copyFailed', { message: '{message}' })"
-                :task-summary-title="t('ai.taskSummary.title')"
-                :task-summary-status="t('ai.taskSummary.completed')"
                 :running="assistant.loading"
                 :running-label="runStatusText"
                 :generating="assistant.loading"
-                :event-group-count-labels="{
-                  succeeded: t('ai.eventGroup.succeeded', { count: '{count}' }),
-                  failed: t('ai.eventGroup.failed', { count: '{count}' }),
-                  running: t('ai.eventGroup.running', { count: '{count}' }),
-                }"
                 :start-label="t('ai.startAgent')"
                 :default-directory-action-label="unavailableAcpDirectories.has(assistant.activeConversationId) && !assistant.activeConversation?.external ? t('ai.localAgent.useDefaultOnce') : undefined"
                 :effective-directory="activeDefaultAcpDirectory"
@@ -5319,6 +5288,7 @@ onBeforeUnmount(() => {
                 @start-in-default-directory="startAgent(assistant.activeConversationId, true)"
                 @stop-agent="stopDefaultDirectoryAgent(assistant.activeConversationId)"
                 @decide-approval="resolveToolApproval"
+                @answer-permission="answerPermission"
                 @dismiss-event="dismissAgentEvent"
               />
               <section v-if="delegatedChildren.length" class="ai-delegation-reports" :aria-label="t('ai.delegation.reports')">
@@ -5374,14 +5344,6 @@ onBeforeUnmount(() => {
               @select="scrollToConversationMessage"
             />
           </div>
-          <AiPermissionCard
-            v-if="assistant.pendingPermission"
-            :title="t('ai.permissionTitle')"
-            :description="pendingPermissionTitle()"
-            :cancel-label="t('common.cancel')"
-            :options="assistant.pendingPermission.options"
-            @decide="answerPermission"
-          />
           <AiPendingEdits :project-root="pendingEditsProjectRoot" />
           <AiQueuedMessages
             :queue="assistant.activeQueue"

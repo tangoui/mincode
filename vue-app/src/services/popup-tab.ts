@@ -20,6 +20,7 @@ export interface PopupTabData {
 export interface AiAssistantPopupData {
   popupType: "ai-assistant";
   snapshot: AiAssistantSnapshot;
+  timelineExpansion?: Array<[string, boolean]>;
 }
 
 export interface PopupAiAssistantState {
@@ -74,9 +75,9 @@ export async function popOutTab(tab: WorkspaceTab, title: string) {
   return label;
 }
 
-export async function popOutAiAssistant(title: string, snapshot: AiAssistantSnapshot) {
+export async function popOutAiAssistant(title: string, snapshot: AiAssistantSnapshot, timelineExpansion?: Array<[string, boolean]>) {
   if (!isDesktopRuntime()) throw new Error("desktop-required");
-  const payload: AiAssistantPopupData = { popupType: "ai-assistant", snapshot };
+  const payload: AiAssistantPopupData = { popupType: "ai-assistant", snapshot, timelineExpansion };
   await invokeBackend<void>("create_popup_tab_window", {
     label: AI_ASSISTANT_POPUP_LABEL,
     tabData: JSON.stringify(payload),

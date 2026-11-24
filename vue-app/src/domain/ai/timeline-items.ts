@@ -33,6 +33,7 @@ export interface AiTimelineInput {
   permission: AiAssistantPermission | null;
   continueAt: number | null;
   running: boolean;
+  conversationRunning?: boolean;
 }
 
 export function aiTimelineToolCallIds(approval: ToolApprovalQueueItem): string[] {
@@ -48,7 +49,7 @@ export function aiPermissionToolCallId(permission: AiAssistantPermission): strin
 
 type ApprovalItem = Extract<AiTimelineItem, { kind: "approval" | "permission" }>;
 
-function eventKey(event: AiAssistantEvent) {
+export function aiTimelineEventKey(event: AiAssistantEvent) {
   return JSON.stringify([event.triggerMessageId ?? event.afterMessageIndex, event.id]);
 }
 
@@ -118,15 +119,18 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
 
   function appendEvents(events: readonly AiAssistantEvent[]) {
     let summary: Extract<AiTimelineItem, { kind: "toolSummary" }> | undefined;
+    const conversationRunning = input.conversationRunning ?? input.running;
     for (const event of events) {
-      const key = eventKey(event);
+      const key = aiTimelineEventKey(event);
       if (event.kind !== "tool") {
         summary = undefined;
         items.push({ kind: event.kind, key: `${event.kind}:${key}`, event });
         continue;
       }
       const approvals = attachedApprovals.get(event);
-      const readOnly = !approvals && !FAILED_STATUSES.has(event.status?.trim().toLowerCase() ?? "")
+      const unfinished = isAiAgentEventRunning(event);
+      const readOnly = !approvals && (conversationRunning || !unfinished)
+        && !FAILED_STATUSES.has(event.status?.trim().toLowerCase() ?? "")
         && AI_TIMELINE_READ_ONLY_KINDS.includes(describeAiAgentEventActivity(event).kind);
       if (readOnly) {
         if (!summary) {
@@ -134,7 +138,7 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
           items.push(summary);
         }
         summary.events.push(event);
-        summary.running ||= input.running && isAiAgentEventRunning(event);
+        summary.running ||= unfinished;
         continue;
       }
       summary = undefined;

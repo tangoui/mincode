@@ -62,6 +62,13 @@ test("failed read-only splits out", () => {
   assert.equal(items[3].events.length, 1);
 });
 
+test("stale read-only calls in an idle conversation remain visible as interrupted tools", () => {
+  const stale = tool("stale", "read_file", "running");
+  const items = build([tool("read"), stale]);
+  assert.deepEqual(kinds(items), ["message", "toolSummary", "tool"]);
+  assert.equal(items[2].event, stale);
+});
+
 test("non-read-only tools break merging", () => {
   const items = build([tool("a"), tool("b", "run_command"), tool("c")]);
   assert.deepEqual(kinds(items), ["message", "toolSummary", "tool", "toolSummary"]);

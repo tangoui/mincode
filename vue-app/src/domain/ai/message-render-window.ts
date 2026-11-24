@@ -1,3 +1,5 @@
+import type { AiTimelineItem } from "./timeline-items";
+
 export const AI_MESSAGE_RENDER_BATCH_SIZE = 80;
 
 function safeMessageCount(value: number) {
@@ -55,4 +57,13 @@ export function alignAiMessageRenderStartToTurn(messages: ReadonlyArray<{ role: 
     if (messages[index]?.role === "user") return index;
   }
   return first === 0 ? 0 : start;
+}
+/** Align short turns without mounting a large tool-heavy turn all at once. */
+export function alignAiTimelineRenderStartToTurn(items: readonly AiTimelineItem[], start: number) {
+  const first = Math.max(0, start - AI_MESSAGE_FIRST_PAINT_SIZE);
+  for (let index = Math.min(start, items.length - 1); index >= first; index -= 1) {
+    const item = items[index];
+    if (item?.kind === "message" && item.message.role === "user") return index;
+  }
+  return start;
 }

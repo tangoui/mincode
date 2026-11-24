@@ -11,7 +11,7 @@ const [threadSource, bubbleSource, previewSource, drawerSource] = await Promise.
 
 test("正在流式增长的最后一条助手消息按块增量渲染 Markdown，结束时不换组件", () => {
   assert.match(threadSource, /function isStreamingAssistantMessage/);
-  assert.match(threadSource, /:streaming="isStreamingAssistantMessage\(message, index\)"/);
+  assert.match(threadSource, /:streaming="isStreamingAssistantMessage\(item\.message, item\.index\)"/);
   // 正在生成取决于会话是否在运行，而不是“等待首个输出”（首段正文一到它就变为 false）。
   assert.match(threadSource, /if \(!props\.generating\) return -1;/);
   assert.match(drawerSource, /:generating="assistant\.loading"/);

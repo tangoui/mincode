@@ -60,7 +60,7 @@ test("步数上限消息带持久化的 loop-limit 标记，并在线程里提�
   // 只在最后一条消息上显示，运行中禁用。
   assert.match(
     thread,
-    /v-if="continueLabel && message\.role === 'assistant' && message\.presentation === 'loop-limit' && isLastMessage\(index\)"/,
+    /const index = props\.messages\.length - 1;\s*const last = props\.messages\[index\];\s*return props\.continueLabel && last\?\.role === "assistant" && last\.presentation === "loop-limit" \? index : null;/,
   );
   assert.match(thread, /:disabled="!canContinue"[\s\S]*?@click="emit\('continue'\)"/);
   assert.match(drawer, /:can-continue="canContinueActiveConversation"/);

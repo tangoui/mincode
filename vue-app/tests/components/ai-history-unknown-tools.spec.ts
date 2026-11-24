@@ -21,14 +21,11 @@ it("renders removed tools from persisted AI history as ordinary tool records", a
   const props: InstanceType<typeof AiMessageThread>["$props"] = {
     messages: [...messages],
     events,
+    permission: null,
+    composerHasDraft: false,
     mode: "agentic",
     title: "History",
     hint: "",
-    thoughtLabel: "Thought",
-    toolLabel: "Tool",
-    planLabel: "Plan",
-    modeLabel: "Mode",
-    activityLabel: "Activity",
     taskStepsLabel: "Task steps",
     dismissTaskStepsLabel: "Dismiss task steps",
     sourcesLabel: "Sources",
@@ -50,8 +47,6 @@ it("renders removed tools from persisted AI history as ordinary tool records", a
     copyImageLabel: "Copy image",
     copiedImageLabel: "Copied image",
     copyImageFailedLabel: "Copy failed",
-    taskSummaryTitle: "Task summary",
-    taskSummaryStatus: "Task status",
     running: false,
     runningLabel: "Running",
     taskStepStatusLabels: { pending: "Pending", in_progress: "Running", completed: "Completed", failed: "Failed", cancelled: "Cancelled" },
@@ -64,18 +59,17 @@ it("renders removed tools from persisted AI history as ordinary tool records", a
       genericTool: "Tool call", detail: "Show details", hideDetail: "Hide details", toolName: "Tool",
       result: "Result", runningDuration: "Running duration", totalDuration: "Total duration", duration: "Duration",
     },
-    eventGroupCountLabels: { succeeded: "{count} ok", failed: "{count} failed", running: "{count} running" },
     eventStatusLabels: { completed: "Completed" },
   };
   const wrapper = mount(AiMessageThread, { props });
 
   try {
     expect(wrapper.text()).toContain("Previous answer");
-    await wrapper.get(".el-collapse-item__header").trigger("click");
-    const records = wrapper.findAll(".ai-agent-event-group__item-copy");
-    expect(records.map((record) => record.get("strong").text())).toEqual(tools.map(() => "Tool call"));
+    const records = wrapper.findAll(".ai-timeline-tool");
+    expect(records.map((record) => record.get(".ai-timeline__title strong").text())).toEqual(tools.map(() => "Tool call"));
     for (const [index, record] of records.entries()) {
-      expect(record.get("code").text()).toBe(tools[index]?.toolName);
+      await record.get("button[aria-expanded]").trigger("click");
+      expect(record.get(".ai-timeline__metadata code").text()).toBe(tools[index]?.toolName);
     }
   } finally {
     wrapper.unmount();
