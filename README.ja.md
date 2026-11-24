@@ -8,6 +8,8 @@
 
 **Tango**：[GitHub リポジトリ](https://github.com/tangoui/tango) · [ドキュメント（英語）](https://tangoui.github.io/tango/en/)
 
+<p align="center"><img src="docs/screenshots/en/database.png" width="900" alt="データベース：SQL エディターと結果グリッド（英語 UI）"><br><sub>データベース：SQL エディターと結果グリッド（英語 UI）</sub></p>
+
 ## ダウンロード
 
 OS とプロセッサーに合ったインストーラーを選んでください。[GitHub Releases](https://github.com/tangoui/mincode/releases/latest)
@@ -33,6 +35,14 @@ Linux では、`.tar.gz` を展開してそのディレクトリから実行す�
 | CC セッション | Claude Code や Codex など AI CLI のローカルセッション履歴を閲覧 |
 | AI アシスタント | 自分のモデル（OpenAI 互換、Anthropic など）や ACP 経由のローカルエージェントを利用し、ターミナル、データベース、HTTP などのツールを呼び出し |
 | 設定 | 外観、ショートカット、ターミナル、AI、データのインポート/エクスポート、更新の確認 |
+
+## スクリーンショット
+
+<table>
+<tr><td align="center"><img src="docs/screenshots/en/dashboard.png" width="440" alt="ダッシュボード"><br><sub>ダッシュボード</sub></td><td align="center"><img src="docs/screenshots/en/terminal.png" width="440" alt="ターミナル（分割表示）"><br><sub>ターミナル（分割表示）</sub></td></tr>
+<tr><td align="center"><img src="docs/screenshots/en/ssh.png" width="440" alt="SSH ホスト"><br><sub>SSH ホスト</sub></td><td align="center"><img src="docs/screenshots/en/http.png" width="440" alt="HTTP クライアント"><br><sub>HTTP クライアント</sub></td></tr>
+<tr><td align="center"><img src="docs/screenshots/en/notes.png" width="440" alt="Markdown ノート"><br><sub>Markdown ノート</sub></td><td align="center"><img src="docs/screenshots/en/sessions.png" width="440" alt="AI CLI セッション"><br><sub>AI CLI セッション</sub></td></tr>
+</table>
 
 ## 動作環境
 

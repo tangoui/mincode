@@ -8,6 +8,8 @@
 
 **Tango**：[GitHub 仓库](https://github.com/tangoui/tango) · [文档](https://tangoui.github.io/tango/)
 
+<p align="center"><img src="docs/screenshots/zh-CN/database.png" width="900" alt="数据库：SQL 编辑器与结果表格"><br><sub>数据库：SQL 编辑器与结果表格</sub></p>
+
 ## 下载
 
 按系统和处理器选择安装包。[GitHub Releases](https://github.com/tangoui/mincode/releases/latest)
@@ -33,6 +35,14 @@ Linux 可以从 `.tar.gz` 解压后的目录直接运行，或给 `.AppImage` �
 | CC 会话 | 浏览 Claude Code、Codex 等 AI CLI 的本地会话记录 |
 | AI 助手 | 接入自己的模型（OpenAI 兼容、Anthropic 等）或本地 Agent（ACP），可调用终端、数据库、HTTP 等工具 |
 | 设置 | 外观、快捷键、终端、AI、数据导入导出、检查更新 |
+
+## 截图
+
+<table>
+<tr><td align="center"><img src="docs/screenshots/zh-CN/dashboard.png" width="440" alt="概览"><br><sub>概览</sub></td><td align="center"><img src="docs/screenshots/zh-CN/terminal.png" width="440" alt="终端分屏"><br><sub>终端分屏</sub></td></tr>
+<tr><td align="center"><img src="docs/screenshots/zh-CN/ssh.png" width="440" alt="SSH 主机"><br><sub>SSH 主机</sub></td><td align="center"><img src="docs/screenshots/zh-CN/http.png" width="440" alt="HTTP 客户端"><br><sub>HTTP 客户端</sub></td></tr>
+<tr><td align="center"><img src="docs/screenshots/zh-CN/notes.png" width="440" alt="Markdown 笔记"><br><sub>Markdown 笔记</sub></td><td align="center"><img src="docs/screenshots/zh-CN/sessions.png" width="440" alt="AI CLI 会话"><br><sub>AI CLI 会话</sub></td></tr>
+</table>
 
 ## 系统要求
 

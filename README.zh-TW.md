@@ -8,6 +8,8 @@
 
 **Tango**：[GitHub 儲存庫](https://github.com/tangoui/tango) · [文件](https://tangoui.github.io/tango/)
 
+<p align="center"><img src="docs/screenshots/zh-CN/database.png" width="900" alt="資料庫：SQL 編輯器與結果表格（介面為簡體中文）"><br><sub>資料庫：SQL 編輯器與結果表格（介面為簡體中文）</sub></p>
+
 ## 下載
 
 請依作業系統與處理器選擇安裝檔。[GitHub Releases](https://github.com/tangoui/mincode/releases/latest)
@@ -33,6 +35,14 @@
 | CC 工作階段 | 瀏覽 Claude Code、Codex 等 AI CLI 的本機工作階段紀錄 |
 | AI 助理 | 接入自己的模型（OpenAI 相容、Anthropic 等）或本機 Agent（ACP），可呼叫終端機、資料庫、HTTP 等工具 |
 | 設定 | 外觀、快速鍵、終端機、AI、資料匯入匯出、檢查更新 |
+
+## 截圖
+
+<table>
+<tr><td align="center"><img src="docs/screenshots/zh-CN/dashboard.png" width="440" alt="總覽"><br><sub>總覽</sub></td><td align="center"><img src="docs/screenshots/zh-CN/terminal.png" width="440" alt="終端機分割窗格"><br><sub>終端機分割窗格</sub></td></tr>
+<tr><td align="center"><img src="docs/screenshots/zh-CN/ssh.png" width="440" alt="SSH 主機"><br><sub>SSH 主機</sub></td><td align="center"><img src="docs/screenshots/zh-CN/http.png" width="440" alt="HTTP 用戶端"><br><sub>HTTP 用戶端</sub></td></tr>
+<tr><td align="center"><img src="docs/screenshots/zh-CN/notes.png" width="440" alt="Markdown 筆記"><br><sub>Markdown 筆記</sub></td><td align="center"><img src="docs/screenshots/zh-CN/sessions.png" width="440" alt="AI CLI 工作階段"><br><sub>AI CLI 工作階段</sub></td></tr>
+</table>
 
 ## 系統需求
 

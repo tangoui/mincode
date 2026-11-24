@@ -8,6 +8,8 @@ This repository is the open source edition of MinCode, and a complete example of
 
 **Tango**: [GitHub repository](https://github.com/tangoui/tango) · [Documentation](https://tangoui.github.io/tango/en/)
 
+<p align="center"><img src="docs/screenshots/en/database.png" width="900" alt="Databases: SQL editor and result grid"><br><sub>Databases: SQL editor and result grid</sub></p>
+
 ## Download
 
 Choose the installer for your system and processor. [GitHub Releases](https://github.com/tangoui/mincode/releases/latest)
@@ -33,6 +35,14 @@ On Linux, extract the `.tar.gz` and run MinCode from the extracted directory, or
 | Sessions | Browse local Claude Code, Codex and other AI CLI session history |
 | AI assistant | Bring your own model (OpenAI-compatible, Anthropic, ...) or a local agent over ACP, with tools for terminals, databases and HTTP |
 | Settings | Appearance, shortcuts, terminal, AI, data import/export, updates |
+
+## Screenshots
+
+<table>
+<tr><td align="center"><img src="docs/screenshots/en/dashboard.png" width="440" alt="Dashboard"><br><sub>Dashboard</sub></td><td align="center"><img src="docs/screenshots/en/terminal.png" width="440" alt="Terminal with split panes"><br><sub>Terminal with split panes</sub></td></tr>
+<tr><td align="center"><img src="docs/screenshots/en/ssh.png" width="440" alt="SSH hosts"><br><sub>SSH hosts</sub></td><td align="center"><img src="docs/screenshots/en/http.png" width="440" alt="HTTP client"><br><sub>HTTP client</sub></td></tr>
+<tr><td align="center"><img src="docs/screenshots/en/notes.png" width="440" alt="Markdown notes"><br><sub>Markdown notes</sub></td><td align="center"><img src="docs/screenshots/en/sessions.png" width="440" alt="AI CLI sessions"><br><sub>AI CLI sessions</sub></td></tr>
+</table>
 
 ## Requirements
 
