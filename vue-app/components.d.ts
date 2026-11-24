@@ -28,6 +28,7 @@ declare module 'vue' {
     AiTaskProgressButton: typeof import('./src/components/layout/AiTaskProgressButton.vue')['default']
     AiTaskSteps: typeof import('./src/components/ai/AiTaskSteps.vue')['default']
     AiTimelineApprovalRow: typeof import('./src/components/ai/timeline/AiTimelineApprovalRow.vue')['default']
+    AiTimelineDelegationRow: typeof import('./src/components/ai/timeline/AiTimelineDelegationRow.vue')['default']
     AiTimelineErrorRow: typeof import('./src/components/ai/timeline/AiTimelineErrorRow.vue')['default']
     AiTimelineEventContents: typeof import('./src/components/ai/timeline/AiTimelineEventContents.vue')['default']
     AiTimelineNoticeRow: typeof import('./src/components/ai/timeline/AiTimelineNoticeRow.vue')['default']

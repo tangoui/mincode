@@ -693,6 +693,19 @@ button {
   overflow-x: hidden;
 }
 
+/* Fade the edges that hide rail items (see AppSidebar updateNavFades). */
+.app-activity-bar__nav-scroll.is-fade-bottom .el-scrollbar__wrap {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+
+.app-activity-bar__nav-scroll.is-fade-top .el-scrollbar__wrap {
+  mask-image: linear-gradient(to top, #000 calc(100% - 28px), transparent);
+}
+
+.app-activity-bar__nav-scroll.is-fade-top.is-fade-bottom .el-scrollbar__wrap {
+  mask-image: linear-gradient(to bottom, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+
 .app-activity-bar__bottom {
   flex: 0 0 auto;
   padding-top: 8px;

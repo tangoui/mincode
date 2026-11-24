@@ -1,10 +1,16 @@
-import type { AiCapability } from "@/domain/ai/capability-registry";
+import type { AiCapability, AiCapabilityToolOrigin } from "@/domain/ai/capability-registry";
 import type { SubagentPlanDefinition } from "@/domain/ai/subagent-orchestration";
+
+export interface SubagentPlanExecution {
+  conversationId?: string;
+  signal: AbortSignal;
+  toolOrigin?: AiCapabilityToolOrigin;
+}
 
 export interface SubagentCapabilityDependencies {
   runPlan(
     plan: SubagentPlanDefinition,
-    context: { conversationId?: string; signal: AbortSignal },
+    context: SubagentPlanExecution,
   ): Promise<unknown>;
 }
 
@@ -107,10 +113,11 @@ export function subagentCapabilities(
         && input.tasks.every((task) => (task as { mode?: unknown } | null)?.mode === "read")
         ? "read"
         : "dangerous",
-    execute: ({ input, signal, conversationId }) =>
+    execute: ({ input, signal, conversationId, toolOrigin }) =>
       dependencies.runPlan(input as unknown as SubagentPlanDefinition, {
         conversationId,
         signal,
+        toolOrigin,
       }),
   }];
 }

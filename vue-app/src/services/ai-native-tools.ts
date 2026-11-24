@@ -42,7 +42,7 @@ import {
 import { systemCapabilities } from "./ai-tools/system-tools";
 import { devtoolsCapabilities } from "./ai-tools/devtools-tools";
 import { sessionsCapabilities } from "./ai-tools/sessions-tools";
-import { subagentCapabilities } from "./ai-tools/subagent-tools";
+import { subagentCapabilities, type SubagentPlanExecution } from "./ai-tools/subagent-tools";
 import type { AiSqlSafety } from "./ai-tools/sql-safety";
 import { runWithSafety, sqlSafetyArgs } from "./sql-safety-service";
 import { confirmSqlSafety } from "./sql-safety-confirm";
@@ -94,7 +94,7 @@ interface NativeAiToolDependencies {
   sshCredentials?(profileId: string): SshRuntimeCredentials | undefined;
   runSubagentPlan?(
     plan: import("@/domain/ai/subagent-orchestration").SubagentPlanDefinition,
-    context: { conversationId?: string; signal: AbortSignal },
+    context: SubagentPlanExecution,
   ): Promise<unknown>;
 }
 

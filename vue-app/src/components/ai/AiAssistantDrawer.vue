@@ -36,7 +36,6 @@ import { useSessionProgressStore } from "@/stores/session-progress";
 import AiQueuedMessages from "@/components/ai/AiQueuedMessages.vue";
 import AiPendingEdits from "@/components/ai/AiPendingEdits.vue";
 import AiMessageThread from "@/components/ai/AiMessageThread.vue";
-import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
 
 type AiMessageThreadInstance = InstanceType<typeof AiMessageThread>;
 import AiMessageNavigator from "@/components/ai/AiMessageNavigator.vue";
@@ -191,6 +190,7 @@ import {
   type SubagentTaskState,
 } from "@/domain/ai/subagent-orchestration";
 import { createConversationTree } from "@/domain/ai/conversation-tree";
+import type { SubagentPlanExecution } from "@/services/ai-tools/subagent-tools";
 import { executeSubagentPlan as executeSubagentRuntime } from "@/services/ai-subagent-runtime";
 import { aiResourceRegistry, createResourceRegistry, type AiResourceRegistry } from "@/domain/ai/resource-registry";
 import { createAiTerminalSessionReuseRegistry } from "@/domain/ai/terminal-session-reuse";
@@ -336,13 +336,6 @@ const assistant = useAiAssistantStore();
 const delegatedChildren = computed(() => assistant.allConversations.filter(
   (conversation) => conversation.delegation?.parentId === assistant.activeConversationId,
 ).reverse().sort((left, right) => left.createdAt - right.createdAt));
-const settledDelegations = computed(() => delegatedChildren.value.filter(
-  (conversation) => conversation.delegation?.result !== undefined || conversation.status === "interrupted",
-).length);
-const openDelegationReportId = ref("");
-function toggleDelegationReport(id: string) {
-  openDelegationReportId.value = openDelegationReportId.value === id ? "" : id;
-}
 const delegationParent = computed(() => {
   const id = assistant.activeConversation?.delegation?.parentId;
   return id ? assistant.conversationById(id) : undefined;
@@ -355,12 +348,6 @@ function parallelDelegationPending(conversation: AiConversation | undefined) {
     && (conversation.running || executingParallelChildren.has(conversation.id));
 }
 const activeParallelDelegationPending = computed(() => parallelDelegationPending(assistant.activeConversation));
-function delegationStatusTag(status: AiConversationStatus) {
-  if (status === "completed") return "success";
-  if (status === "failed") return "danger";
-  if (status === "interrupted" || status === "needs_input") return "warning";
-  return status === "in_progress" ? "primary" : "info";
-}
 const progress = useSessionProgressStore();
 void progress.ensureListening();
 const pendingEdits = useAiPendingEditsStore();
@@ -1117,6 +1104,9 @@ const activeConversationWorkspaceAvailable = computed(() => {
   const conversation = assistant.activeConversation;
   return Boolean(conversation && conversationWorkspaceAvailable(conversation));
 });
+const delegationModelLabels = computed(() => Object.fromEntries(
+  availableModels.value.map((model) => [model.value, model.label]),
+));
 const conversationSidebarLabels = computed(() => ({
   title: t("ai.conversations"),
   exportConversation: t("ai.export.action"),
@@ -1530,6 +1520,7 @@ const contextUsage = computed(() => {
   const percent = ratio > 0 && ratio < 0.01 ? "<1" : String(Math.min(100, Math.round(ratio * 100)));
   return {
     label: t("ai.context.usage", { percent }),
+    compactLabel: `${percent}%`,
     title: t(reported ? "ai.context.usageDetail" : "ai.context.usageEstimateDetail", {
       used: compactTokenCount(usedTokens),
       limit: compactTokenCount(estimate.inputLimit),
@@ -2262,7 +2253,7 @@ function conversationPlanModeReminder(conversationId: string) {
 
 async function executeSubagentPlanForAi(
   definition: SubagentPlanDefinition,
-  execution: { conversationId?: string; signal: AbortSignal },
+  execution: SubagentPlanExecution,
 ) {
   const conversationId = execution.conversationId?.trim() ?? "";
   if (!conversationId) throw new Error("Subagent plan requires a conversation context");
@@ -2365,7 +2356,9 @@ async function executeSubagentPlanForAi(
         for (const task of snapshot.tasks) {
           let id = taskConversations.get(task.id);
           if (!id) {
-            const child = assistant.createDelegatedConversation(conversationId, task.title, "parallel", task.model ?? defaultChildModel);
+            const child = assistant.createDelegatedConversation(
+              conversationId, task.title, "parallel", task.model ?? defaultChildModel, execution.toolOrigin,
+            );
             if (!child) continue;
             id = child.id;
             taskConversations.set(task.id, id);
@@ -2862,6 +2855,7 @@ function workspaceContextForConversation(conversationId: string) {
   return context;
 }
 interface AgentToolExecutionPolicy {
+  turnMessageId?: string;
   allowedTools?: ReadonlySet<string>;
   forceProjectRoot?: boolean;
 }
@@ -3005,6 +2999,7 @@ async function executeAgentTool(
         resources,
         operations: aiOperationManager,
         conversationId,
+        toolOrigin: { toolCallId: call.id, triggerMessageId, turnMessageId: policy.turnMessageId },
         signal,
         ...(authorized && capability.risk !== "read" ? {
           authorization: {
@@ -3743,7 +3738,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
           runResources,
           runProjectRoot,
           signal,
-          isolatedExternal ? { allowedTools: new Set() } : undefined,
+          { turnMessageId: triggerMessageId, ...(isolatedExternal ? { allowedTools: new Set<string>() } : {}) },
         ),
       // MCP tools and every mutation remain serialized. Native capabilities explicitly
       // classified as read-only can be run together because they have no same-turn
@@ -5219,6 +5214,10 @@ onBeforeUnmount(() => {
                 :pinned-user-target="pinnedUserTarget"
                 :messages="assistant.messages"
                 :events="visibleAgentEvents"
+                :delegated-children="delegatedChildren"
+                :delegation-model-labels="delegationModelLabels"
+                :delegation-status-labels="conversationSidebarLabels.statusLabels"
+                @open-delegation="switchConversation"
                 :approvals="activeToolApprovals"
                 :permission="assistant.pendingPermission ?? null"
                 :composer-has-draft="input.length > 0"
@@ -5306,35 +5305,6 @@ onBeforeUnmount(() => {
                 @answer-permission="answerPermission"
                 @dismiss-event="dismissAgentEvent"
               />
-              <section v-if="delegatedChildren.length" class="ai-delegation-reports" :aria-label="t('ai.delegation.reports')">
-                <header class="ai-delegation-reports__header">
-                  <h3><el-icon aria-hidden="true"><Share /></el-icon>{{ t('ai.delegation.reports') }}</h3>
-                  <span>{{ t('ai.delegation.reportProgress', { settled: settledDelegations, total: delegatedChildren.length }) }}</span>
-                </header>
-                <div v-for="child in delegatedChildren" :key="child.id" class="ai-delegation-reports__row">
-                  <details class="ai-delegation-reports__item" :open="openDelegationReportId === child.id">
-                    <summary @click.prevent="toggleDelegationReport(child.id)">
-                      <strong :title="child.title">{{ child.title }}</strong>
-                      <span v-if="child.selectedModel" class="ai-delegation-reports__model">
-                        {{ availableModels.find((model) => model.value === child.selectedModel)?.label }}
-                      </span>
-                      <span class="ai-delegation-reports__status" :class="`is-${delegationStatusTag(child.delegation?.resultStatus ?? child.status)}`">
-                        {{ conversationSidebarLabels.statusLabels[child.delegation?.resultStatus ?? child.status] }}
-                      </span>
-                    </summary>
-                    <div v-if="openDelegationReportId === child.id" class="ai-delegation-reports__result">
-                      <el-scrollbar v-if="child.delegation?.result" max-height="260px">
-                        <MarkdownPreview inline code-copy :content="child.delegation.result" />
-                      </el-scrollbar>
-                      <span v-else class="ai-delegation-reports__empty">
-                        {{ conversationSidebarLabels.statusLabels[child.delegation?.resultStatus ?? child.status] }}
-                      </span>
-                    </div>
-                  </details>
-                  <el-button text size="small" :icon="TopRight" :title="t('ai.delegation.open')"
-                    :aria-label="t('ai.delegation.open')" @click="switchConversation(child.id)" />
-                </div>
-              </section>
               <p v-if="activeParallelDelegationPending" class="ai-delegation-pending" role="status">
                 {{ t('ai.delegation.running') }}
               </p>
@@ -5423,8 +5393,15 @@ onBeforeUnmount(() => {
                 :content="t('ai.delegation.dispatch')"
                 placement="top"
                 :teleported="false"
+                :show-after="300"
               >
-                <el-button text :icon="Share" :aria-label="t('ai.delegation.dispatch')" @click="dispatchConversationTask" />
+                <el-button
+                  text
+                  class="ai-assistant-composer__tool-button"
+                  :icon="Share"
+                  :aria-label="t('ai.delegation.dispatch')"
+                  @click="dispatchConversationTask"
+                />
               </el-tooltip>
             </template>
             <template #approval-control>

@@ -3,6 +3,7 @@ import { Refresh, VideoPlay } from "@element-plus/icons-vue";
 import { computed, provide, ref, shallowReactive, watch } from "vue";
 import AiMessageBubble from "@/components/ai/AiMessageBubble.vue";
 import AiTimelineApprovalRow, { type InlineToolApprovalLabels } from "@/components/ai/timeline/AiTimelineApprovalRow.vue";
+import AiTimelineDelegationRow from "@/components/ai/timeline/AiTimelineDelegationRow.vue";
 import AiTimelineErrorRow from "@/components/ai/timeline/AiTimelineErrorRow.vue";
 import AiTimelineNoticeRow from "@/components/ai/timeline/AiTimelineNoticeRow.vue";
 import AiTimelinePlanRow from "@/components/ai/timeline/AiTimelinePlanRow.vue";
@@ -14,7 +15,7 @@ import { groupAiEventsForTimeline } from "@/domain/ai/agent-event-groups";
 import type { AiAgentActivityKind } from "@/domain/ai/agent-event-activity";
 import type { AiTaskStepStatus } from "@/domain/ai/event-presentations";
 import { mergeAiTokenUsage, type AiTokenUsage } from "@/domain/ai/token-usage";
-import { buildAiTimelineItems } from "@/domain/ai/timeline-items";
+import { buildAiTimelineItems, isAiTimelineDelegationSettled, type AiTimelineDelegationChild } from "@/domain/ai/timeline-items";
 import type { ToolApprovalDecision, ToolApprovalQueueItem } from "@/domain/ai/tool-approval-queue";
 import {
   alignAiTimelineRenderStartToTurn,
@@ -30,6 +31,9 @@ const props = defineProps<{
   pinnedUserTarget?: HTMLElement;
   messages: AiAssistantMessage[];
   events: AiAssistantEvent[];
+  delegatedChildren?: AiTimelineDelegationChild[];
+  delegationModelLabels?: Record<string, string>;
+  delegationStatusLabels?: Record<string, string>;
   approvals?: ToolApprovalQueueItem[];
   approvalLabels?: InlineToolApprovalLabels;
   permission: AiAssistantPermission | null;
@@ -93,6 +97,7 @@ const emit = defineEmits<{
   "decide-approval": [id: string, decision: ToolApprovalDecision];
   "answer-permission": [optionId?: string];
   "dismiss-event": [event: AiAssistantEvent];
+  "open-delegation": [id: string];
   "edit-failed": [message: AiAssistantMessage];
   "load-earlier": [count: number];
   regenerate: [message: AiAssistantMessage];
@@ -212,6 +217,9 @@ const timelineItems = computed(() => buildAiTimelineItems({
   continueAt: continueAt.value,
   running: props.running,
   conversationRunning: props.generating,
+  delegations: props.delegatedChildren?.length
+    ? { children: props.delegatedChildren, messages: props.messages }
+    : undefined,
 }));
 const itemCount = computed(() => timelineItems.value.length);
 const windowStart = ref(firstPaintAiMessageRenderStart(itemCount.value));
@@ -225,6 +233,10 @@ const visibleItems = computed(() => {
   const alwaysVisible = new Set<number>();
   for (let index = 0; index <= start; index += 1) {
     const item = items[index];
+    if (item?.kind === "delegation" && (index === start || item.children.some(child => !isAiTimelineDelegationSettled(child)))) {
+      if (index < start) alwaysVisible.add(index);
+      if (items[index - 1]?.key === item.toolKey && item.toolKey) alwaysVisible.add(index - 1);
+    }
     if (item?.kind !== "approval" && item?.kind !== "permission") continue;
     if (index < start) alwaysVisible.add(index);
     const tool = items[index - 1];
@@ -325,7 +337,7 @@ const labels: AiTimelineLabels = {
         {{ stopAgentLabel }}
       </el-button>
     </div>
-    <div v-if="!messages.length && !events.length" class="ai-assistant-welcome">
+    <div v-if="!messages.length && !events.length && !delegatedChildren?.length" class="ai-assistant-welcome">
       <div>AI</div>
       <strong>{{ title }}</strong>
       <p>{{ hint }}</p>
@@ -423,6 +435,10 @@ const labels: AiTimelineLabels = {
         v-else-if="item.kind === 'permission'" :source="{ kind: 'permission', permission: item.permission }"
         :composer-has-draft="composerHasDraft"
         @decide-permission="emit('answer-permission', $event)"
+      />
+      <AiTimelineDelegationRow
+        v-else-if="item.kind === 'delegation'" :group="item" :model-labels="delegationModelLabels"
+        :status-labels="delegationStatusLabels" @open="emit('open-delegation', $event)"
       />
       <AiTimelineNoticeRow v-else-if="item.kind === 'thinking'" :text="runningLabel ?? t('ai.timeline.thinking')" spinning />
     </template>

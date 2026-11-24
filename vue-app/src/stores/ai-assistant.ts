@@ -170,6 +170,9 @@ export interface AiConversation extends AiAssistantSnapshot {
   delegation?: {
     parentId: string;
     source: "manual" | "parallel";
+    toolCallId?: string;
+    triggerMessageId?: string;
+    turnMessageId?: string;
     result?: string;
     resultStatus?: AiConversationStatus;
   };
@@ -1361,7 +1364,10 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     restoreSnapshot(conversation, false, false);
     return conversation;
   }
-  function createDelegatedConversation(parentId: string, title: string, source: "manual" | "parallel", model?: string) {
+  function createDelegatedConversation(
+    parentId: string, title: string, source: "manual" | "parallel", model?: string,
+    origin?: Pick<NonNullable<AiConversation["delegation"]>, "toolCallId" | "triggerMessageId" | "turnMessageId">,
+  ) {
     const parent = conversationById(parentId);
     const scopeId = workspaceScopeForConversation(parentId);
     if (!parent || parent.external || !scopeId) return undefined;
@@ -1375,7 +1381,7 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
       projectRoot: parent.projectRoot,
     });
     child.title = normalizeAiConversationTitle(title);
-    child.delegation = { parentId, source };
+    child.delegation = { parentId, source, ...origin };
     child.selectedModel = model ?? (parentId === activeConversationId.value ? selectedModel.value : parent.selectedModel);
     child.selectedReasoningEffort = parentId === activeConversationId.value
       ? selectedReasoningEffort.value

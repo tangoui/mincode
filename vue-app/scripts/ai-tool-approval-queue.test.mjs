@@ -151,5 +151,5 @@ test("the tool call id is display only: a remembered grant still matches another
 test("both native and MCP approvals pass the model's call id", async () => {
   const { readFile } = await import("node:fs/promises");
   const drawer = await readFile(new URL("../src/components/ai/AiAssistantDrawer.vue", import.meta.url), "utf8");
-  assert.equal(drawer.match(/toolCallId: call\.id,/g)?.length, 2);
+  assert.equal(drawer.match(/^\s*toolCallId: call\.id,$/gm)?.length, 2);
 });

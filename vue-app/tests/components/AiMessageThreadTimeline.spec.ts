@@ -2,6 +2,7 @@ import { mount } from "@vue/test-utils";
 import { expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 import AiMessageThread from "@/components/ai/AiMessageThread.vue";
+import type { AiTimelineDelegationChild } from "@/domain/ai/timeline-items";
 import { AI_MESSAGE_FIRST_PAINT_SIZE } from "@/domain/ai/message-render-window";
 import type { AiAssistantEvent, AiAssistantMessage } from "@/stores/ai-assistant";
 
@@ -171,5 +172,36 @@ it("puts turn metadata only on the final assistant message, including when it is
   expect(replies[3]?.get(".ai-message-bubble__token-usage").text()).toContain("22");
   expect(replies[3]?.get(".ai-timeline-error").text()).toContain("Provider unavailable");
   expect(wrapper.get(".ai-message-bubble.is-user").find(".ai-message-bubble__footer").exists()).toBe(true);
+  wrapper.unmount();
+});
+
+it("shows delegation progress, collapses on finish, and keeps manually opened reports visible", async () => {
+  const messages = [{ id: "request", role: "user", content: "Delegate" }, message];
+  const dispatch = event("loop-tool-call", "agent.run_parallel");
+  const children: [AiTimelineDelegationChild, AiTimelineDelegationChild] = [
+    { id: "a", title: "Read tests", selectedModel: "model-a", status: "completed", createdAt: 10,
+      delegation: { parentId: "parent", source: "parallel", toolCallId: "call", turnMessageId: "request", result: "**Tests reviewed**" } },
+    { id: "b", title: "Read docs", status: "in_progress", createdAt: 11,
+      delegation: { parentId: "parent", source: "parallel", toolCallId: "call", turnMessageId: "request" } },
+  ];
+  const done: AiTimelineDelegationChild[] = [children[0], { ...children[1], status: "failed" }];
+  const wrapper = thread({ messages, events: [dispatch], delegatedChildren: children,
+    delegationModelLabels: { "model-a": "Demo model" }, delegationStatusLabels: activity });
+  const group = () => wrapper.get(".ai-timeline-delegation");
+  const header = () => group().get("button.ai-timeline__row");
+  expect(group().element.previousElementSibling?.classList.contains("ai-timeline-tool")).toBe(true);
+  expect(group().text()).toContain("1/2");
+  expect(group().text()).toContain("Demo model");
+  await wrapper.setProps({ delegatedChildren: done });
+  expect(group().text()).toContain("1 个失败");
+  expect(group().text()).not.toContain("Read tests");
+  await header().trigger("click");
+  await group().get("summary").trigger("click");
+  expect(group().text()).toContain("Tests reviewed");
+  await group().get('button[aria-label="打开子会话"]').trigger("click");
+  expect(wrapper.emitted("open-delegation")).toEqual([["a"]]);
+  await wrapper.setProps({ delegatedChildren: children });
+  await wrapper.setProps({ delegatedChildren: done });
+  expect(group().text()).toContain("Tests reviewed");
   wrapper.unmount();
 });

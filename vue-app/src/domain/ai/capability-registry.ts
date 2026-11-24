@@ -6,12 +6,19 @@ import type { ToolAuthorizationRequest, ToolSessionGrant } from "./tool-authoriz
 
 export type AiCapabilityRisk = "read" | "network" | "write" | "dangerous";
 
+export interface AiCapabilityToolOrigin {
+  toolCallId?: string;
+  triggerMessageId?: string;
+  turnMessageId?: string;
+}
+
 export interface AiCapabilityExecutionContext {
   resourceId: string;
   resource: AiResource;
   input: Record<string, unknown>;
   signal: AbortSignal;
   conversationId?: string;
+  toolOrigin?: AiCapabilityToolOrigin;
 }
 
 export interface AiCapabilityApprovalContext {
@@ -80,6 +87,7 @@ export interface AiCapabilityExecutionDependencies {
   operations: AiCapabilityOperations;
   authorization?: AiCapabilityAuthorizationContext;
   conversationId?: string;
+  toolOrigin?: AiCapabilityToolOrigin;
   signal?: AbortSignal;
 }
 
@@ -236,6 +244,7 @@ export function createCapabilityRegistry(): AiCapabilityRegistry {
               input,
               signal,
               conversationId: dependencies.conversationId,
+              toolOrigin: dependencies.toolOrigin,
             }),
           ),
         };
@@ -251,6 +260,7 @@ export function createCapabilityRegistry(): AiCapabilityRegistry {
             input,
             signal,
             conversationId: dependencies.conversationId,
+            toolOrigin: dependencies.toolOrigin,
           }),
       });
       const cancelOperation = () => operation.cancel();

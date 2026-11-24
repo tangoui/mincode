@@ -2,6 +2,8 @@ import type {
   AiAssistantEvent,
   AiAssistantMessage,
   AiAssistantPermission,
+  AiConversation,
+  AiConversationStatus,
 } from "@/stores/ai-assistant";
 import { describeAiAgentEventActivity, type AiAgentActivityKind } from "./agent-event-activity";
 import type { AiAnchoredEventGroup } from "./agent-event-groups";
@@ -14,6 +16,17 @@ export const AI_TIMELINE_READ_ONLY_KINDS: readonly AiAgentActivityKind[] = [
 
 const FAILED_STATUSES = new Set(["failed", "error", "cancelled"]);
 
+export type AiTimelineDelegationChild = Pick<AiConversation, "id" | "title" | "createdAt" | "selectedModel" | "status" | "delegation">;
+
+export function aiTimelineDelegationStatus(child: AiTimelineDelegationChild): AiConversationStatus {
+  return child.delegation?.resultStatus ?? child.status;
+}
+
+export function isAiTimelineDelegationSettled(child: AiTimelineDelegationChild) {
+  const status = aiTimelineDelegationStatus(child);
+  return child.delegation?.result !== undefined || status === "completed" || status === "failed" || status === "interrupted";
+}
+
 export type AiTimelineItem =
   | { kind: "message"; key: string; index: number; message: AiAssistantMessage }
   | { kind: "tool"; key: string; event: AiAssistantEvent; awaitingApproval: boolean }
@@ -22,7 +35,13 @@ export type AiTimelineItem =
   | { kind: "approval"; key: string; approval: ToolApprovalQueueItem }
   | { kind: "permission"; key: string; permission: AiAssistantPermission }
   | { kind: "continue"; key: string; index: number }
-  | { kind: "thinking"; key: string };
+  | { kind: "thinking"; key: string }
+  | { kind: "delegation"; key: string; toolKey?: string; children: AiTimelineDelegationChild[] };
+
+interface TimelineDelegations {
+  messages: readonly AiAssistantMessage[];
+  children: readonly AiTimelineDelegationChild[];
+}
 
 export interface AiTimelineInput {
   messages: ReadonlyArray<{ message: AiAssistantMessage; index: number }>;
@@ -34,6 +53,7 @@ export interface AiTimelineInput {
   continueAt: number | null;
   running: boolean;
   conversationRunning?: boolean;
+  delegations?: TimelineDelegations;
 }
 
 export function aiTimelineToolCallIds(approval: ToolApprovalQueueItem): string[] {
@@ -165,5 +185,76 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
   items.push(...activeApprovals.filter(({ key }) => !placed.has(key)));
   if (permission && !placed.has(permission.key)) items.push(permission);
   if (input.running) items.push({ kind: "thinking", key: "thinking" });
-  return items;
+  return input.delegations?.children.length ? insertDelegations(items, input.delegations) : items;
+}
+
+function insertDelegations(items: AiTimelineItem[], { messages, children }: TimelineDelegations): AiTimelineItem[] {
+  const turnByMessageId = new Map<string, number>();
+  const turnByMessageIndex = new Map<number, number>();
+  const datedTurns: Array<{ index: number; createdAt: number }> = [];
+  let turnIndex: number | undefined;
+  for (const [index, message] of messages.entries()) {
+    if (message.role === "user") {
+      turnIndex = index;
+      if (message.createdAt) datedTurns.push({ index, createdAt: message.createdAt });
+    }
+    if (turnIndex === undefined) continue;
+    turnByMessageIndex.set(index, turnIndex);
+    if (message.id) turnByMessageId.set(message.id, turnIndex);
+  }
+
+  const newestDatedTurns = datedTurns.reverse();
+  const dispatches = new Map<string, Array<{ position: number; turn: number | undefined }>>();
+  const turnEnds = new Map<number, number>();
+  turnIndex = undefined;
+  for (const [position, item] of items.entries()) {
+    if (item.kind === "message" && item.message.role === "user") {
+      if (position > 0 && turnIndex !== undefined) turnEnds.set(turnIndex, position - 1);
+      turnIndex = item.index;
+    } else if (item.kind === "tool" && item.event.toolName === "agent.run_parallel") {
+      const { event } = item;
+      const turn = (event.triggerMessageId ? turnByMessageId.get(event.triggerMessageId) : undefined)
+        ?? turnByMessageIndex.get(event.afterMessageIndex ?? -1) ?? turnIndex;
+      const calls = dispatches.get(event.id) ?? [];
+      calls.push({ position, turn });
+      dispatches.set(event.id, calls);
+    }
+  }
+  if (turnIndex !== undefined) turnEnds.set(turnIndex, items.length - 1);
+
+  const groupsAt = new Map<number, Array<Extract<AiTimelineItem, { kind: "delegation" }>>>();
+  const groupsByKey = new Map<string, Extract<AiTimelineItem, { kind: "delegation" }>>();
+  for (const child of children) {
+    const { toolCallId, triggerMessageId, turnMessageId } = child.delegation ?? {};
+    const turn = (turnMessageId ? turnByMessageId.get(turnMessageId) : undefined)
+      ?? (triggerMessageId ? turnByMessageId.get(triggerMessageId) : undefined)
+      ?? (!turnMessageId && !triggerMessageId
+        ? newestDatedTurns.find((candidate) => candidate.createdAt <= child.createdAt)?.index
+        : undefined);
+    const candidates = toolCallId
+      ? dispatches.get(`loop-tool-${toolCallId}`) ?? dispatches.get(toolCallId) ?? []
+      : [];
+    const candidatesInTurn = turn === undefined ? candidates : candidates.filter(candidate => candidate.turn === turn);
+    const exact = triggerMessageId && candidatesInTurn.find(({ position }) => {
+      const item = items[position];
+      return item?.kind === "tool" && item.event.triggerMessageId === triggerMessageId;
+    });
+    const dispatch = exact || (candidatesInTurn.length === 1 ? candidatesInTurn[0] : undefined);
+    const toolKey = dispatch ? items[dispatch.position]?.key : undefined;
+    const turnEnd = turn === undefined ? undefined : turnEnds.get(turn);
+    const turnKey = turn !== undefined && turnEnd !== undefined ? `turn:${messages[turn]?.id ?? turn}` : "end";
+    const anchorKey = toolKey ?? turnKey;
+    const key = `delegation:${anchorKey}`;
+    const position = dispatch?.position ?? turnEnd ?? items.length - 1;
+    let group = groupsByKey.get(key);
+    if (!group) {
+      group = { kind: "delegation", key, toolKey, children: [] };
+      groupsByKey.set(key, group);
+      const atPosition = groupsAt.get(position) ?? [];
+      atPosition.push(group);
+      groupsAt.set(position, atPosition);
+    }
+    group.children.push(child);
+  }
+  return [...groupsAt.get(-1) ?? [], ...items.flatMap((item, index) => [item, ...groupsAt.get(index) ?? []])];
 }

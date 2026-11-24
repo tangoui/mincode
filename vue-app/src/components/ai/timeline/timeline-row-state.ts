@@ -25,8 +25,11 @@ export const aiTimelineExpansion: InjectionKey<Map<string, boolean>> = Symbol("a
 export function useAiTimelineExpansion(key: () => string, defaultExpanded: () => boolean) {
   const choices = inject(aiTimelineExpansion, () => shallowReactive(new Map<string, boolean>()), true);
   const expanded = computed(() => choices.get(key()) ?? defaultExpanded());
-  function toggle() {
-    choices.set(key(), !expanded.value);
+  function setExpanded(value: boolean) {
+    choices.set(key(), value);
   }
-  return { expanded, toggle };
+  function toggle() {
+    setExpanded(!expanded.value);
+  }
+  return { expanded, setExpanded, toggle };
 }

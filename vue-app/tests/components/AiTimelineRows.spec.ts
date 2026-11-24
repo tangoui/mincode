@@ -43,7 +43,7 @@ describe("inline tool row", () => {
   it("opens for live output and folds when the command succeeds", async () => {
     const row = mountTool();
     expect(row.find(".is-spinning").exists()).toBe(true);
-    expect(row.get(".ai-timeline__shimmer").exists()).toBe(true);
+    expect(row.find(".ai-timeline__shimmer").exists()).toBe(true);
     expect(row.get("button[aria-expanded]").attributes("aria-expanded")).toBe("true");
     expect(row.getComponent(AiAgentEventDetail).text()).toContain("current output");
     await row.setProps({ event: tool({ status: "completed" }) });

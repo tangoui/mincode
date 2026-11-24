@@ -16,6 +16,7 @@ test('keeps tool metadata, approval buttons and plan actions inside the timeline
 }, async () => {
   const styles = await Promise.all([
     readFile(require.resolve('element-plus/dist/index.css'), 'utf8'),
+    readFile(new URL('../src/styles/foundation/foundation.css', import.meta.url), 'utf8'),
     readFile(new URL('../src/styles/workspaces/ai/drawer.css', import.meta.url), 'utf8'),
     readFile(new URL('../src/styles/workspaces/ai/timeline.css', import.meta.url), 'utf8'),
   ]);
@@ -40,6 +41,14 @@ test('keeps tool metadata, approval buttons and plan actions inside the timeline
     <button class="ai-timeline__row"><svg class="ai-timeline__icon"></svg><strong class="ai-timeline__title">Plan updated 2/3</strong><svg class="ai-timeline__icon"></svg></button>
     <button class="ai-timeline__icon-button"><svg></svg></button>
   </div></section>
+  <div class="ai-timeline__contents"><div class="ai-timeline__result">
+    <div class="ai-agent-event-detail is-terminal is-failed is-inline">
+      <button type="button" class="ai-timeline__output-toggle" aria-expanded="false">显示全部（24 行）</button>
+      <span class="ai-agent-event-detail__language" aria-hidden="true">terminal</span>
+      <pre><code>FAIL integration: expected status 200, received 503.</code></pre>
+    </div>
+    <button type="button" class="ai-timeline__icon-button" aria-label="Copy output"><svg></svg></button>
+  </div></div>
 </div><pre id="result"></pre><script>
 const failures = [];
 const thread = document.querySelector('.ai-message-thread');
@@ -70,6 +79,24 @@ for (const width of [88, 304, 800]) {
     }
     const tool = thread.querySelector('.ai-timeline-tool');
     if (tool.nextElementSibling.getBoundingClientRect().top !== tool.getBoundingClientRect().bottom) failures.push('adjacent timeline items have a gap');
+  }
+  for (const theme of ['light', 'dark']) {
+    document.documentElement.dataset.theme = theme;
+    const output = thread.querySelector('.ai-agent-event-detail');
+    const toggle = output.querySelector('.ai-timeline__output-toggle');
+    const language = output.querySelector('.ai-agent-event-detail__language');
+    const buttonBounds = toggle.getBoundingClientRect();
+    const languageBounds = language.getBoundingClientRect();
+    const codeBounds = output.querySelector('pre').getBoundingClientRect();
+    const overlap = buttonBounds.left < languageBounds.right && languageBounds.left < buttonBounds.right
+      && buttonBounds.top < languageBounds.bottom && languageBounds.top < buttonBounds.bottom;
+    if (overlap) failures.push(width + ' ' + theme + ': output toggle overlaps language label');
+    if (Math.max(buttonBounds.bottom, languageBounds.bottom) > codeBounds.top) {
+      failures.push(width + ' ' + theme + ': output metadata overlaps the code block');
+    }
+    if (languageBounds.right > output.getBoundingClientRect().right + 1) {
+      failures.push(width + ' ' + theme + ': output language label overflows its column');
+    }
   }
   const path = thread.querySelector('code');
   if (width === 304 && (path.clientWidth === 0 || path.scrollWidth <= path.clientWidth)) failures.push(width + ': path should be visible and truncated');

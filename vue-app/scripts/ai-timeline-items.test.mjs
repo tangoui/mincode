@@ -162,3 +162,33 @@ test("an activity group at a hidden message retains its order", () => {
   assert.deepEqual(kinds(items), ["message", "toolSummary", "message", "toolSummary"]);
   assert.equal(items[1].events[0].id, "hidden");
 });
+
+test("places each delegation batch below its own dispatch, with turn-end and timeline-end fallbacks", () => {
+  const history = [
+    { id: "u1", role: "user", content: "Delegate", createdAt: 100 },
+    { id: "silent", role: "assistant", eventAnchor: true, content: "" },
+    { ...message, id: "summary" },
+    { id: "u2", role: "user", content: "Continue", createdAt: 300 },
+    { ...message, id: "later" },
+  ];
+  const dispatch = (anchor) => ({ ...tool("loop-tool-batch", "run_command"), toolName: "agent.run_parallel", triggerMessageId: anchor });
+  const child = (id, createdAt, origin = {}) => ({ id, createdAt, title: id, status: "completed",
+    delegation: { parentId: "parent", source: "parallel", ...origin } });
+  const items = build([], {
+    messages: history.flatMap((message, index) => message.eventAnchor ? [] : [{ index, message }]),
+    groupsByAnchor: new Map([[2, group([dispatch("silent"), tool("after", "run_command")], 2, [1, 2])],
+      [4, group([dispatch("later")], 4)]]),
+    delegations: { messages: history, children: [
+      child("batch-a1", 120, { toolCallId: "batch", triggerMessageId: "silent", turnMessageId: "u1" }),
+      child("legacy", 140),
+      child("batch-a2", 150, { toolCallId: "batch", triggerMessageId: "silent", turnMessageId: "u1" }),
+      child("fallback", 180, { toolCallId: "missing", turnMessageId: "u1" }),
+      child("batch-b", 330, { toolCallId: "batch", triggerMessageId: "removed", turnMessageId: "u2" }),
+      child("unanchored", 90),
+    ] },
+  });
+  const placement = items.map(item => item.kind === "delegation" ? item.children.map(c => c.id).join(",")
+    : item.kind === "tool" ? item.event.triggerMessageId ?? item.event.id : item.message.id);
+  assert.deepEqual(placement, ["u1", "summary", "silent", "batch-a1,batch-a2", "after", "legacy,fallback",
+    "u2", "later", "later", "batch-b", "unanchored"]);
+});

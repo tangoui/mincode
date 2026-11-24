@@ -8,6 +8,7 @@ import {
   toggleSidebarLabels,
 } from "@/services/sidebar-label-preferences";
 import { useVueI18n } from "@/i18n/messages";
+import { scrollEdgeFades } from "@/domain/layout/scroll-edge-fades";
 import { useWorkbenchStore } from "@/stores/workbench";
 import { useAiAssistantShellStore } from "@/stores/ai-assistant-shell";
 import { useKeybindingsStore } from "@/stores/keybindings";
@@ -97,6 +98,18 @@ const settingsLabel = computed(() => appUpdate.pendingVersion
   : t("nav.settings"));
 const order = ref(loadOrder());
 const labelsVisible = sidebarLabelsVisible();
+
+// When the rail is too short for every item, fade the edges that hide items so a
+// half-visible icon reads as "scroll for more" instead of a clipped button.
+const navScroll = ref<{ wrapRef?: HTMLElement } | null>(null);
+const navFades = ref({ top: false, bottom: false });
+let navResizeObserver: ResizeObserver | undefined;
+function updateNavFades() {
+  const wrap = navScroll.value?.wrapRef;
+  if (!wrap) return;
+  const next = scrollEdgeFades({ scrollTop: wrap.scrollTop, clientHeight: wrap.clientHeight, scrollHeight: wrap.scrollHeight });
+  if (next.top !== navFades.value.top || next.bottom !== navFades.value.bottom) navFades.value = next;
+}
 const visibility = ref(createDefaultSidebarVisibility());
 const dragging = ref<SidebarItemId>();
 // Terminal / sessions workspaces holding a terminal that wants the user back.
@@ -156,6 +169,13 @@ function handleVisibilityChange(event: Event) {
 
 
 onMounted(async () => {
+  const wrap = navScroll.value?.wrapRef;
+  if (wrap && typeof ResizeObserver !== "undefined") {
+    navResizeObserver = new ResizeObserver(updateNavFades);
+    navResizeObserver.observe(wrap);
+    if (wrap.firstElementChild) navResizeObserver.observe(wrap.firstElementChild);
+  }
+  updateNavFades();
   window.addEventListener(SIDEBAR_VISIBILITY_EVENT, handleVisibilityChange);
   const [storedOrder, storedVisibility] = await Promise.all([
     loadPersistedValue<unknown>(ORDER_KEY),
@@ -168,6 +188,7 @@ onMounted(async () => {
   if (JSON.stringify(storedOrder) !== JSON.stringify(order.value)) await savePersistedValue(ORDER_KEY, order.value);
 });
 onBeforeUnmount(() => {
+  navResizeObserver?.disconnect();
   disposed = true;
   window.removeEventListener(SIDEBAR_VISIBILITY_EVENT, handleVisibilityChange);
 });
@@ -175,7 +196,12 @@ onBeforeUnmount(() => {
 
 <template>
   <aside class="app-activity-bar">
-    <el-scrollbar class="app-activity-bar__nav-scroll">
+    <el-scrollbar
+      ref="navScroll"
+      class="app-activity-bar__nav-scroll"
+      :class="{ 'is-fade-top': navFades.top, 'is-fade-bottom': navFades.bottom }"
+      @scroll="updateNavFades"
+    >
       <nav class="app-activity-bar__nav" :aria-label="t('app.vueWorkspace')">
       <el-tooltip
         v-for="item in items"

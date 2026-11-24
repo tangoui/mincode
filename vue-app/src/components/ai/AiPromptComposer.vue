@@ -41,7 +41,7 @@ const props = defineProps<{
   labels: Labels;
   accept?: string;
   editingQueue?: boolean;
-  contextUsage?: { label: string; title: string; level: "normal" | "warning" | "danger" };
+  contextUsage?: { label: string; compactLabel: string; title: string; level: "normal" | "warning" | "danger" };
   updateLabel?: string;
       cancelEditLabel?: string;
   history: string[];
@@ -325,28 +325,35 @@ const onFiles = (event: Event) => {
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <slot name="delegation-control" />
         <slot name="approval-control" />
-        <el-tooltip
-          :content="labels.addAttachment"
-          placement="top"
-          :teleported="false"
-          :show-after="300"
-        >
-          <el-button
-            text
-            :icon="Paperclip"
-            :loading="addingAttachments"
-            :aria-label="labels.addAttachment"
-            @click="attachmentInput?.click()"
-          />
-        </el-tooltip>
-        <span
-          v-if="contextUsage"
-          class="ai-assistant-composer__context"
-          :class="`is-${contextUsage.level}`"
-          :title="contextUsage.title"
-        >{{ contextUsage.label }}</span>
+        <div class="ai-assistant-composer__attachment-tools">
+          <el-tooltip
+            :content="labels.addAttachment"
+            placement="top"
+            :teleported="false"
+            :show-after="300"
+          >
+            <el-button
+              text
+              class="ai-assistant-composer__tool-button"
+              :icon="Paperclip"
+              :loading="addingAttachments"
+              :aria-label="labels.addAttachment"
+              @click="attachmentInput?.click()"
+            />
+          </el-tooltip>
+          <slot name="delegation-control" />
+          <span
+            v-if="contextUsage"
+            class="ai-assistant-composer__context"
+            :class="`is-${contextUsage.level}`"
+            :title="contextUsage.title"
+          >
+            <span class="sr-only">{{ contextUsage.label }}</span>
+            <span class="ai-assistant-composer__context-label" aria-hidden="true">{{ contextUsage.label }}</span>
+            <span class="ai-assistant-composer__context-percent" aria-hidden="true">{{ contextUsage.compactLabel }}</span>
+          </span>
+        </div>
         <small>{{ labels.sendHint }}</small>
       </div>
       <div class="ai-assistant-composer__primary-actions">
