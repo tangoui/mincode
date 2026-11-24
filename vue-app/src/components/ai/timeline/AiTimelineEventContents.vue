@@ -44,7 +44,7 @@ onBeforeUnmount(() => clearTimeout(resetTimer));
     </details>
     <div v-if="presentation.text" class="ai-timeline__result">
       <AiAgentEventDetail
-        :event="event" :content="presentation.text" :failed="failed" :diff="diff" inline
+        :event="event" :content="presentation.text" :failed="failed" :diff="diff"
         :role="failed ? 'alert' : undefined"
       />
       <button

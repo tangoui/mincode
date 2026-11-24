@@ -38,7 +38,10 @@ const title = computed(() => {
 <template>
   <section class="ai-timeline-summary">
     <button type="button" class="ai-timeline__row" :aria-expanded="expanded" @click="toggle">
-      <component :is="running ? Loading : CircleCheck" class="ai-timeline__icon" :class="{ 'is-spinning': running }" aria-hidden="true" />
+      <component
+        :is="running ? Loading : CircleCheck" class="ai-timeline__icon ai-timeline__status-icon"
+        :data-tone="running ? 'running' : 'success'" :class="{ 'is-spinning': running }" aria-hidden="true"
+      />
       <strong class="ai-timeline__title"><span :class="{ 'ai-timeline__shimmer': running }">{{ title }}</span></strong>
       <component :is="expanded ? ArrowDown : ArrowRight" class="ai-timeline__icon" aria-hidden="true" />
     </button>

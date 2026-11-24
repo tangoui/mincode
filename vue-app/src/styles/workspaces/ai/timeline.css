@@ -180,37 +180,116 @@ button.ai-timeline__row:hover,
   min-width: 0;
 }
 
-.ai-timeline__contents :is(.ai-agent-event-detail.is-inline, .ai-artifact-card, .ai-artifact-card__preview),
-.ai-timeline__contents .ai-agent-event-detail.is-inline pre {
+.ai-timeline__contents :is(.ai-artifact-card, .ai-artifact-card__preview) {
   border: 0;
   background: transparent;
   box-shadow: none;
 }
 
-.ai-timeline__contents .ai-agent-event-detail.is-inline {
-  padding: 0;
-  color: inherit;
-}
-
-.ai-timeline__contents .ai-agent-event-detail.is-inline .ai-agent-event-detail__language {
-  position: static;
+.ai-agent-event-detail__language {
   display: block;
   margin-inline: 4px;
+  color: var(--app-text-muted);
+  font: 600 9px / 13px var(--el-font-family);
+  text-transform: uppercase;
+  user-select: none;
 }
 
-.ai-timeline__contents .ai-agent-event-detail.is-inline > pre {
-  padding: 0 4px 6px;
+.ai-agent-event-detail__viewport {
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.ai-agent-event-detail.is-markdown .ai-agent-event-detail__viewport {
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.ai-agent-event-detail__viewport.is-collapsed {
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+  mask-image: linear-gradient(to bottom, black calc(100% - 1lh), transparent);
+}
+
+.ai-agent-event-detail__viewport.is-collapsed.is-tail {
+  justify-content: flex-end;
+  mask-image: linear-gradient(to bottom, transparent, black 1lh, black calc(100% - 2px), transparent);
+}
+
+.ai-agent-event-detail__body {
+  display: flow-root;
+  flex: none;
+  min-width: 0;
+}
+
+.ai-agent-event-detail pre {
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  font: 10px / 1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  tab-size: 2;
+}
+
+.ai-agent-event-detail__body > pre code {
+  font: inherit;
 }
 
 .ai-timeline__contents .ai-agent-event-detail.is-failed {
   color: var(--el-color-danger);
 }
 
-.ai-timeline__contents :is(.ai-agent-event-detail.is-inline, .ai-timeline__parameters) pre {
-  margin-block: 4px;
+.ai-timeline__contents :is(.ai-agent-event-detail, .ai-timeline__parameters) pre {
   color: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.ai-agent-event-detail.is-markdown .project-markdown-preview {
+  min-height: 0;
+  width: auto;
+  max-width: none;
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  color: var(--app-text-regular);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.ai-agent-event-detail.is-markdown .project-markdown-preview > :first-child {
+  margin-top: 0;
+}
+.ai-agent-event-detail.is-markdown .project-markdown-preview > :last-child {
+  margin-bottom: 0;
+}
+.ai-agent-event-detail.is-markdown .project-markdown-preview h1,
+.ai-agent-event-detail.is-markdown .project-markdown-preview h2,
+.ai-agent-event-detail.is-markdown .project-markdown-preview h3,
+.ai-agent-event-detail.is-markdown .project-markdown-preview h4 {
+  margin: 8px 0 4px;
+  padding-bottom: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ai-agent-event-detail.is-markdown .project-markdown-preview p,
+.ai-agent-event-detail.is-markdown .project-markdown-preview ul,
+.ai-agent-event-detail.is-markdown .project-markdown-preview ol,
+.ai-agent-event-detail.is-markdown .project-markdown-preview blockquote,
+.ai-agent-event-detail.is-markdown .project-markdown-preview pre,
+.ai-agent-event-detail.is-markdown .project-markdown-preview table {
+  margin-bottom: 6px;
+}
+.ai-agent-event-detail.is-markdown .project-markdown-preview pre {
+  padding: 6px 8px;
+  font-size: 10px;
+}
+.ai-agent-event-detail .project-markdown-preview table {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
 }
 
 .ai-timeline__metadata,
@@ -285,24 +364,37 @@ button.ai-timeline__row:hover,
 }
 
 .ai-timeline__output-toggle {
-  display: block;
-  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 24px;
-  margin-block-end: 2px;
+  margin-block-start: 2px;
   padding: 0 4px;
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--app-text-muted);
+  color: var(--el-color-primary);
   font: inherit;
   cursor: pointer;
-  white-space: normal;
-  text-align: start;
 }
-.ai-timeline__output-toggle:hover,
+.ai-timeline__output-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+.ai-timeline__output-toggle:hover {
+  background: var(--el-color-primary-light-9);
+}
 .ai-timeline__output-toggle:focus-visible {
-  color: var(--app-accent);
+  outline: 1px solid var(--el-color-primary);
+  outline-offset: 2px;
 }
+
+/* Status icon colors (AiTimelineToolRow / AiTimelineToolSummaryRow). */
+.ai-timeline__status-icon[data-tone="success"] { color: var(--el-color-success); }
+.ai-timeline__status-icon[data-tone="danger"] { color: var(--el-color-danger); }
+.ai-timeline__status-icon[data-tone="warning"] { color: var(--el-color-warning); }
+.ai-timeline__status-icon[data-tone="running"] { color: var(--el-color-primary); }
+.ai-timeline__status-icon[data-tone="muted"] { color: var(--el-text-color-placeholder); }
 
 .ai-delegation-reports__row {
   display: flex;

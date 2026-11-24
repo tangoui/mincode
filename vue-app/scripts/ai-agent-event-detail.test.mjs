@@ -23,6 +23,16 @@ test("renders structured objects and arrays as formatted JSON", () => {
   });
 });
 
+test("renders truncated JSON objects and arrays as code without changing their text", () => {
+  for (const prefix of ['{"matches":[{"text":"', '[{"text":"']) {
+    const content = (prefix + "sample".repeat(400)).slice(0, 2000) + "…";
+    assert.deepEqual(presentAiAgentEventDetail(event({
+      toolName: "workspace.regex_search",
+      detail: " \n" + content,
+    })), { kind: "code", language: "json", content });
+  }
+});
+
 test("renders Markdown file content with the safe Markdown preview", () => {
   assert.deepEqual(presentAiAgentEventDetail(event({
     toolName: "workspace.read_file",
@@ -71,6 +81,7 @@ test("does not render a failed file read as source code based only on its extens
 test("uses Markdown for human-readable tool text and never treats scalar JSON as structured output", () => {
   assert.equal(presentAiAgentEventDetail(event({ detail: "**Done**\n\nNext step" })).kind, "markdown");
   assert.equal(presentAiAgentEventDetail(event({ detail: '"plain text"' })).kind, "markdown");
+  assert.equal(presentAiAgentEventDetail(event({ detail: "[Guide](docs/guide.md)" })).kind, "markdown");
 });
 
 
@@ -96,6 +107,6 @@ test("tool detail component uses typed renderers without injecting raw HTML", as
 
   assert.match(source, /presentAiAgentEventDetail/);
   assert.match(source, /<MarkdownPreview/);
-  assert.match(source, /<pre><code/);
+  assert.match(source, /<pre\b[^>]*><code/);
   assert.doesNotMatch(source, /v-html/);
 });

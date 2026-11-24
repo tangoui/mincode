@@ -17,6 +17,7 @@ test('keeps tool metadata, approval buttons and plan actions inside the timeline
   const styles = await Promise.all([
     readFile(require.resolve('element-plus/dist/index.css'), 'utf8'),
     readFile(new URL('../src/styles/foundation/foundation.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/styles/shared/markdown-preview.css', import.meta.url), 'utf8'),
     readFile(new URL('../src/styles/workspaces/ai/drawer.css', import.meta.url), 'utf8'),
     readFile(new URL('../src/styles/workspaces/ai/timeline.css', import.meta.url), 'utf8'),
   ]);
@@ -43,15 +44,55 @@ test('keeps tool metadata, approval buttons and plan actions inside the timeline
   </div></section>
   <div class="ai-timeline__contents"><div class="ai-timeline__result">
     <div class="ai-agent-event-detail is-terminal is-failed is-inline">
-      <button type="button" class="ai-timeline__output-toggle" aria-expanded="false">显示全部（24 行）</button>
+      <button type="button" class="ai-timeline__output-toggle" aria-expanded="false">显示全部</button>
       <span class="ai-agent-event-detail__language" aria-hidden="true">terminal</span>
-      <pre><code>FAIL integration: expected status 200, received 503.</code></pre>
+      <div class="ai-agent-event-detail__viewport is-collapsed is-tail" style="max-block-size: 12lh">
+        <div class="ai-agent-event-detail__body"><pre><code>FAIL integration: expected status 200, received 503.</code></pre></div>
+      </div>
     </div>
     <button type="button" class="ai-timeline__icon-button" aria-label="Copy output"><svg></svg></button>
   </div></div>
 </div><pre id="result"></pre><script>
 const failures = [];
 const thread = document.querySelector('.ai-message-thread');
+const markdown = document.createElement('div');
+markdown.className = 'ai-agent-event-detail is-markdown is-inline';
+markdown.innerHTML = '<article class="project-markdown-preview">' +
+  '<p>Long Markdown result</p>'.repeat(20) +
+  '<pre><code>' + 'longCodeToken'.repeat(100) + '</code></pre></article>';
+thread.querySelector('.ai-timeline__result').append(markdown);
+for (const width of [304, 800]) {
+  thread.style.width = width + 'px';
+  if (markdown.clientHeight <= 220) failures.push(width + ': Markdown result did not grow with its content');
+  for (const element of [markdown, ...markdown.querySelectorAll('*')]) {
+    const style = getComputedStyle(element);
+    if ([style.overflowX, style.overflowY].some(value => value === 'auto' || value === 'scroll')) {
+      failures.push(width + ': nested scrolling in ' + element.tagName);
+    }
+    if (element.getBoundingClientRect().right > markdown.getBoundingClientRect().right + 1) {
+      failures.push(width + ': Markdown block extends past the result');
+    }
+  }
+}
+markdown.remove();
+const viewport = thread.querySelector('.ai-agent-event-detail__viewport');
+const body = viewport.firstElementChild;
+const outputText = body.querySelector('code');
+const shortText = outputText.textContent;
+outputText.textContent = ('Single line of wrapped output with a final status. ').repeat(60);
+for (const tail of [false, true]) {
+  viewport.classList.toggle('is-tail', tail);
+  const clipped = viewport.getBoundingClientRect();
+  const full = body.getBoundingClientRect();
+  if (clipped.height !== 180 || full.height <= clipped.height) failures.push('wrapped line should be clipped at 12 visual lines');
+  if (Math.abs(tail ? clipped.bottom - full.bottom : clipped.top - full.top) > 1) failures.push('preview clips the wrong end');
+  viewport.scrollTop = 100;
+  if (viewport.scrollTop !== 0 || getComputedStyle(viewport).overflowY !== 'clip') failures.push('preview is internally scrollable');
+}
+viewport.classList.remove('is-collapsed');
+viewport.style.maxBlockSize = '';
+if (body.offsetHeight !== viewport.offsetHeight) failures.push('expanded output does not grow with content');
+outputText.textContent = shortText;
 for (const width of [88, 304, 800]) {
   thread.style.width = width + 'px';
   const limit = thread.getBoundingClientRect().right;

@@ -35,6 +35,13 @@ const statusLabel = computed(() => {
   if (interrupted.value) return t("ai.timeline.interrupted");
   return props.labels.eventStatuses[status.value];
 });
+/** Icon color: running blue, done green, failed red, waiting orange, interrupted gray. */
+const tone = computed(() => {
+  if (props.awaitingApproval) return "warning";
+  if (interrupted.value) return "muted";
+  if (running.value) return "running";
+  return failed.value ? "danger" : "success";
+});
 const icon = computed(() => {
   if (props.awaitingApproval || interrupted.value) return Warning;
   if (running.value) return Loading;
@@ -71,7 +78,10 @@ const diff = computed(() => {
       :title="expandable ? expanded ? labels.activity.hideDetail : labels.activity.detail : undefined"
       @click="expandable && toggle()"
     >
-      <component :is="icon" class="ai-timeline__icon" :class="{ 'is-spinning': running }" aria-hidden="true" />
+      <component
+        :is="icon" class="ai-timeline__icon ai-timeline__status-icon" :data-tone="tone"
+        :class="{ 'is-spinning': running }" aria-hidden="true"
+      />
       <span class="ai-timeline__title">
         <strong :class="{ 'ai-timeline__shimmer': running }">{{ labels.activity[activity.kind] }}</strong>
         <code v-if="activity.target" :class="{ 'ai-timeline__shimmer': running }" :title="activity.target">{{ activity.target }}</code>

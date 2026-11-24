@@ -11,6 +11,9 @@ export interface AiAgentEventDetailPresentation {
 
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdx", "mdwn"]);
 const FAILED_STATUSES = new Set(["failed", "error", "cancelled"]);
+// Require the start of a JSON member/value so links and bracketed log prefixes stay intact.
+const JSON_OBJECT_START = /^\{\s*(?:"|}|…|$)/;
+const JSON_ARRAY_START = /^\[\s*(?:["{[\]\d-]|(?:true|false|null)\b|…|$)/;
 const TERMINAL_TOOL_NAMES = new Set([
   "workspace.run_command",
   "ssh.run_command",
@@ -163,8 +166,8 @@ function shebangLanguage(content: string) {
 
 /**
  * Selects a safe, content-aware renderer for an agent event detail.
- * Valid structured JSON wins first; file reads then use their path extension,
- * command output remains verbatim, and other human-readable text uses Markdown.
+ * Structured JSON is formatted when possible. Incomplete JSON keeps its original
+ * text in a code block. Files and commands use their contextual renderers.
  */
 export function presentAiAgentEventDetail(
   event: AiAgentEventActivityInput,
@@ -173,6 +176,9 @@ export function presentAiAgentEventDetail(
   const content = normalizeAiEventText(detail).trim();
   const json = jsonPresentation(content);
   if (json) return json;
+  if (JSON_OBJECT_START.test(content) || JSON_ARRAY_START.test(content)) {
+    return { kind: "code", language: "json", content };
+  }
 
   const toolName = event.toolName?.trim().toLowerCase() ?? "";
   if (TERMINAL_TOOL_NAMES.has(toolName)) {

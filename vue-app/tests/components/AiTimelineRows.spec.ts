@@ -1,5 +1,5 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import AiAgentEventDetail from "@/components/ai/AiAgentEventDetail.vue";
 import AiTimelineNoticeRow from "@/components/ai/timeline/AiTimelineNoticeRow.vue";
 import AiTimelinePlanRow from "@/components/ai/timeline/AiTimelinePlanRow.vue";
@@ -33,11 +33,32 @@ function tool(overrides: Partial<AiAssistantEvent> = {}): AiAssistantEvent {
   };
 }
 
-function mountTool(event = tool(), overrides = {}) {
-  return mount(AiTimelineToolRow, { props: {
+function mountTool(event = tool(), overrides = {}, attachTo?: HTMLElement) {
+  return mount(AiTimelineToolRow, { attachTo, props: {
     event, labels, awaitingApproval: false, conversationRunning: true, ...overrides,
   } });
 }
+
+function observeOutputHeight() {
+  let notify: (height: number) => void = () => {};
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(private readonly callback: ResizeObserverCallback) {}
+
+    observe(target: Element) {
+      if (!target.closest(".ai-agent-event-detail")) return;
+      notify = (height) => this.callback(
+        [{ contentRect: new DOMRect(0, 0, 320, height) } as ResizeObserverEntry],
+        this,
+      );
+    }
+
+    unobserve() {}
+    disconnect() {}
+  });
+  return (height: number) => notify(height);
+}
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("inline tool row", () => {
   it("opens for live output and folds when the command succeeds", async () => {
@@ -77,24 +98,36 @@ describe("inline tool row", () => {
   });
 
   it.each([
-    { status: "completed", toolName: "workspace.run_command" },
-    { status: "failed", toolName: "workspace.run_command" },
-    { status: "completed", toolName: "workspace.read_file", toolInput: '{"path":"demo.ts"}' },
-  ])("tails long $status $toolName output, with full copy and reversible expansion", async (overrides) => {
-    const lines = [...Array.from({ length: 17 }, (_, i) => `output line ${i + 1}`), "Final result"];
-    const detail = lines.join("\n");
-    const row = mountTool(tool({ detail, ...overrides }));
-    if (overrides.status === "completed") await row.get("button[aria-expanded]").trigger("click");
-    const preview = () => row.get(".ai-agent-event-detail pre code").element.textContent;
+    { status: "completed", toolName: "workspace.run_command", tail: true },
+    { status: "failed", toolName: "workspace.read_file", tail: true },
+    { status: "completed", toolName: "workspace.read_file", toolInput: '{"path":"demo.ts"}', tail: false },
+  ])("folds tall $status $toolName output with full copy and reversible expansion", async ({ tail, ...event }) => {
+    const setHeight = observeOutputHeight();
+    const detail = "content that wraps without any line breaks ".repeat(60).trim();
+    const row = mountTool(tool({ detail, ...event }), {}, document.body);
+    if (event.status === "completed") await row.get("button[aria-expanded]").trigger("click");
+    const viewport = row.get<HTMLElement>(".ai-agent-event-detail__viewport");
+    viewport.element.style.lineHeight = "15px";
     const toggle = () => row.get(".ai-timeline__output-toggle");
-    expect(preview()).toBe(lines.slice(-12).join("\n"));
-    expect(toggle().text()).toContain("18");
+    setHeight(180);
+    await row.vm.$nextTick();
+    expect(row.find(".ai-timeline__output-toggle").exists()).toBe(false);
+    setHeight(270);
+    await row.vm.$nextTick();
+    expect(viewport.text()).toBe(detail);
+    expect(viewport.classes().includes("is-tail")).toBe(tail);
+    expect(viewport.classes()).toContain("is-collapsed");
+    expect(toggle().attributes("aria-expanded")).toBe("false");
     await row.get('button[aria-label="Copy result"]').trigger("click");
     expect(copyText).toHaveBeenLastCalledWith(detail);
     await toggle().trigger("click");
-    expect(preview()).toBe(detail);
+    expect(viewport.classes()).not.toContain("is-collapsed");
+    expect(toggle().attributes("aria-expanded")).toBe("true");
     await toggle().trigger("click");
-    expect(preview()).toBe(lines.slice(-12).join("\n"));
+    expect(viewport.classes()).toContain("is-collapsed");
+    setHeight(150);
+    await row.vm.$nextTick();
+    expect(row.find(".ai-timeline__output-toggle").exists()).toBe(false);
     row.unmount();
   });
 
@@ -175,5 +208,53 @@ describe("inline activity rows", () => {
     expect(row.find("li").exists()).toBe(false);
     await row.get("button[aria-label=dismissTaskSteps]").trigger("click");
     expect(row.emitted("dismiss")).toEqual([[event.id]]);
+  });
+});
+
+describe("timeline colors and output toggle", () => {
+  it("colors the status icon by state", async () => {
+    const tone = (row: ReturnType<typeof mountTool>) => row.get(".ai-timeline__status-icon").attributes("data-tone");
+    const row = mountTool();
+    expect(tone(row)).toBe("running");
+    await row.setProps({ event: tool({ status: "completed" }) });
+    expect(tone(row)).toBe("success");
+    await row.setProps({ event: tool({ status: "failed", detail: "boom" }) });
+    expect(tone(row)).toBe("danger");
+    await row.setProps({ event: tool({ status: "running" }), awaitingApproval: true });
+    expect(tone(row)).toBe("warning");
+    await row.setProps({ event: tool({ status: "running" }), awaitingApproval: false, conversationRunning: false });
+    expect(tone(row)).toBe("muted");
+  });
+
+  it("colors the summary icon while exploring and when done", async () => {
+    const events = [tool({ id: "read", toolName: "workspace.read_file", title: "Read file", status: "completed" })];
+    const row = mount(AiTimelineToolSummaryRow, { props: { events, labels, running: true, conversationRunning: true } });
+    expect(row.get(".ai-timeline__status-icon").attributes("data-tone")).toBe("running");
+    await row.setProps({ running: false });
+    expect(row.get(".ai-timeline__status-icon").attributes("data-tone")).toBe("success");
+  });
+
+  it("places the show-all toggle below the folded output with a chevron", async () => {
+    const setHeight = observeOutputHeight();
+    const detail = "content that wraps without any line breaks ".repeat(60).trim();
+    const row = mountTool(tool({ detail, status: "completed" }), {}, document.body);
+    await row.get("button[aria-expanded]").trigger("click");
+    row.get<HTMLElement>(".ai-agent-event-detail__viewport").element.style.lineHeight = "15px";
+    setHeight(270);
+    await row.vm.$nextTick();
+    const toggle = row.get(".ai-timeline__output-toggle");
+    expect(toggle.element.previousElementSibling?.classList.contains("ai-agent-event-detail__viewport")).toBe(true);
+    expect(toggle.find("svg").exists()).toBe(true);
+    row.unmount();
+  });
+
+  it("styles status tones and the toggle with theme colors", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const { resolve } = await import("node:path");
+    const css = await readFile(resolve(process.cwd(), "src/styles/workspaces/ai/timeline.css"), "utf8");
+    for (const [tone, color] of [["success", "success"], ["danger", "danger"], ["warning", "warning"], ["running", "primary"]]) {
+      expect(css).toMatch(new RegExp(`\\.ai-timeline__status-icon\\[data-tone="${tone}"\\][^{]*\\{[^}]*color:\\s*var\\(--el-color-${color}\\)`));
+    }
+    expect(css).toMatch(/\.ai-timeline__output-toggle\s*\{[^}]*color:\s*var\(--el-color-primary\)/);
   });
 });
