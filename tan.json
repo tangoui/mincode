@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/tangoui/tango/4400ba652672ee2ad23783cd2d49996178e58302/cmd/tan/tan.schema.json",
   "name": "MinCode",
   "id": "com.tangoui.mincode",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "copyright": "(c) 2026, tango",
   "icon": "icons/appicon.png",
   "icons": {
