@@ -228,6 +228,17 @@ describe("local agent elicitation", () => {
 });
 
 describe("local agent directory in the assistant", () => {
+  it("sends a prompt while the background window is not painting", async () => {
+    const session = await mountAssistant();
+    const frame = vi.spyOn(window, "requestAnimationFrame").mockReturnValue(1);
+    try {
+      await session.send("Send while the WebView is not painting");
+      await vi.waitFor(() => expect(calls("acp_prompt")).toHaveLength(1), { timeout: 1000 });
+    } finally {
+      frame.mockRestore();
+    }
+  });
+
   it("starts an unbound conversation from the composer without adding a project binding", async () => {
     const { assistant, conversation, composer } = await mountAssistant();
     composer().vm.$emit("update:modelValue", "First message");

@@ -3262,7 +3262,15 @@ function waitForNextPaint() {
       resolve();
       return;
     }
-    window.requestAnimationFrame(() => resolve());
+    // A background WebView can suspend painting while a prompt is being sent.
+    const frame = window.requestAnimationFrame(() => {
+      window.clearTimeout(timeout);
+      resolve();
+    });
+    const timeout = window.setTimeout(() => {
+      window.cancelAnimationFrame(frame);
+      resolve();
+    }, 100);
   });
 }
 
