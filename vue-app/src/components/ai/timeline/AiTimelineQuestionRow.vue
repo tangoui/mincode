@@ -128,9 +128,10 @@ onBeforeUnmount(() => {
   >
     <div class="ai-timeline__row">
       <QuestionFilled class="ai-timeline__icon" aria-hidden="true" />
-      <strong :id="`${id}-title`" class="ai-timeline__title" aria-live="polite">{{ item.message || t("ai.question.required") }}</strong>
+      <strong :id="`${id}-title`" class="ai-timeline__title" aria-live="polite">{{ (!item.asyncDelivery && item.message) || t("ai.question.required") }}</strong>
     </div>
     <form class="ai-timeline__contents" @submit.prevent="submit" @keydown="onKeydown">
+      <p v-if="item.asyncDelivery && item.message" class="ai-timeline-question__hint">{{ item.message }}</p>
       <p v-if="seconds > 0" class="ai-timeline-question__hint">{{ t("ai.question.autoContinue", { seconds }) }}</p>
       <fieldset v-for="(draft, index) in drafts" :key="draft.question.id" class="ai-timeline-question__field" @keydown="moveOption">
         <legend :id="`${id}-field-${index}`">

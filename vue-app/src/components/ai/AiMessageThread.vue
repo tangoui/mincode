@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Refresh, VideoPlay } from "@element-plus/icons-vue";
+import { ArrowRight, CircleCheck, Refresh, VideoPlay } from "@element-plus/icons-vue";
 import { computed, provide, ref, shallowReactive, watch } from "vue";
 import AiMessageBubble from "@/components/ai/AiMessageBubble.vue";
 import AiTimelineApprovalRow, { type InlineToolApprovalLabels } from "@/components/ai/timeline/AiTimelineApprovalRow.vue";
@@ -18,7 +18,7 @@ import type { AiTaskStepStatus } from "@/domain/ai/event-presentations";
 import { mergeAiTokenUsage, type AiTokenUsage } from "@/domain/ai/token-usage";
 import { buildAiTimelineItems, isAiTimelineDelegationSettled, type AiTimelineDelegationChild } from "@/domain/ai/timeline-items";
 import type { ToolApprovalDecision, ToolApprovalQueueItem } from "@/domain/ai/tool-approval-queue";
-import type { AiQuestionAnswer } from "@/domain/ai/ask-user";
+import { ASK_USER_TOOL_NAME, type AiQuestionAnswer } from "@/domain/ai/ask-user";
 import type { AiQuestionQueueItem } from "@/domain/ai/question-queue";
 import {
   alignAiTimelineRenderStartToTurn,
@@ -416,6 +416,21 @@ const labels: AiTimelineLabels = {
           {{ continueLabel }}
         </el-button>
       </div>
+      <template v-else-if="item.kind === 'tool' && item.event.toolName === ASK_USER_TOOL_NAME && item.event.status === 'completed'">
+        <details v-if="item.event.detail && item.event.detail !== item.event.title" class="ai-timeline-question__history">
+          <summary class="ai-timeline__row" :title="item.event.title">
+            <CircleCheck class="ai-timeline__icon ai-timeline__status-icon" data-tone="success" aria-hidden="true" />
+            <strong class="ai-timeline__title">{{ item.event.title }}</strong>
+            <ArrowRight class="ai-timeline__icon ai-timeline-question__disclosure" aria-hidden="true" />
+          </summary>
+          <div class="ai-timeline__contents ai-timeline-question__result">{{ item.event.detail }}</div>
+        </details>
+        <AiTimelineNoticeRow v-else :text="item.event.title" />
+      </template>
+      <AiTimelineNoticeRow
+        v-else-if="item.kind === 'tool' && item.event.toolName === ASK_USER_TOOL_NAME && item.event.status === 'cancelled' && item.event.title === item.event.detail"
+        :text="item.event.title"
+      />
       <AiTimelineToolRow
         v-else-if="item.kind === 'tool'" :event="item.event" :awaiting-approval="item.awaitingApproval"
         :conversation-running="Boolean(generating || running)" :labels="labels"

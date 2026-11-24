@@ -408,6 +408,27 @@ button.ai-timeline__row:hover,
   overflow-wrap: anywhere;
 }
 
+.ai-timeline-question__result {
+  white-space: pre-wrap;
+}
+
+.ai-timeline-question__history > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.ai-timeline-question__history > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ai-timeline-question__disclosure {
+  margin-inline-start: auto;
+}
+
+.ai-timeline-question__history[open] .ai-timeline-question__disclosure {
+  transform: rotate(90deg);
+}
+
 .ai-timeline-error > .ai-timeline__row,
 .ai-timeline__error-detail {
   color: var(--app-danger);

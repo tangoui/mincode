@@ -77,6 +77,26 @@ test("Codex's other choice and companion note retain their schema IDs", () => {
   assert.doesNotMatch(summary, /secret-value|private-note/);
 });
 
+test("Codex 2.8.0's None of the above choice submits its actual value and note field", () => {
+  const schema = { type: "object", required: ["framework"], properties: {
+    framework: {
+      type: "string", title: "Which framework?", description: "Framework",
+      _meta: { codex: { isOther: true, isSecret: false } },
+      oneOf: [
+        { const: "Vue", title: "Vue" },
+        { const: "None of the above", title: "None of the above", description: "Provide a different answer in the note field." },
+      ],
+    },
+    framework_note: { type: "string", _meta: { codex: { role: "user_note", questionId: "framework" } } },
+  } };
+  const { questions } = elicitationToQuestions(schema);
+  assert.equal(questions[0].allowOther, true);
+  assert.deepEqual(questions[0].options.map(({ value }) => value), ["Vue"]);
+  assert.deepEqual(questionsToElicitationContent(schema, questions, [
+    { questionId: "framework", values: [], other: "Svelte" },
+  ]), { framework: "None of the above", framework_note: "Svelte" });
+});
+
 test("nested objects and unrenderable choice lists produce an explicit decline reason", () => {
   for (const field of [{ type: "object", properties: {} }, { type: "array", items: { type: "integer" } }]) {
     assert.ok(elicitationToQuestions({ type: "object", properties: { field } }).unsupported);

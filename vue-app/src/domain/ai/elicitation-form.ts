@@ -90,7 +90,10 @@ function mapQuestion(id: string, field: Field, required: boolean, companion: Com
   const options = choiceOptions(items, multiSelect);
   if (!options || (multiSelect && !options.length)) return undefined;
   if (!options.length) return question;
-  const otherOption = companion?.kind === "codex" ? options.find((option) => /^__other(?:_\d+)?__$/.test(option.value)) : undefined;
+  const otherOption = companion?.kind === "codex" ? options.find((option) =>
+    /^__other(?:_\d+)?__$/.test(option.value)
+    || (codexMeta(field)?.isOther === true && option.value === "None of the above"),
+  ) : undefined;
   return {
     ...question,
     input: "choice",

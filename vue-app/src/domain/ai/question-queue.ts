@@ -13,6 +13,7 @@ export interface AiQuestionQueueItem {
   toolCallId?: string;
   triggerMessageId?: string;
   message?: string;
+  asyncDelivery?: boolean;
   autoResolutionMs?: number;
   questions: AiQuestion[];
 }

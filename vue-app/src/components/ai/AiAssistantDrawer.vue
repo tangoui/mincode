@@ -59,6 +59,7 @@ import {
   isDesktopRuntime,
   listenAppEvent,
   nativeErrorMessage,
+  type BackendCommand,
 } from "@/services/desktop-bridge";
 import { approvalModeForConversation } from "@/domain/ai/conversation-approval";
 import { selectAiTurnHistory } from "@/domain/ai/turn-history";
@@ -166,8 +167,11 @@ import { applyUiTheme, normalizeUiTheme } from "@/services/ui-theme";
 import { getUserHomeDirectory, setAutostart, setMinimizeToTray } from "@/services/settings-service";
 import { aiCapabilityRegistry, type AiCapabilityExecutionResult } from "@/domain/ai/capability-registry";
 import { createAbortError, runWithAbort, throwIfAborted } from "@/domain/async/abort";
-import { ASK_USER_SKIPPED_RESULT, ASK_USER_TOOL_NAME, askUserGuidance, formatAiQuestionAnswers } from "@/domain/ai/ask-user";
-import { createQuestionQueue } from "@/domain/ai/question-queue";
+import {
+  ASK_USER_SKIPPED_RESULT, ASK_USER_TOOL_NAME, askUserGuidance, formatAiQuestionAnswers, type AiQuestionAnswer,
+} from "@/domain/ai/ask-user";
+import { elicitationToQuestions, questionsToElicitationContent } from "@/domain/ai/elicitation-form";
+import { createQuestionQueue, type AiQuestionQueueItem } from "@/domain/ai/question-queue";
 import { callMcpToolCancellable } from "@/services/mcp-tool-call";
 import { precedingUserMessage } from "@/domain/ai/conversation-rewind";
 import { adjacentConversationId } from "@/domain/ai/drawer-shortcuts";
@@ -567,6 +571,8 @@ onBeforeUnmount(() => {
 });
 let stopSessionUpdate: (() => void) | undefined;
 let stopPermissionRequest: (() => void) | undefined;
+let stopElicitationRequest: (() => void) | undefined;
+let stopElicitationClosed: (() => void) | undefined;
 let stopNativeFileDrop: (() => void) | undefined;
 let stopRunCancelRequested: (() => void) | undefined;
 
@@ -738,6 +744,11 @@ const currentApprovalModeLabel = computed(() =>
 );
 const toolApprovalQueue = createToolApprovalQueue();
 const questionQueue = createQuestionQueue();
+const pendingQuestions = ref<AiQuestionQueueItem[]>([]);
+const stopQuestionUpdates = questionQueue.subscribe(() => { pendingQuestions.value = questionQueue.list(); });
+const activeQuestions = computed(() =>
+  pendingQuestions.value.filter((question) => question.conversationId === assistant.activeConversationId),
+);
 const toolApprovals = ref<ToolApprovalQueueItem[]>([]);
 
 // Screen readers hear run state changes from one status region; the streamed text
@@ -2557,6 +2568,7 @@ function workspaceRoot() {
 }
 function agentToolDisplayName(name: string) {
   if (name === MCP_LOAD_TOOL_NAME) return t("ai.tool.mcpLoadTools");
+  if (name === ASK_USER_TOOL_NAME) return t("ai.question.asked");
   return name === "workspace.search_code" ? t("ai.tool.workspaceSearchCode") : name;
 }
 
@@ -2573,14 +2585,19 @@ function upsertToolEvent(
   status: AiAssistantEvent["status"],
   detail?: string
 ) {
+  const args = toolArguments(call);
+  const questions = call.name === ASK_USER_TOOL_NAME && Array.isArray(args.questions) ? args.questions : undefined;
+  const header = asRecord(questions?.[0]).header;
+  const summary = questions ? undefined : summarizeToolApprovalArguments(args);
   assistant.upsertAgentEventForConversation(conversationId, {
     id: `loop-tool-${call.id}`,
     kind: "tool",
-    title: agentToolDisplayName(call.name),
-    detail: safeAiText(detail ?? summarizeToolApprovalArguments(toolArguments(call)) ?? call.name, 2_000),
+    title: typeof header === "string" && questions ? questionEventTitle(header, questions.length) : agentToolDisplayName(call.name),
+    detail: detail === ASK_USER_SKIPPED_RESULT && questions
+      ? t("ai.question.skipped") : safeAiText(detail ?? summary ?? (questions ? "" : call.name), 2_000),
     status,
     toolName: call.name,
-    toolInput: summarizeToolApprovalArguments(toolArguments(call)),
+    toolInput: summary,
     triggerMessageId,
   });
 }
@@ -4127,6 +4144,7 @@ async function handleAcpServersDisconnected(serverIds: string[]) {
 function releaseAcpRun(conversationId: string) {
   const target = acpRunTargets.get(conversationId);
   if (!target) return;
+  questionQueue.cancelConversation(conversationId);
   acpRunTargets.delete(conversationId);
   acpContextInjected.delete(conversationId);
   stoppedAcpSessions.delete(acpSessionKey(target));
@@ -4514,6 +4532,156 @@ async function switchAdjacentConversation(direction: -1 | 1) {
   const id = adjacentConversationId(ids, assistant.activeConversationId, direction);
   if (id) await switchConversation(id);
 }
+interface AcpElicitationOwner {
+  requestId: string;
+  serverId: string;
+  sessionId: string;
+}
+
+interface AcpElicitationRequest extends AcpElicitationOwner {
+  toolCallId?: string;
+  message: string;
+  requestedSchema: unknown;
+  meta?: unknown;
+}
+
+interface PendingAcpElicitation {
+  request: AcpElicitationRequest;
+  conversationId: string;
+  queueId: string;
+  triggerMessageId?: string;
+  title: string;
+  withdrawn: boolean;
+}
+
+const pendingAcpElicitations = new Map<string, PendingAcpElicitation>();
+
+function questionEventTitle(header: string, count: number) {
+  if (!header) return t("ai.question.asked");
+  return count > 1
+    ? t("ai.question.askedMore", { header, count })
+    : t("ai.question.askedWithHeader", { header });
+}
+
+function elicitationConversation(request: AcpElicitationRequest) {
+  if (request.sessionId) return findConversationByAcpSession(request.serverId, request.sessionId);
+  const matches = [...activeAcpPrompts].filter(([id, target]) =>
+    target.serverId === request.serverId && !acpPromptAborts.get(id)?.signal.aborted && assistant.conversationById(id));
+  return matches.length === 1 ? assistant.conversationById(matches[0]![0]) : undefined;
+}
+
+function respondAcpElicitation(
+  { requestId, serverId, sessionId }: AcpElicitationOwner,
+  action: "accept" | "decline" | "cancel",
+  content?: Record<string, unknown>,
+) {
+  // The ACP change and the generated command list land separately.
+  return invokeBackend("acp_respond_elicitation" as BackendCommand, {
+    requestId, serverId, sessionId, action, ...(content ? { content } : {}),
+  });
+}
+
+function recordAcpQuestion(
+  conversationId: string,
+  requestId: string,
+  triggerMessageId: string | undefined,
+  title: string,
+  detail: string,
+  status: "completed" | "cancelled",
+) {
+  assistant.upsertAgentEventForConversation(conversationId, {
+    id: `question-${requestId}`, kind: "tool", toolName: ASK_USER_TOOL_NAME, triggerMessageId, title, detail, status,
+  });
+}
+
+async function handleAcpElicitationRequest(request: AcpElicitationRequest) {
+  if (!request?.requestId || pendingAcpElicitations.has(request.requestId)) return;
+  const conversation = elicitationConversation(request);
+  if (!conversation) {
+    await respondAcpElicitation(request, "decline").catch(() => {});
+    return;
+  }
+  const conversationId = conversation.id;
+  const prompt = activeAcpPrompts.get(conversationId) ?? acpSessionTarget(conversation);
+  if (acpPromptAborts.get(conversationId)?.signal.aborted || (prompt && stoppedAcpSessions.has(acpSessionKey(prompt)))) {
+    await respondAcpElicitation(request, "cancel").catch(() => {});
+    return;
+  }
+  const toolAnchor = request.toolCallId && acpEventMessageIds.get(conversationId)?.get(request.toolCallId);
+  const lastMessage = conversation.messages[conversation.messages.length - 1];
+  const triggerMessageId = toolAnchor || acpCurrentMessageIds.get(conversationId) || lastMessage?.id;
+  const form = elicitationToQuestions(request.requestedSchema);
+  if ("unsupported" in form) {
+    const detail = t("ai.question.unsupported");
+    recordAcpQuestion(conversationId, request.requestId, triggerMessageId, detail, detail, "completed");
+    await respondAcpElicitation(request, "decline").catch(() => {});
+    return;
+  }
+  const { questions } = form;
+  const codex = asRecord(asRecord(request.meta).codex);
+  const milliseconds = codex.autoResolutionMs;
+  const ticket = questionQueue.enqueue({
+    conversationId,
+    source: "acp",
+    questions,
+    toolCallId: request.toolCallId,
+    triggerMessageId,
+    message: request.message,
+    asyncDelivery: codex.delivery === "async",
+    autoResolutionMs: typeof milliseconds === "number" && Number.isFinite(milliseconds) && milliseconds > 0 ? milliseconds : undefined,
+  });
+  const first = questions[0];
+  const pending: PendingAcpElicitation = {
+    request, conversationId, queueId: ticket.id, triggerMessageId, withdrawn: false,
+    title: questionEventTitle(first?.header || first?.question || request.message, questions.length),
+  };
+  pendingAcpElicitations.set(request.requestId, pending);
+  try {
+    const outcome = await ticket.outcome;
+    if (outcome.kind === "withdrawn") return;
+    if (outcome.kind === "cancelled" || !assistant.conversationById(conversationId)) {
+      await respondAcpElicitation(request, "cancel").catch(() => {});
+      return;
+    }
+    const content = outcome.kind === "answered"
+      ? questionsToElicitationContent(request.requestedSchema, questions, outcome.answers)
+      : undefined;
+    await respondAcpElicitation(request, content ? "accept" : "decline", content);
+    if (pending.withdrawn) return;
+    const detail = outcome.kind === "answered"
+      ? formatAiQuestionAnswers(questions, outcome.answers, {
+        filled: t("ai.question.filled"),
+        yes: t("ai.question.yes"),
+        no: t("ai.question.no"),
+        note: (text) => t("ai.question.noteSummary", { text }),
+      }) || t("ai.question.submitted")
+      : t("ai.question.skipped");
+    recordAcpQuestion(conversationId, request.requestId, triggerMessageId, pending.title, detail, "completed");
+  } catch {
+    if (!pending.withdrawn) ElMessage.error(t("ai.question.responseFailed"));
+  } finally {
+    pendingAcpElicitations.delete(request.requestId);
+  }
+}
+
+function handleAcpElicitationClosed(event: AcpElicitationOwner & { reason: "withdrawn" }) {
+  const pending = pendingAcpElicitations.get(event?.requestId);
+  if (!pending || event.reason !== "withdrawn" || pending.withdrawn
+    || event.serverId !== pending.request.serverId || event.sessionId !== pending.request.sessionId) return;
+  pending.withdrawn = true;
+  questionQueue.resolve(pending.queueId, { kind: "withdrawn" });
+  const detail = t("ai.question.withdrawn");
+  recordAcpQuestion(pending.conversationId, event.requestId, pending.triggerMessageId, detail, detail, "cancelled");
+}
+
+function answerQuestion(id: string, answers: AiQuestionAnswer[]) {
+  questionQueue.resolve(id, { kind: "answered", answers });
+}
+
+function skipQuestion(id: string) {
+  questionQueue.resolve(id, { kind: "skipped" });
+}
+
 async function handleProtocolPermissionRequest(request: AiAssistantPermission) {
   let conversation = findConversationByAcpSession(request.serverId, request.sessionId);
   if (!conversation) return;
@@ -4987,6 +5155,14 @@ onMounted(() => {
     "acp:permission-request",
     (payload) => void handleProtocolPermissionRequest(payload),
   );
+  stopElicitationRequest = listenAppEvent<AcpElicitationRequest>(
+    "acp:elicitation-request",
+    (payload) => void handleAcpElicitationRequest(payload),
+  );
+  stopElicitationClosed = listenAppEvent<AcpElicitationOwner & { reason: "withdrawn" }>(
+    "acp:elicitation-closed",
+    handleAcpElicitationClosed,
+  );
   if (isStreamAvailable()) {
     // ACP 暂无历史帧快照；显式确认订阅并在断线后恢复后续增量消费。
     stopSessionUpdate = listenResilientJSONStream<{ event?: string; payload?: unknown }>({
@@ -5019,8 +5195,11 @@ onBeforeUnmount(() => {
   stopGlobalToolAuthorizationUpdates();
   toolApprovalQueue.dispose();
   questionQueue.dispose();
+  stopQuestionUpdates();
   stopSessionUpdate?.();
   stopPermissionRequest?.();
+  stopElicitationRequest?.();
+  stopElicitationClosed?.();
   stopNativeFileDrop?.();
   stopRunCancelRequested?.();
   stopAllAgents();
@@ -5253,6 +5432,7 @@ onBeforeUnmount(() => {
                 :delegation-status-labels="conversationSidebarLabels.statusLabels"
                 @open-delegation="switchConversation"
                 :approvals="activeToolApprovals"
+                :questions="activeQuestions"
                 :permission="assistant.pendingPermission ?? null"
                 :composer-has-draft="input.length > 0"
                 :expansion-choices="timelineExpansion"
@@ -5337,6 +5517,8 @@ onBeforeUnmount(() => {
                 @stop-agent="stopDefaultDirectoryAgent(assistant.activeConversationId)"
                 @decide-approval="resolveToolApproval"
                 @answer-permission="answerPermission"
+                @answer-question="answerQuestion"
+                @skip-question="skipQuestion"
                 @dismiss-event="dismissAgentEvent"
               />
               <p v-if="activeParallelDelegationPending" class="ai-delegation-pending" role="status">

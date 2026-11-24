@@ -99,6 +99,8 @@ async function mountAssistant(boundRoot = "") {
       stubs: {
         AppSplitPane: { template: '<section><slot name="first" /><slot name="second" /></section>' },
         AiMessageThread: false,
+        AiTimelineQuestionRow: false,
+        ElInput: false,
         ElButton: { template: "<button><slot /></button>" },
         ElScrollbar: { template: "<div><slot /></div>" },
       },
@@ -140,6 +142,89 @@ afterEach(() => {
   host.invoke.mockResolvedValue([]);
   host.events.clear();
   host.chooseDirectory.mockReset();
+});
+
+describe("local agent elicitation", () => {
+  const requestedSchema = { type: "object", properties: {
+    password: { type: "string", title: "Access code", _meta: { codex: { isSecret: true } } },
+  }, required: ["password"] };
+
+  function ask(payload: Record<string, unknown>) {
+    host.events.get("acp:elicitation-request")?.({
+      requestId: "elicitation-1", message: "Choose an access code", requestedSchema, ...payload,
+    });
+  }
+
+  it("answers through the timeline and stores a masked result in the drawer", async () => {
+    const { assistant, thread } = await mountAssistant(project);
+    const serverId = assistant.activeConversation!.acpServerId;
+    ask({ serverId, sessionId: originalId });
+    await flushPromises();
+    const question = thread().get(".ai-timeline-question");
+    expect(question.text()).toContain("Choose an access code");
+    await question.get("input").setValue("fixture-only-secret");
+    await question.get("form").trigger("submit");
+    await flushPromises();
+    expect(calls("acp_respond_elicitation")).toEqual([{
+      requestId: "elicitation-1", serverId, sessionId: originalId, action: "accept",
+      content: { password: "fixture-only-secret" },
+    }]);
+    expect(thread().find(".ai-timeline-question").exists()).toBe(false);
+    const result = assistant.activeConversation!.agentEvents.find(({ id }) => id === "question-elicitation-1");
+    expect(result?.status).toBe("completed");
+    expect(result?.detail).toContain("已填写");
+    expect(JSON.stringify(result)).not.toContain("fixture-only-secret");
+    const history = thread().get(".ai-timeline-question__history");
+    expect(history.attributes("open")).toBeUndefined();
+    expect(history.get("summary").text()).toContain("Access code");
+    expect(history.get(".ai-timeline-question__result").text()).toContain("已填写");
+  });
+
+  it("declines forms the timeline cannot render and records the outcome", async () => {
+    const { assistant, thread } = await mountAssistant(project);
+    const serverId = assistant.activeConversation!.acpServerId;
+    ask({ serverId, sessionId: originalId, requestedSchema: { type: "object", properties: { nested: { type: "object" } } } });
+    await flushPromises();
+    expect(thread().find(".ai-timeline-question").exists()).toBe(false);
+    expect(calls("acp_respond_elicitation")).toEqual([{
+      requestId: "elicitation-1", serverId, sessionId: originalId, action: "decline",
+    }]);
+    expect(assistant.activeConversation!.agentEvents.find(({ id }) => id === "question-elicitation-1")?.detail).toContain("已拒绝");
+  });
+
+  it("removes a withdrawn question without sending a duplicate reply", async () => {
+    const { assistant, thread } = await mountAssistant(project);
+    const serverId = assistant.activeConversation!.acpServerId;
+    ask({ serverId, sessionId: originalId });
+    await flushPromises();
+    expect(thread().find(".ai-timeline-question").exists()).toBe(true);
+    host.events.get("acp:elicitation-closed")?.({ requestId: "elicitation-1", serverId, sessionId: originalId, reason: "withdrawn" });
+    await flushPromises();
+    expect(thread().find(".ai-timeline-question").exists()).toBe(false);
+    expect(calls("acp_respond_elicitation")).toEqual([]);
+    expect(assistant.activeConversation!.agentEvents.find(({ id }) => id === "question-elicitation-1")).toMatchObject({
+      status: "cancelled", detail: expect.stringContaining("已撤回"),
+    });
+  });
+
+  it("routes a missing session ID only to a running prompt and cancels it when the user stops", async () => {
+    const session = await mountAssistant();
+    await session.send("Start a prompt");
+    await vi.waitFor(() => expect(calls("acp_prompt")).toHaveLength(1));
+    const serverId = calls("acp_prompt")[0]?.serverId;
+    expect(serverId).toEqual(expect.any(String));
+    ask({ serverId: "unavailable", sessionId: "", requestId: "unroutable" });
+    ask({ serverId, sessionId: "" });
+    await flushPromises();
+    expect(session.thread().findAll(".ai-timeline-question")).toHaveLength(1);
+    session.composer().vm.$emit("cancel");
+    await flushPromises();
+    expect(calls("acp_respond_elicitation")).toEqual([
+      { requestId: "unroutable", serverId: "unavailable", sessionId: "", action: "decline" },
+      { requestId: "elicitation-1", serverId, sessionId: "", action: "cancel" },
+    ]);
+    expect(session.thread().find(".ai-timeline-question").exists()).toBe(false);
+  });
 });
 
 describe("local agent directory in the assistant", () => {
