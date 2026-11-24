@@ -10,6 +10,7 @@ export const BACKEND_COMMANDS = [
   "acp_load_session",
   "acp_new_session",
   "acp_prompt",
+  "acp_respond_elicitation",
   "acp_respond_permission",
   "acp_set_config_option",
   "agent_run_list",

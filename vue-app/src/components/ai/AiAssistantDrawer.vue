@@ -59,7 +59,6 @@ import {
   isDesktopRuntime,
   listenAppEvent,
   nativeErrorMessage,
-  type BackendCommand,
 } from "@/services/desktop-bridge";
 import { approvalModeForConversation } from "@/domain/ai/conversation-approval";
 import { selectAiTurnHistory } from "@/domain/ai/turn-history";
@@ -4576,7 +4575,7 @@ function respondAcpElicitation(
   content?: Record<string, unknown>,
 ) {
   // The ACP change and the generated command list land separately.
-  return invokeBackend("acp_respond_elicitation" as BackendCommand, {
+  return invokeBackend("acp_respond_elicitation", {
     requestId, serverId, sessionId, action, ...(content ? { content } : {}),
   });
 }
