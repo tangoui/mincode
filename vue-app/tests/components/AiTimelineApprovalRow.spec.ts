@@ -106,17 +106,33 @@ for (const source of [native(), acp]) {
   });
 
   it(`focuses the first ${source.kind} action without a draft and restores focus on removal`, async () => {
-    const composer = document.body.appendChild(document.createElement("textarea"));
+    const panel = document.body.appendChild(document.createElement("aside"));
+    panel.className = "ai-assistant-drawer__panel";
+    const composer = panel.appendChild(document.createElement("textarea"));
     composer.focus();
     const visible = ref(true);
     const wrapper = mount({ render: () => visible.value
       ? h(AiTimelineApprovalRow, { source, labels, composerHasDraft: false })
-      : null }, { attachTo: document.body });
+      : null }, { attachTo: panel });
     await nextTick();
     expect(document.activeElement).toBe(wrapper.get("button").element);
     visible.value = false;
     await nextTick();
     expect(document.activeElement).toBe(composer);
     wrapper.unmount();
+  });
+
+  it(`preserves focus outside the AI panel when a ${source.kind} approval arrives`, async () => {
+    const input = document.body.appendChild(document.createElement("input"));
+    const panel = document.body.appendChild(document.createElement("aside"));
+    panel.className = "ai-assistant-drawer__panel";
+    input.focus();
+    const wrapper = row(source, false, panel);
+    try {
+      await nextTick();
+      expect(document.activeElement).toBe(input);
+    } finally {
+      wrapper.unmount();
+    }
   });
 }

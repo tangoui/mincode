@@ -65,8 +65,10 @@ let previousFocus: HTMLElement | null = null;
 function reveal() {
   if (props.surfaceHidden || !root.value?.isConnected) return;
   const active = document.activeElement;
-  if (active instanceof HTMLElement && !root.value.contains(active)) previousFocus = active;
   root.value.scrollIntoView?.({ block: "nearest" });
+  const panel = root.value.closest(".ai-assistant-drawer__panel");
+  if (!(active instanceof HTMLElement) || !panel?.contains(active)) return;
+  if (!root.value.contains(active)) previousFocus = active;
   if (!props.composerHasDraft) root.value.querySelector("button")?.focus({ preventScroll: true });
 }
 onMounted(() => { void nextTick(reveal); });
