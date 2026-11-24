@@ -7,6 +7,7 @@ import AiTimelineDelegationRow from "@/components/ai/timeline/AiTimelineDelegati
 import AiTimelineErrorRow from "@/components/ai/timeline/AiTimelineErrorRow.vue";
 import AiTimelineNoticeRow from "@/components/ai/timeline/AiTimelineNoticeRow.vue";
 import AiTimelinePlanRow from "@/components/ai/timeline/AiTimelinePlanRow.vue";
+import AiTimelineQuestionRow from "@/components/ai/timeline/AiTimelineQuestionRow.vue";
 import AiTimelineThoughtRow from "@/components/ai/timeline/AiTimelineThoughtRow.vue";
 import AiTimelineToolRow from "@/components/ai/timeline/AiTimelineToolRow.vue";
 import AiTimelineToolSummaryRow from "@/components/ai/timeline/AiTimelineToolSummaryRow.vue";
@@ -17,6 +18,8 @@ import type { AiTaskStepStatus } from "@/domain/ai/event-presentations";
 import { mergeAiTokenUsage, type AiTokenUsage } from "@/domain/ai/token-usage";
 import { buildAiTimelineItems, isAiTimelineDelegationSettled, type AiTimelineDelegationChild } from "@/domain/ai/timeline-items";
 import type { ToolApprovalDecision, ToolApprovalQueueItem } from "@/domain/ai/tool-approval-queue";
+import type { AiQuestionAnswer } from "@/domain/ai/ask-user";
+import type { AiQuestionQueueItem } from "@/domain/ai/question-queue";
 import {
   alignAiTimelineRenderStartToTurn,
   earlierAiMessageRenderStart,
@@ -35,6 +38,7 @@ const props = defineProps<{
   delegationModelLabels?: Record<string, string>;
   delegationStatusLabels?: Record<string, string>;
   approvals?: ToolApprovalQueueItem[];
+  questions?: AiQuestionQueueItem[];
   approvalLabels?: InlineToolApprovalLabels;
   permission: AiAssistantPermission | null;
   composerHasDraft: boolean;
@@ -96,6 +100,8 @@ const emit = defineEmits<{
   stopAgent: [];
   "decide-approval": [id: string, decision: ToolApprovalDecision];
   "answer-permission": [optionId?: string];
+  "answer-question": [id: string, answers: AiQuestionAnswer[]];
+  "skip-question": [id: string];
   "dismiss-event": [event: AiAssistantEvent];
   "open-delegation": [id: string];
   "edit-failed": [message: AiAssistantMessage];
@@ -214,6 +220,7 @@ const timelineItems = computed(() => buildAiTimelineItems({
   anchoredApprovals: anchoredApprovals.value,
   activeApprovals: activeApprovals.value,
   permission: props.permission ?? null,
+  questions: props.questions,
   continueAt: continueAt.value,
   running: props.running,
   conversationRunning: props.generating,
@@ -222,6 +229,7 @@ const timelineItems = computed(() => buildAiTimelineItems({
     : undefined,
 }));
 const itemCount = computed(() => timelineItems.value.length);
+const latestQuestionId = computed(() => props.questions?.[props.questions.length - 1]?.id);
 const windowStart = ref(firstPaintAiMessageRenderStart(itemCount.value));
 const widenedByReader = ref(false);
 const visibleStart = computed(() => alignAiTimelineRenderStartToTurn(timelineItems.value, windowStart.value));
@@ -231,16 +239,19 @@ const visibleItems = computed(() => {
   if (!start) return items;
   // Keep an older pending decision visible with the tool that owns it.
   const alwaysVisible = new Set<number>();
+  let decisionToolIndex: number | undefined;
   for (let index = 0; index <= start; index += 1) {
     const item = items[index];
     if (item?.kind === "delegation" && (index === start || item.children.some(child => !isAiTimelineDelegationSettled(child)))) {
       if (index < start) alwaysVisible.add(index);
       if (items[index - 1]?.key === item.toolKey && item.toolKey) alwaysVisible.add(index - 1);
     }
-    if (item?.kind !== "approval" && item?.kind !== "permission") continue;
+    if (item?.kind !== "approval" && item?.kind !== "permission" && item?.kind !== "question") {
+      decisionToolIndex = item?.kind === "tool" && item.awaitingApproval ? index : undefined;
+      continue;
+    }
     if (index < start) alwaysVisible.add(index);
-    const tool = items[index - 1];
-    if (tool?.kind === "tool" && tool.awaitingApproval) alwaysVisible.add(index - 1);
+    if (decisionToolIndex !== undefined) alwaysVisible.add(decisionToolIndex);
   }
   return [...Array.from(alwaysVisible).sort((a, b) => a - b).map((index) => items[index]!), ...items.slice(start)];
 });
@@ -337,7 +348,7 @@ const labels: AiTimelineLabels = {
         {{ stopAgentLabel }}
       </el-button>
     </div>
-    <div v-if="!messages.length && !events.length && !delegatedChildren?.length" class="ai-assistant-welcome">
+    <div v-if="!messages.length && !events.length && !delegatedChildren?.length && !questions?.length" class="ai-assistant-welcome">
       <div>AI</div>
       <strong>{{ title }}</strong>
       <p>{{ hint }}</p>
@@ -435,6 +446,13 @@ const labels: AiTimelineLabels = {
         v-else-if="item.kind === 'permission'" :source="{ kind: 'permission', permission: item.permission }"
         :composer-has-draft="composerHasDraft"
         @decide-permission="emit('answer-permission', $event)"
+      />
+      <AiTimelineQuestionRow
+        v-else-if="item.kind === 'question'" :item="item.question"
+        :composer-has-draft="composerHasDraft"
+        :auto-reveal="item.question.id === latestQuestionId"
+        @answer="emit('answer-question', item.question.id, $event)"
+        @skip="emit('skip-question', item.question.id)"
       />
       <AiTimelineDelegationRow
         v-else-if="item.kind === 'delegation'" :group="item" :model-labels="delegationModelLabels"

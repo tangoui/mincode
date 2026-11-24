@@ -9,6 +9,7 @@ import { describeAiAgentEventActivity, type AiAgentActivityKind } from "./agent-
 import type { AiAnchoredEventGroup } from "./agent-event-groups";
 import { isAiAgentEventRunning } from "./agent-event-timing";
 import type { ToolApprovalQueueItem } from "./tool-approval-queue";
+import type { AiQuestionQueueItem } from "./question-queue";
 
 export const AI_TIMELINE_READ_ONLY_KINDS: readonly AiAgentActivityKind[] = [
   "readFile", "openFile", "searchCode", "searchFiles",
@@ -34,6 +35,7 @@ export type AiTimelineItem =
   | { kind: "thought" | "plan" | "mode"; key: string; event: AiAssistantEvent }
   | { kind: "approval"; key: string; approval: ToolApprovalQueueItem }
   | { kind: "permission"; key: string; permission: AiAssistantPermission }
+  | { kind: "question"; key: string; question: AiQuestionQueueItem }
   | { kind: "continue"; key: string; index: number }
   | { kind: "thinking"; key: string }
   | { kind: "delegation"; key: string; toolKey?: string; children: AiTimelineDelegationChild[] };
@@ -50,6 +52,7 @@ export interface AiTimelineInput {
   anchoredApprovals: ReadonlyMap<number, readonly ToolApprovalQueueItem[]>;
   activeApprovals: readonly ToolApprovalQueueItem[];
   permission: AiAssistantPermission | null;
+  questions?: readonly AiQuestionQueueItem[];
   continueAt: number | null;
   running: boolean;
   conversationRunning?: boolean;
@@ -68,6 +71,7 @@ export function aiPermissionToolCallId(permission: AiAssistantPermission): strin
 }
 
 type ApprovalItem = Extract<AiTimelineItem, { kind: "approval" | "permission" }>;
+type PendingDecisionItem = Extract<AiTimelineItem, { kind: "approval" | "permission" | "question" }>;
 
 export function aiTimelineEventKey(event: AiAssistantEvent) {
   return JSON.stringify([event.triggerMessageId ?? event.afterMessageIndex, event.id]);
@@ -80,7 +84,7 @@ function approvalItem(approval: ToolApprovalQueueItem): ApprovalItem {
 export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
   const items: AiTimelineItem[] = [];
   const toolMatches = new Map<string, AiAssistantEvent[]>();
-  const attachedApprovals = new Map<AiAssistantEvent, ApprovalItem[]>();
+  const attachedDecisions = new Map<AiAssistantEvent, PendingDecisionItem[]>();
   const placed = new Set<string>();
   const groupAnchors = new Map<number, number>();
 
@@ -93,18 +97,18 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
     }
   }
 
-  function attach(item: ApprovalItem, ids: readonly string[], anchor?: string) {
+  function attach(item: PendingDecisionItem, ids: readonly string[], anchor?: string) {
     const candidates = ids.flatMap((id) => toolMatches.get(id) ?? []);
     const event = (anchor && candidates.find((candidate) => candidate.triggerMessageId === anchor))
       || candidates[candidates.length - 1];
     if (!event) return;
-    const approvals = attachedApprovals.get(event) ?? [];
-    approvals.push(item);
-    attachedApprovals.set(event, approvals);
+    const decisions = attachedDecisions.get(event) ?? [];
+    decisions.push(item);
+    attachedDecisions.set(event, decisions);
     placed.add(item.key);
   }
 
-  if (input.anchoredApprovals.size || input.activeApprovals.length || input.permission) {
+  if (input.anchoredApprovals.size || input.activeApprovals.length || input.permission || input.questions?.length) {
     for (const group of input.groupsByAnchor.values()) {
       for (const anchor of group.anchorIndexes) groupAnchors.set(anchor, group.anchorIndex);
       indexTools(group.events);
@@ -136,6 +140,14 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
     const id = aiPermissionToolCallId(permission.permission);
     if (id) attach(permission, [id]);
   }
+  const questions = (input.questions ?? []).map((question): PendingDecisionItem => {
+    const item = { kind: "question" as const, key: `question:${question.id}`, question };
+    if (question.toolCallId) {
+      const id = question.source === "native" ? `loop-tool-${question.toolCallId}` : question.toolCallId;
+      attach(item, [id], question.triggerMessageId);
+    }
+    return item;
+  });
 
   function appendEvents(events: readonly AiAssistantEvent[]) {
     let summary: Extract<AiTimelineItem, { kind: "toolSummary" }> | undefined;
@@ -147,9 +159,9 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
         items.push({ kind: event.kind, key: `${event.kind}:${key}`, event });
         continue;
       }
-      const approvals = attachedApprovals.get(event);
+      const decisions = attachedDecisions.get(event);
       const unfinished = isAiAgentEventRunning(event);
-      const readOnly = !approvals && (conversationRunning || !unfinished)
+      const readOnly = !decisions && (conversationRunning || !unfinished)
         && !FAILED_STATUSES.has(event.status?.trim().toLowerCase() ?? "")
         && AI_TIMELINE_READ_ONLY_KINDS.includes(describeAiAgentEventActivity(event).kind);
       if (readOnly) {
@@ -162,8 +174,8 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
         continue;
       }
       summary = undefined;
-      items.push({ kind: "tool", key: `tool:${key}`, event, awaitingApproval: Boolean(approvals) });
-      if (approvals) items.push(...approvals);
+      items.push({ kind: "tool", key: `tool:${key}`, event, awaitingApproval: Boolean(decisions) });
+      if (decisions) items.push(...decisions);
     }
   }
 
@@ -185,6 +197,7 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
   items.push(...activeApprovals.filter(({ key }) => !placed.has(key)));
   if (permission && !placed.has(permission.key)) items.push(permission);
   if (input.running) items.push({ kind: "thinking", key: "thinking" });
+  items.push(...questions.filter(({ key }) => !placed.has(key)));
   return input.delegations?.children.length ? insertDelegations(items, input.delegations) : items;
 }
 

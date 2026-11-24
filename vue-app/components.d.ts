@@ -33,6 +33,7 @@ declare module 'vue' {
     AiTimelineEventContents: typeof import('./src/components/ai/timeline/AiTimelineEventContents.vue')['default']
     AiTimelineNoticeRow: typeof import('./src/components/ai/timeline/AiTimelineNoticeRow.vue')['default']
     AiTimelinePlanRow: typeof import('./src/components/ai/timeline/AiTimelinePlanRow.vue')['default']
+    AiTimelineQuestionRow: typeof import('./src/components/ai/timeline/AiTimelineQuestionRow.vue')['default']
     AiTimelineThoughtRow: typeof import('./src/components/ai/timeline/AiTimelineThoughtRow.vue')['default']
     AiTimelineToolRow: typeof import('./src/components/ai/timeline/AiTimelineToolRow.vue')['default']
     AiTimelineToolSummaryRow: typeof import('./src/components/ai/timeline/AiTimelineToolSummaryRow.vue')['default']

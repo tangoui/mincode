@@ -35,6 +35,24 @@ function build(events, overrides = {}) {
 }
 const kinds = (items) => items.map(({ kind }) => kind);
 
+test("native and ACP questions follow their matching tool rows", () => {
+  const native = { id: "n1", conversationId: "c1", source: "native", toolCallId: "call-native", questions: [] };
+  const acp = { id: "a1", conversationId: "c1", source: "acp", toolCallId: "call-acp", questions: [] };
+  const items = build([tool("loop-tool-call-native"), tool("call-acp")], { questions: [native, acp] });
+  assert.deepEqual(kinds(items), ["message", "tool", "question", "tool", "question"]);
+  assert.equal(items[1].awaitingApproval, true);
+  assert.equal(items[3].awaitingApproval, true);
+  assert.deepEqual(items[2], { kind: "question", key: "question:n1", question: native });
+  assert.equal(items[4].question, acp);
+});
+
+test("unmatched questions remain at the timeline end in queue order", () => {
+  const first = { id: "q1", conversationId: "c1", source: "acp", questions: [] };
+  const second = { ...first, id: "q2", toolCallId: "absent" };
+  const items = build([tool("a")], { questions: [first, second], running: true });
+  assert.deepEqual(items.slice(-2).map((item) => item.question), [first, second]);
+});
+
 test("merges consecutive read-only tools", () => {
   const events = [tool("a"), tool("b"), tool("c"), tool("d", "search_code")];
   const items = build(events);
