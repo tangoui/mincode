@@ -4574,7 +4574,6 @@ function respondAcpElicitation(
   action: "accept" | "decline" | "cancel",
   content?: Record<string, unknown>,
 ) {
-  // The ACP change and the generated command list land separately.
   return invokeBackend("acp_respond_elicitation", {
     requestId, serverId, sessionId, action, ...(content ? { content } : {}),
   });
