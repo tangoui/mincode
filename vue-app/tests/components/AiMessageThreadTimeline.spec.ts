@@ -122,12 +122,13 @@ it("answers an ACP permission inside the thread", async () => {
   wrapper.unmount();
 });
 
-it("labels a pending question as waiting for an answer", () => {
+it("shows the question title and waiting status on a pending native tool row", () => {
   const wrapper = thread({
-    events: [event("loop-tool-ask", "ask_user", { status: "running" })],
+    events: [event("loop-tool-ask", "ask_user", { status: "running", title: "向你提问：Choice" })],
     questions: [{ id: "q1", conversationId: "c1", source: "native", toolCallId: "ask", questions: [] }],
   });
   try {
+    expect(wrapper.get(".ai-timeline-tool .ai-timeline__title code").text()).toBe("向你提问：Choice");
     expect(wrapper.get(".ai-timeline-tool [role=status]").text()).toMatch(/等待你回答|Waiting for your answer/);
   } finally {
     wrapper.unmount();

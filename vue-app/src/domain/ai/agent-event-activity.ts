@@ -1,3 +1,4 @@
+import { ASK_USER_TOOL_NAME } from "./ask-user.ts";
 import { normalizeAiEventText } from "./event-presentations.ts";
 
 export type AiAgentActivityKind =
@@ -288,9 +289,11 @@ export function describeAiAgentEventActivity(event: AiAgentEventActivityInput): 
 
   const categorized = prefixActivity(event, toolName);
   if (categorized) return categorized;
+  const name = event.toolName?.trim();
+  const title = fallbackTarget(event);
   return {
     kind: "genericTool",
-    target: event.toolName?.trim() || fallbackTarget(event),
+    target: toolName === ASK_USER_TOOL_NAME ? title ?? name : name || title,
     expandable: Boolean(event.detail.trim()) || isFailed(event),
   };
 }
