@@ -40,6 +40,7 @@ func init() {
 	core.Register("acp_prompt", acpPromptHandler)
 	core.Register("acp_cancel", acpCancelHandler)
 	core.Register("acp_respond_permission", acpRespondPermissionHandler)
+	core.Register("acp_respond_elicitation", acpRespondElicitationHandler)
 	core.Register("acp_set_config_option", acpSetConfigOptionHandler)
 	core.Register("acp_disconnect", acpDisconnectHandler)
 	core.Register("acp_list_status", acpListStatusHandler)
@@ -289,6 +290,21 @@ func acpRespondPermissionHandler(_ string, argsJSON string) (string, error) {
 		phase = agentprogress.PhaseCancelled
 	}
 	agentprogress.UpdateActiveSession(a.SessionID, "acp", phase, "")
+	return core.EncodeResult(nil)
+}
+
+func acpRespondElicitationHandler(_ string, argsJSON string) (string, error) {
+	var args struct {
+		elicitationOwner
+		Action  string         `json:"action"`
+		Content map[string]any `json:"content,omitempty"`
+	}
+	if err := core.DecodeArgs(argsJSON, &args); err != nil {
+		return "", err
+	}
+	if err := resolveElicitation(args.RequestID, args.ServerID, args.SessionID, args.Action, args.Content); err != nil {
+		return "", err
+	}
 	return core.EncodeResult(nil)
 }
 

@@ -56,11 +56,12 @@ func launchAgent(ctx context.Context, serverID, command string, args []string, e
 	connCtx, cancel := context.WithCancel(ctx)
 
 	client := newBridgeClient(serverID)
-	csc := acpsdk.NewClientSideConnection(client, stdin, stdout)
+	csc := acpsdk.NewClientSideConnection(client, stdin, scopeElicitationParams(stdout))
 
 	initRes, err := csc.Initialize(connCtx, acpsdk.InitializeRequest{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		ClientCapabilities: acpsdk.ClientCapabilities{
+			Elicitation: &acpsdk.ElicitationCapabilities{Form: &acpsdk.ElicitationFormCapabilities{}},
 			Fs: acpsdk.FileSystemCapabilities{
 				ReadTextFile:  true,
 				WriteTextFile: true,
