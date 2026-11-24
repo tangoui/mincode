@@ -30,7 +30,7 @@ export function isAiTimelineDelegationSettled(child: AiTimelineDelegationChild) 
 
 export type AiTimelineItem =
   | { kind: "message"; key: string; index: number; message: AiAssistantMessage }
-  | { kind: "tool"; key: string; event: AiAssistantEvent; awaitingApproval: boolean }
+  | { kind: "tool"; key: string; event: AiAssistantEvent; awaitingApproval: boolean; awaitingQuestion?: boolean }
   | { kind: "toolSummary"; key: string; events: AiAssistantEvent[]; running: boolean }
   | { kind: "thought" | "plan" | "mode"; key: string; event: AiAssistantEvent }
   | { kind: "approval"; key: string; approval: ToolApprovalQueueItem }
@@ -174,7 +174,11 @@ export function buildAiTimelineItems(input: AiTimelineInput): AiTimelineItem[] {
         continue;
       }
       summary = undefined;
-      items.push({ kind: "tool", key: `tool:${key}`, event, awaitingApproval: Boolean(decisions) });
+      const awaitingQuestion = decisions?.every((item) => item.kind === "question");
+      items.push({
+        kind: "tool", key: `tool:${key}`, event, awaitingApproval: Boolean(decisions),
+        ...(awaitingQuestion ? { awaitingQuestion } : {}),
+      });
       if (decisions) items.push(...decisions);
     }
   }

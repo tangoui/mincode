@@ -122,6 +122,18 @@ it("answers an ACP permission inside the thread", async () => {
   wrapper.unmount();
 });
 
+it("labels a pending question as waiting for an answer", () => {
+  const wrapper = thread({
+    events: [event("loop-tool-ask", "ask_user", { status: "running" })],
+    questions: [{ id: "q1", conversationId: "c1", source: "native", toolCallId: "ask", questions: [] }],
+  });
+  try {
+    expect(wrapper.get(".ai-timeline-tool [role=status]").text()).toMatch(/等待你回答|Waiting for your answer/);
+  } finally {
+    wrapper.unmount();
+  }
+});
+
 it("keeps time, token usage and copy on the plain task-summary reply", () => {
   const wrapper = thread({ messages: [{ ...message, presentation: "task-summary", createdAt: 1795500000000,
     tokenUsage: { inputTokens: 8, outputTokens: 3, cachedInputTokens: 0, cacheWriteTokens: 0,

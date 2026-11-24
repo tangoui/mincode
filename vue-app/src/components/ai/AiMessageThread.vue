@@ -433,6 +433,7 @@ const labels: AiTimelineLabels = {
       />
       <AiTimelineToolRow
         v-else-if="item.kind === 'tool'" :event="item.event" :awaiting-approval="item.awaitingApproval"
+        :awaiting-question="item.awaitingQuestion"
         :conversation-running="Boolean(generating || running)" :labels="labels"
       />
       <AiTimelineToolSummaryRow

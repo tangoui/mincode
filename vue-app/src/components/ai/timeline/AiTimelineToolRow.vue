@@ -15,6 +15,7 @@ import { useAiTimelineExpansion, type AiTimelineLabels } from "./timeline-row-st
 const props = defineProps<{
   event: AiAssistantEvent;
   awaitingApproval: boolean;
+  awaitingQuestion?: boolean;
   conversationRunning: boolean;
   labels: AiTimelineLabels;
 }>();
@@ -31,6 +32,7 @@ const unfinished = computed(() => isAiAgentEventRunning(props.event));
 const running = computed(() => !props.awaitingApproval && props.conversationRunning && unfinished.value);
 const interrupted = computed(() => !props.awaitingApproval && !props.conversationRunning && unfinished.value);
 const statusLabel = computed(() => {
+  if (props.awaitingQuestion) return t("ai.question.waiting");
   if (props.awaitingApproval) return props.labels.eventStatuses.awaiting_approval;
   if (interrupted.value) return t("ai.timeline.interrupted");
   return props.labels.eventStatuses[status.value];
