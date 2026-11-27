@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, CopyDocument, Document, EditPen, RefreshRight } fro
 import { ElCard, ElMessage } from "element-plus";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import AiImagePreviewToolbar from "@/components/ai/AiImagePreviewToolbar.vue";
+import AiMessageFileCards from "@/components/ai/AiMessageFileCards.vue";
 import MarkdownPreview from "@/components/ui/MarkdownPreview.vue";
 import { getAttachmentImageSrc } from "@/domain/ai/attachments";
 import type { AiAttachment } from "@/domain/ai/attachments";
@@ -13,6 +14,7 @@ import {
   normalizeAiMessageTimestamp,
 } from "@/domain/ai/message-time";
 import { copyRichContent } from "@/services/clipboard";
+import type { AiLocalFile } from "@/services/ai-local-files";
 import { aiReplyModel, compactTokenCount, unreportedAiTokenRequestCount, type AiTokenUsage } from "@/domain/ai/token-usage";
 import { aiMessageExpansion } from "@/domain/ai/message-expansion";
 import { useVueI18n } from "@/i18n/messages";
@@ -32,6 +34,7 @@ const props = defineProps<{
   hideMetadata?: boolean;
   turnTokenUsage?: AiTokenUsage;
   streaming?: boolean;
+  fileDirectory?: string;
   pinned?: boolean;
   pinnedTarget?: HTMLElement;
   emptyMessageLabel: string;
@@ -51,6 +54,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ edit: [message: AiAssistantMessage]; regenerate: [message: AiAssistantMessage] }>();
 const { t } = useVueI18n();
+const replyFiles = ref<readonly AiLocalFile[]>([]);
 
 const tokenUsage = computed(() => props.turnTokenUsage ?? props.message.tokenUsage);
 const tokenUsageLabel = computed(() => {
@@ -336,7 +340,9 @@ onBeforeUnmount(() => {
           inline
           code-copy
           :streaming="streaming"
+          :ai-file-directory="message.role === 'assistant' ? fileDirectory : undefined"
           :content="streaming ? message.content : presentation.content"
+          @local-files="replyFiles = $event"
         />
         <el-collapse v-if="!streaming && presentation.metadata.length" class="ai-message-metadata">
           <el-collapse-item name="metadata">
@@ -357,6 +363,10 @@ onBeforeUnmount(() => {
           class="ai-message-empty"
           :description="emptyMessageLabel"
           :image-size="36"
+        />
+        <AiMessageFileCards
+          v-if="!streaming && message.role === 'assistant' && presentation.content && replyFiles.length"
+          :files="replyFiles"
         />
       </div>
     </component>

@@ -4014,4 +4014,13 @@ export const messagesEn = {
   "notifications.ai.runApproval": "AI needs your approval: {summary}",
   "notifications.ai.runQuestion": "AI is waiting for your answer",
   "notifications.ai.runFailed": "AI error: {summary}",
+  "ai.files.menu": "File actions",
+  "ai.files.attachments": "Files in this reply",
+  "ai.files.open": "Open",
+  "ai.files.reveal": "Show in File Manager",
+  "ai.files.revealFinder": "Show in Finder",
+  "ai.files.revealExplorer": "Show in File Explorer",
+  "ai.files.copyPath": "Copy Path",
+  "ai.files.copyFailed": "Could not copy the file path",
+  "ai.files.openFailed": "Could not open the file or folder",
 } satisfies Record<MessageKey, string>;

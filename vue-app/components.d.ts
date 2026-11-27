@@ -20,6 +20,7 @@ declare module 'vue' {
     AiConversationSidebarPosition: typeof import('./src/components/ai/AiConversationSidebarPosition.vue')['default']
     AiImagePreviewToolbar: typeof import('./src/components/ai/AiImagePreviewToolbar.vue')['default']
     AiMessageBubble: typeof import('./src/components/ai/AiMessageBubble.vue')['default']
+    AiMessageFileCards: typeof import('./src/components/ai/AiMessageFileCards.vue')['default']
     AiMessageNavigator: typeof import('./src/components/ai/AiMessageNavigator.vue')['default']
     AiMessageThread: typeof import('./src/components/ai/AiMessageThread.vue')['default']
     AiPendingEdits: typeof import('./src/components/ai/AiPendingEdits.vue')['default']

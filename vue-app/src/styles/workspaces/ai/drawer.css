@@ -955,6 +955,102 @@
   position: relative;
   min-width: 0;
 }
+
+.ai-message-card .project-markdown-preview a[data-ai-file-link] code {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.ai-markdown-file-menu-button {
+  margin-inline-start: 0.2em;
+  padding: 0 0.25em;
+  border-radius: 4px;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.ai-markdown-file-menu-button:is(:hover, :focus-visible, :active, [aria-expanded="true"]) {
+  background: var(--app-surface-hover);
+  color: var(--app-text);
+}
+
+/* A background WebView can suspend the frame that starts Element Plus's zoom. */
+.ai-markdown-file-menu.app-context-menu__popper.el-zoom-in-top-enter-from {
+  opacity: 1;
+  transform: none;
+}
+
+.ai-markdown-file-menu.app-context-menu__popper.el-zoom-in-top-enter-active {
+  transition: none;
+}
+
+.ai-message-file-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-message-file-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+}
+
+.ai-message-file-card__thumbnail,
+.ai-message-file-card__icon {
+  display: grid;
+  flex: 0 0 40px;
+  height: 40px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--app-canvas);
+  color: var(--app-text-muted);
+}
+
+.ai-message-file-card__icon .project-file-icon {
+  width: 22px;
+  height: 22px;
+  font-size: 22px;
+}
+
+.ai-message-file-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-message-file-card__name {
+  overflow: hidden;
+  color: var(--app-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-message-file-card__size {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.ai-message-file-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.ai-message-file-card__actions > .el-button {
+  margin: 0;
+  padding-inline: 5px;
+}
 .ai-message-card__content.is-collapsed {
   max-height: var(--ai-message-collapse-height, 320px);
   overflow: hidden;

@@ -3851,6 +3851,15 @@ export const messagesZh = {
   "notifications.ai.runApproval": "AI 需要你确认：{summary}",
   "notifications.ai.runQuestion": "AI 在等你回答",
   "notifications.ai.runFailed": "AI 出错：{summary}",
+  "ai.files.menu": "文件操作",
+  "ai.files.attachments": "回复中提到的文件",
+  "ai.files.open": "打开",
+  "ai.files.reveal": "在文件管理器中显示",
+  "ai.files.revealFinder": "在访达中显示",
+  "ai.files.revealExplorer": "在资源管理器中显示",
+  "ai.files.copyPath": "复制路径",
+  "ai.files.copyFailed": "无法复制文件路径",
+  "ai.files.openFailed": "无法打开文件或文件夹",
 } as const;
 
 export type MessageKey = keyof typeof messagesZh;

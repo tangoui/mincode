@@ -1,4 +1,5 @@
 import { rewindConversation } from "@/domain/ai/conversation-rewind";
+import { useNotificationsStore } from "@/stores/notifications";
 import { computed, nextTick, ref, watch } from "vue";
 import { runtimePerformanceSettingsFromSnapshot } from "@/domain/performance/runtime-limits";
 import { readSettingsSnapshot, settingsSnapshotVersion } from "@/services/settings-persistence";
@@ -1857,6 +1858,8 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
   function setConversationUnread(id: string, unread: boolean) {
     const conversation = conversationById(id);
     if (!conversation) return false;
+    // Reading a conversation also reads its notifications, even when it was already read.
+    if (!unread) useNotificationsStore().markAiConversationRead(id);
     if (conversation.unread === unread) return true;
     conversation.unread = unread;
     markConversationDirty(id, "meta");

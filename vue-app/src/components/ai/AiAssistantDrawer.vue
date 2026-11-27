@@ -5385,6 +5385,7 @@ onBeforeUnmount(() => {
                 ref="messageThread"
                 :pinned-user-target="pinnedUserTarget"
                 :messages="assistant.messages"
+                :file-directory="activeAcpRunTarget?.context.projectRoot || assistant.activeConversation?.projectRoot || ''"
                 :events="visibleAgentEvents"
                 :delegated-children="delegatedChildren"
                 :delegation-model-labels="delegationModelLabels"

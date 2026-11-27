@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import AppContextMenu from "@/components/ui/AppContextMenu.vue";
 import { useVueI18n } from "@/i18n/messages";
 import { classifyMarkdownLinkHref } from "@/domain/markdown-links";
 import { openWorkspaceLink } from "@/services/markdown-link-navigation";
 import { cachedMarkdownHtml, renderMarkdownHtml } from "@/services/markdown-render";
 import { createStreamingMarkdownRenderer, type StreamingMarkdownRenderer } from "@/services/streaming-markdown-render";
-import { copyText } from "@/services/desktop-bridge";
+import { copyText, isDesktopRuntime } from "@/services/desktop-bridge";
+import { aiFileRevealLabel, openAiLocalPath, type AiLocalFile } from "@/services/ai-local-files";
+import { linkAiMarkdownFiles } from "@/services/ai-markdown-file-links";
 
 // Streaming content changes up to once per frame; re-parsing the whole
 // document each time is quadratic, so bursts render at most this often and a
@@ -23,19 +26,23 @@ const props = withDefaults(defineProps<{
    * as formatted markdown while it grows. When this turns false the full document is rendered once.
    */
   streaming?: boolean;
+  /** Present on AI replies, including replies with no bound working directory. */
+  aiFileDirectory?: string;
 }>(), {
   inline: false,
   codeCopy: false,
   streaming: false,
 });
 const { t } = useVueI18n();
+const emit = defineEmits<{ localFiles: [files: readonly AiLocalFile[]] }>();
+const aiFileLinks = computed(() => props.aiFileDirectory !== undefined && isDesktopRuntime());
 
 let streamingRenderer: StreamingMarkdownRenderer | undefined;
 function streamedHtml(content: string) {
   streamingRenderer ??= createStreamingMarkdownRenderer();
   return streamingRenderer.render(content);
 }
-const renderedHtml = ref(props.streaming ? streamedHtml(props.content) : renderMarkdownHtml(props.content));
+const renderedHtml = ref(props.streaming ? streamedHtml(props.content) : renderMarkdownHtml(props.content, { aiFileLinks: aiFileLinks.value }));
 let lastRenderAt = performance.now();
 let trailingRender: ReturnType<typeof setTimeout> | undefined;
 
@@ -47,7 +54,7 @@ function cancelTrailingRender() {
 
 function renderContent(memoize: boolean) {
   cancelTrailingRender();
-  renderedHtml.value = props.streaming ? streamedHtml(props.content) : renderMarkdownHtml(props.content, { memoize });
+  renderedHtml.value = props.streaming ? streamedHtml(props.content) : renderMarkdownHtml(props.content, { memoize, aiFileLinks: aiFileLinks.value });
   lastRenderAt = performance.now();
 }
 
@@ -65,7 +72,7 @@ watch(
 watch(
   () => props.content,
   (content) => {
-    const cached = props.streaming ? undefined : cachedMarkdownHtml(content);
+    const cached = props.streaming || aiFileLinks.value ? undefined : cachedMarkdownHtml(content);
     if (cached !== undefined) {
       cancelTrailingRender();
       renderedHtml.value = cached;
@@ -85,6 +92,30 @@ onBeforeUnmount(cancelTrailingRender);
 
 const article = ref<HTMLElement>();
 const COPIED_RESET_MS = 1_500;
+const linked = shallowRef<Awaited<ReturnType<typeof linkAiMarkdownFiles>>>();
+watch(linked, (result) => emit("localFiles", result?.links ?? []));
+const displayHtml = computed(() => linked.value?.html ?? renderedHtml.value);
+const fileMenu = shallowRef<{ button: HTMLButtonElement; file: AiLocalFile; x: number; y: number }>();
+
+function closeFileMenu() {
+  fileMenu.value?.button.setAttribute("aria-expanded", "false");
+  fileMenu.value = undefined;
+}
+
+watch(
+  () => [aiFileLinks.value, props.streaming, props.aiFileDirectory, renderedHtml.value, t("ai.files.menu")] as const,
+  ([enabled, streaming, directory, html, menuLabel], _, onCleanup) => {
+    closeFileMenu();
+    linked.value = undefined;
+    if (!enabled || streaming) return;
+    const controller = new AbortController();
+    onCleanup(() => controller.abort());
+    void linkAiMarkdownFiles(html, directory ?? "", menuLabel, controller.signal).then((result) => {
+      if (!controller.signal.aborted) linked.value = result;
+    }).catch(() => undefined);
+  },
+  { immediate: true },
+);
 
 // v-html replaces the rendered DOM on every change, so the code block headers are
 // added again after each render; clicks are handled by delegation in handleClick.
@@ -113,7 +144,7 @@ function decorateCodeBlocks() {
   }
 }
 
-watch(renderedHtml, () => void nextTick(decorateCodeBlocks));
+watch(displayHtml, () => void nextTick(decorateCodeBlocks));
 onMounted(decorateCodeBlocks);
 
 async function copyCodeBlock(button: HTMLButtonElement) {
@@ -129,7 +160,21 @@ async function copyCodeBlock(button: HTMLButtonElement) {
   }
 }
 
-// Intercept links so they cannot navigate the main WebView.
+async function runFileAction(file: AiLocalFile, action: "open" | "reveal" | "copy") {
+  closeFileMenu();
+  try {
+    if (action === "copy") await copyText(file.path);
+    else await openAiLocalPath(file, action === "reveal");
+  } catch {
+    ElMessage.error(t(action === "copy" ? "ai.files.copyFailed" : "ai.files.openFailed"));
+  }
+}
+
+function runMenuAction(action: "reveal" | "copy") {
+  if (fileMenu.value) void runFileAction(fileMenu.value.file, action);
+}
+
+// Delegate actions without navigating the WebView away from the conversation.
 function handleClick(event: MouseEvent) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
@@ -138,8 +183,24 @@ function handleClick(event: MouseEvent) {
     void copyCodeBlock(copyButton);
     return;
   }
+  const menuButton = target.closest<HTMLButtonElement>("button[data-ai-file-menu]");
+  if (menuButton) {
+    const file = linked.value?.links[Number(menuButton.dataset.aiFileMenu)];
+    if (!file) return;
+    const { left, bottom } = menuButton.getBoundingClientRect();
+    menuButton.focus({ preventScroll: true });
+    menuButton.setAttribute("aria-expanded", "true");
+    fileMenu.value = { button: menuButton, file, x: left, y: bottom };
+    return;
+  }
   const anchor = target.closest("a");
   if (!anchor) return;
+  if (anchor.hasAttribute("data-ai-file-link")) {
+    event.preventDefault();
+    const file = linked.value?.links[Number(anchor.dataset.aiFileLink)];
+    if (file) void runFileAction(file, "open");
+    return;
+  }
   const classification = classifyMarkdownLinkHref(anchor.getAttribute("href"));
   if (classification.kind === "anchor") return;
   event.preventDefault();
@@ -152,10 +213,24 @@ function handleClick(event: MouseEvent) {
     v-if="inline"
     ref="article"
     class="project-markdown-preview"
-    v-html="renderedHtml"
+    v-html="displayHtml"
     @click="handleClick"
   />
   <el-scrollbar v-else class="project-markdown-scroll">
-    <article ref="article" class="project-markdown-preview" v-html="renderedHtml" @click="handleClick" />
+    <article ref="article" class="project-markdown-preview" v-html="displayHtml" @click="handleClick" />
   </el-scrollbar>
+  <AppContextMenu
+    v-if="fileMenu"
+    open
+    :x="fileMenu.x"
+    :y="fileMenu.y"
+    popper-class="ai-markdown-file-menu"
+    :aria-label="t('ai.files.menu')"
+    @close="closeFileMenu"
+  >
+    <el-dropdown-item class="ai-markdown-file-reveal" @click="runMenuAction('reveal')">
+      {{ t(aiFileRevealLabel()) }}
+    </el-dropdown-item>
+    <el-dropdown-item @click="runMenuAction('copy')">{{ t('ai.files.copyPath') }}</el-dropdown-item>
+  </AppContextMenu>
 </template>

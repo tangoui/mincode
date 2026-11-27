@@ -33,6 +33,7 @@ import type { AiAssistantEvent, AiAssistantMessage, AiAssistantMode, AiAssistant
 const props = defineProps<{
   pinnedUserTarget?: HTMLElement;
   messages: AiAssistantMessage[];
+  fileDirectory?: string;
   events: AiAssistantEvent[];
   delegatedChildren?: AiTimelineDelegationChild[];
   delegationModelLabels?: Record<string, string>;
@@ -376,6 +377,7 @@ const labels: AiTimelineLabels = {
         :hide-metadata="item.message.role === 'assistant' && !finalReplyMetadata.has(item.index)"
         :turn-token-usage="finalReplyMetadata.get(item.index)"
         :streaming="isStreamingAssistantMessage(item.message, item.index)"
+        :file-directory="fileDirectory"
         :pinned="item.index === pinnedUserMessageIndex"
         :pinned-target="pinnedUserTarget"
         :empty-message-label="emptyMessageLabel"

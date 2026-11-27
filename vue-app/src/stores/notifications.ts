@@ -229,6 +229,20 @@ export const useNotificationsStore = defineStore("notifications", () => {
     persist();
   }
 
+  /** Marks unread notifications that point at one AI conversation as read. */
+  function markAiConversationRead(conversationId: string) {
+    const now = Date.now();
+    let changed = false;
+    for (const item of items.value) {
+      if (!item.readAt && item.target?.kind === "ai-conversation" && item.target.conversationId === conversationId) {
+        item.readAt = now;
+        item.updatedAt = now;
+        changed = true;
+      }
+    }
+    if (changed) persist();
+  }
+
   function markAllRead() {
     const now = Date.now();
     let changed = false;
@@ -279,6 +293,7 @@ export const useNotificationsStore = defineStore("notifications", () => {
     push,
     markRead,
     markAllRead,
+    markAiConversationRead,
     remove,
     clearRead,
     ensureListening,
