@@ -1,6 +1,7 @@
 package externalmcp
 
 import (
+	"crypto/rand"
 	"errors"
 	"io"
 	"os"
@@ -176,11 +177,7 @@ func createPrivateTemp(directory string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	name, err := randomToken()
-	if err != nil {
-		return nil, err
-	}
-	path := filepath.Join(directory, ".record-"+name)
+	path := filepath.Join(directory, ".record-"+rand.Text())
 	wide, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, err

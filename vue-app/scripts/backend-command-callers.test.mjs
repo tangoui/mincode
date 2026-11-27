@@ -13,6 +13,10 @@ const documentedExceptions = new Set([
   "ssh_history_update",
   // The diagnostic readout pairs with stream_diagnostics_report for inspecting IPC failures.
   "stream_diagnostics_get",
+  // The Agent control server dispatches these directly through the Go command registry.
+  "terminal_control_list",
+  "terminal_control_send",
+  "terminal_control_set_metadata",
 ]);
 
 async function* sourceFiles(directory) {
