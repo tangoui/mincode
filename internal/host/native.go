@@ -2,9 +2,11 @@ package host
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/tangoui/tango/ipc"
+	"github.com/tangoui/tango/sys/dialog"
 )
 
 // callNative 处理 methodNative 的各项原生能力。窗口类操作作用于发起调用的页面所属窗口，
@@ -47,6 +49,9 @@ func (h *Host) callNative(page Page, op string, args json.RawMessage) (any, erro
 			return nil, err
 		}
 		paths, err := h.native.OpenDialog(opts)
+		if errors.Is(err, dialog.ErrCanceled) {
+			return nil, nil
+		}
 		if err != nil || len(paths) == 0 {
 			return nil, err
 		}
@@ -57,6 +62,9 @@ func (h *Host) callNative(page Page, op string, args json.RawMessage) (any, erro
 			return nil, err
 		}
 		path, err := h.native.SaveDialog(opts)
+		if errors.Is(err, dialog.ErrCanceled) {
+			return nil, nil
+		}
 		if err != nil || path == "" {
 			return nil, err
 		}

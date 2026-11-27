@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tangoui/tango/ipc"
+	"github.com/tangoui/tango/sys/dialog"
 )
 
 func call(t *testing.T, h *Host, method string, arg any) (json.RawMessage, error) {
@@ -162,6 +163,23 @@ func TestNativeClipboardDialogNotify(t *testing.T) {
 	}
 	if _, err := call(t, h, methodNative, map[string]any{"op": "nope"}); err == nil {
 		t.Fatal("unknown op accepted")
+	}
+}
+
+func TestNativeFileDialogCancellation(t *testing.T) {
+	h, native, _ := newTestHost()
+	for _, op := range []string{"dialog.open", "dialog.save"} {
+		t.Run(op, func(t *testing.T) {
+			request := map[string]any{"op": op, "args": map[string]any{}}
+			native.dialogErr = dialog.ErrCanceled
+			if raw, err := call(t, h, methodNative, request); err != nil || string(raw) != "null" {
+				t.Fatalf("cancel returned %s, %v", raw, err)
+			}
+			native.dialogErr = errors.New("dialog failed")
+			if _, err := call(t, h, methodNative, request); err == nil || !strings.Contains(err.Error(), "dialog failed") {
+				t.Fatalf("dialog failure = %v", err)
+			}
+		})
 	}
 }
 

@@ -73,15 +73,19 @@ type fakeNative struct {
 	owner     Page
 	window    Window
 	dialogRet []string
+	dialogErr error
 	notify    []string
 }
 
 func (n *fakeNative) ClipboardText() string        { return n.clipboard }
 func (n *fakeNative) SetClipboardText(text string) { n.clipboard = text }
 func (n *fakeNative) OpenDialog(OpenDialogOptions) ([]string, error) {
-	return n.dialogRet, nil
+	return n.dialogRet, n.dialogErr
 }
 func (n *fakeNative) SaveDialog(SaveDialogOptions) (string, error) {
+	if n.dialogErr != nil {
+		return "", n.dialogErr
+	}
 	if len(n.dialogRet) > 0 {
 		return n.dialogRet[0], nil
 	}
