@@ -1071,6 +1071,7 @@ onBeforeUnmount(() => {
       :can-close="canClose"
       :can-split="canSplit"
       terminal-kind="local"
+      :local-pane="{ id: sessionId, cwd: initialCwd }"
       @close="closeTerminalContextMenu"
       @action="handleContextMenuAction"
     />

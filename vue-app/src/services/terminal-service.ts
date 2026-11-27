@@ -1,5 +1,11 @@
 import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
 
+export async function loadLatestTerminalCommandOutput(pane: string) {
+  if (!isDesktopRuntime()) return "";
+  const result = await invokeBackend<{ text: string }>("terminal_control_read", { pane, latestCommand: true });
+  return result.text;
+}
+
 const MAX_CWD_LENGTH = 32_768;
 
 function normalizeCwd(value: unknown) {

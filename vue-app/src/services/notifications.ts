@@ -14,11 +14,12 @@ function fallbackDesktopTarget(input: AppNotificationInput) {
 /**
  * Add an application notification from Vue feature code. It becomes an
  * operating-system notification while MinCode is in the background, or always
- * with `system` (for example a timer a plugin was asked to announce).
+ * with `system: true` (for example a timer a plugin was asked to announce).
+ * Use `suppressSystem` to keep the notification in the application.
  */
-export function notifyApp(input: AppNotificationInput, options: { system?: boolean } = {}) {
+export function notifyApp(input: AppNotificationInput, options: { system?: boolean; suppressSystem?: boolean } = {}) {
   const item = useNotificationsStore().push(input);
-  if (isDesktopRuntime() && (options.system || document.visibilityState !== "visible") && input.level !== "progress") {
+  if (!options.suppressSystem && isDesktopRuntime() && (options.system || document.visibilityState !== "visible") && input.level !== "progress") {
     void nativeCall("notify.send", {
       title: input.title,
       body: input.message,

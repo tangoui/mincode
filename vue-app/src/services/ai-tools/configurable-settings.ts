@@ -100,6 +100,8 @@ const snapshotDefinitions = {
   aiProfiles: { group: "ai", label: "settings.ai.connection", validate: profileList },
   mcpServers: { group: "ai", label: "settings.ai.mcp", validate: mcpList },
   aiRules: { group: "ai", label: "settings.ai.rules", validate: ruleList },
+  aiReadProjectInstructions: { group: "ai", label: "settings.ai.readProjectInstructions" },
+  aiSystemNotifications: { group: "ai", label: "settings.ai.systemNotifications" },
   acpAdapterId: { group: "ai", label: "settings.ai.localAgent" },
   acpInjectRules: { group: "ai", label: "settings.tools.acpInjectRules" },
   acpAgents: { group: "ai", label: "settings.ai.localAgent", validate: (value) => namedRecords(value) && Array.isArray(value) && value.every((item) => record(item) && ["name", "command", "args"].every((key) => typeof item[key] === "string")) },

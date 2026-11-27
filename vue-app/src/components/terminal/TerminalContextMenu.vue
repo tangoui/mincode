@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onDeactivated } from "vue";
+import { ElMessage } from "element-plus";
 import {
   Aim,
   Close,
@@ -20,6 +21,8 @@ import {
 } from "@element-plus/icons-vue";
 import AppContextMenu from "@/components/ui/AppContextMenu.vue";
 import { useVueI18n } from "@/i18n/messages";
+import { sendToAi } from "@/services/ai-handoff";
+import { loadLatestTerminalCommandOutput } from "@/services/terminal-service";
 import { useKeybindingsStore } from "@/stores/keybindings";
 
 import type { TerminalContextMenuAction } from "@/domain/terminal/context-menu";
@@ -38,6 +41,7 @@ const props = withDefaults(
     canSplit: boolean;
     terminalKind: "local" | "ssh" | "docker";
     canRevealInSftp?: boolean;
+    localPane?: { id: string; cwd?: string };
   }>(),
   {
     token: "",
@@ -74,6 +78,40 @@ onDeactivated(() => {
 function choose(action: TerminalContextMenuAction) {
   emit("action", action);
   emit("close");
+}
+
+function handoffSelection() {
+  if (!props.selection.trim()) return;
+  void sendToAi({
+    source: props.terminalKind === "ssh" ? "ssh" : "terminal",
+    title: t("ai.handoff.terminalSelection"),
+    content: props.selection,
+    prompt: t("ai.handoff.terminalSelectionPrompt"),
+    cwd: props.localPane?.cwd,
+  });
+  emit("close");
+}
+
+async function handoffLatestOutput() {
+  const pane = props.localPane;
+  if (!pane || !props.ready) return;
+  emit("close");
+  try {
+    const content = await loadLatestTerminalCommandOutput(pane.id);
+    if (!content.trim()) {
+      ElMessage.info(t("ai.handoff.terminalNoOutput"));
+      return;
+    }
+    await sendToAi({
+      source: "terminal",
+      title: t("ai.handoff.terminalOutput"),
+      content,
+      prompt: t("ai.handoff.terminalOutputPrompt"),
+      cwd: pane.cwd,
+    });
+  } catch {
+    ElMessage.error(t("ai.handoff.terminalReadFailed"));
+  }
 }
 </script>
 
@@ -136,6 +174,12 @@ function choose(action: TerminalContextMenuAction) {
     </el-dropdown-item>
     <el-dropdown-item divided @click="choose('ai-assistant')">
       <el-icon><MagicStick /></el-icon>{{ t('terminal.ai.menu') }}
+    </el-dropdown-item>
+    <el-dropdown-item :disabled="!selection.trim()" @click="handoffSelection">
+      <el-icon><MagicStick /></el-icon>{{ t('ai.handoff.sendTerminalSelection') }}
+    </el-dropdown-item>
+    <el-dropdown-item v-if="localPane" :disabled="!ready" @click="handoffLatestOutput">
+      <el-icon><MagicStick /></el-icon>{{ t('ai.handoff.explainTerminalOutput') }}
     </el-dropdown-item>
     <el-dropdown-item :disabled="!ready" @click="choose('send-interrupt')">
       <el-icon><Close /></el-icon>{{ t('terminal.context.sendInterrupt') }}

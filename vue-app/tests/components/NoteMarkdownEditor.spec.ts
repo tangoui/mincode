@@ -4,6 +4,8 @@ import { EditorView } from "@codemirror/view";
 import { undo } from "@codemirror/commands";
 
 const service = vi.hoisted(() => ({ putNoteAsset: vi.fn() }));
+const handoff = vi.hoisted(() => vi.fn());
+vi.mock("@/services/ai-handoff", () => ({ sendToAi: handoff }));
 
 vi.mock("@/services/notes-service", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -41,6 +43,21 @@ function paste(view: EditorView, files: File[], text = "") {
 const png = () => new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "shot.png", { type: "image/png" });
 
 describe("NoteMarkdownEditor", () => {
+  it("hands off only the selected text from the editor context menu", async () => {
+    const wrapper = mountEditor("hello world");
+    const view = viewOf(wrapper);
+    view.dispatch({ selection: { anchor: 0, head: 5 } });
+    view.contentDOM.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await flushPromises();
+    const action = [...document.body.querySelectorAll<HTMLElement>("[role='menuitem']")]
+      .find((item) => item.textContent?.trim() === "发送到 AI");
+    expect(action).toBeDefined();
+    action!.click();
+    expect(handoff).toHaveBeenCalledWith({
+      source: "notes", title: "笔记选中内容", content: "hello", prompt: "请帮我解读这段笔记，并提炼要点。",
+    });
+    wrapper.unmount();
+  });
   it("wraps the selection in ** when applying bold", () => {
     const wrapper = mountEditor("hello world");
     const view = viewOf(wrapper);

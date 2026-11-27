@@ -2,7 +2,7 @@
 // 笔记正文的 Markdown 源码编辑器（CodeMirror 6）。宿主页面没有 CSP 限制，编辑器直接挂在组件元素上，
 // 颜色全部来自 --app-* token，明暗主题自动跟随。组件只通过 update:modelValue 上报正文，
 // 从不直接修改 store 中的共享对象；父组件传回的新值以「外部同步」写入，不会再次上报，也不进入撤销历史。
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, Transaction } from "@codemirror/state";
 import {
   EditorView,
@@ -21,6 +21,7 @@ import { formatMarkdown, type MarkdownFormatKind } from "@/domain/notes/markdown
 import { markdownStream } from "@/domain/notes/markdown-language";
 import { useVueI18n } from "@/i18n/messages";
 import { noteErrorMessage, putNoteAsset } from "@/services/notes-service";
+import NoteSelectionHandoff from "@/components/notes/NoteSelectionHandoff.vue";
 
 const props = withDefaults(defineProps<{ modelValue: string; documentKey: string; disabled?: boolean }>(), {
   disabled: false,
@@ -32,6 +33,7 @@ const emit = defineEmits<{
 const { t, locale } = useVueI18n();
 
 const host = ref<HTMLElement | null>(null);
+const selectionMenu = ref<{ x: number; y: number; content: string }>();
 let view: EditorView | null = null;
 // 每次换文档（setState）递增；上传完成时若已换到别的文档，结果不再插入。
 let generation = 0;
@@ -47,6 +49,21 @@ const localizedExtension = () => [
   EditorView.contentAttributes.of({ "aria-label": t("notes.editor.ariaLabel"), spellcheck: "false" }),
 ];
 const labels = () => ({ text: t("notes.format.placeholderText"), column: t("notes.format.placeholderColumn") });
+
+function openSelectionMenu(event: MouseEvent) {
+  const state = view?.state;
+  if (!state) return;
+  const content = state.selection.ranges.map(({ from, to }) => state.sliceDoc(from, to)).filter(Boolean).join("\n");
+  if (!content.trim()) return;
+  event.preventDefault();
+  selectionMenu.value = { x: event.clientX, y: event.clientY, content };
+}
+
+function closeSelectionMenu() {
+  selectionMenu.value = undefined;
+}
+
+onDeactivated(closeSelectionMenu);
 
 const highlight = HighlightStyle.define([
   { tag: tags.heading, color: "var(--app-accent)", fontWeight: "700" },
@@ -205,6 +222,7 @@ onMounted(() => {
 watch(
   () => props.documentKey,
   () => {
+    closeSelectionMenu();
     generation += 1;
     view?.setState(createState(props.modelValue));
   },
@@ -251,5 +269,6 @@ defineExpose({
 </script>
 
 <template>
-  <div ref="host" class="note-markdown-editor" data-testid="note-markdown-editor" />
+  <div ref="host" class="note-markdown-editor" data-testid="note-markdown-editor" @contextmenu="openSelectionMenu" />
+  <NoteSelectionHandoff v-model="selectionMenu" />
 </template>

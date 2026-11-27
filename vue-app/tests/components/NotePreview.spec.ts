@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 
 const navigation = vi.hoisted(() => ({ openWorkspaceLink: vi.fn(), openLocalMarkdownPath: vi.fn() }));
+const handoff = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/markdown-link-navigation", () => navigation);
+vi.mock("@/services/ai-handoff", () => ({ sendToAi: handoff }));
 
 import NotePreview from "@/components/notes/NotePreview.vue";
 import { restrictPreviewImages } from "@/domain/notes/preview-images";
@@ -12,6 +14,24 @@ import { cachedMarkdownHtml } from "@/services/markdown-render";
 const ASSET = `/__notes-assets/${"a".repeat(64)}.png`;
 
 describe("NotePreview", () => {
+  it("hands off the selection in the rendered note", async () => {
+    const wrapper = mount(NotePreview, { props: { content: "**hello** world" }, attachTo: document.body });
+    const text = wrapper.get("strong").element.firstChild!;
+    const selection = window.getSelection()!;
+    selection.setBaseAndExtent(text, 0, text, 5);
+    await wrapper.get("strong").trigger("contextmenu");
+    await flushPromises();
+
+    const action = [...document.body.querySelectorAll<HTMLElement>("[role='menuitem']")]
+      .find((item) => item.textContent?.trim() === "发送到 AI");
+    expect(action).toBeDefined();
+    action!.click();
+    expect(handoff).toHaveBeenCalledWith({
+      source: "notes", title: "笔记选中内容", content: "hello", prompt: "请帮我解读这段笔记，并提炼要点。",
+    });
+    selection.removeAllRanges();
+    wrapper.unmount();
+  });
   it("blocks scripts and external images in preview", () => {
     const content = [
       "<script>alert(1)</script>",

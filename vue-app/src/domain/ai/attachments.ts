@@ -12,22 +12,23 @@ export interface AiAttachment {
   kind: "image" | "text";
   data: string;
   previewUrl?: string;
-  /** Set for text inserted from a plugin context provider (contributes.aiContextProviders). */
+  /** Set for text inserted by an app handoff or a plugin context provider. */
   origin?: AiAttachmentOrigin;
 }
 
 /** Where an attachment came from when it was not a user file. */
-export interface AiAttachmentOrigin {
+export type AiAttachmentOrigin = { kind: "handoff" } | {
   kind: "plugin-context";
   pluginId: string;
   providerId: string;
-}
+};
 
 const ORIGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 function normalizeAttachmentOrigin(origin: unknown): AiAttachmentOrigin | undefined {
   if (typeof origin !== "object" || origin === null) return undefined;
   const { kind, pluginId, providerId } = origin as Record<string, unknown>;
+  if (kind === "handoff") return { kind };
   if (kind !== "plugin-context" || typeof pluginId !== "string" || typeof providerId !== "string") return undefined;
   if (!ORIGIN_ID_PATTERN.test(pluginId) || !/^[a-z][a-z0-9-]{0,31}$/.test(providerId)) return undefined;
   return { kind, pluginId, providerId };

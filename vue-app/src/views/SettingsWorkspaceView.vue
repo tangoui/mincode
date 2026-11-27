@@ -377,6 +377,8 @@ function normalizeSettings(raw: Partial<VueSettings> & { fontSize?: unknown }): 
       ? raw.mcpServers.map(normalizeStoredMcpServer)
       : [],
     aiRules: Array.isArray(raw.aiRules) ? raw.aiRules : [],
+    aiReadProjectInstructions: raw.aiReadProjectInstructions !== false,
+    aiSystemNotifications: raw.aiSystemNotifications !== false,
     acpAgents: Array.isArray(raw.acpAgents) ? raw.acpAgents : [],
     workspaceCacheLimit: normalizeWorkspaceCacheLimit(raw.workspaceCacheLimit),
     editorColorTheme: normalizeEditorThemePreference(raw.editorColorTheme),
@@ -1415,6 +1417,14 @@ onBeforeUnmount(() => {
                 /></span>
                 <AiConversationSidebarPosition />
               </div>
+              <div class="settings-ai-interface-row">
+                <span>{{ t("settings.ai.systemNotifications") }}</span>
+                <el-switch
+                  v-model="settings.aiSystemNotifications"
+                  size="small"
+                  :aria-label="t('settings.ai.systemNotifications')"
+                />
+              </div>
             </section>
             <!-- 左侧档案列表、右侧当前档案的连接表单；窄窗口上下排列。 -->
             <div class="settings-ai-profile-layout">
@@ -2151,6 +2161,13 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-else-if="aiTab === 'rules'" class="settings-ai-panel">
+            <el-form-item :label="t('settings.ai.readProjectInstructions')">
+              <el-switch
+                v-model="settings.aiReadProjectInstructions"
+                size="small"
+                :aria-label="t('settings.ai.readProjectInstructions')"
+              />
+            </el-form-item>
             <p class="settings-ai-description">{{ t("settings.rules.originalHint") }}</p>
             <div class="settings-ai-rules-filters">
               <el-segmented

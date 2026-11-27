@@ -1,4 +1,4 @@
-export type AiPromptSuggestionKind = "tool";
+export type AiPromptSuggestionKind = "tool" | "acp-command";
 
 export interface AiPromptSuggestion {
   id: string;
@@ -6,6 +6,7 @@ export interface AiPromptSuggestion {
   description: string;
   kind: AiPromptSuggestionKind;
   insertText: string;
+  inputHint?: string;
 }
 
 export interface AiPromptSuggestionTool {

@@ -3,7 +3,8 @@
 // 链接点击沿用 MarkdownPreview 的分类：网页在内置浏览器中打开（与其他 Markdown 预览一致）；
 // 笔记没有所在目录，相对 / 本地路径链接不打开；其他协议（javascript: 等）一律不导航，避免 主 WebView
 // 被原地跳转。表单提交同样被拦截。
-import { onBeforeUnmount, ref, watch } from "vue";
+import { onBeforeUnmount, onDeactivated, ref, watch } from "vue";
+import NoteSelectionHandoff from "@/components/notes/NoteSelectionHandoff.vue";
 import { classifyMarkdownLinkHref } from "@/domain/markdown-links";
 import { restrictPreviewImages } from "@/domain/notes/preview-images";
 import { useVueI18n } from "@/i18n/messages";
@@ -22,12 +23,14 @@ function render() {
 }
 
 const html = ref(render());
+const selectionMenu = ref<{ x: number; y: number; content: string }>();
 let lastRenderAt = performance.now();
 let trailing: ReturnType<typeof setTimeout> | undefined;
 
 function renderNow() {
   if (trailing !== undefined) clearTimeout(trailing);
   trailing = undefined;
+  selectionMenu.value = undefined;
   html.value = render();
   lastRenderAt = performance.now();
 }
@@ -62,6 +65,19 @@ function handleClick(event: MouseEvent) {
 function handleAuxClick(event: MouseEvent) {
   if (linkOf(event)) event.preventDefault();
 }
+
+function openSelectionMenu(event: MouseEvent) {
+  const article = event.currentTarget;
+  const selection = window.getSelection();
+  if (!(article instanceof HTMLElement) || !selection?.rangeCount
+    || !article.contains(selection.anchorNode) || !article.contains(selection.focusNode)) return;
+  const content = selection.toString();
+  if (!content.trim()) return;
+  event.preventDefault();
+  selectionMenu.value = { x: event.clientX, y: event.clientY, content };
+}
+
+onDeactivated(() => { selectionMenu.value = undefined; });
 </script>
 
 <template>
@@ -72,7 +88,9 @@ function handleAuxClick(event: MouseEvent) {
       v-html="html"
       @click="handleClick"
       @auxclick="handleAuxClick"
+      @contextmenu="openSelectionMenu"
       @submit.prevent
     />
+    <NoteSelectionHandoff v-model="selectionMenu" />
   </el-scrollbar>
 </template>

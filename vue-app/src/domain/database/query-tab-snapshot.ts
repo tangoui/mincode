@@ -1,4 +1,4 @@
-import type { DatabaseQueryResult } from "./types";
+import type { DatabaseQueryResult, DbType } from "./types";
 import type { ProjectEditorViewState } from "@/domain/projects/types";
 
 export type QueryTabStatus = "idle" | "running" | "success" | "error";
@@ -11,6 +11,7 @@ export interface QueryTab {
   /** Connection and database `result` was queried on (captured when the query started). */
   resultSource?: QueryResultSource;
   error?: string;
+  lastExecution?: { sql: string; dbType?: DbType };
   status: QueryTabStatus;
   lastExecutedAt?: number;
   resultEstimatedBytes?: number;

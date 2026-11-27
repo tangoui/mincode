@@ -30,6 +30,6 @@ test("被超时恢复取代的旧任务不会改写新任务的状态、历史�
   assert.match(drawerSource, /const saveLoopHistory = [\s\S]*?if \(superseded\(\)\) return;\s*assistant\.setConversationAgentHistory/);
   assert.match(drawerSource, /if \(superseded\(\)\) return;\s*saveLoopHistory\(result\.history\);/);
   assert.match(drawerSource, /catch \(error\) \{\s*streamTextBatcher\.flush\(\);\s*if \(superseded\(\)\) return;/);
-  assert.match(drawerSource, /if \(superseded\(\)\) return;\s*acpContextInjected\.add\(conversationId\);/);
+  assert.match(drawerSource, /if \(superseded\(\)\) return;\s*if \(!slashCommand\) acpContextInjected\.add\(conversationId\);/);
   assert.match(drawerSource, /catch \(error\) \{\s*acpStreamTextBatcher\.flush\(\);\s*if \(superseded\(\)\) return;/);
 });

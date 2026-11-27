@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Close, FullScreen, Refresh, RefreshRight, ScaleToOriginal, VideoPause, VideoPlay } from "@element-plus/icons-vue";
+import { Close, FullScreen, MagicStick, Refresh, RefreshRight, ScaleToOriginal, VideoPause, VideoPlay } from "@element-plus/icons-vue";
 import SshDockerTerminal from "@/components/ssh/SshDockerTerminal.vue";
 import AppSearchField from "@/components/ui/AppSearchField.vue";
 import { useVueI18n } from "@/i18n/messages";
+import { sendToAi } from "@/services/ai-handoff";
 import type { SshDockerTerminalMode } from "@/services/ssh-docker-service";
 import {
   loadSshDockerContainers,
@@ -39,6 +40,7 @@ const error = ref("");
 const snapshot = ref<SshServerSnapshot>();
 const logs = ref("");
 const logUnit = ref("");
+const loadedLogUnit = ref("");
 const logLines = ref(200);
 const processes = ref<SshServerProcess[]>([]);
 const processQuery = ref("");
@@ -50,6 +52,7 @@ const dockerQuery = ref("");
 const dockerLogsVisible = ref(false);
 const dockerLogsTitle = ref("");
 const dockerLogs = ref("");
+const dockerLogsLoaded = ref(false);
 type DockerTerminalTab = {
   sessionId: string;
   container: SshDockerContainer;
@@ -67,6 +70,7 @@ let prevNetIORef: { io: SshServerNetIO[]; tsMs: number } | null = null;
 let prevCpuRef: { total: number; idle: number } | null = null;
 let loadSequence = 0;
 let dockerTerminalSequence = 0;
+let dockerLogLoadSequence = 0;
 
 const visibleProcesses = computed(() => {
   const query = processQuery.value.trim().toLocaleLowerCase();
@@ -231,8 +235,12 @@ async function loadCurrentTab() {
         updateNetIOSpeeds(result);
       }
     } else if (tab === "logs") {
-      const result = await loadSshServerLogs(sessionId, logUnit.value, logLines.value);
-      if (requestId === loadSequence) logs.value = result;
+      const unit = logUnit.value;
+      const result = await loadSshServerLogs(sessionId, unit, logLines.value);
+      if (requestId === loadSequence) {
+        logs.value = result;
+        loadedLogUnit.value = unit;
+      }
     } else if (tab === "processes") {
       const result = await loadSshServerProcesses(sessionId, 500);
       if (requestId === loadSequence) processes.value = result;
@@ -339,14 +347,35 @@ async function dockerAction(container: SshDockerContainer, action: string) {
 }
 
 async function showDockerLogs(container: SshDockerContainer) {
-  dockerLogsTitle.value = `${t("ssh.server.dockerLogs")} · ${container.names}`;
+  const requestId = ++dockerLogLoadSequence;
+  dockerLogsTitle.value = `${t("ssh.server.dockerLogs")} · ${containerName(container)}`;
   dockerLogsVisible.value = true;
+  dockerLogsLoaded.value = false;
   dockerLogs.value = t("common.loading");
   try {
-    dockerLogs.value = await loadSshDockerLogs(props.sessionId, container.id, 300);
+    const result = await loadSshDockerLogs(props.sessionId, container.id, 300);
+    if (requestId !== dockerLogLoadSequence) return;
+    dockerLogs.value = result;
+    dockerLogsLoaded.value = true;
   } catch (reason) {
-    dockerLogs.value = String(reason);
+    if (requestId === dockerLogLoadSequence) dockerLogs.value = String(reason);
   }
+}
+
+function handoffLogs(source: "ssh" | "docker") {
+  const docker = source === "docker";
+  if (docker ? !dockerLogsLoaded.value : loading.value || error.value) return;
+  const content = docker ? dockerLogs.value : logs.value;
+  if (!content.trim()) return;
+  const title = t("ai.handoff.serviceLogs");
+  void sendToAi({
+    source,
+    title: docker ? dockerLogsTitle.value : [title, loadedLogUnit.value.trim()].filter(Boolean).join(" · "),
+    content,
+    prompt: t("ai.handoff.logsPrompt"),
+  });
+  dockerLogsVisible.value = false;
+  emit("update:modelValue", false);
 }
 
 watch(
@@ -373,6 +402,9 @@ watch(
 watch(
   () => props.sessionId,
   () => {
+    logs.value = "";
+    dockerLogLoadSequence += 1;
+    dockerLogsVisible.value = false;
     closeDockerTerminal();
     if (props.modelValue) void loadCurrentTab();
   }
@@ -515,6 +547,9 @@ watch(activeTab, (tab) => {
           <el-input v-model="logUnit" clearable :placeholder="t('ssh.server.logUnitPlaceholder')" @keyup.enter="loadCurrentTab" />
           <el-input-number v-model="logLines" :min="50" :max="2000" :step="50" />
           <el-button type="primary" :loading="loading" @click="loadCurrentTab">{{ t("common.refresh") }}</el-button>
+          <el-button text :icon="MagicStick" :disabled="loading || !!error || !logs.trim()" @click="handoffLogs('ssh')">
+            {{ t("ai.handoff.analyzeLogs") }}
+          </el-button>
         </div>
         <el-scrollbar class="ssh-server-log-viewer" always>
           <pre class="ssh-server-log-viewer__content">{{ logs || t("ssh.server.noLogs") }}</pre>
@@ -719,5 +754,10 @@ watch(activeTab, (tab) => {
     <el-scrollbar class="ssh-server-log-viewer ssh-server-log-viewer--dialog" always>
       <pre class="ssh-server-log-viewer__content">{{ dockerLogs }}</pre>
     </el-scrollbar>
+    <template #footer>
+      <el-button text :icon="MagicStick" :disabled="!dockerLogsLoaded || !dockerLogs.trim()" @click="handoffLogs('docker')">
+        {{ t("ai.handoff.analyzeLogs") }}
+      </el-button>
+    </template>
   </el-dialog>
 </template>

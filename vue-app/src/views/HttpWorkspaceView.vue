@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { handoffHttpResponse } from "@/services/http-ai-handoff";
+import { isSensitiveDataName } from "@/services/ai-tools/shared";
 import "@/styles/workspaces/http/workspace.css";
 import {
   computed,
@@ -10,6 +12,7 @@ import {
   onMounted,
   ref,
   shallowRef,
+  toRaw,
   watch,
 } from "vue";
 import { storeToRefs } from "pinia";
@@ -1025,6 +1028,49 @@ function httpSendErrorMessage(error: unknown) {
   return message.startsWith("http.browser.") && te(message) ? t(message) : String(error);
 }
 
+const sentRequests = new WeakMap<ResponseData, { method: string; requestUrl: string; secrets: string[] }>();
+
+/** Credential values that the response might echo. */
+function requestSecrets(tab: RequestTab): string[] {
+  const queryValues = (url: string) => {
+    const query = url.indexOf("?");
+    if (query < 0) return [];
+    const hash = url.indexOf("#", query);
+    const search = url.slice(query + 1, hash < 0 ? undefined : hash);
+    // Decoded (URLSearchParams) and as written in the address (percent-encoded), since a header may echo either.
+    const decoded = [...new URLSearchParams(search)].filter(([key]) => isSensitiveDataName(key)).map(([, value]) => value);
+    const raw = search.split("&").flatMap((pair) => {
+      const equals = pair.indexOf("=");
+      if (equals < 0) return [];
+      let key = pair.slice(0, equals);
+      try {
+        key = decodeURIComponent(key.replace(/\+/g, " "));
+      } catch {
+        // A malformed escape: match the key as written.
+      }
+      return isSensitiveDataName(key) ? [pair.slice(equals + 1)] : [];
+    });
+    return [...decoded, ...raw];
+  };
+  const values = [
+    tab.authToken,
+    tab.authPassword,
+    tab.apiKeyValue,
+    tab.oauth2ClientSecret,
+    tab.oauth2Password,
+    tab.oauth2AccessToken,
+    ...tab.headers.filter((row) => row.enabled && isSensitiveDataName(row.key)).map((row) => row.value),
+    ...tab.params.filter((row) => row.enabled && isSensitiveDataName(row.key)).map((row) => row.value),
+  ];
+  const expanded = values.flatMap((value) => [value, expandVariables(value)]);
+  return [...new Set([...expanded, ...queryValues(tab.url), ...queryValues(expandVariables(tab.url))].filter(Boolean))];
+}
+
+function explainResponse() {
+  const response = activeTab.value.response;
+  if (response) void handoffHttpResponse(response, sentRequests.get(toRaw(response)));
+}
+
 async function send() {
   if (!activeTab.value.url.trim()) {
     ElMessage.warning(t("http.urlRequired"));
@@ -1041,9 +1087,12 @@ async function send() {
   pendingRequests.set(tab.id, controller);
   tab.loading = true;
   try {
+    const payload = buildNativeHttpRequestPayload(tab, expandVariables);
+    const sent = { method: payload.method, requestUrl: payload.url, secrets: requestSecrets(tab) };
     const response = await invokeBackend<ResponseData>("http_send_request", {
-      payload: buildNativeHttpRequestPayload(tab, expandVariables),
+      payload,
     }, { signal: controller.signal });
+    sentRequests.set(response, sent);
     tab.response = response;
     if (shouldAutoNameRequestTab(tab)) {
       tab.name = requestUrlTabName(tab.url);
@@ -2617,6 +2666,9 @@ onBeforeUnmount(() => {
               </span>
               <span>{{ activeTab.response.elapsed_ms }} ms</span>
               <span>{{ formatResponseSizeLabel(activeTab.response.size_bytes) }}</span>
+              <el-button text size="small" :icon="MagicStick" @click="explainResponse">
+                {{ t("ai.handoff.explainHttpResponse") }}
+              </el-button>
             </div>
           </div>
 

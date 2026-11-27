@@ -33,15 +33,12 @@ test("notification targets are persisted, allowlisted, and activated from the no
   assert.match(navigation, /invokeBackend\("desktop_navigate", nativeTarget\)/);
 });
 
-test("AI task notifications identify their conversation and top-level navigation selects it", async () => {
-  const [drawer, app, notifications] = await Promise.all([
-    source("src/components/ai/AiAssistantDrawer.vue"),
+test("AI conversation notification targets reach top-level navigation", async () => {
+  const [app, notifications] = await Promise.all([
     source("src/App.vue"),
     source("src/services/notifications.ts"),
   ]);
 
-  assert.match(drawer, /notifyAi\(aiAgentTaskNotification\(true, result\.summary\), conversationId\)/);
-  assert.match(drawer, /workspaceScopeId: conversation\?\.workspaceScopeId \|\| assistant\.activeWorkspaceScopeId/);
   assert.match(app, /const aiStore = await loadAiAssistantStore\(\);/);
   assert.match(app, /await aiStore\.switchToConversation\(/);
   assert.match(app, /aiStore\.show\(switched \? aiStore\.mode : "agentic"\)/);

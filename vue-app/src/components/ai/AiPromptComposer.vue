@@ -17,6 +17,8 @@ interface Labels {
   modelGroup: string; profileGroup: string; chooseModel: string; noModels: string; reasoning: string; removeAttachment: string;
   previewAttachment: string; suggestionList: string; suggestionHint: string;
   suggestionTool: string;
+  suggestionAcpCommands?: string;
+  suggestionMinCode?: string;
   optimizePrompt: string;
   cancelOptimization: string;
 }
@@ -72,6 +74,8 @@ watch(() => props.history, () => {
   historyIndex.value = -1;
   historyDraft.value = props.modelValue;
 });
+
+const firstMinCodeSuggestion = computed(() => props.suggestions.findIndex((suggestion) => suggestion.kind !== "acp-command"));
 
 function togglePromptOptimization() {
   if (props.optimizingPrompt) emit("cancel-optimization");
@@ -210,16 +214,21 @@ const onFiles = (event: Event) => {
     </el-scrollbar>
     <div class="ai-assistant-composer__input">
       <el-scrollbar v-if="suggestionsVisible && suggestions.length" class="ai-tool-suggest" role="listbox" :aria-label="labels.suggestionList">
-        <button v-for="(suggestion, index) in suggestions" :key="suggestion.id" type="button" role="option" :aria-selected="index === activeSuggestionIndex" :class="{ 'is-active': index === activeSuggestionIndex }" @mouseenter="emit('update:activeSuggestionIndex', index)" @mousedown.prevent="selectSuggestion(index)">
-          <Tools aria-hidden="true" />
-          <span>
-            <span class="ai-tool-suggest__title">
-              <strong>{{ suggestion.name }}</strong>
-              <el-tag size="small" effect="plain">{{ props.labels.suggestionTool }}</el-tag>
+        <template v-for="(suggestion, index) in suggestions" :key="suggestion.id">
+          <div v-if="index === 0 && suggestion.kind === 'acp-command'" role="presentation">{{ labels.suggestionAcpCommands }}</div>
+          <div v-else-if="index > 0 && index === firstMinCodeSuggestion" role="presentation">{{ labels.suggestionMinCode }}</div>
+          <button type="button" role="option" :aria-selected="index === activeSuggestionIndex" :class="{ 'is-active': index === activeSuggestionIndex }" @mouseenter="emit('update:activeSuggestionIndex', index)" @mousedown.prevent="selectSuggestion(index)">
+            <Tools aria-hidden="true" />
+            <span>
+              <span class="ai-tool-suggest__title">
+                <strong>{{ suggestion.name }}</strong>
+                <small v-if="suggestion.kind === 'acp-command' && suggestion.inputHint">{{ suggestion.inputHint }}</small>
+                <el-tag v-if="suggestion.kind !== 'acp-command'" size="small" effect="plain">{{ labels.suggestionTool }}</el-tag>
+              </span>
+              <small>{{ suggestion.description }}</small>
             </span>
-            <small>{{ suggestion.description }}</small>
-          </span>
-        </button>
+          </button>
+        </template>
         <div>{{ labels.suggestionHint }}</div>
       </el-scrollbar>
       <el-scrollbar ref="promptScrollbar" class="ai-assistant-composer__prompt-scrollbar" max-height="158px" always>

@@ -157,3 +157,23 @@ func TestControlReadRedactsSecretsBeforeSelectingLines(t *testing.T) {
 		}
 	}
 }
+
+func TestControlReadLatestCommand(t *testing.T) {
+	id, pane, _ := registerTestControlPane(t, false)
+	read := func(want string) {
+		t.Helper()
+		got, err := controlCommand(context.Background(), "terminal_control_read", `{"pane":"`+id+`","latestCommand":true}`)
+		if err != nil || got != want {
+			t.Fatalf("latest command read = %q, %v, want %q", got, err, want)
+		}
+	}
+	pane.observeOutput("shell startup\n", time.Now())
+	read(`{"text":""}`)
+	pane.observeInput("first\r")
+	pane.observeOutput("first output\n", time.Now())
+	pane.observeInput("typing")
+	read(`{"text":"first output\n"}`)
+	pane.observeInput("\r")
+	pane.observeOutput("\x1b[32msecond output\x1b[0m\npassword=fixture-secret\n", time.Now())
+	read(`{"text":"second output\npassword=[REDACTED]\n"}`)
+}

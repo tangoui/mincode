@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { MagicStick } from "@element-plus/icons-vue";
 import TableV2ResultGrid from "@/components/database/TableV2ResultGrid.vue";
 import VirtualResultGrid, {
   type ResultGridColumn,
@@ -18,6 +19,7 @@ import type { ResultGridState } from "@/composables/database/useGridState";
 import type { InlineCellEdit } from "@/composables/database/useRowMutations";
 import type { PendingRowState } from "@/domain/database/grid-pending-changes";
 import { useVueI18n } from "@/i18n/messages";
+import { handoffDatabaseResult } from "@/services/database-ai-handoff";
 
 
 defineProps<{
@@ -190,6 +192,15 @@ function handleClearContextFilters() {
       <span>{{ resultRowCountText }}</span
       ><span v-if="activeResult">{{ activeResult.executionMs }} ms</span
       ><span v-else-if="activeQueryRunning">{{ t("database.queryRunning") }}</span>
+      <el-button
+        v-if="activeQueryTab.status === 'success' && activeQueryTab.lastExecution && activeResult"
+        text
+        size="small"
+        :icon="MagicStick"
+        @click="handoffDatabaseResult(activeQueryTab, activeResult)"
+      >
+        {{ t("ai.handoff.analyzeDatabaseResult") }}
+      </el-button>
     </footer>
   </template>
   <template v-if="object === 'table' && selectedTable">

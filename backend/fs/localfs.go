@@ -11,12 +11,14 @@ import (
 
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 const (
@@ -48,8 +50,9 @@ type localFsDirEntry struct {
 }
 
 type localFsFileInfo struct {
-	IsFile bool  `json:"isFile"`
-	Size   int64 `json:"size"`
+	IsFile     bool      `json:"isFile"`
+	Size       int64     `json:"size"`
+	ModifiedAt time.Time `json:"modifiedAt"`
 }
 
 // ---------- 安全辅助 ----------
@@ -222,8 +225,9 @@ func handleListDir(_ string, argsJson string) (string, error) {
 
 func handleFileInfo(_ string, argsJson string) (string, error) {
 	var a struct {
-		ProjectRoot string `json:"projectRoot"`
-		FilePath    string `json:"filePath"`
+		ProjectRoot  string `json:"projectRoot"`
+		FilePath     string `json:"filePath"`
+		AllowMissing bool   `json:"allowMissing"`
 	}
 	if err := core.DecodeArgs(argsJson, &a); err != nil {
 		return "", err
@@ -234,15 +238,22 @@ func handleFileInfo(_ string, argsJson string) (string, error) {
 	}
 	p, err := resolveUnderRoot(root, a.FilePath)
 	if err != nil {
+		if a.AllowMissing && errors.Is(err, os.ErrNotExist) {
+			return core.EncodeResult(nil)
+		}
 		return "", err
 	}
 	info, err := os.Stat(p)
 	if err != nil {
+		if a.AllowMissing && errors.Is(err, os.ErrNotExist) {
+			return core.EncodeResult(nil)
+		}
 		return "", fmt.Errorf("stat: %w", err)
 	}
 	return core.EncodeResult(localFsFileInfo{
-		IsFile: info.Mode().IsRegular(),
-		Size:   info.Size(),
+		IsFile:     info.Mode().IsRegular(),
+		Size:       info.Size(),
+		ModifiedAt: info.ModTime().UTC(),
 	})
 }
 

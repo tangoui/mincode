@@ -23,6 +23,7 @@ import type { DatabaseQueryHistoryItem } from "@/domain/database/types";
 import type { SqlCompletionItem } from "@/domain/database/sql-completion";
 import type { ProjectEditorViewState } from "@/domain/projects/types";
 import { useVueI18n } from "@/i18n/messages";
+import { handoffDatabaseError } from "@/services/database-ai-handoff";
 
 // Only the non-SQL query languages (JSON, plain text) use Monaco here: load it when one is shown.
 const MonacoTextEditor = defineAsyncComponent(() => import("@/components/ui/MonacoTextEditor.vue"));
@@ -229,6 +230,10 @@ async function confirmClearHistory() {
       type="error"
       :closable="false"
       show-icon
-    />
+    >
+      <el-button v-if="props.activeQueryTab?.lastExecution" text size="small" :icon="MagicStick" @click="handoffDatabaseError(props.activeQueryTab)">
+        {{ t("ai.handoff.fixDatabaseError") }}
+      </el-button>
+    </el-alert>
   </template>
 </template>

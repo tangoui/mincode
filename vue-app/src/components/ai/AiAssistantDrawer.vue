@@ -35,6 +35,7 @@ import {
 import { useSessionProgressStore } from "@/stores/session-progress";
 import AiQueuedMessages from "@/components/ai/AiQueuedMessages.vue";
 import AiPendingEdits from "@/components/ai/AiPendingEdits.vue";
+import AiProjectInstructions from "@/components/ai/AiProjectInstructions.vue";
 import AiMessageThread from "@/components/ai/AiMessageThread.vue";
 
 type AiMessageThreadInstance = InstanceType<typeof AiMessageThread>;
@@ -106,6 +107,7 @@ import {
 } from "@/services/ai-agent-loop";
 import { clearAiTerminalSessionReuse, enabledMcpServers, stringRecord } from "@/services/app-ai-capability-deps";
 import { useVueI18n } from "@/i18n/messages";
+import { useAiHandoff } from "@/composables/use-ai-handoff";
 import {
   type StoredMcpServer,
 } from "@/domain/ai/settings-integrations";
@@ -138,6 +140,7 @@ import {
   parseAiPromptSuggestionQuery,
   type AiPromptSuggestion,
 } from "@/domain/ai/tool-command";
+import { acpSlashSuggestions, isAcpSlashCommand, parseAcpSlashCommands, type AcpSlashCommand } from "@/domain/ai/acp-slash-commands";
 import {
   AI_REASONING_EFFORT_CHOICES,
   buildAiModelAttemptOrder,
@@ -149,10 +152,12 @@ import {
 } from "@/domain/ai/model-selection";
 import { streamAiTurnWithFailover } from "@/services/ai-model-failover";
 import { optimizeAiPrompt } from "@/services/ai-prompt-optimizer";
+import { loadProjectInstructions, type ProjectInstructions } from "@/services/ai-project-instructions";
 import { notifyApp } from "@/services/notifications";
+import { createAiRunNotifier } from "@/services/ai-run-notifications";
 import {
-  aiAgentTaskNotification,
   aiErrorNotification,
+  isAiRequestCancelled,
 } from "@/domain/ai/task-notification";
 import {
   hydrateSettingsSnapshot,
@@ -303,6 +308,8 @@ interface StoredSettings {
   aiProfiles?: StoredAiProfile[];
   mcpServers?: StoredMcpServer[];
   aiRules?: StoredAiRule[];
+  aiReadProjectInstructions?: boolean;
+  aiSystemNotifications?: boolean;
   acpAdapterId?: string;
   acpInjectRules?: boolean;
   acpAgents?: Array<{ id: string; name: string; command: string; args: string }>;
@@ -358,6 +365,7 @@ const route = useRoute();
 // 顶部标签页呈现：路由停在 ai 标签时以全幅覆盖层展示同一宿主实例，
 // 与抽屉外壳互斥；关闭标签页只离开路由，不拆除运行时监听。
 const tabSurfaceActive = computed(() => !isPopupWindow() && route.name === "ai");
+const drawerVisible = computed(() => assistant.open || tabSurfaceActive.value);
 const conversationListOnLeft = computed(() => tabSurfaceActive.value && conversationPreferences.sidebarPosition === "left");
 const shellFullscreen = computed(() => assistant.fullscreen || tabSurfaceActive.value);
 const emit = defineEmits<{ "open-settings": []; "session-runner-ready": [runner: AiSessionRunner] }>();
@@ -615,6 +623,7 @@ interface AcpRunTarget {
 }
 interface AcpStartingServer extends Pick<AcpRunTarget, "serverId" | "directoryKind"> {
   needsConnectionCheck: boolean;
+  commandsBySession?: Map<string, AcpSlashCommand[]>;
 }
 const acpRunTargets = shallowReactive(new Map<string, AcpRunTarget>());
 const unavailableAcpDirectories = shallowReactive(new Map<string, string>());
@@ -635,6 +644,10 @@ function markAcpSessionStopped(target: { serverId: string; sessionId: string } |
   if (target?.sessionId) stoppedAcpSessions.add(acpSessionKey(target));
 }
 const acpConfigOptions = ref<Record<string, AcpConfigSelectOption[]>>({});
+const acpCommandsByConversation = shallowReactive(new Map<string, AcpSlashCommand[]>());
+const activeAcpCommands = computed(() =>
+  assistant.mode === "agent" ? acpCommandsByConversation.get(assistant.activeConversationId) ?? [] : [],
+);
 const acpConfigPending = ref("");
 const agenticSendGate = createConversationSendGate();
 const acpSendGate = createConversationSendGate();
@@ -820,6 +833,7 @@ const stopCapabilityUpdates = aiCapabilityRegistry.subscribe(() => {
 // 运行中的会话仍允许编辑和排队下一条消息，斜杆选择器也必须保持可用。
 const toolSuggestionsVisible = computed(
   () => parseAiPromptSuggestionQuery(input.value) !== null
+    && !(isAcpSlashCommand(input.value, activeAcpCommands.value) && /\s/.test(input.value.trimStart()))
 );
 const statusOptions: Array<{
   value: "all" | AiConversationStatus;
@@ -997,12 +1011,10 @@ function reorderConversationWorkspaceGroups(keys: string[]) {
   );
 }
 
-const filteredToolSuggestions = computed(() =>
-  buildAiPromptSuggestions(
-    input.value,
-    agentTools.value,
-  )
-);
+const filteredToolSuggestions = computed(() => [
+  ...acpSlashSuggestions(input.value, activeAcpCommands.value),
+  ...buildAiPromptSuggestions(input.value, agentTools.value),
+]);
 watch(filteredToolSuggestions, () => {
   activeToolIndex.value = 0;
 });
@@ -1063,6 +1075,30 @@ const activeConversationWorkspaceName = computed(() => {
   const conversation = assistant.activeConversation;
   return conversation ? conversationWorkspaceName(conversation) : "";
 });
+const projectInstructionsRoot = computed(() => {
+  void settingsSnapshotVersion.value;
+  const conversation = assistant.activeConversation;
+  if (!drawerVisible.value || conversation?.mode !== "agentic"
+    || (conversation.external && !conversation.external.workspace)
+    || loadStoredSettings().aiReadProjectInstructions === false) return "";
+  return conversation.projectRoot?.trim() || "";
+});
+const projectInstructionSources = ref<string[]>([]);
+let projectInstructionsRequest = 0;
+async function refreshProjectInstructions(root: string): Promise<ProjectInstructions> {
+  const request = root === projectInstructionsRoot.value ? ++projectInstructionsRequest : undefined;
+  const result = await loadProjectInstructions(root);
+  if (request === projectInstructionsRequest && root === projectInstructionsRoot.value) {
+    projectInstructionSources.value = result.sources;
+  }
+  return result;
+}
+watch(projectInstructionsRoot, (root) => {
+  projectInstructionsRequest++;
+  projectInstructionSources.value = [];
+  if (root) void refreshProjectInstructions(root);
+}, { immediate: true });
+
 const homeDirectory = ref("");
 const homeDirectoryReady = isDesktopRuntime()
   ? getUserHomeDirectory().then((path) => { homeDirectory.value = path; })
@@ -1550,6 +1586,8 @@ const composerLabels = computed(() => ({
   suggestionList: t("ai.toolSuggest.label"),
   suggestionHint: t("ai.toolSuggest.hint"),
   suggestionTool: t("ai.toolSuggest.tool"),
+  suggestionAcpCommands: t("ai.toolSuggest.acpCommands"),
+  suggestionMinCode: t("ai.toolSuggest.mincode"),
   optimizePrompt: t("ai.promptOptimizer.action"),
   cancelOptimization: t("ai.promptOptimizer.cancel"),
 }));
@@ -1701,7 +1739,7 @@ function notifyAi(notification: {
           workspaceScopeId: conversation?.workspaceScopeId || assistant.activeWorkspaceScopeId,
         }
       : undefined,
-  });
+  }, { suppressSystem: loadStoredSettings().aiSystemNotifications === false });
 }
 
 
@@ -2380,16 +2418,42 @@ async function beginConversationRun(
   }
 }
 
+const notifyRunPhase = createAiRunNotifier();
+
+function runReplyPreview(conversation: AiConversation) {
+  for (let index = conversation.messages.length - 1; index >= 0; index--) {
+    const message = conversation.messages[index];
+    if (message.role === "user") return undefined;
+    if (message.role === "assistant" && !message.eventAnchor && message.content.trim()) return message.content;
+  }
+}
+
 function reportConversationRun(
   conversationId: string,
   phase: AgentRunPhase,
   summary?: string,
   errorCode?: string,
   steps?: { completed: number; total: number },
+  notificationDetail?: string,
 ) {
+  const priorPhase = activeRunPhases.get(conversationId) ?? liveRunStatus.value[conversationId]?.phase;
   // The thread's status line reads this copy at once; the run registry updates only after an
   // async round trip and stays empty when registering the run failed.
   liveRunStatus.value = { ...liveRunStatus.value, [conversationId]: { phase, summary: summary ?? "" } };
+  if (phase !== priorPhase && (phase === "completed" || phase === "failed" || phase === "waiting_approval" || phase === "waiting_input")) {
+    const conversation = assistant.conversationById(conversationId);
+    if (conversation) {
+      notifyRunPhase({
+        conversationId,
+        workspaceScopeId: conversation.workspaceScopeId || assistant.activeWorkspaceScopeId,
+        title: conversationRunTitle(conversation, ""),
+        phase,
+        detail: notificationDetail || summary,
+        reply: phase === "completed" ? runReplyPreview(conversation) : undefined,
+        systemEnabled: loadStoredSettings().aiSystemNotifications !== false,
+      });
+    }
+  }
   const runId = activeRunIds.get(conversationId);
   if (!runId) return Promise.resolve(undefined);
   const normalizedSummary = summary ?? "";
@@ -2450,7 +2514,7 @@ async function askNativeAiQuestion({
 }: Parameters<NonNullable<NativeAiCapabilityDependencies["askUser"]>>[0]): Promise<string> {
   if (!conversationId || !assistant.conversationById(conversationId)) throw createAbortError();
   throwIfAborted(signal);
-  await reportConversationRun(conversationId, "waiting_approval", t("ai.question.waiting"));
+  await reportConversationRun(conversationId, "waiting_input", t("ai.question.waiting"));
   throwIfAborted(signal);
   if (!assistant.conversationById(conversationId)) throw createAbortError();
   const ticket = questionQueue.enqueue({
@@ -2482,6 +2546,9 @@ async function authorizeTool(
     request.conversationId,
     "waiting_approval",
     t("ai.taskProgress.waitingApproval"),
+    undefined,
+    undefined,
+    summary,
   );
   throwIfAborted(signal);
   const approval = toolApprovalQueue.enqueue(
@@ -3223,6 +3290,10 @@ watch(
   },
   { immediate: true },
 );
+useAiHandoff(assistant, () => Boolean(
+  editingQueueId.value || editingMessageId.value || activeParallelDelegationPending.value
+  || agenticSendGate.isClaimed(assistant.activeConversationId) || acpSendGate.isClaimed(assistant.activeConversationId),
+));
 interface QueuedSendRequest {
   conversationId: string;
   content: string;
@@ -3499,6 +3570,10 @@ async function sendAgentic(request?: QueuedSendRequest) {
     const currentTools = () => [...nativeTools, ...mcpLoader, ...mcpTools];
     const selectedTools = currentTools();
     const toolTokens = estimateAiToolTokens(selectedTools);
+    const projectInstructions = !isolatedExternal && runProjectRoot
+      && loadStoredSettings().aiReadProjectInstructions !== false
+      ? (await runWithAbort(abortController.signal, () => refreshProjectInstructions(runProjectRoot))).prompt
+      : "";
     const systemPrompt = baseSystemPrompt;
     const delegationGuidance = selectedTools.some((tool) => tool.name === "agent.run_parallel")
       ? "\n\nWhen the user asks you to delegate work to a new conversation, use agent.run_parallel. Use one task for a single handoff. When the user asks for several child conversations, dispatch each actual task directly from this conversation in one call and give each task a self-contained prompt. Keep coordination and the final summary in this conversation. "
@@ -3510,7 +3585,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
       : "";
     const uncompactedHistory: AiLoopMessage[] = [
       ...(context ? [{ role: "system" as const, content: context }] : []),
-      { role: "system" as const, content: systemPrompt + delegationGuidance + questionGuidance },
+      { role: "system" as const, content: systemPrompt + delegationGuidance + projectInstructions + questionGuidance },
       ...conversationHistory,
     ];
     if (superseded()) return;
@@ -3707,7 +3782,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
         "completed",
         result.summary || t("ai.taskProgress.completed"),
       );
-      notifyAi(aiAgentTaskNotification(true, result.summary), conversationId);
     } else if (result.outcome === "response") {
       const conversation = assistant.conversationById(conversationId);
       const lastAssistant = [...(conversation?.messages ?? [])]
@@ -3753,14 +3827,13 @@ async function sendAgentic(request?: QueuedSendRequest) {
         t("ai.taskProgress.loopLimit"),
         "loop_limit",
       );
-      notifyAi(aiAgentTaskNotification(false, text), conversationId);
     }
   } catch (error) {
     streamTextBatcher.flush();
     if (superseded()) return;
     clearPreparingTools();
     replyTokenUsage = withAiTokenRequestStats(replyTokenUsage, attemptedModelRequests, attemptedModels);
-    const aborted = abortController.signal.aborted;
+    const aborted = abortController.signal.aborted || isAiRequestCancelled(error);
     const streamTimedOut = isAiStreamIdleTimeoutError(error);
     assistant.settleRunningAgentEvents(conversationId, aborted ? "cancelled" : "failed");
     assistant.setConversationStatus(conversationId, aborted ? "interrupted" : "failed");
@@ -3774,10 +3847,11 @@ async function sendAgentic(request?: QueuedSendRequest) {
           ? t("ai.taskProgress.streamTimeout")
           : t("ai.taskProgress.failed"),
       aborted ? undefined : streamTimedOut ? "stream_timeout" : "agentic_failed",
+      undefined,
+      streamTimedOut ? t("ai.agentic.streamTimeout") : nativeErrorMessage(error),
     );
     await runUpdate;
-    const notification = aiErrorNotification(error, "notifications.ai.taskFailed", text);
-    if (notification) {
+    if (!aborted) {
       const message = streamTimedOut
         ? t("ai.agentic.streamTimeout")
         : error instanceof Error
@@ -3790,7 +3864,6 @@ async function sendAgentic(request?: QueuedSendRequest) {
         tokenUsage: replyTokenUsage,
       });
       ElMessage.error(message);
-      notifyAi(notification, conversationId);
     } else if (replyTokenUsage) {
       // Cancellation may keep a partial assistant reply instead of adding an error message.
       const conversation = assistant.conversationById(conversationId);
@@ -3911,6 +3984,7 @@ async function handleAcpServersDisconnected(serverIds: string[]) {
 }
 function releaseAcpRun(conversationId: string) {
   const target = acpRunTargets.get(conversationId);
+  acpCommandsByConversation.delete(conversationId);
   if (!target) return;
   questionQueue.cancelConversation(conversationId);
   acpRunTargets.delete(conversationId);
@@ -4068,6 +4142,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false, reque
         acpRunTargets.set(id, target);
         unavailableAcpDirectories.delete(id);
         acpConfigOptions.value[id] = parseAcpConfigSelectOptions(session.configOptions);
+        acpCommandsByConversation.set(id, start.commandsBySession?.get(session.sessionId) ?? []);
         if (primary) {
           assistant.setConversationAgentState(id, { acpSessionId: session.sessionId, acpAdapterId: adapterId, agentReady: true });
         }
@@ -4190,22 +4265,24 @@ async function sendAgent(request?: QueuedSendRequest) {
     const promptTarget = { serverId, sessionId };
     stoppedAcpSessions.delete(acpSessionKey(promptTarget));
     activeAcpPrompts.set(conversationId, promptTarget);
+    const slashCommand = isAcpSlashCommand(text, acpCommandsByConversation.get(conversationId) ?? []);
     await runWithAbort(abortController.signal, () =>
       invokeBackend("acp_prompt", {
         ...promptTarget,
-        text: acpPromptText(text, conversationId, runContext.workspaceId),
+        text: slashCommand ? text : acpPromptText(text, conversationId, runContext.workspaceId),
         content: selectedAttachments.map(toAcpPromptContent),
       }),
     );
     if (superseded()) return;
-    acpContextInjected.add(conversationId);
+    if (!slashCommand) acpContextInjected.add(conversationId);
+    acpStreamTextBatcher.flush();
     assistant.settleRunningAgentEvents(conversationId, "completed");
     assistant.setConversationStatus(conversationId, "completed");
     await reportConversationRun(conversationId, "completed", t("ai.taskProgress.completed"));
   } catch (error) {
     acpStreamTextBatcher.flush();
     if (superseded()) return;
-    const cancelled = abortController.signal.aborted
+    const cancelled = abortController.signal.aborted || isAiRequestCancelled(error)
       || activeRunPhases.get(conversationId) === "cancelling"
       || activeRunPhases.get(conversationId) === "cancelled";
     assistant.settleRunningAgentEvents(conversationId, cancelled ? "cancelled" : "failed");
@@ -4215,15 +4292,11 @@ async function sendAgent(request?: QueuedSendRequest) {
       cancelled ? "cancelled" : "failed",
       cancelled ? t("ai.taskProgress.cancelled") : t("ai.taskProgress.failed"),
       cancelled ? undefined : "acp_prompt_failed",
+      undefined,
+      nativeErrorMessage(error),
     );
     await runUpdate;
-    if (!cancelled) {
-      const notification = aiErrorNotification(error, "notifications.ai.agentPromptFailed", text);
-      if (notification) {
-        ElMessage.error(String(error));
-        notifyAi(notification, conversationId);
-      }
-    }
+    if (!cancelled) ElMessage.error(String(error));
   } finally {
     acpStreamTextBatcher.flush();
     // 中断超时兜底可能已经启动下一条消息，旧任务不得清理新任务的控制器和发送锁。
@@ -4480,6 +4553,7 @@ async function handleAcpElicitationRequest(request: AcpElicitationRequest) {
     title: questionEventTitle(first?.header || first?.question || request.message, questions.length),
   };
   pendingAcpElicitations.set(request.requestId, pending);
+  void reportConversationRun(conversationId, "waiting_input", t("ai.question.waiting"));
   try {
     const outcome = await ticket.outcome;
     if (outcome.kind === "withdrawn") return;
@@ -4505,6 +4579,12 @@ async function handleAcpElicitationRequest(request: AcpElicitationRequest) {
     if (!pending.withdrawn) ElMessage.error(t("ai.question.responseFailed"));
   } finally {
     pendingAcpElicitations.delete(request.requestId);
+    if (activeRunPhases.get(conversationId) === "waiting_input"
+      && activeAcpPrompts.has(conversationId)
+      && ![...pendingAcpElicitations.values()].some((entry) => entry.conversationId === conversationId)
+      && !assistant.conversationById(conversationId)?.pendingPermission) {
+      void reportConversationRun(conversationId, "thinking", t("ai.taskProgress.thinking"));
+    }
   }
 }
 
@@ -4536,6 +4616,7 @@ async function handleProtocolPermissionRequest(request: AiAssistantPermission) {
     ElMessage.error(String(error));
     assistant.setConversationPermission(conversation.id, request);
     assistant.setConversationStatus(conversation.id, "needs_input");
+    reportAcpPermissionWait(conversation.id, request);
     return;
   }
   const optionId = automaticProtocolPermissionOption(
@@ -4564,6 +4645,15 @@ async function handleProtocolPermissionRequest(request: AiAssistantPermission) {
   if (!conversation) return;
   assistant.setConversationPermission(conversation.id, request);
   assistant.setConversationStatus(conversation.id, "needs_input");
+  reportAcpPermissionWait(conversation.id, request);
+}
+
+function reportAcpPermissionWait(conversationId: string, request: AiAssistantPermission) {
+  const title = asRecord(request.toolCall).title;
+  void reportConversationRun(
+    conversationId, "waiting_approval", t("ai.taskProgress.waitingApproval"), undefined, undefined,
+    typeof title === "string" ? title : t("ai.toolCall"),
+  );
 }
 
 async function answerPermission(optionId?: string) {
@@ -4581,6 +4671,9 @@ async function answerPermission(optionId?: string) {
     if (conversation) {
       assistant.setConversationPermission(conversation.id);
       assistant.setConversationStatus(conversation.id, optionId ? "in_progress" : "interrupted");
+      if (optionId && activeAcpPrompts.has(conversation.id)) {
+        void reportConversationRun(conversation.id, "thinking", t("ai.taskProgress.thinking"));
+      }
     }
   } catch (error) {
     ElMessage.error(String(error));
@@ -4835,7 +4928,19 @@ const ACP_TURN_UPDATE_KINDS = new Set([
   "plan",
 ]);
 async function handleAcpSessionUpdate(payload: AcpSessionUpdatePayload) {
+  const update = asRecord(payload.update);
+  const kind = String(update.sessionUpdate ?? "");
   const conversation = findConversationByAcpSession(payload.serverId, payload.sessionId);
+  if (kind === "available_commands_update") {
+    const commands = parseAcpSlashCommands(update.availableCommands);
+    const starting = [...acpStartingServers.values()].find((entry) => entry.serverId === payload.serverId);
+    if (starting) {
+      (starting.commandsBySession ??= new Map()).set(payload.sessionId, commands);
+    } else if (conversation?.mode === "agent") {
+      acpCommandsByConversation.set(conversation.id, commands);
+    }
+    return;
+  }
   if (!conversation) return;
   const conversationId = conversation.id;
   // Codex ACP intentionally streams its prior transcript while LoadSession
@@ -4846,8 +4951,6 @@ async function handleAcpSessionUpdate(payload: AcpSessionUpdatePayload) {
   );
   if (payload.replay && hasPersistedTranscript) return;
 
-  const update = asRecord(payload.update);
-  const kind = String(update.sessionUpdate ?? "");
   if (!payload.replay && ACP_TURN_UPDATE_KINDS.has(kind)) {
     // Drop turn output that arrives after the user stopped the session, or that belongs to a
     // session other than the one the conversation is currently prompting.
@@ -4974,6 +5077,13 @@ const keybindingDisposers = [
 
 function markVisibleConversationRead() {
   assistant.markConversationRead(assistant.activeConversationId);
+}
+
+// The native window can accept panel input without updating the WebView focus state.
+function markPanelConversationRead() {
+  if (drawerVisible.value && !assistant.workspaceSwitching) {
+    assistant.setConversationUnread(assistant.activeConversationId, false);
+  }
 }
 
 onMounted(() => {
@@ -5109,6 +5219,9 @@ onBeforeUnmount(() => {
           :id="AI_ASSISTANT_DROP_TARGET_ID"
           ref="drawerPanel"
           class="ai-assistant-drawer__panel"
+          @pointerdown.passive="markPanelConversationRead"
+          @wheel.passive="markPanelConversationRead"
+          @keydown="markPanelConversationRead"
           data-file-drop-target
           :data-file-drop-label="t('ai.attachment.dropHint')"
         >
@@ -5409,6 +5522,12 @@ onBeforeUnmount(() => {
             @edit="editQueuedMessage"
             @delete="deleteQueuedMessage"
             @send-now="sendQueuedMessageNow"
+          />
+          <AiProjectInstructions
+            v-if="projectInstructionSources.length && projectInstructionsRoot"
+            :key="projectInstructionsRoot"
+            :root="projectInstructionsRoot"
+            :sources="projectInstructionSources"
           />
           <AiPromptComposer
             v-if="!assistant.workspaceSwitching && !activeParallelDelegationPending"

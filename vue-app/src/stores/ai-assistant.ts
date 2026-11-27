@@ -1356,7 +1356,7 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     title?: string;
     cwd?: string;
     agentId?: string;
-    fullAccess: boolean;
+    fullAccess?: boolean;
   }) {
     const owner = options && activeWorkspaceScopeId.value !== topWorkspaceScopeId.value
       ? activeConversation.value
@@ -1383,9 +1383,9 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
   ) {
     return insertConversation(nextMode, options);
   }
-  function createConversation(nextMode: AiAssistantMode = mode.value) {
+  function createConversation(nextMode: AiAssistantMode = mode.value, options?: { cwd?: string }) {
     syncActiveConversation();
-    const conversation = insertConversation(nextMode);
+    const conversation = insertConversation(nextMode, options);
     activeConversationId.value = conversation.id;
     restoreSnapshot(conversation, false, false);
     return conversation;

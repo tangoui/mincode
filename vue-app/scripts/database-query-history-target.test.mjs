@@ -28,6 +28,7 @@ function mountExecution() {
     desktopRuntime: true,
     queryRunning: false,
     selectedDatabase: "orders_db",
+    connectionDialectType: (connection) => connection.dbType,
     executeQuery() {
       const request = deferred();
       pending.push(request);
@@ -52,7 +53,7 @@ function mountExecution() {
   new Function("require", "exports", code)((name) => modules[name] ?? {}, exports);
 
   const queryTabs = ref([{ id: "query:1", name: "SQL 1", sql: "SELECT 1", status: "idle" }]);
-  const activeConnectionValue = ref({ id: "conn-a", name: "A" });
+  const activeConnectionValue = ref({ id: "conn-a", name: "A", dbType: "postgres" });
   const queryHistory = ref([]);
   const execution = exports.useQueryExecution({
     queryTabs,
@@ -89,11 +90,11 @@ test("query history keeps the connection and database the query started on", asy
 });
 
 test("failed query history also keeps the original connection and database", async () => {
-  const { execution, pending, databaseStore, activeConnectionValue, queryHistory } = mountExecution();
+  const { execution, pending, databaseStore, activeConnectionValue, queryHistory, queryTabs } = mountExecution();
   const running = execution.runQuery("SELECT * FROM missing");
   await Promise.resolve();
 
-  activeConnectionValue.value = { id: "conn-b", name: "B" };
+  activeConnectionValue.value = { id: "conn-b", name: "B", dbType: "mysql" };
   databaseStore.selectedDatabase = "billing_db";
   pending[0].reject(new Error("table missing"));
   await running;
@@ -102,6 +103,7 @@ test("failed query history also keeps the original connection and database", asy
   assert.equal(queryHistory.value[0].connectionId, "conn-a");
   assert.equal(queryHistory.value[0].database, "orders_db");
   assert.equal(queryHistory.value[0].success, false);
+  assert.deepEqual(queryTabs.value[0].lastExecution, { sql: "SELECT * FROM missing", dbType: "postgres" });
 });
 
 test("a query result records the connection and database it ran on (plugin services name those)", async () => {
@@ -110,10 +112,11 @@ test("a query result records the connection and database it ran on (plugin servi
   await Promise.resolve();
 
   // The sidebar moves to another connection and database while the query runs.
-  activeConnectionValue.value = { id: "conn-b", name: "B" };
+  activeConnectionValue.value = { id: "conn-b", name: "B", dbType: "mysql" };
   databaseStore.selectedDatabase = "billing_db";
   pending[0].resolve({ columns: ["id"], rows: [[1]], rowCount: 1, executionMs: 3 });
   await running;
 
   assert.deepEqual(queryTabs.value[0].resultSource, { connectionId: "conn-a", database: "orders_db" });
+  assert.deepEqual(queryTabs.value[0].lastExecution, { sql: "SELECT * FROM orders", dbType: "postgres" });
 });

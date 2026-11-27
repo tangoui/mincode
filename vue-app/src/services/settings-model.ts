@@ -102,6 +102,8 @@ export interface VueSettings extends RuntimePerformanceSettings {
   aiProfiles: AiProfile[];
   mcpServers: McpServer[];
   aiRules: AiRule[];
+  aiReadProjectInstructions: boolean;
+  aiSystemNotifications: boolean;
   acpAdapterId: string;
   acpInjectRules: boolean;
   acpAgents: AcpAgent[];
@@ -305,6 +307,8 @@ export const defaultSettings: VueSettings = {
   aiProfiles: [defaultProfile],
   mcpServers: [],
   aiRules: [],
+  aiReadProjectInstructions: true,
+  aiSystemNotifications: true,
   acpAdapterId: "claude-code",
   acpInjectRules: true,
   acpAgents: [],

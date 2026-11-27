@@ -11,7 +11,12 @@ import { useWorkbenchStore } from "@/stores/workbench";
 const host = vi.hoisted(() => ({
   invoke: vi.fn<(command: string, args?: Record<string, unknown>) => Promise<unknown>>(),
   chooseDirectory: vi.fn<() => Promise<string | null>>(),
+  native: vi.fn(async (_op: string, _args?: unknown) => undefined),
   events: new Map<string, (payload: unknown) => void>(),
+}));
+vi.mock("@/services/desktop-runtime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/desktop-runtime")>()),
+  nativeCall: host.native,
 }));
 vi.mock("vue-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("vue-router")>()),
@@ -41,9 +46,9 @@ const temporaryId = "temporary-agent-id";
 const replacementId = "replacement-agent-id";
 let unmount: (() => void) | undefined;
 
-async function mountAssistant(boundRoot = "") {
+async function mountAssistant(boundRoot = "", advertiseOnStart = false) {
   let projectAvailable = false;
-  let finishPrompt: (() => void) | undefined;
+  let finishPrompt: ((error?: Error) => void) | undefined;
   host.invoke.mockImplementation(async (command, args = {}) => {
     switch (command) {
       case "acp_check_local_directory":
@@ -53,12 +58,17 @@ async function mountAssistant(boundRoot = "") {
         if (args.projectRoot === project && !projectAvailable) throw new Error("missing project");
         return { isDir: true };
       case "acp_new_session":
+        if (advertiseOnStart) advertiseCommands(args.serverId, temporaryId, [
+          { name: "review", description: "Review code", input: { hint: "<revision>" } },
+        ]);
         return { sessionId: args.cwd === replacementProject ? replacementId : temporaryId };
       case "acp_set_config_option":
       case "acp_load_session":
         return { configOptions: [] };
       case "acp_prompt":
-        return new Promise<void>((resolve) => { finishPrompt = resolve; });
+        return new Promise<void>((resolve, reject) => {
+          finishPrompt = (error) => { if (error) reject(error); else resolve(); };
+        });
       case "acp_cancel":
         finishPrompt?.();
         return undefined;
@@ -98,11 +108,12 @@ async function mountAssistant(boundRoot = "") {
     global: {
       stubs: {
         AppSplitPane: { template: '<section><slot name="first" /><slot name="second" /></section>' },
+        AiPromptComposer: !advertiseOnStart,
         AiMessageThread: false,
         AiTimelineQuestionRow: false,
         ElInput: false,
         ElButton: { template: "<button><slot /></button>" },
-        ElScrollbar: { template: "<div><slot /></div>" },
+        ElScrollbar: { template: "<div><slot /></div>", methods: { update() {}, setScrollTop() {} } },
       },
     },
   });
@@ -133,6 +144,12 @@ async function mountAssistant(boundRoot = "") {
 
 function calls(command: string) {
   return host.invoke.mock.calls.filter(([name]) => name === command).map(([, args]) => args);
+}
+
+function advertiseCommands(serverId: unknown, sessionId: string, availableCommands: unknown[], replay = false) {
+  host.events.get("acp:session-update")?.({
+    serverId, sessionId, replay, update: { sessionUpdate: "available_commands_update", availableCommands },
+  });
 }
 
 afterEach(() => {
@@ -228,6 +245,46 @@ describe("local agent elicitation", () => {
 });
 
 describe("local agent directory in the assistant", () => {
+  it("lists ACP commands announced during startup and sends the selected command as prompt text", async () => {
+    const session = await mountAssistant("", true);
+    await session.start();
+    const textarea = session.composer().get("textarea");
+    await textarea.setValue("/");
+    const review = session.composer().get('[role="option"]');
+    expect(review.text()).toContain("/review");
+    expect(review.text()).toContain("Review code");
+    expect(review.text()).toContain("<revision>");
+    await review.trigger("mousedown");
+    expect((textarea.element as HTMLTextAreaElement).value).toBe("/review ");
+    expect(session.composer().find('[role="option"]').exists()).toBe(false);
+    await textarea.setValue("/review main");
+    await textarea.trigger("keydown", { key: "Enter" });
+    await vi.waitFor(() => expect(calls("acp_prompt")).toEqual([
+      expect.objectContaining({ sessionId: temporaryId, text: "/review main" }),
+    ]));
+    session.finishPrompt();
+    await flushPromises();
+  });
+
+  it("keeps the latest ACP command update per conversation, including updates during replay", async () => {
+    const { assistant, conversation, composer } = await mountAssistant(project);
+    const other = assistant.createConversation("agent");
+    assistant.setConversationAgentState(other.id, { acpSessionId: "other-session" });
+    advertiseCommands(conversation.acpServerId, originalId, [{ name: "compact", description: "Compact" }], true);
+    advertiseCommands(other.acpServerId, "other-session", [{ name: "review", description: "Review" }]);
+    composer().vm.$emit("update:modelValue", "/");
+    await nextTick();
+    expect(composer().props("suggestions")).toEqual([expect.objectContaining({ name: "/review" })]);
+
+    await assistant.switchConversation(conversation.id);
+    composer().vm.$emit("update:modelValue", "/");
+    await nextTick();
+    expect(composer().props("suggestions")).toEqual([expect.objectContaining({ name: "/compact" })]);
+    advertiseCommands(conversation.acpServerId, originalId, []);
+    await nextTick();
+    expect(composer().props("suggestions")).toEqual([]);
+  });
+
   it("sends a prompt while the background window is not painting", async () => {
     const session = await mountAssistant();
     const frame = vi.spyOn(window, "requestAnimationFrame").mockReturnValue(1);

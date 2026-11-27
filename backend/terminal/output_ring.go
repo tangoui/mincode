@@ -14,6 +14,7 @@ type outputRing struct {
 	buffer                []byte
 	start, length, breaks int
 	maxBytes, maxLines    int
+	written               uint64
 	escape                outputEscape
 }
 
@@ -109,6 +110,7 @@ func (r *outputRing) push(b byte) {
 	}
 	r.buffer[(r.start+r.length)%len(r.buffer)] = b
 	r.length++
+	r.written++
 	if b == '\n' {
 		r.breaks++
 	}
@@ -135,6 +137,13 @@ func (r *outputRing) read(lines int) string {
 	data := make([]byte, r.length)
 	r.copyTo(data)
 	return tailOutputLines(string(data), lines)
+}
+
+func (r *outputRing) readSince(offset uint64) string {
+	length := int(min(r.written-offset, uint64(r.length)))
+	start := (r.start + r.length - length) % max(1, len(r.buffer))
+	first := min(length, len(r.buffer)-start)
+	return string(r.buffer[start:start+first]) + string(r.buffer[:length-first])
 }
 
 func tailOutputLines(data string, lines int) string {

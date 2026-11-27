@@ -31,6 +31,7 @@ type controlledPane struct {
 	ring                            outputRing
 	changed                         chan struct{}
 	lastInput, lastOutput, lastHook time.Time
+	commandOutputStart              uint64
 	hooked                          bool
 	turn                            uint64
 	stopped                         uint64
@@ -179,6 +180,7 @@ func (p *controlledPane) observeInput(input string) {
 		p.info.Agent = fields[0]
 	}
 	p.turn++
+	p.commandOutputStart = p.ring.written
 	p.lastInput = time.Now()
 	p.lastOutput = time.Time{}
 	p.info.State = "working"
@@ -264,12 +266,21 @@ func ControlSend(paneID, text string, submit bool) error {
 }
 
 func ControlRead(paneID string, lines int) (string, error) {
+	return readControlOutput(paneID, lines, false)
+}
+
+func readControlOutput(paneID string, lines int, latestCommand bool) (string, error) {
 	p := lookupControlledPane(paneID)
 	if p == nil {
 		return "", agentcontrol.ErrPaneNotFound
 	}
 	p.mu.Lock()
-	raw := p.ring.read(0)
+	var raw string
+	if !latestCommand {
+		raw = p.ring.read(0)
+	} else if !p.lastInput.IsZero() {
+		raw = p.ring.readSince(p.commandOutputStart)
+	}
 	p.mu.Unlock()
 	return tailOutputLines(textpolicy.RedactCredentials(raw), lines), nil
 }
@@ -368,11 +379,12 @@ func init() {
 
 func controlCommand(ctx context.Context, command, raw string) (string, error) {
 	var args struct {
-		Pane        string `json:"pane"`
-		Text        string `json:"text"`
-		Submit      bool   `json:"submit"`
-		Lines       int    `json:"lines"`
-		TimeoutSecs int    `json:"timeoutSecs"`
+		Pane          string `json:"pane"`
+		Text          string `json:"text"`
+		Submit        bool   `json:"submit"`
+		Lines         int    `json:"lines"`
+		LatestCommand bool   `json:"latestCommand"`
+		TimeoutSecs   int    `json:"timeoutSecs"`
 		PaneInfo
 	}
 	if err := core.DecodeArgsPayload(raw, &args); err != nil {
@@ -385,7 +397,7 @@ func controlCommand(ctx context.Context, command, raw string) (string, error) {
 		if args.Lines < 0 {
 			return "", errors.New("lines must not be negative")
 		}
-		text, err := ControlRead(args.Pane, args.Lines)
+		text, err := readControlOutput(args.Pane, args.Lines, args.LatestCommand)
 		if err != nil {
 			return "", err
 		}

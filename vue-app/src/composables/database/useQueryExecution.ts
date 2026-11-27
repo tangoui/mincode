@@ -67,6 +67,8 @@ export function useQueryExecution(options: {
     const tabId = tab.id;
     // 历史记录同理：执行期间切换连接/数据库不能把记录归到新的目标下。
     const historyConnectionId = options.activeConnection.value?.id ?? "";
+    const connection = options.activeConnection.value;
+    const lastExecution = { sql: query, dbType: connection && databaseStore.connectionDialectType(connection) };
     const historyDatabase = databaseStore.selectedDatabase;
     // The result's own source: plugin services name this connection, not whatever the sidebar shows later.
     const resultSource = historyConnectionId ? { connectionId: historyConnectionId, database: historyDatabase } : undefined;
@@ -97,6 +99,7 @@ export function useQueryExecution(options: {
       const completedTab = options.queryTabs.value.find((item) => item.id === tabId);
       if (completedTab) {
         completedTab.result = markRaw(result);
+        completedTab.lastExecution = lastExecution;
         completedTab.resultSource = resultSource;
         completedTab.resultEstimatedBytes = estimateQueryResultBytes(result);
         completedTab.resultLastAccessedAt = Date.now();
@@ -125,6 +128,7 @@ export function useQueryExecution(options: {
       const completedTab = options.queryTabs.value.find((item) => item.id === tabId);
       if (completedTab) {
         completedTab.error = message;
+        completedTab.lastExecution = lastExecution;
         completedTab.status = "error";
         completedTab.lastExecutedAt = Date.now();
       }
