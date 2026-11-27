@@ -265,6 +265,7 @@ export const BACKEND_COMMANDS = [
   "store_set",
   "stream_diagnostics_get",
   "stream_diagnostics_report",
+  "take_local_shell_resume",
   "terminal_activity_prepare_claude",
   "terminal_activity_unregister",
   "terminal_control_info",

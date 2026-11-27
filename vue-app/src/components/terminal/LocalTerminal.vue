@@ -43,6 +43,7 @@ import {
 import type { LocalShellType, TerminalSplitDirection } from "@/domain/terminal/types";
 import { useTerminalAttentionStore } from "@/stores/terminal-attention";
 import { isTerminalReport } from "@/domain/terminal/terminal-attention";
+import { takeLocalShellResume } from "@/services/terminal-resume";
 import TerminalPaneAttention from "@/components/terminal/TerminalPaneAttention.vue";
 import { useVueI18n, type MessageKey } from "@/i18n/messages";
 import {
@@ -128,6 +129,7 @@ const props = withDefaults(
     customPath?: string;
     initialCwd?: string;
     initialCommand?: string;
+    resumeOnStart?: boolean;
     extraEnv?: Record<string, string>;
     active?: boolean;
     canClose?: boolean;
@@ -814,8 +816,8 @@ onMounted(async () => {
   await connectShell();
 });
 
-async function startShellSession(cols: number, rows: number, extraEnv = props.extraEnv) {
-  const cwd = props.initialCwd || await getUserHomeDirectory();
+async function startShellSession(cols: number, rows: number, initialCwd: string | undefined, extraEnv: Record<string, string> | undefined) {
+  const cwd = initialCwd || await getUserHomeDirectory();
   if (closed) return "";
   return invokeBackend<string>("start_local_shell", {
     payload: {
@@ -835,11 +837,16 @@ async function connectShell() {
   if (!xterm || closed) return;
   const controlled = pendingAgentControlTerminal(props.sessionId);
   try {
+    const resume = !controlled && props.resumeOnStart && !props.initialCommand
+      ? await takeLocalShellResume(props.sessionId)
+      : undefined;
+    if (closed || !xterm) return;
+    const initialCommand = resume?.command ?? props.initialCommand;
     const dimensions = clampTerminalDimensions(xterm.cols, xterm.rows);
     const prepared = controlled ? await prepareAgentControlTerminalCommand(props.sessionId, controlled.command, controlled.signal) : undefined;
     const extraEnv = prepared?.extraEnv ? { ...props.extraEnv, ...prepared.extraEnv } : props.extraEnv;
     controlled?.signal.throwIfAborted();
-    const start = () => startShellSession(dimensions.cols, dimensions.rows, extraEnv);
+    const start = () => startShellSession(dimensions.cols, dimensions.rows, resume?.cwd ?? props.initialCwd, extraEnv);
     const message = controlled
       ? await startAgentControlShell(controlled.signal, start, () => invokeBackend("close_local_shell", {
           payload: { sessionId: props.sessionId },
@@ -855,7 +862,7 @@ async function connectShell() {
     const attached = message === "Shell attached";
     if (!attached) {
       xterm.writeln(`\x1b[32m[MinCode] ${message}\x1b[0m`);
-      const command = controlled ? prepared?.command : props.initialCommand;
+      const command = controlled ? prepared?.command : initialCommand;
       if (command?.trim()) {
         await invokeBackend<void>("write_to_shell", {
           payload: { sessionId: props.sessionId, input: `${command}\r` },

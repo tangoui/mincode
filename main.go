@@ -386,6 +386,9 @@ func main() {
 		if ev != tango.Terminating {
 			return
 		}
+		if err := terminal.SaveLocalShellResume(); err != nil {
+			log.Printf("save terminal resume: %v", err)
+		}
 		if quitting.Load() {
 			return
 		}

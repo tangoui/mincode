@@ -147,6 +147,40 @@ async function mountPane(props: Record<string, unknown>, errorHandler?: (error: 
 }
 
 describe("LocalTerminal in a terminal tab", () => {
+  it("passes the restored command and cwd to a fresh shell only once", async () => {
+    native.invoke.mockImplementation(async (command: string) => {
+      if (command === "take_local_shell_resume") {
+        return { "terminal-resume-test": { command: "/bin/sleep 1000", cwd: "/restored/cwd" } };
+      }
+      if (command === "start_local_shell") return "Shell ready";
+      return undefined;
+    });
+    const props = {
+      sessionId: "terminal-resume-test",
+      attachOnlySessionId: undefined,
+      initialCwd: "/old/cwd",
+      resumeOnStart: true,
+    };
+    const pane = await mountPane(props);
+    expect(native.invoke).toHaveBeenCalledWith(
+      "start_local_shell",
+      { payload: expect.objectContaining({ sessionId: props.sessionId, cwd: "/restored/cwd" }) },
+    );
+    expect(native.invoke).toHaveBeenCalledWith(
+      "write_to_shell",
+      { payload: { sessionId: props.sessionId, input: "/bin/sleep 1000\r" } },
+      undefined,
+    );
+    pane.unmount();
+    await mountPane(props);
+    expect(native.invoke.mock.calls.filter(([command]) => command === "take_local_shell_resume")).toHaveLength(1);
+    expect(native.invoke.mock.calls.filter(([command]) => command === "write_to_shell")).toHaveLength(1);
+    expect(native.invoke).toHaveBeenLastCalledWith(
+      "start_local_shell",
+      { payload: expect.objectContaining({ sessionId: props.sessionId, cwd: "/old/cwd" }) },
+    );
+  });
+
   it("destroys xterm before releasing WebGL so a closed pane does not rebuild its renderer", async () => {
     const pane = await mountPane({ active: true, visible: true });
     native.calls.length = 0;

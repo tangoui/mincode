@@ -37,7 +37,8 @@ type unixPTY struct {
 	waited chan struct{}
 	// tty is the PTY's terminal device (proctree.TTYOf): processes still attached
 	// to it belong to this session even after leaving the shell's process tree.
-	tty int64
+	tty            int64
+	resumeEligible bool
 }
 
 // sessionEndGrace is how long the processes of a closed terminal get to exit
@@ -220,6 +221,7 @@ func startLocalPTY(payload StartLocalShellPayload, cols, rows uint16) (localPTYH
 	}
 	handle := newUnixPTY(f, cmd)
 	handle.controlToken = token
+	handle.resumeEligible = payload.desktopPane
 	return handle, fallbackFrom, nil
 }
 

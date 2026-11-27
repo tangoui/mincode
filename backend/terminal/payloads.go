@@ -48,6 +48,7 @@ type StartLocalShellPayload struct {
 	Cols           *uint32           `json:"cols"`
 	Rows           *uint32           `json:"rows"`
 	ExtraEnv       map[string]string `json:"extraEnv"`
+	desktopPane    bool
 }
 
 // ResizeLocalShellPayload 为 resize_local_shell 命令入参。

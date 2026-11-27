@@ -70,6 +70,7 @@ const paneCanClose = () => props.canClose || props.closeLastPane;
         :custom-path="pane.customPath"
         :initial-cwd="pane.cwd ?? pane.initialCwd"
         :initial-command="pane.initialCommand"
+        resume-on-start
         :extra-env="pane.extraEnv"
         :active="paneActive(pane.id)"
         :can-close="paneCanClose()"

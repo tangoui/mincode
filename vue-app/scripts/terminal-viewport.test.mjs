@@ -118,8 +118,12 @@ test("every xterm host waits for a real layout before creating the PTY", () => {
   // 顺序是关键：await 布局 → fit → 启动会话。任何一处颠倒都会让后端拿到假尺寸。
   assert.match(
     localSource,
-    /await waitForTerminalLayout\(terminalHost\.value\);[\s\S]{0,200}?fitAndResize\(\);[\s\S]{0,400}?"start_local_shell"/,
+    /await waitForTerminalLayout\(terminalHost\.value\);\s*if \(closed\) return;\s*fitAndResize\(\);\s*await connectShell\(\);/,
   );
+  const connect = localSource.split("async function connectShell() {")[1]?.split("\nasync function ")[0];
+  assert.ok(connect);
+  assert.match(connect, /const dimensions = clampTerminalDimensions\(xterm\.cols, xterm\.rows\);[\s\S]*?startShellSession\(dimensions\.cols, dimensions\.rows,/);
+  assert.match(localSource, /async function startShellSession\([\s\S]*?invokeBackend<string>\("start_local_shell",\s*\{\s*payload: \{[^}]*\bcols,\s*rows,/);
   assert.match(
     sshSource,
     /await waitForTerminalLayout\(terminalHost\.value\);[\s\S]{0,200}?fitAndResize\(\);[\s\S]{0,400}?"start_ssh_shell"/,

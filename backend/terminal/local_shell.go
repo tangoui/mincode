@@ -23,6 +23,7 @@ func cmdStartLocalShell(_, argsJSON string) (string, error) {
 	if err := core.DecodeArgsPayload(argsJSON, &payload); err != nil {
 		return "", err
 	}
+	payload.desktopPane = true
 	msg, err := startLocalShell(payload)
 	if err != nil {
 		return "", err
