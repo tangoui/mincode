@@ -1,4 +1,6 @@
-import type { AiCapability } from "@/domain/ai/capability-registry";
+import type { AiCapability, AiCapabilityExecutionContext } from "@/domain/ai/capability-registry";
+import { useVueI18n } from "@/i18n/messages";
+import { agentTrustSettingKey, checkedSettingValue, describeSetting, findSetting, settingsCatalog } from "./configurable-settings";
 import type { SidebarItemId, SidebarVisibility } from "@/services/sidebar-preferences";
 import type { UiTheme } from "@/services/ui-theme";
 import { callMcpToolCancellable } from "@/services/mcp-tool-call";
@@ -19,6 +21,58 @@ export interface SettingsToolDependencies extends AiToolDependencies {
   setSidebarItemVisible?(id: SidebarItemId, visible: boolean): Promise<unknown>;
   listSavedMcpServers?(): Promise<Array<{ id: string; connected: boolean }>>;
   connectSavedMcpServer?(serverId: string): Promise<unknown>;
+  configurableSettings?: ConfigurableSettingsDependency;
+}
+
+export interface ConfigurableSettingsDependency {
+  read(key?: string): Promise<Record<string, unknown>>;
+  write(key: string, value: unknown): Promise<void>;
+}
+
+const { t } = useVueI18n();
+
+function configurableSettingsCapabilities(settings: ConfigurableSettingsDependency): AiCapability[] {
+  const keySchema = { type: "string", description: "A key from settings.list." };
+  const getSetting = (input: Record<string, unknown>) => findSetting(requiredString(input, "key", "settings"));
+  async function write(context: AiCapabilityExecutionContext, reset: boolean) {
+    const setting = getSetting(context.input);
+    if (context.externalAgent && setting.key === agentTrustSettingKey) {
+      throw new Error(t("settings.tools.trustBlocked", { key: setting.key }));
+    }
+    await settings.write(setting.key, reset ? structuredClone(setting.initial) : checkedSettingValue(setting, context.input.value));
+    return { key: setting.key, ...(reset ? { reset: true } : { saved: true }) };
+  }
+  const base = { module: "settings", target: "none" } as const;
+  return [
+    {
+      ...base, mode: "read", risk: "read",
+      tool: tool("settings.list", "List configurable settings, their current values and supported options. Secrets are redacted."),
+      execute: async () => {
+        const values = await settings.read();
+        return settingsCatalog.map((setting) => describeSetting(setting, values));
+      },
+    },
+    {
+      ...base, mode: "read", risk: "read",
+      tool: tool("settings.get", "Read one setting and its supported options. Secrets are redacted.", { key: keySchema }, ["key"]),
+      execute: async ({ input }) => {
+        const setting = getSetting(input);
+        return describeSetting(setting, await settings.read(setting.key));
+      },
+    },
+    {
+      ...base, mode: "write", risk: "write",
+      tool: tool("settings.set", "Set a setting to a value of its declared type.", { key: keySchema, value: {} }, ["key", "value"]),
+      approvalPreview: ({ input }) => t("settings.tools.changePreview", { key: getSetting(input).key }),
+      execute: (context) => write(context, false),
+    },
+    {
+      ...base, mode: "write", risk: "write",
+      tool: tool("settings.reset", "Restore a setting's default value.", { key: keySchema }, ["key"]),
+      approvalPreview: ({ input }) => t("settings.tools.resetPreview", { key: getSetting(input).key }),
+      execute: (context) => write(context, true),
+    },
+  ];
 }
 
 function count(value: unknown) {
@@ -79,6 +133,7 @@ export function settingsCapabilities(
   dependencies: SettingsToolDependencies
 ): AiCapability[] {
   return [
+    ...(dependencies.configurableSettings ? configurableSettingsCapabilities(dependencies.configurableSettings) : []),
     {
       module: "settings",
       target: "none",

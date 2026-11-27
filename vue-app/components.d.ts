@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AgentControlPanel: typeof import('./src/components/settings/AgentControlPanel.vue')['default']
     AiAgentEventDetail: typeof import('./src/components/ai/AiAgentEventDetail.vue')['default']
     AiAgentEventElapsed: typeof import('./src/components/ai/AiAgentEventElapsed.vue')['default']
     AiArtifactCard: typeof import('./src/components/ai/AiArtifactCard.vue')['default']

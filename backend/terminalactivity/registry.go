@@ -80,6 +80,14 @@ type registryState struct {
 	claudeProbeFailedAt    time.Time
 }
 
+// Phase observers consume the same accepted states emitted to the UI.
+var phaseObserver func(paneID, phase, event string, at time.Time)
+
+// SetPhaseObserver installs the terminal control observer during package initialization.
+func SetPhaseObserver(observer func(paneID, phase, event string, at time.Time)) {
+	phaseObserver = observer
+}
+
 var state = registryState{registrations: make(map[string]registration)}
 
 func init() {

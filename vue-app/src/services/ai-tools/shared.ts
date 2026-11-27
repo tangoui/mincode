@@ -38,12 +38,16 @@ export function isSensitiveDataName(value: string) {
   return sensitiveDataNamePattern.test(value.replace(/([a-z0-9])([A-Z])/g, "$1_$2"));
 }
 
-function redactSensitiveText(value: string) {
+export function redactSensitiveText(value: string) {
   const redactedUrls = value.replace(/https?:\/\/[^\s"'<>]+/gi, (candidate) => sanitizeUrlForAi(candidate));
   return redactedUrls
-    .replace(/((?:password|passwd|pwd|token|secret|api[_-]?key|private[_-]?key|passphrase|credential|authorization|cookie|session[_-]?id)["']?\s*[=:]\s*)(["']?)[^\s,'";}]+\2/gi, "$1[REDACTED]")
+    .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[REDACTED PRIVATE KEY]")
     .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [REDACTED]")
-    .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi, "[REDACTED PRIVATE KEY]");
+    .replace(/((?:password|passwd|pwd|token|secret|api[\s_-]?key|private[\s_-]?key|passphrase|credential|authorization|cookie|session[\s_-]?id)["']?\s*[=:][ \t]*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\n\r]+)/gi,
+      (_match, prefix: string, secret: string) => {
+        const quote = /^["']/.test(secret) ? secret[0] : "";
+        return `${prefix}${quote}[REDACTED]${quote}`;
+      });
 }
 
 export function sanitizeUrlForAi(rawUrl: string) {
@@ -141,4 +145,8 @@ export function tool(
 
 export function resourceCapability(capability: Omit<AiCapability, "target">): AiCapability {
   return { ...capability, target: "resource" };
+}
+
+export function aiResourceSummary({ id, kind, name, active }: AiResource) {
+  return { resourceId: id, kind, name, active: active === true };
 }

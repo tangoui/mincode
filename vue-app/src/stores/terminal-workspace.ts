@@ -583,6 +583,7 @@ export const useTerminalWorkspaceStore = defineStore("terminal-workspace", () =>
   ) {
     if (!tabId) return false;
     const targetLayoutId = layoutId.trim() || tabId;
+    if (activeLayoutTabId === targetLayoutId && !initialPane) return true;
 
     if (activeLayoutTabId && activeLayoutTabId !== targetLayoutId) {
       rememberLayout(activeLayoutTabId, layoutSnapshot());

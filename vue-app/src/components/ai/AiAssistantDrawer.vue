@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowReactive, watch } from "vue";
 import "@/styles/workspaces/ai/drawer.css";
+import type { AiSessionRunner, AiSessionState, AiSessionTerminalState } from "@/services/ai-tools/ai-session-tools";
 import { useRoute, useRouter } from "vue-router";
 import { workspaceTabRoute } from "@/domain/workspace/tab-route";
 import { ElMessage, ElMessageBox, type ScrollbarInstance } from "element-plus";
@@ -31,7 +32,6 @@ import {
   type AiConversationStatus,
   type AiQueuedMessage,
 } from "@/stores/ai-assistant";
-import { useAiPendingEditsStore } from "@/stores/ai-pending-edits";
 import { useSessionProgressStore } from "@/stores/session-progress";
 import AiQueuedMessages from "@/components/ai/AiQueuedMessages.vue";
 import AiPendingEdits from "@/components/ai/AiPendingEdits.vue";
@@ -75,7 +75,6 @@ import { acpBuiltinAgentLaunch } from "@/domain/ai/acp-agents";
 import { resolveLocalAgentDirectory } from "@/domain/ai/local-agent-directory";
 import { useAcpAgentStart } from "@/composables/use-acp-agent-start";
 import { applyVisibleWorkspaceGroupOrder } from "@/domain/ai/workspace-group-order";
-import { connectSftp, disconnectSftp } from "@/services/sftp-service";
 import {
   closePopupWindow,
   isPopupWindow,
@@ -105,9 +104,9 @@ import {
   type AiLoopToolExecution,
   type AiLoopMessage,
 } from "@/services/ai-agent-loop";
+import { clearAiTerminalSessionReuse, enabledMcpServers, stringRecord } from "@/services/app-ai-capability-deps";
 import { useVueI18n } from "@/i18n/messages";
 import {
-  normalizeMcpServerForRuntime,
   type StoredMcpServer,
 } from "@/domain/ai/settings-integrations";
 import { buildAcpMcpServers, type AcpMcpServer } from "@/domain/ai/acp-mcp-servers";
@@ -157,13 +156,10 @@ import {
 } from "@/domain/ai/task-notification";
 import {
   hydrateSettingsSnapshot,
-  persistSettingsSnapshot,
   readSettingsSnapshot,
   settingsSnapshotVersion,
 } from "@/services/settings-persistence";
-import { loadSidebarVisibility, saveSidebarVisibility, sidebarItemIds } from "@/services/sidebar-preferences";
-import { applyUiTheme, normalizeUiTheme } from "@/services/ui-theme";
-import { getUserHomeDirectory, setAutostart, setMinimizeToTray } from "@/services/settings-service";
+import { getUserHomeDirectory } from "@/services/settings-service";
 import { aiCapabilityRegistry, type AiCapabilityExecutionResult } from "@/domain/ai/capability-registry";
 import { createAbortError, runWithAbort, throwIfAborted } from "@/domain/async/abort";
 import {
@@ -198,20 +194,15 @@ import { createConversationTree } from "@/domain/ai/conversation-tree";
 import type { SubagentPlanExecution } from "@/services/ai-tools/subagent-tools";
 import { executeSubagentPlan as executeSubagentRuntime } from "@/services/ai-subagent-runtime";
 import { aiResourceRegistry, createResourceRegistry, type AiResourceRegistry } from "@/domain/ai/resource-registry";
-import { createAiTerminalSessionReuseRegistry } from "@/domain/ai/terminal-session-reuse";
 import {
-  registerNativeAiCapabilities,
+  registerAiConversationCapabilities,
   syncNativeAiResources,
   type NativeAiCapabilityDependencies,
 } from "@/services/ai-native-tools";
 import {
   isTerminalLeafPane,
-  type LocalTerminalPaneOptions,
   type TerminalPaneNode,
 } from "@/domain/terminal/types";
-import { aiCloseTargetForPane, isBackgroundTerminalPane, terminalTabForPane } from "@/domain/terminal/terminal-tabs";
-import type { CreateTerminalTabInput } from "@/services/ai-tools/terminal-tools";
-import type { WorkspaceView } from "@/types/workspace";
 import {
   availableAiCapabilityModules,
   isDirectConversationIntent,
@@ -252,7 +243,6 @@ import {
 import { compactTokenCount } from "@/domain/ai/token-usage";
 import { summarizeToolApprovalArguments } from "@/domain/ai/tool-approval-summary";
 import { safeAiText, sanitizeAiResult } from "@/services/ai-tools/shared";
-import { requestAiWorkspaceAction } from "@/services/ai-workspace-actions";
 import {
   globalToolAuthorizations,
   loadGlobalToolAuthorizations,
@@ -356,7 +346,6 @@ function parallelDelegationPending(conversation: AiConversation | undefined) {
 const activeParallelDelegationPending = computed(() => parallelDelegationPending(assistant.activeConversation));
 const progress = useSessionProgressStore();
 void progress.ensureListening();
-const pendingEdits = useAiPendingEditsStore();
 const databaseWorkspace = useDatabaseWorkspaceStore();
 const sshConnections = useSshConnectionsStore();
 const sftpSessions = useSftpSessionsStore();
@@ -371,10 +360,10 @@ const route = useRoute();
 const tabSurfaceActive = computed(() => !isPopupWindow() && route.name === "ai");
 const conversationListOnLeft = computed(() => tabSurfaceActive.value && conversationPreferences.sidebarPosition === "left");
 const shellFullscreen = computed(() => assistant.fullscreen || tabSurfaceActive.value);
-const emit = defineEmits<{ "open-settings": [] }>();
+const emit = defineEmits<{ "open-settings": []; "session-runner-ready": [runner: AiSessionRunner] }>();
 const props = defineProps<{ initialTimelineExpansion?: Array<[string, boolean]> }>();
 const timelineExpansion = shallowReactive(new Map(props.initialTimelineExpansion));
-const { t, setLocale, intlLocale } = useVueI18n();
+const { t, intlLocale } = useVueI18n();
 const visibleAgentEvents = computed(() =>
   assistant.agentEvents.filter((event) => event.kind !== "thought" || Boolean(event.detail.trim())),
 );
@@ -1715,16 +1704,7 @@ function notifyAi(notification: {
   });
 }
 
-function stringRecord(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    return {} as Record<string, string>;
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, string] =>
-        typeof entry[0] === "string" && typeof entry[1] === "string"
-    )
-  );
-}
+
 function enabledAiContext(workspaceId: string, includeRules = true) {
   const stored = loadStoredSettings();
   const sections: string[] = [];
@@ -1757,47 +1737,6 @@ function mcpToolSchema(value: unknown): Record<string, unknown> {
     ? schema
     : { type: "object", properties: {}, additionalProperties: true };
 }
-function enabledMcpServers(projectRoot = workspaceRoot()) {
-  const stored = loadStoredSettings();
-  return (Array.isArray(stored.mcpServers) ? stored.mcpServers : [])
-    .filter(
-      (server): server is StoredMcpServer =>
-        Boolean(server && server.enabled !== false && server.id?.trim())
-    )
-    .map((server) => normalizeMcpServerForRuntime(server, projectRoot));
-}
-async function connectSavedMcpServerForAi(requestedServerId: string) {
-  const serverId = requestedServerId.trim();
-  const server = enabledMcpServers().find((candidate) => candidate.id.trim() === serverId);
-  if (!server) throw new Error(`Saved enabled connector not found: ${serverId}`);
-
-  const statuses = await invokeBackend<McpServerStatus[]>("mcp_list_status", {}).catch(() => []);
-  const connected = statuses.some((status) => status.id === serverId && status.state === "connected");
-  const tools = connected
-    ? await invokeBackend<McpToolDefinition[]>("mcp_list_tools", { serverId })
-    : (await invokeBackend<McpConnectResult>("mcp_connect", {
-        serverId,
-        transport: server.transport,
-        command: server.command,
-        args: server.args?.trim() ? server.args.trim().split(/\s+/) : [],
-        env: stringRecord(server.env),
-        url: server.url,
-        headers: stringRecord(server.headers),
-      })).tools;
-  const [resources, prompts] = await Promise.all([
-    invokeBackend<unknown[]>("mcp_list_resources", { serverId }).catch(() => []),
-    invokeBackend<unknown[]>("mcp_list_prompts", { serverId }).catch(() => []),
-  ]);
-
-  return {
-    serverId,
-    connected: true,
-    toolCount: tools.length,
-    resourceCount: resources.length,
-    promptCount: prompts.length,
-  };
-}
-/** Connects the given enabled connectors (when needed) and returns their tools. */
 async function loadMcpServerTools(
   conversationId: string,
   projectRoot: string,
@@ -2086,114 +2025,6 @@ watch(
   { deep: true, flush: "post" }
 );
 
-function nativeResourceList(capability: string) {
-  return aiResourceRegistry.list(capability).map((resource) => ({
-    resourceId: resource.id,
-    kind: resource.kind,
-    name: resource.name,
-    active: resource.active === true,
-  }));
-}
-async function openWorkspaceViewForAi(input: { view: WorkspaceView }) {
-  if (!isDesktopRuntime()) throw new Error("workspace.open_view requires the desktop runtime");
-  const tab = workbench.openView(input.view);
-  await router.push({ name: input.view });
-  await nextTick();
-  return {
-    view: input.view,
-    tabId: tab?.id,
-  };
-}
-
-const aiTerminalSessions = createAiTerminalSessionReuseRegistry();
-
-async function createTerminalTabForAi(input: CreateTerminalTabInput) {
-  if (!isDesktopRuntime()) throw new Error("terminal.create_session requires the desktop runtime");
-  const reusable = !input.forceNew && input.conversationId
-    ? aiTerminalSessions.resolve(input.conversationId, ({ tabId, paneId }) =>
-        Boolean(
-          workbench.tabs.some((tab) => tab.id === tabId && tab.view === "terminal")
-          && terminalWorkspace.localPaneIds().includes(paneId)
-        )
-      )
-    : undefined;
-  if (reusable) {
-    workbench.selectTab(reusable.tabId);
-    terminalWorkspace.activateTab(reusable.tabId);
-    terminalWorkspace.selectPane(reusable.paneId);
-    await router.push({ name: "terminal" });
-    return { ...reusable, reused: true };
-  }
-
-  const tab = workbench.createTab("terminal", input.title);
-  if (!tab) throw new Error("Failed to create terminal Tab");
-  const options: LocalTerminalPaneOptions = {
-    shellType: input.shellType,
-    initialCwd: input.initialCwd
-      || (input.conversationId ? conversationWorkspaceContexts.get(input.conversationId)?.projectRoot : undefined),
-  };
-  terminalWorkspace.activateTab(tab.id, options);
-  const paneId = terminalWorkspace.activePaneId;
-  await router.push({ name: "terminal" });
-  invalidateAiNativeResources();
-  await syncAiNativeResources();
-  if (input.conversationId) {
-    aiTerminalSessions.remember(input.conversationId, { tabId: tab.id, paneId });
-  }
-  return { tabId: tab.id, paneId, reused: false };
-}
-/**
- * Closes the pane's split, or its whole terminal tab when it is that tab's only
- * pane; the last pane of the workspace stays. Ends each closed pane's shell once
- * here — tab cleanup may close it again, which is harmless but not relied on.
- */
-async function closeTerminalPaneForAi(sessionId: string) {
-  if (!isDesktopRuntime()) return false;
-  const tabsState = { tabs: terminalWorkspace.tabs, activeTabId: terminalWorkspace.activeTabId };
-  const target = aiCloseTargetForPane(tabsState, sessionId);
-  let closed = false;
-  if (target === "pane") {
-    await invokeBackend<void>("close_local_shell", { payload: { sessionId } });
-    closed = terminalWorkspace.closePane(sessionId);
-  } else if (target === "tab") {
-    const tab = terminalTabForPane(tabsState, sessionId);
-    const paneIds = tab ? terminalWorkspace.closeTab(tab.id) : null;
-    if (paneIds) {
-      await Promise.all(paneIds.map((paneId) =>
-        invokeBackend<void>("close_local_shell", { payload: { sessionId: paneId } }).catch(() => undefined)
-      ));
-      closed = true;
-    }
-  }
-  if (closed) {
-    invalidateAiNativeResources();
-    await syncAiNativeResources();
-  }
-  return closed;
-}
-/** AI 输入或调整后台终端标签里的分屏前，先切换到该标签（与会话复用一致）。 */
-function revealTerminalPaneForAi(sessionId: string) {
-  const tabsState = { tabs: terminalWorkspace.tabs, activeTabId: terminalWorkspace.activeTabId };
-  if (isBackgroundTerminalPane(tabsState, sessionId)) terminalWorkspace.selectPane(sessionId);
-}
-async function connectSftpForAi(profileId: string) {
-  if (!isDesktopRuntime()) throw new Error("sftp.connect requires the desktop runtime");
-  const profile = sshConnections.findProfile(profileId);
-  if (!profile) throw new Error("SFTP profile not found");
-  const sessionId = `sftp-${profileId}`;
-  const home = await connectSftp(sessionId, profile, sshConnections.credentialsFor(profileId));
-  sftpSessions.connected({ id: sessionId, name: `${profile.name.trim()} SFTP`, profileId });
-  invalidateAiNativeResources();
-  await syncAiNativeResources();
-  return { sessionId, home };
-}
-async function disconnectSftpForAi(sessionId: string) {
-  if (!isDesktopRuntime()) throw new Error("sftp.disconnect requires the desktop runtime");
-  await disconnectSftp(sessionId);
-  sftpSessions.disconnected(sessionId);
-  invalidateAiNativeResources();
-  await syncAiNativeResources();
-}
 function createSubagentResources(projectRoot: string) {
   const resources = createResourceRegistry();
   syncNativeAiResources(resources, {
@@ -2249,9 +2080,13 @@ function subagentPlanProgress(snapshot: SubagentPlanSnapshot) {
 }
 
 /** A fresh reminder source; the leave notice is consumed by whichever loop reads it first. */
+function runApprovalMode(conversation: AiConversation | undefined): AiApprovalMode {
+  return approvalModeForConversation(aiApprovalMode.value, conversation?.external, conversation?.fullAccess);
+}
+
 function planModeRemindersFor(conversationId: string) {
   return createPlanModeReminders(
-    () => approvalModeForConversation(aiApprovalMode.value, assistant.conversationById(conversationId)?.external),
+    () => runApprovalMode(assistant.conversationById(conversationId)),
     { enter: PLAN_MODE_ENTER, leave: PLAN_MODE_LEAVE },
   );
 }
@@ -2427,98 +2262,10 @@ async function executeSubagentPlanForAi(
   }
 }
 
-const unregisterNativeAiCapabilities = registerNativeAiCapabilities({
-  nativeRuntime: isDesktopRuntime(),
+const unregisterAiConversationCapabilities = registerAiConversationCapabilities({
   capabilities: aiCapabilityRegistry,
-  registry: aiResourceRegistry,
-  invoke: invokeBackend,
-  listResources: nativeResourceList,
   askUser: askNativeAiQuestion,
   runSubagentPlan: isDesktopRuntime() ? executeSubagentPlanForAi : undefined,
-  createTerminalTab: isDesktopRuntime() ? createTerminalTabForAi : undefined,
-  closeTerminalPane: isDesktopRuntime() ? closeTerminalPaneForAi : undefined,
-  revealTerminalPane: revealTerminalPaneForAi,
-  connectSftp: isDesktopRuntime() ? connectSftpForAi : undefined,
-  disconnectSftp: isDesktopRuntime() ? disconnectSftpForAi : undefined,
-  workspaceRoot,
-  openWorkspaceView: isDesktopRuntime() ? openWorkspaceViewForAi : undefined,
-  httpAction: isDesktopRuntime() ? async (input) => {
-    await openWorkspaceViewForAi({ view: "http" });
-    return requestAiWorkspaceAction("http", input);
-  } : undefined,
-  databaseAction: isDesktopRuntime() ? async (input) => {
-    await openWorkspaceViewForAi({ view: "database" });
-    return requestAiWorkspaceAction("database", input);
-  } : undefined,
-  redisAction: isDesktopRuntime() ? async (input) => {
-    await openWorkspaceViewForAi({ view: "database" });
-    return requestAiWorkspaceAction("database", {
-      ...input,
-      action: input.action === "format-json" ? "format-redis-json" : "open-redis-key",
-    });
-  } : undefined,
-  databaseSnapshot: () => ({
-    connections: databaseWorkspace.connections,
-    sessions: databaseWorkspace.sessionIds,
-    schemas: databaseWorkspace.schemas,
-    activeConnectionId: databaseWorkspace.activeConnectionId,
-  }),
-  connectDatabase: (connectionId) => databaseWorkspace.connect(connectionId),
-  disconnectDatabase: (connectionId) => databaseWorkspace.disconnect(connectionId),
-  stageWorkspaceEdit: (edit) => pendingEdits.stage(edit),
-  sshProfile: (profileId) => sshConnections.findProfile(profileId),
-  sshCredentials: (profileId) => sshConnections.credentialsFor(profileId),
-  settingsSummary: () => {
-    const stored = loadStoredSettings();
-    return {
-      activeAiProfileId: stored.activeAiProfileId,
-      acpAdapterId: stored.acpAdapterId,
-      acpInjectRules: stored.acpInjectRules,
-      enabledMcpServers: stored.mcpServers?.filter((server) => server.enabled).length ?? 0,
-      enabledAiRules: stored.aiRules?.filter((rule) => rule.enabled !== false).length ?? 0,
-    };
-  },
-  listSavedMcpServers: async () => {
-    const statuses = await invokeBackend<McpServerStatus[]>("mcp_list_status", {}).catch(() => []);
-    const connected = new Set(
-      statuses.filter((status) => status.state === "connected").map((status) => status.id)
-    );
-    return enabledMcpServers().map((server) => ({
-      id: server.id.trim(),
-      connected: connected.has(server.id.trim()),
-    }));
-  },
-  connectSavedMcpServer: isDesktopRuntime() ? connectSavedMcpServerForAi : undefined,
-  updateSafeSettings: isDesktopRuntime() ? async (update) => {
-    const stored = await hydrateSettingsSnapshot();
-    const next = { ...(stored ?? {}) };
-    if (update.theme !== undefined) {
-      const theme = normalizeUiTheme(update.theme);
-      next.uiTheme = theme;
-      applyUiTheme(theme);
-    }
-    if (update.locale !== undefined) {
-      next.locale = update.locale;
-      setLocale(update.locale);
-    }
-    if (update.minimizeToTray !== undefined) {
-      next.minimizeToTray = update.minimizeToTray;
-      await setMinimizeToTray(update.minimizeToTray);
-    }
-    if (update.autostart !== undefined) {
-      next.autostart = update.autostart;
-      await setAutostart(update.autostart);
-    }
-    await persistSettingsSnapshot(next);
-    return update;
-  } : undefined,
-  sidebarVisibility: loadSidebarVisibility,
-  setSidebarItemVisible: async (id, visible) => {
-    if (!sidebarItemIds.includes(id)) throw new Error(`Unknown sidebar item: ${id}`);
-    const current = await loadSidebarVisibility();
-    await saveSidebarVisibility({ ...current, [id]: visible });
-    return { itemId: id, visible };
-  },
 });
 function appendAgenticDelta(
   conversationId: string,
@@ -2945,7 +2692,7 @@ async function executeAgentTool(
       toolCallId: call.id,
     };
     await approvalModeHydration;
-    const mcpMode = approvalModeForConversation(aiApprovalMode.value, conversation?.external);
+    const mcpMode = runApprovalMode(conversation);
     if (planModeDenies(mcpMode, authorizationRequest.risk)) {
       return { content: t("ai.agentic.planModeBlocked"), status: "cancelled" as const };
     }
@@ -3003,7 +2750,7 @@ async function executeAgentTool(
       const callRisk = capability.resolveRisk
         ? await capability.resolveRisk({ input: normalizedArgs, resource })
         : capability.risk;
-      const callMode = approvalModeForConversation(aiApprovalMode.value, conversation?.external);
+      const callMode = runApprovalMode(conversation);
       if (planModeDenies(callMode, callRisk)) {
         return { content: t("ai.agentic.planModeBlocked"), status: "cancelled" as const };
       }
@@ -3043,6 +2790,7 @@ async function executeAgentTool(
         resources,
         operations: aiOperationManager,
         conversationId,
+        projectRoot: conversationWorkspaceContexts.get(conversationId)?.projectRoot,
         toolOrigin: { toolCallId: call.id, triggerMessageId, turnMessageId: policy.turnMessageId },
         signal,
         ...(authorized && capability.risk !== "read" ? {
@@ -3481,6 +3229,10 @@ interface QueuedSendRequest {
   attachments: AiAttachment[];
   createdAt?: number;
   messageId?: string;
+  sessionTool?: {
+    signal: AbortSignal;
+    settle(): void;
+  };
 }
 
 // Queued and remote sends can target a conversation whose details are not loaded;
@@ -3499,7 +3251,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
   const conversationId = request?.conversationId ?? assistant.activeConversationId;
   if (!(await ensureSendableConversation(conversationId))) return;
   const targetConversation = assistant.conversationById(conversationId);
-  if (parallelDelegationPending(targetConversation)) return;
+  if (request?.sessionTool?.signal.aborted || parallelDelegationPending(targetConversation)) return;
   // 普通输入在运行中应入队；已出队请求则由发送锁串行，不受可能滞后的运行态投影阻塞。
   if (targetConversation?.running && !request) {
     assistant.enqueueMessage(conversationId, {
@@ -3525,6 +3277,10 @@ async function sendAgentic(request?: QueuedSendRequest) {
     ElMessage.warning(nativeErrorMessage(error));
     return;
   }
+  if (request?.sessionTool?.signal.aborted) {
+    agenticSendGate.release(conversationId);
+    return;
+  }
   // 新任务开始前收口任何历史遗留的运行事件，避免旧分析计时跨到下一条消息。
   assistant.settleRunningAgentEvents(conversationId, "cancelled");
   if (!canStreamAi()) {
@@ -3536,6 +3292,10 @@ async function sendAgentic(request?: QueuedSendRequest) {
   } catch {
     agenticSendGate.release(conversationId);
     ElMessage.error(t("ai.credentialsLoadFailed"));
+    return;
+  }
+  if (request?.sessionTool?.signal.aborted) {
+    agenticSendGate.release(conversationId);
     return;
   }
   const { profile, config: requestConfig, attemptModels } = aiRequestPlan(conversationId);
@@ -3578,6 +3338,7 @@ async function sendAgentic(request?: QueuedSendRequest) {
   assistant.setConversationStatus(conversationId, "in_progress");
   const abortController = new AbortController();
   agenticAborts.set(conversationId, abortController);
+  if (request?.sessionTool?.signal.aborted) abortController.abort();
   // Stall recovery drops this controller and may start the next queued run; a
   // run that is no longer current must not touch the conversation or its run record.
   const superseded = () => agenticAborts.get(conversationId) !== abortController;
@@ -4181,7 +3942,7 @@ const localAgentDirectoryDeps = {
   },
 };
 
-async function startAgent(conversationId?: string, useDefaultOnce = false) {
+async function startAgent(conversationId?: string, useDefaultOnce = false, request?: QueuedSendRequest) {
   if (!isDesktopRuntime()) {
     ElMessage.warning(t("common.desktopRequired"));
     return;
@@ -4189,6 +3950,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false) {
   const id = conversationId ?? assistant.activeConversationId;
   const relink = acpWorkspaceRelinks.get(id);
   if (relink) await relink;
+  if (request?.sessionTool?.signal.aborted) return;
   const conversation = assistant.conversationById(id);
   if (!conversation) {
     ElMessage.error(t("notifications.ai.agentStartFailed"));
@@ -4200,6 +3962,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false) {
     const pending = agentStartPromises.get(id);
     if (pending) {
       const target = await pending;
+      if (request?.sessionTool?.signal.aborted) return;
       if (!remote || !target || target.directoryKind === "project") return target;
     }
 
@@ -4237,7 +4000,7 @@ async function startAgent(conversationId?: string, useDefaultOnce = false) {
         assistant.setConversationAgentState(id, { agentReady: false });
         await invokeBackend("acp_disconnect", { serverId: running.serverId });
       }
-      if (acpDisposed || !assistant.conversationById(id)) return;
+      if (request?.sessionTool?.signal.aborted || acpDisposed || !assistant.conversationById(id)) return;
 
       // The primary session and adapter belong to the original project.
       const primary = directoryKind === "project";
@@ -4255,11 +4018,14 @@ async function startAgent(conversationId?: string, useDefaultOnce = false) {
       acpStartingServers.set(id, start);
       let launched = false;
       let ready = false;
-      const stillStarting = () => acpStartingServers.get(id) === start && !acpDisposed && !!assistant.conversationById(id);
+      const stillStarting = () => acpStartingServers.get(id) === start && !acpDisposed
+        && !request?.sessionTool?.signal.aborted && !!assistant.conversationById(id);
       try {
         const adapterId = await startConversationAgent({
           conversationId: id,
           recordedAdapterId: conversation.acpAdapterId,
+          requestedAdapterId: conversation.requestedAgentId,
+          signal: request?.sessionTool?.signal,
           hasPreviousSession: Boolean(previousSessionId),
           launchCommandAgent: async (adapter) => {
             if (!stillStarting()) return;
@@ -4366,7 +4132,7 @@ async function sendAgent(request?: QueuedSendRequest) {
   }
   // 新任务开始前收口任何历史遗留的运行事件，避免旧分析计时跨到下一条消息。
   assistant.settleRunningAgentEvents(conversationId, "cancelled");
-  const target = await startAgent(conversationId);
+  const target = await startAgent(conversationId, false, request);
   const conversation = assistant.conversationById(conversationId);
   if (!target || !conversation) {
     acpSendGate.release(conversationId);
@@ -4380,7 +4146,7 @@ async function sendAgent(request?: QueuedSendRequest) {
     ElMessage.warning(nativeErrorMessage(error));
     return;
   }
-  if (acpRunTargets.get(conversationId) !== target) {
+  if (request?.sessionTool?.signal.aborted || acpRunTargets.get(conversationId) !== target) {
     acpSendGate.release(conversationId);
     return;
   }
@@ -4416,6 +4182,7 @@ async function sendAgent(request?: QueuedSendRequest) {
   assistant.setConversationStatus(conversationId, "in_progress");
   const abortController = new AbortController();
   acpPromptAborts.set(conversationId, abortController);
+  if (request?.sessionTool?.signal.aborted) abortController.abort();
   const superseded = () => acpPromptAborts.get(conversationId) !== abortController;
   await scrollToBottom(conversationId);
   try {
@@ -4465,6 +4232,7 @@ async function sendAgent(request?: QueuedSendRequest) {
       activeAcpPrompts.delete(conversationId);
       acpSendGate.release(conversationId);
       await scrollToBottomIfFollowing(conversationId);
+      request?.sessionTool?.settle();
       const shouldResumeQueue = !abortController.signal.aborted
         || resumeQueueAfterCancellation.delete(conversationId);
       if (shouldResumeQueue) {
@@ -4520,6 +4288,76 @@ async function cancelConversation(
 }
 async function cancelCurrent() {
   await cancelConversation(assistant.activeConversationId);
+}
+
+const sessionToolTurns = new Map<string, { cancel(): void; waitingForLaunchApproval: boolean }>();
+
+function sessionToolState(id: string): AiSessionState {
+  const conversation = assistant.conversationById(id);
+  if (!conversation) return "failed";
+  const turn = sessionToolTurns.get(id);
+  if (turn?.waitingForLaunchApproval || conversation.pendingPermission
+    || toolApprovals.value.some((approval) => approval.conversationId === id)) return "waiting_approval";
+  if (pendingQuestions.value.some((question) => question.conversationId === id) || conversation.status === "needs_input") {
+    return "waiting_input";
+  }
+  if (turn || conversation.running || agenticSendGate.isClaimed(id) || acpSendGate.isClaimed(id) || agentStartPromises.has(id)) {
+    return "running";
+  }
+  return conversation.status === "failed" ? "failed" : "idle";
+}
+
+function startSessionToolTurn(id: string, text: string) {
+  const conversation = assistant.conversationById(id);
+  if (!conversation) throw new Error(t("settings.agentControl.conversationMissing", { id }));
+  const state = sessionToolState(id);
+  if (state !== "idle" && state !== "failed") throw new Error(t("ai.send.busy"));
+  const messageId = createId("message");
+  const controller = new AbortController();
+  const turn = {
+    waitingForLaunchApproval: false,
+    cancel: () => {
+      if (sessionToolTurns.get(id) !== turn || controller.signal.aborted) return;
+      controller.abort();
+      turn.waitingForLaunchApproval = false;
+      if (agenticAborts.has(id) || acpPromptAborts.has(id)) void cancelConversation(id);
+    },
+  };
+  function settle(resolve: (state: AiSessionTerminalState) => void, failed = false) {
+    if (sessionToolTurns.get(id) !== turn) return;
+    sessionToolTurns.delete(id);
+    const current = assistant.conversationById(id);
+    const started = current?.messages.some((message) => message.id === messageId);
+    if (!controller.signal.aborted && (failed || !started)) assistant.setConversationStatus(id, "failed");
+    resolve(!controller.signal.aborted && (failed || !started || current?.status === "failed") ? "failed" : "idle");
+  }
+  sessionToolTurns.set(id, turn);
+  const done = new Promise<AiSessionTerminalState>((resolve) => {
+    const request: QueuedSendRequest = {
+      conversationId: id, content: text, messageId, attachments: [],
+      sessionTool: {
+        signal: controller.signal,
+        settle: () => settle(resolve),
+      },
+    };
+    const send = conversation.mode === "agent" ? sendAgent : sendAgentic;
+    void send(request).then(
+      () => settle(resolve),
+      () => settle(resolve, true),
+    );
+  });
+  return { messageId, done, cancel: turn.cancel };
+}
+
+async function stopSessionToolTurn(id: string) {
+  const turn = sessionToolTurns.get(id);
+  if (turn) {
+    turn.cancel();
+    return true;
+  }
+  const state = sessionToolState(id);
+  if (state === "idle" || state === "failed") return false;
+  return cancelConversation(id);
 }
 // Panel keys run through the keybinding dispatcher (keymap commands ai:*,
 // bound in HOST_KEYBINDING_RULES with `ai.panel.focus`); these are the handlers.
@@ -4701,7 +4539,7 @@ async function handleProtocolPermissionRequest(request: AiAssistantPermission) {
     return;
   }
   const optionId = automaticProtocolPermissionOption(
-    aiApprovalMode.value,
+    runApprovalMode(conversation),
     asRecord(request.toolCall).kind,
     Array.isArray(request.options) ? request.options : [],
   );
@@ -5188,6 +5026,7 @@ onMounted(() => {
       (payload) => void handleAcpSessionUpdate(payload),
     );
   }
+  emit("session-runner-ready", { start: startSessionToolTurn, state: sessionToolState, stop: stopSessionToolTurn });
 });
 onBeforeUnmount(() => {
   window.removeEventListener("pagehide", closeDefaultDirectoryAgents);
@@ -5195,7 +5034,8 @@ onBeforeUnmount(() => {
   for (const dispose of keybindingDisposers) dispose();
   document.removeEventListener("visibilitychange", markVisibleConversationRead);
   cancelPromptOptimization();
-  unregisterNativeAiCapabilities();
+  for (const turn of sessionToolTurns.values()) turn.cancel();
+  unregisterAiConversationCapabilities();
   stopCapabilityUpdates();
   stopToolApprovalUpdates();
   stopGlobalToolAuthorizationUpdates();
@@ -5216,7 +5056,7 @@ onBeforeUnmount(() => {
   acpCurrentMessageIds.clear();
   acpEventMessageIds.clear();
   conversationWorkspaceContexts.clear();
-  aiTerminalSessions.clear();
+  clearAiTerminalSessionReuse();
   if (aiNativeResourceSyncTimer) {
     clearTimeout(aiNativeResourceSyncTimer);
     aiNativeResourceSyncTimer = undefined;

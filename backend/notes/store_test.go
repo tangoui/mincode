@@ -248,3 +248,27 @@ func TestTitlesAndFolderNamesAllowFormatCharacters(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateNoteWithTags(t *testing.T) {
+	setupNotesDB(t)
+	note := mustDispatch[Note](t, "notes_create", map[string]any{"title": "Runbook", "body": "# Restart", "tags": []string{" ops ", "OPS"}})
+	if len(note.Tags) != 1 || note.Tags[0] != "ops" {
+		t.Fatalf("created tags = %v", note.Tags)
+	}
+	got := mustDispatch[Note](t, "notes_get", map[string]any{"id": note.ID})
+	if got.Body != "# Restart" || len(got.Tags) != 1 || got.Tags[0] != "ops" {
+		t.Fatalf("saved note = %+v", got)
+	}
+}
+
+func TestAppendNotePreservesMarkdownWhitespace(t *testing.T) {
+	setupNotesDB(t)
+	note := mustDispatch[Note](t, "notes_create", map[string]any{"body": "# Restart\n"})
+	for _, body := range []string{"\n  first\n", "  second\n"} {
+		mustDispatch[NoteSummary](t, "notes_update", map[string]any{"id": note.ID, "body": body, "append": true})
+	}
+	got := mustDispatch[Note](t, "notes_get", map[string]any{"id": note.ID})
+	if got.Body != "# Restart\n\n  first\n  second\n" {
+		t.Fatalf("saved body = %q", got.Body)
+	}
+}

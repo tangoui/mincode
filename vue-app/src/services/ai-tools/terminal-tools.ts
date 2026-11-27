@@ -1,7 +1,8 @@
 import type { AiCapability, AiCapabilityRegistry } from "@/domain/ai/capability-registry";
 import type { AiResource, AiResourceRegistry } from "@/domain/ai/resource-registry";
 import type { LocalShellType } from "@/domain/terminal/types";
-import { sanitizeAiResult } from "./shared";
+import { useVueI18n } from "@/i18n/messages";
+import { aiResourceSummary, sanitizeAiResult, tool } from "./shared";
 
 const LOCAL_SHELL_TYPES: ReadonlySet<LocalShellType> = new Set([
   "system",
@@ -25,7 +26,7 @@ export interface CreateTerminalTabInput {
 export interface TerminalAiDependencies {
   capabilities: AiCapabilityRegistry;
   registry: AiResourceRegistry;
-  invoke<T>(command: string, args: Record<string, unknown>): Promise<T>;
+  invoke<T>(command: string, args: Record<string, unknown>, options?: { signal?: AbortSignal }): Promise<T>;
   listResources(capability: string): unknown[];
   createTerminalTab?(input: CreateTerminalTabInput): Promise<{ tabId: string; paneId: string }>;
   closeTerminalPane?(sessionId: string): Promise<boolean>;
@@ -65,8 +66,102 @@ export const terminalCapabilityNames = [
   "terminal.close",
 ];
 
+function paneControlCapabilities(dependencies: TerminalAiDependencies): AiCapability[] {
+  const { t } = useVueI18n();
+  const pane = { type: "string", description: "The terminal pane ID returned by the terminal controls." };
+  const textProperty = { type: "string" };
+  const lines = { type: "integer", minimum: 1, maximum: 5000 };
+  const timeoutSecs = { type: "integer", minimum: 1, maximum: 600 };
+
+  function optionalText(input: Record<string, unknown>, key: string) {
+    if (input[key] === undefined) return undefined;
+    const value = text(input, key);
+    if (!value) throw new Error(t("settings.agentControl.invalidText", { field: key }));
+    return value;
+  }
+
+  function requiredPane(input: Record<string, unknown>) {
+    const value = optionalText(input, "pane");
+    if (!value) throw new Error(t("settings.agentControl.paneRequired"));
+    return value;
+  }
+
+  function optionalCount(input: Record<string, unknown>, key: string, maximum: number) {
+    const value = input[key];
+    if (value === undefined) return undefined;
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > maximum) {
+      throw new Error(t("settings.agentControl.invalidCount", { field: key, maximum }));
+    }
+    return value;
+  }
+
+  return [
+    {
+      module: "terminal",
+      target: "none",
+      mode: "write",
+      risk: "write",
+      tool: tool("terminal.split_pane", "Split a local terminal pane or open a terminal tab when pane is omitted. Optionally run an initial command.", {
+        pane, direction: { type: "string", enum: ["right", "down"] },
+        cwd: textProperty, title: textProperty, command: textProperty,
+      }, ["direction"]),
+      approvalPreview: ({ input }) => [text(input, "pane"), text(input, "direction"), text(input, "cwd"), text(input, "command")]
+        .filter(Boolean).join(" · "),
+      execute: ({ input, projectRoot, signal }) => {
+        const { direction } = input;
+        if (direction !== "right" && direction !== "down") throw new Error(t("settings.agentControl.paneDirection"));
+        const pane = optionalText(input, "pane");
+        const cwd = optionalText(input, "cwd") ?? (pane ? undefined : projectRoot);
+        const title = optionalText(input, "title");
+        const command = optionalText(input, "command");
+        return dependencies.invoke("terminal_control_split", {
+          direction, ...(pane ? { pane } : {}), ...(cwd ? { cwd } : {}),
+          ...(title ? { title } : {}), ...(command ? { command } : {}),
+        }, { signal });
+      },
+    },
+    {
+      module: "terminal",
+      target: "none",
+      mode: "read",
+      risk: "read",
+      tool: tool("terminal.read_output", "Read recent plain-text output from a local terminal pane.", { pane, lines }, ["pane"]),
+      execute: async ({ input, signal }) => {
+        const pane = requiredPane(input);
+        const count = optionalCount(input, "lines", lines.maximum);
+        return sanitizeAiResult(await dependencies.invoke("terminal_control_read", {
+          pane, ...(count === undefined ? {} : { lines: count }),
+        }, { signal }));
+      },
+    },
+    {
+      module: "terminal",
+      target: "none",
+      mode: "read",
+      risk: "read",
+      tool: tool("terminal.wait_idle", "Wait for a local terminal pane to settle. Returns idle, waiting_input, exited or timeout.", { pane, timeoutSecs }, ["pane"]),
+      execute: ({ input, signal }) => {
+        const pane = requiredPane(input);
+        const seconds = optionalCount(input, "timeoutSecs", timeoutSecs.maximum);
+        return dependencies.invoke("terminal_control_wait", {
+          pane, ...(seconds === undefined ? {} : { timeoutSecs: seconds }),
+        }, { signal });
+      },
+    },
+    {
+      module: "terminal",
+      target: "none",
+      mode: "read",
+      risk: "read",
+      tool: tool("terminal.pane_info", "Get the title, directory, liveness and activity state of a local terminal pane.", { pane }, ["pane"]),
+      execute: ({ input, signal }) => dependencies.invoke("terminal_control_info", { pane: requiredPane(input) }, { signal }),
+    },
+  ];
+}
+
 export function terminalCapabilities(dependencies: TerminalAiDependencies): AiCapability[] {
   return [
+    ...paneControlCapabilities(dependencies),
     ...(dependencies.createTerminalTab
       ? [{
           module: "terminal",
@@ -99,11 +194,14 @@ export function terminalCapabilities(dependencies: TerminalAiDependencies): AiCa
           execute: ({
             input,
             conversationId,
+            projectRoot,
           }: {
             input: Record<string, unknown>;
             conversationId?: string;
+            projectRoot?: string;
           }) => dependencies.createTerminalTab!({
             shellType: shellType(input),
+            initialCwd: projectRoot,
             title: text(input, "title") || undefined,
             conversationId,
             forceNew: input.forceNew === true,
@@ -131,7 +229,7 @@ export function terminalCapabilities(dependencies: TerminalAiDependencies): AiCa
         },
       },
       approvalPreview: ({ input }: { input: Record<string, unknown> }) => text(input, "command") || "命令",
-      execute: async ({ input }: { input: Record<string, unknown> }) => {
+      execute: async ({ input, externalAgent, signal }) => {
         const command = text(input, "command");
         if (!command) throw new Error("terminal.run_command requires a command");
         const cwd = text(input, "cwd");
@@ -142,7 +240,7 @@ export function terminalCapabilities(dependencies: TerminalAiDependencies): AiCa
             ...(cwd ? { cwd } : {}),
             ...(timeoutMs ? { timeoutMs } : {}),
           },
-        }));
+        }, externalAgent ? { signal } : undefined));
       },
     },
     {
@@ -156,7 +254,9 @@ export function terminalCapabilities(dependencies: TerminalAiDependencies): AiCa
         description: "List live local and SSH terminal sessions.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
-      execute: () => dependencies.listResources("terminal.send_input"),
+      execute: ({ externalAgent, resources }) =>
+        (externalAgent ? resources?.list?.("terminal.send_input")?.map(aiResourceSummary) : undefined)
+        ?? dependencies.listResources("terminal.send_input"),
     },
     {
       module: "terminal",

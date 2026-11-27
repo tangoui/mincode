@@ -160,6 +160,9 @@ func expireSSHGracePeriod(sessionID string, token uint64) {
 		return
 	}
 	if old, ok := sessions.remove(sessionID); ok {
+		if old.control != nil {
+			old.control.end()
+		}
 		shutdownShellProcess(old)
 	}
 	emitShellSessionEnded(sessionID, "ssh_grace_expired", false)

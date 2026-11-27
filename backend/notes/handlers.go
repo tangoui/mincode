@@ -101,9 +101,10 @@ func handleGet(ctx context.Context, args idArgs) (any, error) {
 }
 
 type createArgs struct {
-	FolderID *string `json:"folderId"`
-	Title    *string `json:"title"`
-	Body     *string `json:"body"`
+	FolderID *string   `json:"folderId"`
+	Title    *string   `json:"title"`
+	Body     *string   `json:"body"`
+	Tags     *[]string `json:"tags"`
 }
 
 func handleCreate(ctx context.Context, args createArgs) (any, error) {
@@ -111,11 +112,19 @@ func handleCreate(ctx context.Context, args createArgs) (any, error) {
 	if !validOptionalID(folderID) || !validTitle(title) || !validBody(body) {
 		return nil, errInvalidRequest
 	}
+	var tags []string
+	if args.Tags != nil {
+		var ok bool
+		tags, ok = normalizeTags(args.Tags)
+		if !ok {
+			return nil, errInvalidRequest
+		}
+	}
 	db, err := openNotesDB()
 	if err != nil {
 		return nil, err
 	}
-	return createNote(ctx, db, folderID, title, body)
+	return createNote(ctx, db, folderID, title, body, tags)
 }
 
 type updateArgs struct {
@@ -123,17 +132,19 @@ type updateArgs struct {
 	Title    *string `json:"title"`
 	Body     *string `json:"body"`
 	Favorite *bool   `json:"favorite"`
+	Append   bool    `json:"append"`
 }
 
 func handleUpdate(ctx context.Context, args updateArgs) (any, error) {
-	if !validID(args.ID) || (args.Title != nil && !validTitle(*args.Title)) || (args.Body != nil && !validBody(*args.Body)) {
+	if !validID(args.ID) || (args.Title != nil && !validTitle(*args.Title)) ||
+		(args.Body != nil && !validBody(*args.Body)) || (args.Append && args.Body == nil) {
 		return nil, errInvalidRequest
 	}
 	db, err := openNotesDB()
 	if err != nil {
 		return nil, err
 	}
-	return updateNote(ctx, db, *args.ID, args.Title, args.Body, args.Favorite)
+	return updateNote(ctx, db, *args.ID, args.Title, args.Body, args.Favorite, args.Append)
 }
 
 func handleDelete(ctx context.Context, args idArgs) (any, error) {

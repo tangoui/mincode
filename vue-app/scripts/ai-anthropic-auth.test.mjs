@@ -35,7 +35,7 @@ test("every AI request builder forwards anthropicAuth", async () => {
 
 test("settings normalize and send anthropicAuth for the profile", async () => {
   const view = await source("../src/views/SettingsWorkspaceView.vue");
-  assert.match(view, /anthropicAuth: AiAnthropicAuth;/);
+  assert.match(await source("../src/services/settings-model.ts"), /anthropicAuth: AiAnthropicAuth;/);
   assert.match(view, /anthropicAuth: normalizeAnthropicAuth\(profile\.anthropicAuth\)/);
   assert.match(view, /v-if="activeProfile\.apiFormat === 'anthropic'"[\s\S]{0,400}v-model="activeProfile\.anthropicAuth"/);
   // Model listing and connection tests must use the same credential header as chat requests.

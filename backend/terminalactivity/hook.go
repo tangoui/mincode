@@ -126,6 +126,9 @@ func processEventFile(path string) {
 	if phase == "" {
 		return
 	}
+	if phaseObserver != nil {
+		phaseObserver(item.PaneID, phase, envelope.Input.HookEventName, envelope.Received)
+	}
 	core.Emit(activityEvent, activitySnapshot{
 		PaneID:    item.PaneID,
 		Phase:     phase,

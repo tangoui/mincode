@@ -8,6 +8,7 @@ import {
 } from "@/services/ai-workspace-actions";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
 import type { TableTab } from "./useGridState";
+import { useVueI18n } from "@/i18n/messages";
 
 function aiActionString(input: Record<string, unknown>, key: string, action: string) {
   const value = input[key];
@@ -27,7 +28,8 @@ export function useAiDatabaseActions(options: {
   activeQueryTabId: Ref<string>;
   tableTabs: Ref<TableTab[]>;
   activeTableTabId: Ref<string | undefined>;
-  activateConnection: (connection: DatabaseConnection) => Promise<void>;
+  selectedConnectionTab: Ref<string>;
+  activateConnection: (connection: DatabaseConnection, waitForPaint?: boolean) => Promise<void>;
   selectConnectionTable: (connection: DatabaseConnection, database: string, table: string) => Promise<void>;
   newQuery: (sql?: string, name?: string) => void;
   closeQueryTab: (tabId: string) => void;
@@ -44,6 +46,7 @@ export function useAiDatabaseActions(options: {
   transferConnectionGroupCollapse: (previousName: string, nextName: string) => void;
 }) {
   const databaseStore = useDatabaseWorkspaceStore();
+  const { t } = useVueI18n();
 
   function aiConnection(
     input: Record<string, unknown>,
@@ -117,9 +120,24 @@ export function useAiDatabaseActions(options: {
     return requested;
   }
 
-  async function handleAiDatabaseWorkspaceAction(input: Record<string, unknown>) {
+  async function handleAiDatabaseWorkspaceAction(input: Record<string, unknown>, signal?: AbortSignal) {
     const action = aiActionString(input, "action", "request");
     switch (action) {
+      case "active-resource":
+        return databaseStore.activeConnectionId === options.selectedConnectionTab.value
+          ? databaseStore.activeConnectionId : null;
+      case "open-resource": {
+        await databaseStore.initialize();
+        signal?.throwIfAborted();
+        const id = String(input.id ?? "");
+        const connection = databaseStore.connections.find((item) => item.id === id);
+        if (!connection) throw new Error(t("ai.navigation.resourceMissing", { id }));
+        await options.activateConnection(connection, false);
+        if (options.selectedConnectionTab.value !== id || !databaseStore.sessionIds[id]) {
+          throw new Error(t("ai.navigation.resourceUnavailable", { id }));
+        }
+        return { id };
+      }
       case "list-workspace":
         return {
           connections: databaseStore.connections
@@ -273,14 +291,18 @@ export function useAiDatabaseActions(options: {
         );
       }
       case "execute-schema-sync": {
+        signal?.throwIfAborted();
         const selection = await connectedSchemaSyncSelection(input, action);
+        signal?.throwIfAborted();
         const comparison = await databaseStore.compareSchema(selection);
+        signal?.throwIfAborted();
         const result = await databaseStore.executeSchemaSync(
           selection,
           comparison.source.fingerprint,
           comparison.target.fingerprint,
           schemaSyncChangeIds(input, action, comparison.changes),
-          "ai"
+          "ai",
+          signal,
         );
         if (!result) throw new Error("Database AI action execute-schema-sync was cancelled by the user");
         return result;

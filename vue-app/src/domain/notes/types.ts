@@ -122,6 +122,7 @@ export interface CreateNoteInput {
   folderId?: string;
   title?: string;
   body?: string;
+  tags?: string[];
 }
 
 /** notes_update 的补丁：省略的字段保持不变。 */
@@ -129,6 +130,7 @@ export interface UpdateNoteInput {
   id: string;
   title?: string;
   body?: string;
+  append?: boolean;
   favorite?: boolean;
 }
 

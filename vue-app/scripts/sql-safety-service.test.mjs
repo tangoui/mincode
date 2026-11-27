@@ -270,3 +270,26 @@ test("executeFirst: a reconfirm of the tokenless first run (single-row commands)
   assert.equal(calls.confirm[0][2], "reconfirm");
   assert.deepEqual(calls.execute, [{ checkId: "" }, { checkId: "chk-row" }]);
 });
+
+test("a disconnected tool cannot submit a schema write after confirmation", async () => {
+  const abort = new AbortController();
+  const { promise: opened, resolve: markOpened } = Promise.withResolvers();
+  const { promise: answer, resolve: confirm } = Promise.withResolvers();
+  const { calls, options } = harness({ checks: [makeCheck({ risk: "high", confirmTarget: "orders" })] });
+  const pending = runWithSafety({
+    ...options,
+    operation: { kind: "schemaSync" },
+    signal: abort.signal,
+    confirm: async (_check, _origin, _notice, _summary, signal) => {
+      assert.equal(signal, abort.signal);
+      markOpened();
+      return answer;
+    },
+  });
+  const rejected = assert.rejects(pending, { name: "AbortError" });
+  await opened;
+  abort.abort();
+  confirm({ confirmText: "orders" });
+  await rejected;
+  assert.deepEqual(calls.execute, []);
+});

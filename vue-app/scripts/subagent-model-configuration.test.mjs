@@ -39,7 +39,7 @@ test("settings persist a profile-level subagent model and runtime applies it", a
   const settings = await readSource("src/views/SettingsWorkspaceView.vue");
   const drawer = await readSource("src/components/ai/AiAssistantDrawer.vue");
 
-  assert.match(settings, /subagentModel: string/);
+  assert.match(await readSource("src/services/settings-model.ts"), /subagentModel: string/);
   assert.match(settings, /v-model="activeProfile\.subagentModel"/);
   assert.match(settings, /settings\.ai\.subagentModelInherit/);
   assert.match(drawer, /subagentModel: request\.profile\.subagentModel/);

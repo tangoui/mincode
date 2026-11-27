@@ -1,6 +1,14 @@
 package terminal
 
-import "mincode/app/backend/core"
+import (
+	"time"
+
+	"mincode/app/backend/core"
+)
+
+func (p *shellProcess) recordControlOutput(data string) {
+	p.control.observeOutput(data, time.Now())
+}
 
 // shellOutputPayload 对齐 Rust 侧 "shell-output" 事件负载。
 type shellOutputPayload struct {

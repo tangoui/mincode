@@ -238,6 +238,9 @@ func newAttentionTracker() *attentionTracker {
 		sessions: make(map[string]*attentionSession),
 		now:      time.Now,
 		emit: func(payload terminalAttentionPayload) {
+			if payload.Kind != "exited" {
+				observeControlAttention(payload.PaneID, time.UnixMilli(payload.At))
+			}
 			core.Emit(terminalAttentionEvent, payload)
 		},
 	}

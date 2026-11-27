@@ -1032,6 +1032,7 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
     targetFingerprint: string,
     selectedChangeIds: string[],
     origin: SqlSafetyOrigin,
+    signal?: AbortSignal,
   ) {
     if (!isDesktopRuntime()) throw new Error("Desktop runtime required");
     const args = schemaSyncArgs(selection);
@@ -1047,14 +1048,14 @@ export const useDatabaseWorkspaceStore = defineStore("database-workspace", () =>
         selectedChangeIds,
       },
       source: origin === "ai" ? "ai" : "designer",
-      origin,
+      origin, signal,
       execute: (token) => invokeBackend<DatabaseSchemaSyncExecutionResult>("db_execute_schema_sync", {
         ...args,
         sourceFingerprint,
         targetFingerprint,
         selectedChangeIds,
         ...sqlSafetyArgs(token),
-      }),
+      }, signal ? { signal } : undefined),
     });
     if (result) metadataCache.invalidate({ sessionId: args.targetSessionId });
     return result;

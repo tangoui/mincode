@@ -1,3 +1,4 @@
+import { aiResourceSummary } from "./shared";
 import type { AiCapability } from "@/domain/ai/capability-registry";
 import type { AiResource } from "@/domain/ai/resource-registry";
 import type { TerminalAiDependencies } from "./terminal-tools";
@@ -146,7 +147,9 @@ export function sftpCapabilities(dependencies: SftpAiDependencies): AiCapability
     {
       module: "sftp", discovery: true, target: "none", mode: "read", risk: "read",
       tool: { name: "sftp.list_sessions", description: "List connected SFTP sessions.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
-      execute: () => dependencies.listResources("sftp.list"),
+      execute: ({ externalAgent, resources }) =>
+        (externalAgent ? resources?.list?.("sftp.list")?.map(aiResourceSummary) : undefined)
+        ?? dependencies.listResources("sftp.list"),
     },
     ...(dependencies.disconnectSftp
       ? [{

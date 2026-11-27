@@ -8,6 +8,7 @@ import {
 } from "@/domain/ai/acp-agent-start";
 import { useVueI18n } from "@/i18n/messages";
 import { listenAppEvent } from "@/services/desktop-bridge";
+import { throwIfAborted } from "@/domain/async/abort";
 
 /** Emitted by the host with the ACP server ids it disconnected on its own. */
 export const ACP_DISCONNECTED_EVENT = "acp:disconnected";
@@ -20,6 +21,8 @@ const openUnavailablePrompts = new Set<string>();
 export interface ConversationAgentStart {
   conversationId: string;
   recordedAdapterId?: string;
+  requestedAdapterId?: string;
+  signal?: AbortSignal;
   hasPreviousSession: boolean;
   /** acp_launch for a built-in or custom adapter id. */
   launchCommandAgent: (adapterId: string) => Promise<void>;
@@ -69,12 +72,14 @@ export function useAcpAgentStart(options: {
   onScopeDispose(() => stopDisconnected());
 
   async function startConversationAgent(input: ConversationAgentStart): Promise<string | undefined> {
+    throwIfAborted(input.signal);
     const outcome = await startAcpAgent({
-      selectedAdapterId: options.selectedAdapterId(),
+      selectedAdapterId: input.requestedAdapterId ?? options.selectedAdapterId(),
       recordedAdapterId: input.recordedAdapterId,
       hasPreviousSession: input.hasPreviousSession,
     }, input.launchCommandAgent);
     if (outcome.kind === "started") return outcome.adapterId;
+    throwIfAborted(input.signal);
     void reportConversationUnavailable(input.conversationId, outcome);
     return undefined;
   }

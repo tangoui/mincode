@@ -898,7 +898,7 @@ async function showConnectionContent(connection: DatabaseConnection) {
   return true;
 }
 
-async function activateConnection(connection: DatabaseConnection) {
+async function activateConnection(connection: DatabaseConnection, waitForPaint = true) {
   if (connectionIsConnecting(connection)) return;
   if (!(await confirmLeavePendingTable({ connectionId: connection.id }))) return;
   const wasConnected = connectionIsConnected(connection);
@@ -906,7 +906,7 @@ async function activateConnection(connection: DatabaseConnection) {
   if (!(await ensureConnectionActive(connection))) return;
   selectedDatabaseConnectionTab.value = connection.id;
 
-  if (!wasConnected) {
+  if (!wasConnected && waitForPaint) {
     // 先让连接状态和左侧对象树完成一帧，再挂载右侧大型对象列表，
     // 避免两块界面在同一个渲染帧内集中创建造成“卡一下”的体感。
     await nextTick();
@@ -2775,6 +2775,7 @@ const { unregisterAiDatabaseWorkspaceActions } = useAiDatabaseActions({
   activeQueryTabId,
   tableTabs,
   activeTableTabId,
+  selectedConnectionTab: selectedDatabaseConnectionTab,
   activateConnection,
   selectConnectionTable,
   newQuery,

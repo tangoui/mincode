@@ -138,7 +138,7 @@ func getNote(ctx context.Context, q queryer, id string) (Note, error) {
 	return note, nil
 }
 
-func createNote(ctx context.Context, db *sql.DB, folderID, title, body string) (Note, error) {
+func createNote(ctx context.Context, db *sql.DB, folderID, title, body string, tags []string) (Note, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return Note{}, fmt.Errorf("notes: create note: %w", err)
@@ -147,6 +147,12 @@ func createNote(ctx context.Context, db *sql.DB, folderID, title, body string) (
 	note, err := insertNote(ctx, tx, folderID, title, body, false)
 	if err != nil {
 		return Note{}, err
+	}
+	if len(tags) > 0 {
+		note.NoteSummary, err = setTagsTx(ctx, tx, note.ID, tags)
+		if err != nil {
+			return Note{}, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return Note{}, fmt.Errorf("notes: create note: %w", err)
@@ -182,7 +188,7 @@ func insertNote(ctx context.Context, tx *sql.Tx, folderID, title, body string, f
 }
 
 // updateNote 只写入传入且确有变化的字段；无变化时不推进 updated_at。
-func updateNote(ctx context.Context, db *sql.DB, id string, title, body *string, favorite *bool) (NoteSummary, error) {
+func updateNote(ctx context.Context, db *sql.DB, id string, title, body *string, favorite *bool, appendBody bool) (NoteSummary, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return NoteSummary{}, fmt.Errorf("notes: update note: %w", err)
@@ -196,8 +202,17 @@ func updateNote(ctx context.Context, db *sql.DB, id string, title, body *string,
 	if title != nil && *title != current.Title {
 		current.Title, changed = *title, true
 	}
-	if body != nil && *body != current.Body {
-		current.Body, changed = *body, true
+	if body != nil {
+		nextBody := *body
+		if appendBody {
+			if len(current.Body)+len(nextBody) > maxBodyBytes {
+				return NoteSummary{}, errInvalidRequest
+			}
+			nextBody = current.Body + nextBody
+		}
+		if nextBody != current.Body {
+			current.Body, changed = nextBody, true
+		}
 	}
 	if favorite != nil && *favorite != current.Favorite {
 		current.Favorite, changed = *favorite, true

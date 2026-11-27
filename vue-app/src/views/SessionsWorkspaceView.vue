@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { registerAgentControlSessionPanes } from "@/services/agent-control-panes";
 import { createFrameMapBatcher } from "@/domain/async/frame-map-batcher";
 import "@/styles/workspaces/sessions/workspace.css";
 import { computed, defineAsyncComponent, getCurrentScope, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, reactive, ref, watch, type Component, type ComputedRef } from "vue";
@@ -649,6 +650,37 @@ async function splitSessionPane(terminalKey: string, paneId: string, direction: 
   );
 }
 
+const stopAgentControlSessionPanes = registerAgentControlSessionPanes({
+  async split(request, direction, launch) {
+    const entry = liveTerminals.value.find((item) => request.pane && collectLeafIds(item.paneRoot).includes(request.pane));
+    if (!entry || !request.pane) return undefined;
+    const pane = createLiveLocalPane(nextLiveTerminalId(), request.cwd?.trim() || entry.cwd);
+    const root = splitPaneInTree(entry.paneRoot, request.pane, direction, pane);
+    if (root === entry.paneRoot) return undefined;
+    const started = launch(pane);
+    selected.value = { provider: entry.provider, session: entry.session };
+    activeLiveTerminalKey.value = entry.key;
+    activePanel.value = "terminal";
+    liveTerminals.value = liveTerminals.value.map((item) =>
+      item.key === entry.key ? { ...item, paneRoot: root, activePaneId: pane.id } : item);
+    try {
+      return await started;
+    } catch (error) {
+      closeSessionPane(entry.key, pane.id);
+      throw error;
+    }
+  },
+  async close(paneId) {
+    const entry = liveTerminals.value.find((item) => collectLeafIds(item.paneRoot).includes(paneId));
+    if (!entry) return false;
+    await invokeBackend("close_local_shell", { payload: { sessionId: paneId } });
+    await unregisterLivePane(paneId);
+    closeSessionPane(entry.key, paneId, true);
+    return true;
+  },
+});
+onBeforeUnmount(stopAgentControlSessionPanes);
+
 function persistLiveTerminals() {
   if (!liveTerminalsScope) return;
   void liveTerminalsPersistence.save(
@@ -736,13 +768,15 @@ function unregisterLivePane(paneId: string) {
   return invokeBackend<void>("terminal_activity_unregister", { payload: { paneId } }).catch(() => {});
 }
 
-function closeSessionPane(terminalKey: string, paneId: string) {
+function closeSessionPane(terminalKey: string, paneId: string, nativeClosed = false) {
   const entry = liveTerminals.value.find((item) => item.key === terminalKey);
   if (!entry) return;
-  if (isDesktopRuntime()) {
-    void invokeBackend<void>("close_local_shell", { payload: { sessionId: paneId } }).catch(() => {});
+  if (!nativeClosed) {
+    if (isDesktopRuntime()) {
+      void invokeBackend<void>("close_local_shell", { payload: { sessionId: paneId } }).catch(() => {});
+    }
+    void unregisterLivePane(paneId);
   }
-  void unregisterLivePane(paneId);
   const newRoot = removePaneFromTree(entry.paneRoot, paneId);
   if (!newRoot) { void closeLiveTerminal(terminalKey); return; }
   const allIds = collectLeafIds(newRoot);

@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { startAgentControlExecutor } from "@/services/agent-control-executor";
+import { createAppAgentControlDeps } from "@/services/app-agent-control";
+import { startAiCapabilityHost } from "@/services/ai-capability-host";
+import { createAppAiCapabilityDeps } from "@/services/app-ai-capability-deps";
+import type { AiSessionRunner } from "@/services/ai-tools/ai-session-tools";
+import { listAiSessionAgents } from "@/services/app-ai-session-agents";
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
@@ -83,9 +89,10 @@ import { AI_ASSISTANT_DROP_TARGET_ID } from "@/domain/ai/dropped-files";
 const AppCommandPaletteHost = defineAsyncComponent(
   () => import("@/components/layout/AppCommandPaletteHost.vue")
 );
-const AiAssistantDrawer = defineAsyncComponent(
-  () => import("@/components/ai/AiAssistantDrawer.vue")
-);
+const loadAiAssistantDrawer = () => import("@/components/ai/AiAssistantDrawer.vue");
+const AiAssistantDrawer = defineAsyncComponent(loadAiAssistantDrawer);
+let resolveAssistantRunner!: (runner: AiSessionRunner) => void;
+const assistantRunner = new Promise<AiSessionRunner>((resolve) => { resolveAssistantRunner = resolve; });
 // 关联笔记抽屉含编辑器（CodeMirror），首次从各页面入口打开后才加载。
 const LinkedNotesDrawer = defineAsyncComponent(() => import("@/components/notes/LinkedNotesDrawer.vue"));
 const SshMfaDialog = defineAsyncComponent(
@@ -99,6 +106,30 @@ const SettingsWorkspaceView = defineAsyncComponent(
 );
 const route = useRoute();
 const router = useRouter();
+const appCapabilities = createAppAiCapabilityDeps(router);
+const stopAiCapabilityHost = startAiCapabilityHost({
+  ...appCapabilities,
+  aiSessions: appCapabilities.nativeRuntime && !isPopupWindow() ? {
+    listLocalAgents: listAiSessionAgents,
+    listConversations: async () => (await loadAiSessionStore()).allConversations,
+    getConversation: async (id, details) => {
+      const store = await loadAiSessionStore();
+      if (details && !(await store.ensureConversationDetails(id))) return undefined;
+      return store.conversationById(id);
+    },
+    createConversation: async ({ mode, ...options }) => {
+      const store = await loadAiSessionStore();
+      const conversation = store.createBackgroundConversation(mode, options);
+      await store.flushPersistence();
+      return conversation;
+    },
+    loadRunner: async () => {
+      await Promise.all([ensureAssistantLoaded(), loadAiAssistantDrawer()]);
+      return assistantRunner;
+    },
+  } : undefined,
+});
+onBeforeUnmount(stopAiCapabilityHost);
 const { t } = useVueI18n();
 const workbench = useWorkbenchStore();
 const terminalWorkspace = useTerminalWorkspaceStore();
@@ -315,6 +346,11 @@ async function ensureAssistantLoaded() {
   });
   return assistantLoadPromise;
 }
+
+async function loadAiSessionStore() {
+  await ensureAssistantLoaded();
+  return loadAiAssistantStore();
+}
 watch(
   () => assistant.open,
   (open) => {
@@ -388,7 +424,19 @@ if (!popupWindow) useTerminalTabCleanup();
 
 if (!popupWindow) {
   workbenchRestorePromise = restoreWorkbenchSession();
-  void terminalWorkspace.hydrate();
+  const terminalRestore = terminalWorkspace.hydrate();
+  if (isDesktopRuntime()) {
+    const deps = createAppAgentControlDeps(router);
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void Promise.allSettled([workbenchRestorePromise, terminalRestore]).then(() => {
+      if (!disposed) stop = startAgentControlExecutor(deps);
+    });
+    onBeforeUnmount(() => {
+      disposed = true;
+      stop?.();
+    });
+  }
   notifications.ensureListening();
   void notifications.hydrate().then(() => {
     if (isDesktopRuntime()) {
@@ -629,7 +677,7 @@ onBeforeUnmount(() => {
       :shortcut-label="commandPaletteShortcut"
       @open-settings="openSettings()"
     />
-    <AiAssistantDrawer v-if="assistantLoaded" @open-settings="openSettings('ai')" />
+    <AiAssistantDrawer v-if="assistantLoaded" @session-runner-ready="resolveAssistantRunner" @open-settings="openSettings('ai')" />
     <LinkedNotesDrawer v-if="linkedNotesDrawer.rendered" />
     <SettingsWorkspaceView
       v-if="settingsLoaded"

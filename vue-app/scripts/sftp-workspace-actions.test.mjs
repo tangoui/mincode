@@ -42,7 +42,7 @@ test("user-initiated disconnects confirm before discarding unsaved remote edits"
   assert.match(view, /:model-value="profileId"[\s\S]*?@update:model-value="selectProfile"/);
   assert.doesNotMatch(view, /v-model="profileId"/);
   assert.match(view, /if \(!\(await requestDisconnect\(\)\)\) return;\s*profileId\.value = nextProfileId;/);
-  assert.match(view, /if \(sessionId\.value && !\(await requestDisconnect\(\)\)\) return;\s*profileId\.value = value;/);
+  assert.match(view, /if \(sessionId\.value && !\(await requestDisconnect\(\)\)\) return false;\s*profileId\.value = value;/);
   assert.match(view, /t\("sftp\.unsavedDisconnectConfirm"\)/);
 });
 

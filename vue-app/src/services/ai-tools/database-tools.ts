@@ -17,7 +17,7 @@ export interface DatabaseToolDependencies extends AiToolDependencies {
   connectDatabase?(connectionId: string): Promise<unknown>;
   disconnectDatabase?(connectionId: string): Promise<unknown>;
   databaseSessionId?(connectionId: string): string | undefined;
-  databaseAction?(input: Record<string, unknown>): Promise<unknown>;
+  databaseAction?(input: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
   /**
    * 连接绑定的插件驱动标签（如 "Acme DB (com.acme.db)"）；内置驱动返回 undefined。
    * 仅用于审批预览标注（E-11），不改变任何工具的风险等级。
@@ -701,12 +701,12 @@ function baseDatabaseCapabilities(
               : "all default changes";
             return `Alter ${selection.targetDatabase} to match ${selection.sourceDatabase} (${scope})`;
           },
-          execute: ({ input }) =>
+          execute: ({ input, externalAgent, signal }) =>
             dependencies.databaseAction!({
               action: "execute-schema-sync",
               ...schemaSyncSelection(input, "database.execute_schema_sync"),
               changeIds: input.changeIds,
-            }),
+            }, externalAgent ? signal : undefined),
         },
       ]
     : [];
@@ -917,18 +917,19 @@ function baseDatabaseCapabilities(
       risk: "dangerous",
       approvalPreview: ({ input }) =>
         `${databaseName(input, "database.insert_row")}.${tableName(input, "database.insert_row")} (field values redacted)`,
-      execute: ({ input, resource, conversationId }) => {
+      execute: ({ input, resource, conversationId, externalAgent, signal }) => {
         const sessionId = metadataString(resource, "sessionId");
         const database = databaseName(input, "database.insert_row");
         const table = tableName(input, "database.insert_row");
         const fields = safeMutationRecord(input, "fields", "database.insert_row");
-        return safety.runRowWrite({ sessionId, database, table, write: "insert", conversationId }, () =>
+        return safety.runRowWrite({ sessionId, database, table, write: "insert", conversationId, externalAgent, signal }, () =>
           safety.run({
+            signal,
             sessionId,
             database,
             executeFirst: true,
             execute: (token) =>
-              dependencies.invoke("db_insert_row", { sessionId, database, table, fields, source: "ai", ...safety.tokenArgs(token) }),
+              dependencies.invoke("db_insert_row", { sessionId, database, table, fields, source: "ai", ...safety.tokenArgs(token) }, signal ? { signal } : undefined),
           }));
       },
     }),
@@ -956,7 +957,7 @@ function baseDatabaseCapabilities(
       risk: "dangerous",
       approvalPreview: ({ input }) =>
         `${databaseName(input, "database.update_row")}.${tableName(input, "database.update_row")} (${Object.keys(requiredRecord(input, "fields", "database.update_row")).join(", ")}; values redacted)`,
-      execute: ({ input, resource, conversationId }) => {
+      execute: ({ input, resource, conversationId, externalAgent, signal }) => {
         const sessionId = metadataString(resource, "sessionId");
         const database = databaseName(input, "database.update_row");
         const table = tableName(input, "database.update_row");
@@ -970,17 +971,18 @@ function baseDatabaseCapabilities(
           "fields",
           "database.update_row",
         );
-        return safety.runRowWrite({ sessionId, database, table, write: "update", conversationId }, async () => {
+        return safety.runRowWrite({ sessionId, database, table, write: "update", conversationId, externalAgent, signal }, async () => {
           const affected: Record<string, unknown> = {};
           for (const [column, value] of Object.entries(fields)) {
             affected[column] = await safety.run({
+              signal,
               sessionId,
               database,
               executeFirst: true,
               execute: (token) =>
                 dependencies.invoke("db_update_cell", {
                   sessionId, database, table, primaryKey, column, value, source: "ai", ...safety.tokenArgs(token),
-                }),
+                }, signal ? { signal } : undefined),
             });
           }
           return { affected };
@@ -1006,18 +1008,19 @@ function baseDatabaseCapabilities(
       risk: "dangerous",
       approvalPreview: ({ input }) =>
         `${databaseName(input, "database.delete_row")}.${tableName(input, "database.delete_row")} (primary-key values redacted)`,
-      execute: ({ input, resource, conversationId }) => {
+      execute: ({ input, resource, conversationId, externalAgent, signal }) => {
         const sessionId = metadataString(resource, "sessionId");
         const database = databaseName(input, "database.delete_row");
         const table = tableName(input, "database.delete_row");
         const primaryKey = requiredRecord(input, "primaryKey", "database.delete_row");
-        return safety.runRowWrite({ sessionId, database, table, write: "delete", conversationId }, () =>
+        return safety.runRowWrite({ sessionId, database, table, write: "delete", conversationId, externalAgent, signal }, () =>
           safety.run({
+            signal,
             sessionId,
             database,
             executeFirst: true,
             execute: (token) =>
-              dependencies.invoke("db_delete_row", { sessionId, database, table, primaryKey, source: "ai", ...safety.tokenArgs(token) }),
+              dependencies.invoke("db_delete_row", { sessionId, database, table, primaryKey, source: "ai", ...safety.tokenArgs(token) }, signal ? { signal } : undefined),
           }));
       },
     }),
@@ -1036,13 +1039,14 @@ function baseDatabaseCapabilities(
       risk: "dangerous",
       approvalPreview: ({ input }) =>
         requiredString(input, "query", "database.execute_query"),
-      execute: async ({ input, resource }) => {
+      execute: async ({ input, resource, signal }) => {
         const sessionId = metadataString(resource, "sessionId");
         const query = requiredString(input, "query", "database.execute_query");
         const database = stringArgument(input, "database") || null;
         // 先不带令牌执行：读语句没有额外往返；写语句由安全网检查，高风险必须由用户确认。
         return sanitizeAiResult(
           await safety.run({
+            signal,
             sessionId,
             query,
             database,
@@ -1050,7 +1054,7 @@ function baseDatabaseCapabilities(
             execute: (token) =>
               dependencies.invoke("db_execute_query", {
                 sessionId, query, database, queryId: crypto.randomUUID(), source: "ai", ...safety.tokenArgs(token),
-              }),
+              }, signal ? { signal } : undefined),
           }),
         );
       },
@@ -1128,17 +1132,18 @@ function baseDatabaseCapabilities(
           : 0;
         return `Insert into ${target} from ${requiredString(input, "format", "database.import_rows")} (${lines} line(s); data redacted)`;
       },
-      execute: ({ input, resource }) => {
+      execute: ({ input, resource, signal }) => {
         const sessionId = metadataString(resource, "sessionId");
         const database = databaseName(input, "database.import_rows");
         const table = tableName(input, "database.import_rows");
         const format = requiredString(input, "format", "database.import_rows");
         const data = typeof input.data === "string" ? input.data : "";
         return safety.run({
+          signal,
           sessionId,
           database,
           operation: { kind: "import", table, format, data },
-          execute: (token) => importInlineRows(sessionId, database, table, format, data, dependencies.invoke, safety.tokenArgs(token)),
+          execute: (token) => importInlineRows(sessionId, database, table, format, data, (command, args) => dependencies.invoke(command, args, signal ? { signal } : undefined), safety.tokenArgs(token)),
         });
       },
     }),

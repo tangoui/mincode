@@ -54,6 +54,7 @@ function functionBody(source, signature) {
 }
 
 const executeAgentTool = functionBody(drawer, "async function executeAgentTool(");
+const runApprovalMode = functionBody(drawer, "function runApprovalMode(");
 const mcpBranch = executeAgentTool.slice(
   executeAgentTool.indexOf("if (mcpTool) {"),
   executeAgentTool.indexOf("const capability = aiCapabilityRegistry.get(call.name);"),
@@ -63,24 +64,25 @@ const nativeBranch = executeAgentTool.slice(executeAgentTool.indexOf("const capa
 test("the drawer blocks non-read MCP calls in plan mode before approval", () => {
   assert.match(
     mcpBranch,
-    /const mcpMode = approvalModeForConversation\(aiApprovalMode\.value, conversation\?\.external\);\s*if \(planModeDenies\(mcpMode, authorizationRequest\.risk\)\) \{\s*return \{ content: t\("ai\.agentic\.planModeBlocked"\), status: "cancelled" as const \};\s*\}[\s\S]*?requiresAiToolApproval\(mcpMode, authorizationRequest\.risk\)[\s\S]*?authorizeTool\([\s\S]*?callMcpToolCancellable/,
+    /const mcpMode = runApprovalMode\(conversation\);\s*if \(planModeDenies\(mcpMode, authorizationRequest\.risk\)\) \{\s*return \{ content: t\("ai\.agentic\.planModeBlocked"\), status: "cancelled" as const \};\s*\}[\s\S]*?requiresAiToolApproval\(mcpMode, authorizationRequest\.risk\)[\s\S]*?authorizeTool\([\s\S]*?callMcpToolCancellable/,
   );
 });
 
 test("the drawer blocks non-read native calls in plan mode before approval", () => {
   assert.match(
     nativeBranch,
-    /const callMode = approvalModeForConversation\(aiApprovalMode\.value, conversation\?\.external\);\s*if \(planModeDenies\(callMode, callRisk\)\) \{\s*return \{ content: t\("ai\.agentic\.planModeBlocked"\), status: "cancelled" as const \};\s*\}[\s\S]*?requiresAiToolApproval\(callMode, callRisk\)[\s\S]*?authorizeTool\([\s\S]*?aiCapabilityRegistry\.execute\(/,
+    /const callMode = runApprovalMode\(conversation\);\s*if \(planModeDenies\(callMode, callRisk\)\) \{\s*return \{ content: t\("ai\.agentic\.planModeBlocked"\), status: "cancelled" as const \};\s*\}[\s\S]*?requiresAiToolApproval\(callMode, callRisk\)[\s\S]*?authorizeTool\([\s\S]*?aiCapabilityRegistry\.execute\(/,
   );
 });
 
 // Plan constraint: a card already waiting when the user switches to plan mode is
 // settled by the user's answer as usual; only the next call is judged by the new mode.
 test("each call reads the approval mode afresh, after hydration and risk resolution", () => {
-  assert.match(mcpBranch, /await approvalModeHydration;\s*const mcpMode = approvalModeForConversation\(aiApprovalMode\.value,/);
+  assert.match(runApprovalMode, /approvalModeForConversation\(aiApprovalMode\.value, conversation\?\.external, conversation\?\.fullAccess\)/);
+  assert.match(mcpBranch, /await approvalModeHydration;\s*const mcpMode = runApprovalMode\(conversation\)/);
   assert.match(
     nativeBranch,
-    /await approvalModeHydration;[\s\S]*?await capability\.resolveRisk\([\s\S]*?const callMode = approvalModeForConversation\(aiApprovalMode\.value,/,
+    /await approvalModeHydration;[\s\S]*?await capability\.resolveRisk\([\s\S]*?const callMode = runApprovalMode\(conversation\)/,
   );
   // The mode is not captured once per turn and reused: every read in the tool path is live.
   for (const name of ["mcpMode", "callMode"]) {
@@ -92,7 +94,7 @@ test("an approval granted after switching to plan mode is not re-checked against
   for (const [branch, execution] of [[mcpBranch, "callMcpToolCancellable"], [nativeBranch, "aiCapabilityRegistry.execute("]]) {
     const afterApproval = branch.slice(branch.indexOf("authorizeTool("), branch.indexOf(execution));
     assert.ok(afterApproval.length > 0);
-    assert.doesNotMatch(afterApproval, /aiApprovalMode|planModeDenies|approvalModeForConversation|requiresAiToolApproval|planModeBlocked/);
+    assert.doesNotMatch(afterApproval, /aiApprovalMode|planModeDenies|runApprovalMode|approvalModeForConversation|requiresAiToolApproval|planModeBlocked/);
   }
   assert.doesNotMatch(
     functionBody(drawer, "async function authorizeTool("),

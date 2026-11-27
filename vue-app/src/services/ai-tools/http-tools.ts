@@ -230,14 +230,14 @@ export function httpCapabilities(dependencies: HttpWorkspaceAiDependencies): AiC
     mode: "write",
     risk: "network",
     approvalPreview: ({ input }) => httpApprovalPreview(input),
-    execute: async ({ input }) => {
+    execute: async ({ input, externalAgent, signal }) => {
       const result = await dependencies.invoke("http_send_request", { payload: {
         method: (stringArgument(input, "method") || "GET").toUpperCase(),
         url: requestUrl(input),
         headers: stringPairs(input.headers),
         body: typeof input.body === "string" ? input.body : "",
         timeoutMs: typeof input.timeoutMs === "number" ? input.timeoutMs : 30000,
-      } });
+      } }, externalAgent ? { signal } : undefined);
       return safeHttpResponse(result);
     },
   }, {

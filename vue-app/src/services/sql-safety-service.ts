@@ -41,6 +41,8 @@ export type SqlSafetyConfirm = (
   check: SqlSafetyCheck,
   origin: SqlSafetyOrigin,
   notice?: SqlSafetyConfirmNotice,
+  summary?: readonly string[],
+  signal?: AbortSignal,
 ) => Promise<{ confirmText?: string } | undefined>;
 
 export interface RunWithSafetyOptions<T> {
@@ -51,6 +53,7 @@ export interface RunWithSafetyOptions<T> {
   /** 后端来源：query ai designer import grid e2e。 */
   source: string;
   origin: SqlSafetyOrigin;
+  signal?: AbortSignal;
   execute: (token: SqlSafetyToken) => Promise<T>;
   check?: (args: SqlSafetyCheckArgs) => Promise<SqlSafetyCheck>;
   confirm?: SqlSafetyConfirm;
@@ -130,7 +133,14 @@ function failureError(failure: SqlSafetyError): Error {
  */
 export async function runWithSafety<T>(options: RunWithSafetyOptions<T>): Promise<T | undefined> {
   const check = options.check ?? checkSqlSafety;
-  const confirm = options.confirm ?? confirmSqlSafety;
+  const confirmation = options.confirm ?? confirmSqlSafety;
+  const confirm: SqlSafetyConfirm = async (check, origin, notice) => {
+    options.signal?.throwIfAborted();
+    const answer = await confirmation(check, origin, notice, undefined, options.signal);
+    options.signal?.throwIfAborted();
+    return answer;
+  };
+  options.signal?.throwIfAborted();
   let token: SqlSafetyToken;
   if (options.executeFirst) {
     try {
@@ -168,6 +178,7 @@ export async function runWithSafety<T>(options: RunWithSafetyOptions<T>): Promis
 /** 带令牌执行，跟随 reconfirm / 强制写入确认（最多 MAX_RECONFIRMS 次）。 */
 async function runWithToken<T>(options: RunWithSafetyOptions<T>, confirm: SqlSafetyConfirm, token: SqlSafetyToken): Promise<T | undefined> {
   for (let reconfirms = 0; ; reconfirms++) {
+    options.signal?.throwIfAborted();
     try {
       return await options.execute(token);
     } catch (cause) {

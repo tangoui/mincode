@@ -58,6 +58,6 @@ test("AI 任务固定使用启动时的工作区上下文和项目根目录", ()
   assert.match(drawerSource, /workspaceId: context\.workspaceId[\s\S]*?workspaceScopeId: context\.workspaceScopeId/);
   assert.match(drawerSource, /call\.name === "terminal\.run_command" && projectRoot/);
   assert.match(drawerSource, /!parsedArgs\.cwd \|\| policy\.forceProjectRoot/);
-  assert.match(drawerSource, /initialCwd: input\.initialCwd[\s\S]*?conversationWorkspaceContexts\.get\(input\.conversationId\)\?\.projectRoot/);
+  assert.match(drawerSource, /projectRoot: conversationWorkspaceContexts\.get\(conversationId\)\?\.projectRoot/);
   assert.match(drawerSource, /loadMcpServerTools\(conversationId, runProjectRoot, mcpPlan\.preload\)/);
 });

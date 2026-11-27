@@ -15,43 +15,17 @@ import {
 import MinCodeMark from "@/assets/brand/mincode-mark.svg";
 import { useVueI18n } from "@/i18n/messages";
 import type { MessageKey } from "@/i18n/messages";
-import { invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
+import { isDesktopRuntime } from "@/services/desktop-bridge";
 import { scheduleIdleTask } from "@/services/idle-task";
 import { useDatabaseWorkspaceStore } from "@/stores/database-workspace";
-import { syncSessionToolRoots } from "@/services/session-tool-preferences";
+import { dashboardQuickActions, orderDashboardTabs } from "@/domain/dashboard/overview";
+import { loadRecentDashboardActivity, type ActivityItem } from "@/services/dashboard-overview-service";
 import { useSshConnectionsStore } from "@/stores/ssh-connections";
 import { useWorkbenchStore } from "@/stores/workbench";
 import type { WorkspaceTab, WorkspaceView } from "@/types/workspace";
 import { workspaceTabRoute } from "@/domain/workspace/tab-route";
 import { formatDashboardClock, greetingKeyForHour, msUntilNextSecond } from "@/domain/dashboard/clock";
 
-
-interface RecentSession {
-  id?: string;
-  uuid?: string;
-  title?: string;
-  cwd?: string;
-  decodedPath?: string;
-  lastAt?: number;
-  messageCount?: number;
-  model?: string;
-}
-
-interface ClaudeProject {
-  encodedDir: string;
-  decodedPath: string;
-  sessionCount: number;
-  lastAt: number;
-}
-
-interface ActivityItem {
-  id: string;
-  provider: "Codex" | "Claude";
-  title: string;
-  path: string;
-  lastAt: number;
-  count: number;
-}
 
 const router = useRouter();
 const workbench = useWorkbenchStore();
@@ -86,51 +60,14 @@ function stopClock() {
 const clock = computed(() => formatDashboardClock(now.value, intlLocale.value));
 const greeting = computed(() => t(greetingKeyForHour(now.value.getHours())));
 
-const activeTabs = computed(() =>
-  [...workbench.workspaceTabs].sort(
-    (left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned))
-  )
-);
+const activeTabs = computed(() => orderDashboardTabs(workbench.workspaceTabs));
 const connectedDatabaseCount = computed(() => database.connectedConnections.length);
-const quickActions: Array<{
-  view: WorkspaceView;
-  titleKey: MessageKey;
-  descriptionKey: MessageKey;
-  icon: typeof Monitor;
-  tone: string;
-}> = [
-  {
-    view: "terminal",
-    titleKey: "dashboard.quick.terminal",
-    descriptionKey: "dashboard.quick.terminalHint",
-    icon: Monitor,
-    tone: "teal",
-  },
-  {
-    view: "ssh",
-    titleKey: "dashboard.quick.ssh",
-    descriptionKey: "dashboard.quick.sshHint",
-    icon: Connection,
-    tone: "green",
-  },
-  {
-    view: "database",
-    titleKey: "dashboard.quick.database",
-    descriptionKey: "dashboard.quick.databaseHint",
-    icon: DataAnalysis,
-    tone: "orange",
-  },
-];
-
-function basename(path: string) {
-  return (
-    path
-      .replace(/[\\/]+$/, "")
-      .split(/[\\/]/)
-      .filter(Boolean)
-      .pop() ?? ""
-  );
-}
+const quickActionStyles = {
+  terminal: { icon: Monitor, tone: "teal" },
+  ssh: { icon: Connection, tone: "green" },
+  database: { icon: DataAnalysis, tone: "orange" },
+};
+const quickActions = dashboardQuickActions.map((action) => ({ ...action, ...quickActionStyles[action.view] }));
 
 function formatRelativeTime(timestamp: number) {
   if (!timestamp) return t("dashboard.time.unknown");
@@ -170,44 +107,12 @@ function closeTab(tab: WorkspaceTab) {
 }
 
 async function loadRecentActivity() {
-  if (!isDesktopRuntime()) {
-    recentActivity.value = [];
+  recentLoading.value = isDesktopRuntime();
+  try {
+    recentActivity.value = await loadRecentDashboardActivity();
+  } finally {
     recentLoading.value = false;
-    return;
   }
-  recentLoading.value = true;
-  await syncSessionToolRoots();
-  const [codexSessions, claudeProjects] = await Promise.all([
-    invokeBackend<RecentSession[]>("list_codex_sessions", {}).catch(() => []),
-    invokeBackend<ClaudeProject[]>("list_claude_projects", {}).catch(() => []),
-  ]).finally(() => {
-    recentLoading.value = false;
-  });
-  recentActivity.value = [
-    ...codexSessions.map(
-      (session, index): ActivityItem => ({
-        id: `codex:${session.uuid ?? session.id ?? index}`,
-        provider: "Codex",
-        title:
-          session.title?.trim() || basename(session.cwd ?? "") || t("dashboard.sessions.untitled"),
-        path: session.cwd ?? session.decodedPath ?? "",
-        lastAt: session.lastAt ?? 0,
-        count: session.messageCount ?? 0,
-      })
-    ),
-    ...claudeProjects.map(
-      (item): ActivityItem => ({
-        id: `claude:${item.encodedDir}`,
-        provider: "Claude",
-        title: basename(item.decodedPath) || item.decodedPath,
-        path: item.decodedPath,
-        lastAt: item.lastAt,
-        count: item.sessionCount,
-      })
-    ),
-  ]
-    .sort((left, right) => right.lastAt - left.lastAt)
-    .slice(0, 5);
 }
 
 function refresh(force = false): Promise<void> {

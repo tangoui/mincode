@@ -3,7 +3,7 @@
  * The action is handled by the same view methods as a user interaction, so the visible
  * tabs, selections and persisted state stay in sync with the desktop UI.
  */
-export type AiWorkspaceActionHandler = (input: Record<string, unknown>) => Promise<unknown> | unknown;
+export type AiWorkspaceActionHandler = (input: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown> | unknown;
 
 const handlers = new Map<string, AiWorkspaceActionHandler>();
 const waiters = new Map<string, Array<() => void>>();
@@ -40,10 +40,13 @@ async function waitForHandler(scope: string, timeoutMs = 4_000) {
 
 export async function requestAiWorkspaceAction(
   scope: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<unknown> {
+  signal?.throwIfAborted();
   await waitForHandler(scope);
+  signal?.throwIfAborted();
   const handler = handlers.get(scope);
   if (!handler) throw new Error(`AI workspace action handler is unavailable: ${scope}`);
-  return handler(input);
+  return handler(input, signal);
 }

@@ -29,6 +29,7 @@ import { DEFAULT_WORKSPACE_ID, useWorkbenchStore } from "@/stores/workbench";
 import { useTerminalWorkspaceStore } from "@/stores/terminal-workspace";
 import { canPopOutTab, closePopupWindow, popOutTab } from "@/services/popup-tab";
 import { hydrateSettingsSnapshot } from "@/services/settings-persistence";
+import { registerAiWorkspaceActionHandler } from "@/services/ai-workspace-actions";
 import { preloadWorkspaceView } from "@/router/workspace-views";
 import { copyText, invokeBackend, isDesktopRuntime } from "@/services/desktop-bridge";
 import type { LocalShellType, LocalTerminalPaneOptions } from "@/domain/terminal/types";
@@ -205,7 +206,7 @@ function selectTab(id: string) {
 }
 async function closeWorkspaceTab(id: string) {
   const tab = workbench.tabs.find((item) => item.id === id);
-  if (!tab || !isWorkspaceTabClosable(tab)) return;
+  if (!tab || !isWorkspaceTabClosable(tab)) return false;
 
   const popupLabel = workbench.poppedOutTabLabels[id];
   if (popupLabel) {
@@ -218,8 +219,12 @@ async function closeWorkspaceTab(id: string) {
 
   recordClosedTabs([tab]);
   workbench.closeTab(id, true);
-  navigateToActiveTab();
+  if (workbench.activeTab) warmWorkspaceView(workbench.activeTab.view);
+  if (!currentRouteMatchesTab(workbench.activeTab)) await router.push(workspaceTabRoute(workbench.activeTab));
+  return true;
 }
+const unregisterAiTabActions = registerAiWorkspaceActionHandler("workbench", (input) =>
+  input.action === "close-tab" && typeof input.id === "string" && closeWorkspaceTab(input.id));
 // Use tab-click (not update:modelValue) so clicking the active tab still restores its route.
 function handleWorkspaceTabClick(pane: TabsPaneContext) {
   if (pane.paneName === undefined) return;
@@ -261,7 +266,7 @@ function createTerminalTab(options: LocalTerminalPaneOptions, title?: string) {
 }
 useWorkbenchTabCommands({
   selectTab,
-  closeTab: closeWorkspaceTab,
+  closeTab: async (id) => { await closeWorkspaceTab(id); },
   navigateTo: navigateToTab,
   newTerminal: (title) => {
     createTerminalTab({ shellType: "system" }, title);
@@ -543,6 +548,7 @@ onMounted(async () => {
   }
 });
 onBeforeUnmount(() => {
+  unregisterAiTabActions();
   observer?.disconnect();
   stopTabPopoutDrag?.();
 });

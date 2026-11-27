@@ -30,6 +30,8 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { Terminal, type IDisposable } from "@xterm/xterm";
 import { ElMessage, ElMessageBox } from "element-plus";
 import "@xterm/xterm/css/xterm.css";
+import { prepareAgentControlTerminalCommand } from "@/services/agent-control-panes";
+import { pendingAgentControlTerminal, startAgentControlShell } from "@/services/agent-control-terminal-launch";
 import TerminalContextMenu from "@/components/terminal/TerminalContextMenu.vue";
 import {
   analyzeTerminalPaste,
@@ -812,7 +814,7 @@ onMounted(async () => {
   await connectShell();
 });
 
-async function startShellSession(cols: number, rows: number) {
+async function startShellSession(cols: number, rows: number, extraEnv = props.extraEnv) {
   const cwd = props.initialCwd || await getUserHomeDirectory();
   if (closed) return "";
   return invokeBackend<string>("start_local_shell", {
@@ -821,7 +823,7 @@ async function startShellSession(cols: number, rows: number) {
       shellType: props.shellType,
       customPath: props.customPath,
       cwd,
-      extraEnv: props.extraEnv,
+      extraEnv,
       attachIfExists: true,
       cols,
       rows,
@@ -831,9 +833,18 @@ async function startShellSession(cols: number, rows: number) {
 
 async function connectShell() {
   if (!xterm || closed) return;
+  const controlled = pendingAgentControlTerminal(props.sessionId);
   try {
     const dimensions = clampTerminalDimensions(xterm.cols, xterm.rows);
-    const message = await startShellSession(dimensions.cols, dimensions.rows);
+    const prepared = controlled ? await prepareAgentControlTerminalCommand(props.sessionId, controlled.command, controlled.signal) : undefined;
+    const extraEnv = prepared?.extraEnv ? { ...props.extraEnv, ...prepared.extraEnv } : props.extraEnv;
+    controlled?.signal.throwIfAborted();
+    const start = () => startShellSession(dimensions.cols, dimensions.rows, extraEnv);
+    const message = controlled
+      ? await startAgentControlShell(controlled.signal, start, () => invokeBackend("close_local_shell", {
+          payload: { sessionId: props.sessionId },
+        }), () => closed)
+      : await start();
     if (closed || !xterm) return;
     resizeSync.reset();
     backendReady = true;
@@ -844,15 +855,18 @@ async function connectShell() {
     const attached = message === "Shell attached";
     if (!attached) {
       xterm.writeln(`\x1b[32m[MinCode] ${message}\x1b[0m`);
-      if (props.initialCommand?.trim()) {
+      const command = controlled ? prepared?.command : props.initialCommand;
+      if (command?.trim()) {
         await invokeBackend<void>("write_to_shell", {
-          payload: { sessionId: props.sessionId, input: `${props.initialCommand}\r` },
-        });
+          payload: { sessionId: props.sessionId, input: `${command}\r` },
+        }, controlled ? { signal: controlled.signal } : undefined);
       }
     }
+    controlled?.started();
     fitAndResize();
     focusTerminal();
-  } catch {
+  } catch (error) {
+    controlled?.failed(error);
     status.value = "error";
     const endedAt = Date.now();
     emitActivity({ phase: "failed", updatedAt: endedAt, endedAt });
@@ -861,6 +875,7 @@ async function connectShell() {
 }
 
 onBeforeUnmount(() => {
+  pendingAgentControlTerminal(props.sessionId)?.failed(new Error(t("settings.agentControl.paneStartFailed")));
   closed = true;
   backendReady = false;
   clearQuietActivityTimer();

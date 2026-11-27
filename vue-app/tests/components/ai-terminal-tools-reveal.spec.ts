@@ -36,8 +36,8 @@ describe("AI terminal tools reveal the target pane", () => {
   it("the AI assistant reveals only panes of a background terminal tab", async () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
-    const drawer = readFileSync(resolve(__dirname, "../../src/components/ai/AiAssistantDrawer.vue"), "utf8");
-    expect(drawer).toMatch(/if \(isBackgroundTerminalPane\(tabsState, sessionId\)\) terminalWorkspace\.selectPane\(sessionId\);/);
-    expect(drawer).toMatch(/revealTerminalPane: revealTerminalPaneForAi,/);
+    const host = readFileSync(resolve(__dirname, "../../src/services/app-ai-capability-deps.ts"), "utf8");
+    expect(host).toMatch(/if \(isBackgroundTerminalPane\(tabsState, sessionId\)\) terminalWorkspace\.selectPane\(sessionId\);/);
+    expect(host).toMatch(/revealTerminalPane: revealTerminalPaneForAi,/);
   });
 });

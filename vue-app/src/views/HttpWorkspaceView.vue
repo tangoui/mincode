@@ -1613,6 +1613,14 @@ function openMockServer() {
   mockServerVisible.value = true;
 }
 
+function collectionContainingRequest(items: HttpRequestCollection[], requestId: string): HttpRequestCollection | undefined {
+  for (const collection of items) {
+    if (collection.requests.some((request) => request.id === requestId)) return collection;
+    const nested = collectionContainingRequest(collection.children ?? [], requestId);
+    if (nested) return nested;
+  }
+}
+
 function findSavedHttpRequest(collectionId: string, requestId: string) {
   const collection = findHttpCollection(collections.value, collectionId);
   const request = collection?.requests.find((item) => item.id === requestId);
@@ -1650,6 +1658,21 @@ function httpAssetsForAi() {
 }
 
 async function handleAiHttpWorkspaceAction(input: Record<string, unknown>) {
+  if (input.action === "active-resource") return activeTab.value.savedRequestId || activeTab.value.id;
+  if (input.action === "open-resource") {
+    await httpWorkspaceHydration;
+    const id = String(input.id ?? "");
+    const tab = tabs.value.find((item) => item.id === id || item.savedRequestId === id);
+    if (tab) {
+      activeTabId.value = tab.id;
+      return { id, tabId: tab.id };
+    }
+    const collection = collectionContainingRequest(collections.value, id);
+    const request = collection?.requests.find((item) => item.id === id);
+    if (!collection || !request) throw new Error(t("ai.navigation.resourceMissing", { id }));
+    openSavedRequest(request, collection);
+    return { id, tabId: activeTabId.value };
+  }
   const action = typeof input.action === "string" ? input.action : "";
   switch (action) {
     case "list-assets":
@@ -1820,7 +1843,9 @@ function persistRequestHeight(value: number) {
   return savePersistedValue(REQUEST_HEIGHT_KEY, value);
 }
 
+let httpWorkspaceHydration: Promise<void> | undefined;
 onMounted(async () => {
+  httpWorkspaceHydration = hydrateHttpState();
   const [height] = await Promise.all([
     loadPersistedValue<unknown>(REQUEST_HEIGHT_KEY),
     hydrateSidebarLayout(),
@@ -1829,7 +1854,7 @@ onMounted(async () => {
     requestHeight.value = Math.min(75, Math.max(28, height));
   await Promise.all([
     savePersistedValue(REQUEST_HEIGHT_KEY, requestHeight.value),
-    hydrateHttpState(),
+    httpWorkspaceHydration,
   ]);
 });
 onBeforeUnmount(() => {

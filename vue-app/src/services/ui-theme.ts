@@ -20,6 +20,10 @@ const UI_THEMES: ReadonlySet<BuiltinUiTheme> = new Set([
 ]);
 const LIGHT_UI_THEMES = new Set<UiTheme>(["light", "paper", "cloud-blue", "arco"]);
 
+export function listBuiltinUiThemes(): BuiltinUiTheme[] {
+  return [...UI_THEMES];
+}
+
 export function isBuiltinUiTheme(theme: unknown): theme is BuiltinUiTheme {
   return typeof theme === "string" && UI_THEMES.has(theme as BuiltinUiTheme);
 }

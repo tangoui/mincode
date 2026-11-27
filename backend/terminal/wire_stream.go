@@ -91,6 +91,7 @@ func wireHandlersForSession(sessionID string) wireInputHandlers {
 			}
 			// 与 write_to_shell 一致：投递前静默还原 SSH 输入行，wire 数据面不得绕过历史捕获。
 			attention.observeInput(sessionID, text)
+			proc.control.observeInput(text)
 			captureSSHInput(proc, text)
 			_ = enqueueShellInput(proc, text)
 		},

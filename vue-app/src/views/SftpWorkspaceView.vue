@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch, watchEffect } from "vue";
+import { computed, defineAsyncComponent, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch, watchEffect } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useRoute } from "vue-router";
+import { registerAiWorkspaceActionHandler } from "@/services/ai-workspace-actions";
 import {
   Back,
   Close,
@@ -1021,13 +1022,13 @@ async function initDefaultLocalRoot() {
 }
 
 async function applyProfileFromRoute(value: unknown) {
-  if (typeof value !== "string" || !ssh.findProfile(value)) return;
-  if (sessionId.value && value === profileId.value) return;
-  if (sessionId.value && !(await requestDisconnect())) return;
+  if (typeof value !== "string" || !ssh.findProfile(value)) return false;
+  if (sessionId.value && value === profileId.value) return true;
+  if (sessionId.value && !(await requestDisconnect())) return false;
   profileId.value = value;
   await nextTick();
   const selectedProfile = profile.value;
-  if (!selectedProfile || !isDesktopRuntime()) return;
+  if (!selectedProfile || !isDesktopRuntime()) return false;
   const credentials = ssh.credentialsFor(selectedProfile.id);
   const canConnect = requiresFtpPassword.value
     ? Boolean(credentials?.ftpPassword) || Boolean(ftpPassword.value)
@@ -1035,7 +1036,26 @@ async function applyProfileFromRoute(value: unknown) {
       Boolean(credentials?.password) ||
       Boolean(sshPassword.value);
   if (canConnect) await connect();
+  return profileId.value === value;
 }
+
+async function handleSftpWorkspaceAction(input: Record<string, unknown>, signal?: AbortSignal) {
+  if (input.action === "active-resource") return profileId.value;
+  const id = String(input.id ?? "");
+  if (input.action !== "open-resource") throw new Error(t("ai.navigation.resourceUnavailable", { id }));
+  if (!ssh.hydrated) await ssh.hydrate();
+  signal?.throwIfAborted();
+  if (!ssh.findProfile(id)) throw new Error(t("ai.navigation.resourceMissing", { id }));
+  if (!(await applyProfileFromRoute(id))) throw new Error(t("ai.navigation.resourceUnavailable", { id }));
+  return { id, sessionId: sessionId.value };
+}
+
+let unregisterAiSftpActions = registerAiWorkspaceActionHandler("sftp", handleSftpWorkspaceAction);
+onActivated(() => {
+  unregisterAiSftpActions();
+  unregisterAiSftpActions = registerAiWorkspaceActionHandler("sftp", handleSftpWorkspaceAction);
+});
+onDeactivated(() => unregisterAiSftpActions());
 
 onMounted(async () => {
   if (!ssh.hydrated) await ssh.hydrate();
@@ -1057,6 +1077,7 @@ watch(profileId, (nextProfileId, previousProfileId) => {
 // Route leaves only deactivate this KeepAlive'd view, so edits survive; unmount (cache eviction,
 // workspace close) cannot be vetoed, so at least tell the user which unsaved edits were dropped.
 onBeforeUnmount(() => {
+  unregisterAiSftpActions();
   disposed = true;
   remoteContextMenu.value = null;
   const discarded = editorTabs.value.filter((tab) => tab.dirty).map((tab) => tab.name);

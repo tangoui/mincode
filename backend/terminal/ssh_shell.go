@@ -148,6 +148,7 @@ func startSSHShell(p StartSshShellPayload) (string, error) {
 		portForwardRules:     append([]PortForwardRulePayload(nil), p.PortForwards...),
 		sshKeepAliveInterval: p.KeepAliveIntervalSeconds, sshKeepAliveMaxMisses: p.KeepAliveMaxMisses,
 		sshInitialDirectory:    initialDirectory,
+		control:                addControlledPane(sid, user+"@"+host, initialDirectory, false, nil),
 		sshPostConnectCommands: append([]string(nil), postConnectCommands...),
 		sshPostConnectPending:  len(postConnectCommands) > 0,
 	}
@@ -173,6 +174,7 @@ func startSSHShell(p StartSshShellPayload) (string, error) {
 	diagnostics.begin(sshConnectionHopTarget, sshConnectionStageShell)
 	if err := startSSHShellRelay(sid, proc, cols, rows); err != nil {
 		diagnostics.fail(sshConnectionHopTarget, sshConnectionStageShell, err)
+		removeControlledPane(sid)
 		sessions.finishStart(sid)
 		if current, ok := sessions.removeIfSame(sid, proc); ok {
 			shutdownShellProcess(current)
@@ -307,6 +309,7 @@ func relaySSHOutput(sessionID string, proc *shellProcess, stdout, stderr io.Read
 			batch.push(text)
 		}
 	}, func(data string) {
+		proc.recordControlOutput(data)
 		dispatchShellOutput(sessionID, data)
 	}, outputCoalesceWindow)
 	proc.mu.Lock()
@@ -315,6 +318,9 @@ func relaySSHOutput(sessionID string, proc *shellProcess, stdout, stderr io.Read
 	// 派生会话跑的是一条会正常退出的命令（用户敲 exit、docker logs 结束），
 	// 命令退出不是链路故障，不能进入 GracePeriod——否则重连会把命令再执行一遍。
 	if ephemeral {
+		if proc.control != nil {
+			proc.control.end()
+		}
 		if old, ok := sessions.removeIfSame(sessionID, proc); ok {
 			shutdownShellProcess(old)
 		}

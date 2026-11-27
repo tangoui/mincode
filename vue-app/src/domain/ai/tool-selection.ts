@@ -115,6 +115,7 @@ export const DEFAULT_AI_TOOL_MODULE_KEYWORDS: Readonly<
     "版本",
   ],
   system: ["system", "os", "port", "process", "系统", "端口", "进程"],
+  ai: ["conversation", "local agent", "claude code", "codex", "ai.", "会话", "对话", "本地 agent"],
 };
 
 interface CapabilitySelectionRequest {

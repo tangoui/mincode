@@ -10,6 +10,7 @@ import (
 func EndDebuggeeShell(sessionID string) {
 	sessionID = strings.TrimSpace(sessionID)
 	attention.forget(sessionID)
+	removeControlledPane(sessionID)
 	if proc, ok := sessions.removeKeepingOutput(sessionID); ok {
 		shutdownShellProcess(proc)
 	}
@@ -21,6 +22,7 @@ func EndDebuggeeShell(sessionID string) {
 func CloseLocalShell(sessionID string) {
 	sessionID = strings.TrimSpace(sessionID)
 	attention.forget(sessionID)
+	removeControlledPane(sessionID)
 	if proc, ok := sessions.removeWithOutput(sessionID); ok {
 		shutdownShellProcess(proc)
 	}

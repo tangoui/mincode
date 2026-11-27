@@ -130,7 +130,7 @@ export interface NativeAiCapabilityDependencies
     view: import("@/types/workspace").WorkspaceView;
   }): Promise<unknown>;
   httpAction?(input: Record<string, unknown>): Promise<unknown>;
-  databaseAction?(input: Record<string, unknown>): Promise<unknown>;
+  databaseAction?(input: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
   redisAction?(input: Record<string, unknown>): Promise<unknown>;
   databaseSnapshot?(): NativeAiDatabaseSnapshot;
   connectDatabase?(connectionId: string): Promise<unknown>;
@@ -138,6 +138,7 @@ export interface NativeAiCapabilityDependencies
   /** 插件驱动连接的审批预览标签（E-11）；内置驱动返回 undefined。 */
   databaseDriverLabel?(connectionId: string): string | undefined;
   settingsSummary?(): Record<string, unknown>;
+  configurableSettings?: import("./ai-tools/settings-tools").ConfigurableSettingsDependency;
   updateSafeSettings?(update: SafeSettingsUpdate): Promise<unknown>;
   sidebarVisibility?(): Promise<
     import("@/services/sidebar-preferences").SidebarVisibility
@@ -370,49 +371,32 @@ export function syncNativeAiResources(
     );
 }
 
+const global = (capability: Omit<AiCapability, "target">): AiCapability => ({
+  ...capability,
+  target: "none",
+});
+const tool = (
+  name: string,
+  description: string,
+  properties: Record<string, unknown> = {},
+  required: string[] = [],
+) => ({
+  name,
+  description,
+  inputSchema: {
+    type: "object",
+    properties,
+    ...(required.length ? { required } : {}),
+    additionalProperties: false,
+  },
+});
+
 function globalCapabilities(
   dependencies: NativeAiCapabilityDependencies,
 ): AiCapability[] {
-  const global = (capability: Omit<AiCapability, "target">): AiCapability => ({
-    ...capability,
-    target: "none",
-  });
-  const tool = (
-    name: string,
-    description: string,
-    properties: Record<string, unknown> = {},
-    required: string[] = [],
-  ) => ({
-    name,
-    description,
-    inputSchema: {
-      type: "object",
-      properties,
-      ...(required.length ? { required } : {}),
-      additionalProperties: false,
-    },
-  });
 
-  const askUser = dependencies.askUser;
   return [
-    ...(askUser ? [global({
-      module: "global",
-      discovery: true,
-      mode: "read",
-      risk: "read",
-      tool: tool(ASK_USER_TOOL_NAME, "Ask the user to choose or enter answers when their input is needed.", askUserInputSchema().properties, ["questions"]),
-      execute: async ({ input, conversationId, toolOrigin, signal }) => {
-        const questions = parseAskUserInput(input);
-        if (!toolOrigin?.triggerMessageId) throw new Error("子代理不能向用户提问，请把问题交回主会话");
-        return askUser({ conversationId, toolOrigin, questions, signal });
-      },
-    })] : []),
     ...workspaceCapabilities(dependencies),
-    ...(dependencies.runSubagentPlan
-      ? subagentCapabilities({
-          runPlan: dependencies.runSubagentPlan,
-        })
-      : []),
     ...(["database", "redis"] as const).map((module) =>
       global({
         module,
@@ -461,6 +445,36 @@ function globalCapabilities(
   ];
 }
 
+export type AiConversationCapabilityDeps = Pick<
+  NativeAiCapabilityDependencies,
+  "capabilities" | "askUser" | "runSubagentPlan"
+>;
+
+export function registerAiConversationCapabilities(dependencies: AiConversationCapabilityDeps) {
+  const askUser = dependencies.askUser;
+  const capabilities = [
+    ...(askUser ? [global({
+      module: "global",
+      discovery: true,
+      mode: "read",
+      risk: "read",
+      tool: tool(ASK_USER_TOOL_NAME, "Ask the user to choose or enter answers when their input is needed.", askUserInputSchema().properties, ["questions"]),
+      execute: async ({ input, conversationId, toolOrigin, signal }) => {
+        const questions = parseAskUserInput(input);
+        if (!toolOrigin?.triggerMessageId) throw new Error("子代理不能向用户提问，请把问题交回主会话");
+        return askUser({ conversationId, toolOrigin, questions, signal });
+      },
+    })] : []),
+    ...(dependencies.runSubagentPlan
+      ? subagentCapabilities({
+          runPlan: dependencies.runSubagentPlan,
+        })
+      : []),
+  ];
+  const unregister = capabilities.map((capability) => dependencies.capabilities.register(capability));
+  return () => unregister.forEach((stop) => stop());
+}
+
 export function registerNativeAiCapabilities(
   dependencies: NativeAiCapabilityDependencies,
 ) {
@@ -477,7 +491,11 @@ export function registerNativeAiCapabilities(
     ...globalCapabilities(dependencies),
     ...nativeCapabilities,
   ].map((capability) => dependencies.capabilities.register(capability));
-  return () => registrations.forEach((unregister) => unregister());
+  const stopConversation = registerAiConversationCapabilities(dependencies);
+  return () => {
+    registrations.forEach((unregister) => unregister());
+    stopConversation();
+  };
 }
 
 export async function executeNativeAiTool(

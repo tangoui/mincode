@@ -56,7 +56,7 @@ func StartProfileShell(spec ProfileShellSpec) (string, error) {
 			}
 			handle, err := startProfilePTY(spec, cols, rows)
 			return handle, "", err
-		}, spec.OnExit, nil)
+		}, spec.OnExit, nil, PaneInfo{CWD: spec.Cwd})
 }
 
 // AttachLocalShell reports whether a live local session with this ID exists.

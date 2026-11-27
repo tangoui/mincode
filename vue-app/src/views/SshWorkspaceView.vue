@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import {
   Connection,
   CopyDocument,
@@ -637,15 +637,27 @@ function openSavedFileTransfer(profile: SshConnectionProfile) {
   void router.push({ name: "sftp", query: { profile: profile.id } });
 }
 
-const unregisterSshWorkspaceActions = registerAiWorkspaceActionHandler("ssh", (input) => {
+async function handleSshWorkspaceAction(input: Record<string, unknown>, signal?: AbortSignal) {
+  if (input.action === "active-resource") {
+    const session = activeSession.value;
+    return session ? findSshWorkspacePane(session.root, session.activePaneId)?.profile.id : null;
+  }
   if (input.action !== "open-profile" || typeof input.profileId !== "string") {
     throw new Error("Unsupported SSH workspace action");
   }
+  if (!connections.hydrated) await connections.hydrate();
+  signal?.throwIfAborted();
   const profile = connections.findProfile(input.profileId);
-  if (!profile) throw new Error("The requested SSH profile was not found");
+  if (!profile) throw new Error(t("ai.navigation.resourceMissing", { id: input.profileId }));
   openSavedProfile(profile);
   return { profileId: profile.id, opened: true };
+}
+let unregisterSshWorkspaceActions = registerAiWorkspaceActionHandler("ssh", handleSshWorkspaceAction);
+onActivated(() => {
+  unregisterSshWorkspaceActions();
+  unregisterSshWorkspaceActions = registerAiWorkspaceActionHandler("ssh", handleSshWorkspaceAction);
 });
+onDeactivated(() => unregisterSshWorkspaceActions());
 
 function removeSshSessionTab(name: string | number) {
   if (typeof name === "string") void closeWorkspaceSession(name);

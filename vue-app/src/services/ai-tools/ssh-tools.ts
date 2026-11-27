@@ -1,3 +1,4 @@
+import { aiResourceSummary } from "./shared";
 import type { AiCapability } from "@/domain/ai/capability-registry";
 import type { AiResource } from "@/domain/ai/resource-registry";
 import type { SshRuntimeCredentials } from "@/domain/ssh/types";
@@ -111,7 +112,9 @@ export function sshCapabilities(dependencies: SshAiDependencies): AiCapability[]
     {
       module: "ssh", discovery: true, target: "none", mode: "read", risk: "read",
       tool: { name: "ssh.list_connections", description: "List saved SSH profiles without credentials.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
-      execute: () => dependencies.listResources("ssh.run_command"),
+      execute: ({ externalAgent, resources }) =>
+        (externalAgent ? resources?.list?.("ssh.run_command")?.map(aiResourceSummary) : undefined)
+        ?? dependencies.listResources("ssh.run_command"),
     },
     {
       module: "ssh", target: "none", mode: "read", risk: "read",

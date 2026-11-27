@@ -2,6 +2,16 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { nextTick } from "vue";
+import type { Router } from "vue-router";
+import { createAgentControlPaneOperation } from "@/services/agent-control-panes";
+import { pendingAgentControlTerminal } from "@/services/agent-control-terminal-launch";
+import { resolveTerminalLayoutTarget } from "@/domain/workspace/terminal-layout-scope";
+import { useWorkbenchStore } from "@/stores/workbench";
+import { useWorkspaceStatePreferencesStore } from "@/stores/workspace-state-preferences";
+
+const bridge = vi.hoisted(() => ({ paneInfo: vi.fn() }));
+vi.mock("@/services/agent-control-service", () => ({ invokeAgentControl: bridge.paneInfo }));
 
 const persisted = vi.hoisted(() => ({
   load: vi.fn<(key: string) => Promise<unknown>>(),
@@ -62,6 +72,50 @@ describe("terminal workspace store with terminal tabs", () => {
     expect(store.tabs).toHaveLength(1);
     expect(store.paneIds).toEqual(["pane-b1"]);
     expect(store.activePaneId).toBe("pane-b1");
+  });
+
+  it("keeps a new split when the active layout is selected again before persistence", async () => {
+    const store = await hydratedStore();
+    store.activateTab("tab-a", { initialCwd: "/work" });
+    store.persistLayout();
+    const original = store.activePaneId;
+    const first = store.splitPane(original, "horizontal");
+    expect(first).toBeTruthy();
+
+    store.activateTab("tab-a");
+    const second = store.splitPane(original, "vertical");
+    expect(second).toBeTruthy();
+    expect(store.allPaneIds).toEqual(expect.arrayContaining([original, first?.id, second?.id]));
+  });
+
+  it("opens a controlled terminal tab without replacing a shared layout", async () => {
+    const terminal = await hydratedStore();
+    const workbench = useWorkbenchStore();
+    const settings = useWorkspaceStatePreferencesStore();
+    const firstWorkspace = workbench.activeWorkspaceId;
+    const first = workbench.createTab("terminal");
+    expect(first).toBeTruthy();
+    await settings.setIsolationEnabled(false, firstWorkspace);
+    const target = resolveTerminalLayoutTarget(workbench.tabs, first!, false, firstWorkspace);
+    terminal.activateTab(first!.id, { initialCwd: "/work" }, target.layoutId, target.fallbackLayoutId);
+    terminal.splitPane(terminal.activePaneId, "horizontal");
+    const original = [...terminal.allPaneIds];
+
+    expect(workbench.createWorkspace("Another workspace")).toBeTruthy();
+    const router = {
+      push: async () => {
+        await nextTick();
+        pendingAgentControlTerminal(terminal.activePaneId)?.started();
+      },
+    } as unknown as Router;
+    bridge.paneInfo.mockImplementation(async (_command, { pane }) => ({
+      id: pane, title: "", cwd: "/work", alive: true, state: "idle",
+    }));
+    const operate = createAgentControlPaneOperation(router);
+    const result = await operate({ requestId: "new", op: "tab" }, new AbortController().signal);
+
+    expect(terminal.allPaneIds).toEqual([...original, result?.id]);
+    expect(terminal.tabs).toHaveLength(2);
   });
 
   it("normalizes a legacy layout without a valid activePaneId", async () => {
@@ -335,8 +389,9 @@ describe("terminal tab callers cover every terminal tab", () => {
     expect(drawer).not.toMatch(/terminalPanes\(terminalWorkspace\.root\)/);
     expect(drawer).not.toMatch(/terminalWorkspace\.root\b/);
     expect(drawer).toMatch(/\(\) => terminalWorkspace\.tabs/);
-    expect(drawer).toMatch(/aiCloseTargetForPane\(/);
-    expect(drawer).not.toMatch(/terminalWorkspace\.canClose/);
-    expect(drawer).toMatch(/terminalWorkspace\.closeTab\(/);
+    const host = source("src/services/app-ai-capability-deps.ts");
+    expect(host).toMatch(/aiCloseTargetForPane\(/);
+    expect(host).not.toMatch(/terminalWorkspace\.canClose/);
+    expect(host).toMatch(/terminalWorkspace\.closeTab\(/);
   });
 });

@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/UserExistsError/conpty"
+
+	"mincode/app/backend/agentcontrol"
 )
 
 // localPTYHandle 为跨平台 PTY 抽象，unix 用 creack/pty，windows 用 conpty。
@@ -24,8 +26,11 @@ type localPTYHandle interface {
 
 // windowsPTY 用 conpty 包装 ConPTY 会话，实现 localPTYHandle。
 type windowsPTY struct {
-	cp *conpty.ConPty
+	controlToken string
+	cp           *conpty.ConPty
 }
+
+func (w *windowsPTY) paneToken() string { return w.controlToken }
 
 func (w *windowsPTY) Read(p []byte) (int, error)  { return w.cp.Read(p) }
 func (w *windowsPTY) Write(p []byte) (int, error) { return w.cp.Write(p) }
@@ -189,13 +194,17 @@ func startLocalPTY(payload StartLocalShellPayload, cols, rows uint16) (localPTYH
 			env = append(env, k+"="+v)
 		}
 	}
+	executable := strings.ToLower(filepath.Base(shellCmd))
+	local := executable != "wsl" && executable != "wsl.exe"
+	env, token := paneEnvironment(env, payload.SessionID, controlCLIDir, local)
 	opts = append(opts, conpty.ConPtyEnv(env))
 
 	cp, err := conpty.Start(commandLine, opts...)
 	if err != nil {
+		agentcontrol.RevokePaneToken(payload.SessionID, token)
 		return nil, "", err
 	}
-	return &windowsPTY{cp: cp}, "", nil
+	return &windowsPTY{cp: cp, controlToken: token}, "", nil
 }
 
 func joinWindowsArgs(args []string) string {

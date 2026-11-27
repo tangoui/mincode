@@ -3,8 +3,10 @@ package terminal
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
+	"mincode/app/backend/agentcontrol"
 	"mincode/app/backend/core"
 )
 
@@ -173,9 +175,10 @@ func writeLocalShellInput(proc *shellProcess, input string) error {
 func writeToShell(payload WriteToShellPayload) error {
 	proc, ok := sessions.get(payload.SessionID)
 	if !ok {
-		return fmt.Errorf("Shell session not found")
+		return agentcontrol.ErrPaneNotFound
 	}
 	attention.observeInput(payload.SessionID, payload.Input)
+	proc.control.observeInput(payload.Input)
 	proc.mu.Lock()
 	local := proc.localPTY != nil
 	proc.mu.Unlock()
@@ -189,10 +192,23 @@ func writeToShell(payload WriteToShellPayload) error {
 // startLocalShell 对齐 Rust 侧 start_local_shell：创建/复用本地 PTY 会话，起读写
 // goroutine 通过 OutputBatch 合批推送 "shell-output" 事件。
 func startLocalShell(payload StartLocalShellPayload) (string, error) {
+	payload.SessionID = strings.TrimSpace(payload.SessionID)
+	cwd := strings.TrimSpace(derefStr(payload.Cwd))
+	if info, err := os.Stat(cwd); err != nil || !info.IsDir() {
+		cwd, _ = os.UserHomeDir()
+	}
+	agent := ""
+	if payload.ExtraEnv["MINCODE_CLI_TAB_TOKEN"] != "" {
+		agent = "claude"
+	}
+	info := PaneInfo{CWD: cwd, Agent: agent}
+	if len(payload.InitialArgs) > 0 {
+		info.State = "working"
+	}
 	return runLocalShellSession(payload.SessionID, payload.AttachIfExists, payload.Cols, payload.Rows, "start_local_shell",
 		func(cols, rows uint16) (localPTYHandle, string, error) {
 			return startLocalPTY(payload, cols, rows)
-		}, nil, nil)
+		}, nil, nil, info)
 }
 
 // runLocalShellSession owns the session lifecycle shared by user shells
@@ -205,7 +221,7 @@ func startLocalShell(payload StartLocalShellPayload) (string, error) {
 // after the process exits, until CloseLocalShell), marks output events with
 // their offset and reports the end as "command_exited" (debuggee sessions).
 func runLocalShellSession(rawSessionID string, attachIfExists bool, rawCols, rawRows *uint32, logLabel string,
-	start func(cols, rows uint16) (localPTYHandle, string, error), onExit func(), output *outputLog) (string, error) {
+	start func(cols, rows uint16) (localPTYHandle, string, error), onExit func(), output *outputLog, metadata ...PaneInfo) (string, error) {
 	sessionID := strings.TrimSpace(rawSessionID)
 	if sessionID == "" {
 		return "", fmt.Errorf("session_id 不能为空")
@@ -238,6 +254,13 @@ func runLocalShellSession(rawSessionID string, attachIfExists bool, rawCols, raw
 		stdinDone:    stdinDone,
 		sshLinkState: sshLinkActive,
 		output:       output,
+	}
+	if len(metadata) > 0 {
+		info := metadata[0]
+		proc.control = addControlledPane(sessionID, info.Title, info.CWD, info.Agent == "claude", handle)
+		if info.State == "working" {
+			proc.control.observeInput("\r")
+		}
 	}
 	old := sessions.publishStart(sessionID, proc)
 	if old != nil {
@@ -283,8 +306,12 @@ func runLocalShellSession(rawSessionID string, attachIfExists bool, rawCols, raw
 			}
 		}()
 		coalesceOutput(outCh, nil, (*outputBatch).push, func(data string) {
+			proc.recordControlOutput(data)
 			emitLoggedOutput(sessionID, data, output)
 		}, outputCoalesceWindow)
+		if proc.control != nil {
+			proc.control.end()
+		}
 		if output != nil {
 			emitShellCommandEnded(sessionID)
 			return

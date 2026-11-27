@@ -23,10 +23,13 @@ import (
 	"mincode/app/internal/host"
 
 	"mincode/app/backend"
+	"mincode/app/backend/agentcontrol"
 	"mincode/app/backend/core"
 	"mincode/app/backend/desktop"
 	"mincode/app/backend/e2esmoke"
+	"mincode/app/backend/externalmcp"
 	"mincode/app/backend/misc"
+	"mincode/app/backend/terminal"
 	"mincode/app/backend/terminalactivity"
 	"mincode/app/backend/updater"
 
@@ -99,7 +102,36 @@ func mustReadStdin() []byte {
 	return data
 }
 
+func controlCLIPath() string {
+	executable, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	name := "mincode"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	path := os.Getenv("MINCODE_CLI")
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(executable), name)
+	}
+	appFile, err := os.Stat(executable)
+	if err != nil {
+		return ""
+	}
+	if cliFile, err := os.Stat(path); err == nil && cliFile.Mode().IsRegular() && !os.SameFile(cliFile, appFile) {
+		return filepath.Dir(path)
+	}
+	return ""
+}
+
 func main() {
+	if externalmcp.IsHelper(os.Args[1:]) {
+		if err := externalmcp.RunStdio(os.Stdin, os.Stdout); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if terminalactivity.IsHookMode(os.Args[1:]) {
 		if err := terminalactivity.RunHook(mustReadStdin()); err != nil {
 			os.Exit(2)
@@ -208,6 +240,11 @@ func main() {
 		if err == nil && !primary {
 			app.Quit()
 			return
+		}
+
+		terminal.SetControlCLIPath(controlCLIPath())
+		if err := agentcontrol.Start(); err != nil {
+			log.Printf("agent control startup: %v", err)
 		}
 
 		titleBar := tango.TitleBarDefault
@@ -373,6 +410,7 @@ func main() {
 	})
 
 	err := app.Run()
+	agentcontrol.Shutdown()
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 8*time.Second)
 	backend.Shutdown(shutdownCtx)
 	cancelShutdown()

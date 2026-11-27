@@ -139,11 +139,13 @@ func startDerivedSSHSession(parentSessionID, sessionID, command string, wantPty 
 		sshLinkState:         sshLinkActive,
 		sshRecoveryMeta:      &sshRecoveryMeta{cols: cols, rows: rows},
 		remoteForwardTargets: &sync.Map{},
+		control:              addControlledPane(sessionID, "", "", false, nil),
 	}
 	if old := sessions.publishStart(sessionID, proc); old != nil {
 		shutdownShellProcess(old)
 	}
 	if err := startSSHSessionRelay(sessionID, proc, command, wantPty, cols, rows); err != nil {
+		removeControlledPane(sessionID)
 		sessions.finishStart(sessionID)
 		if current, ok := sessions.removeIfSame(sessionID, proc); ok {
 			shutdownShellProcess(current)

@@ -18,6 +18,9 @@ export interface AiCapabilityExecutionContext {
   input: Record<string, unknown>;
   signal: AbortSignal;
   conversationId?: string;
+  projectRoot?: string;
+  externalAgent?: boolean;
+  resources?: AiCapabilityResources;
   toolOrigin?: AiCapabilityToolOrigin;
 }
 
@@ -52,6 +55,7 @@ export interface AiCapability {
 }
 
 export interface AiCapabilityResources {
+  list?(capability: string): AiResource[];
   resolve(target: {
     resourceId?: string;
     name?: string;
@@ -87,6 +91,8 @@ export interface AiCapabilityExecutionDependencies {
   operations: AiCapabilityOperations;
   authorization?: AiCapabilityAuthorizationContext;
   conversationId?: string;
+  projectRoot?: string;
+  externalAgent?: boolean;
   toolOrigin?: AiCapabilityToolOrigin;
   signal?: AbortSignal;
 }
@@ -244,6 +250,9 @@ export function createCapabilityRegistry(): AiCapabilityRegistry {
               input,
               signal,
               conversationId: dependencies.conversationId,
+              projectRoot: dependencies.projectRoot,
+              externalAgent: dependencies.externalAgent,
+              resources: dependencies.resources,
               toolOrigin: dependencies.toolOrigin,
             }),
           ),
@@ -260,6 +269,9 @@ export function createCapabilityRegistry(): AiCapabilityRegistry {
             input,
             signal,
             conversationId: dependencies.conversationId,
+            projectRoot: dependencies.projectRoot,
+            externalAgent: dependencies.externalAgent,
+            resources: dependencies.resources,
             toolOrigin: dependencies.toolOrigin,
           }),
       });

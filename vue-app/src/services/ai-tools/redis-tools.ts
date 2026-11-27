@@ -25,11 +25,13 @@ function writeRedisKey(
   safety: AiSqlSafetyRunner,
   command: RedisWriteCommand,
   args: { sessionId: string; dbIndex: number; key: string } & Record<string, unknown>,
+  signal: AbortSignal,
 ) {
   return safety.run({
+    signal,
     sessionId: args.sessionId,
     operation: { kind: "redis", action: redisWriteActions[command], dbIndex: args.dbIndex, keys: [args.key] },
-    execute: (token) => dependencies.invoke(command, { ...args, ...safety.tokenArgs(token) }),
+    execute: (token) => dependencies.invoke(command, { ...args, ...safety.tokenArgs(token) }, signal ? { signal } : undefined),
   });
 }
 
@@ -119,9 +121,9 @@ export function redisCapabilities(dependencies: RedisToolDependencies): AiCapabi
     mode: "write",
     risk,
     approvalPreview: ({ input }) => `${requiredString(input, "key", name)} (value redacted)`,
-    execute: ({ input, resource }) => writeRedisKey(dependencies, safety, "redis_set_key", {
+    execute: ({ input, resource, signal }) => writeRedisKey(dependencies, safety, "redis_set_key", {
       ...keyArgs(input, resource, name), keyType, value: input.value,
-    }),
+    }, signal),
   });
 
   return [...workspaceActions,
@@ -151,27 +153,27 @@ export function redisCapabilities(dependencies: RedisToolDependencies): AiCapabi
       keyType: { type: "string", enum: ["string", "hash", "list", "set", "zset", "stream"] }, value: {},
     }), ["key", "keyType", "value"]), mode: "write", risk: "dangerous",
       approvalPreview: ({ input }) => `${requiredString(input, "key", "redis.add")} (value redacted)`,
-      execute: ({ input, resource }) => writeRedisKey(dependencies, safety, "redis_add_key", {
+      execute: ({ input, resource, signal }) => writeRedisKey(dependencies, safety, "redis_add_key", {
         ...keyArgs(input, resource, "redis.add"),
         keyType: requiredString(input, "keyType", "redis.add"),
         value: input.value,
-      }) }),
+      }, signal) }),
     setKey("redis.set", "string"),
     redis({ module: "redis", tool: tool("redis.delete", "Delete a Redis key.", keyProperties(), ["key"]),
       mode: "write", risk: "dangerous", approvalPreview: ({ input }) => requiredString(input, "key", "redis.delete"),
-      execute: ({ input, resource }) => writeRedisKey(dependencies, safety, "redis_delete_key", keyArgs(input, resource, "redis.delete")) }),
+      execute: ({ input, resource, signal }) => writeRedisKey(dependencies, safety, "redis_delete_key", keyArgs(input, resource, "redis.delete"), signal) }),
     redis({ module: "redis", tool: tool("redis.expire", "Set expiry seconds on a Redis key.", keyProperties({ ttlSeconds: { type: "integer", minimum: 1 } }), ["key", "ttlSeconds"]),
-      mode: "write", risk: "dangerous", execute: async ({ input, resource }) => {
+      mode: "write", risk: "dangerous", execute: async ({ input, resource, signal }) => {
         const ttlSeconds = expirySeconds(input);
         return writeRedisKey(dependencies, safety, "redis_set_ttl", {
           ...keyArgs(input, resource, "redis.expire"),
           ttlSeconds,
-        });
+        }, signal);
       } }),
     redis({ module: "redis", tool: tool("redis.persist", "Remove expiry from a Redis key.", keyProperties(), ["key"]),
-      mode: "write", risk: "dangerous", execute: ({ input, resource }) => writeRedisKey(dependencies, safety, "redis_set_ttl", {
+      mode: "write", risk: "dangerous", execute: ({ input, resource, signal }) => writeRedisKey(dependencies, safety, "redis_set_ttl", {
         ...keyArgs(input, resource, "redis.persist"), ttlSeconds: -1,
-      }) }),
+      }, signal) }),
     setKey("redis.set_hash", "hash"), setKey("redis.set_list", "list"), setKey("redis.set_set", "set"),
     setKey("redis.set_zset", "zset"), setKey("redis.set_stream", "stream"),
   ];

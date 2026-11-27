@@ -16,6 +16,7 @@ import (
 
 	"github.com/creack/pty"
 
+	"mincode/app/backend/agentcontrol"
 	"mincode/app/backend/core"
 	"mincode/app/backend/proctree"
 )
@@ -29,8 +30,9 @@ type localPTYHandle interface {
 
 // unixPTY 用 creack/pty 包装 os/exec.Cmd，实现 localPTYHandle。
 type unixPTY struct {
-	f   *os.File
-	cmd *exec.Cmd
+	controlToken string
+	f            *os.File
+	cmd          *exec.Cmd
 	// waited 在后台 cmd.Wait 回收子进程后关闭，避免遗留僵尸进程。
 	waited chan struct{}
 	// tty is the PTY's terminal device (proctree.TTYOf): processes still attached
@@ -56,6 +58,8 @@ func newUnixPTY(f *os.File, cmd *exec.Cmd) *unixPTY {
 	}()
 	return u
 }
+
+func (u *unixPTY) paneToken() string { return u.controlToken }
 
 func (u *unixPTY) Read(p []byte) (int, error)  { return u.f.Read(p) }
 func (u *unixPTY) Write(p []byte) (int, error) { return u.f.Write(p) }
@@ -187,6 +191,9 @@ func startLocalPTY(payload StartLocalShellPayload, cols, rows uint16) (localPTYH
 		}
 	}
 
+	var token string
+	cmd.Env, token = paneEnvironment(cmd.Env, payload.SessionID, controlCLIDir, true)
+
 	lower := strings.ToLower(shellCmd)
 	if strings.Contains(lower, "powershell") || strings.Contains(lower, "pwsh") {
 		cmd.Args = append(cmd.Args, "-NoLogo", "-NoProfile")
@@ -208,9 +215,12 @@ func startLocalPTY(payload StartLocalShellPayload, cols, rows uint16) (localPTYH
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: rows, Cols: cols})
 	if err != nil {
+		agentcontrol.RevokePaneToken(payload.SessionID, token)
 		return nil, "", err
 	}
-	return newUnixPTY(f, cmd), fallbackFrom, nil
+	handle := newUnixPTY(f, cmd)
+	handle.controlToken = token
+	return handle, fallbackFrom, nil
 }
 
 func findExecutable(command, searchPath string) string {

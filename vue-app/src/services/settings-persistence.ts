@@ -14,6 +14,8 @@ let runtimeSnapshot: SettingsRecord | null = null;
 let hydrationPromise: Promise<SettingsRecord | null> | null = null;
 /** Reactive counter incremented on every persist; use as a computed/watch dependency. */
 export const settingsSnapshotVersion = shallowRef(0);
+/** Keys changed by a settings tool after the write has committed. */
+export const settingsToolChange = shallowRef<readonly string[]>([]);
 
 function isRecord(value: unknown): value is SettingsRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -119,10 +121,10 @@ export function updateSettingsRuntimeSnapshot(value: SettingsRecord): void {
  */
 export async function persistSettingsSnapshot(
   value: SettingsRecord,
-  options: { strict?: boolean } = {}
+  options: { strict?: boolean; toolKeys?: readonly string[] } = {}
 ) {
   const nextSnapshot = clonePersistable(normalizeLegacyAiProfiles(value));
-  updateSettingsRuntimeSnapshot(nextSnapshot);
+  if (!options.toolKeys) updateSettingsRuntimeSnapshot(nextSnapshot);
   if (!isDesktopRuntime()) storeBrowserAiKeys(nextSnapshot);
   await saveSecurePersistedValue(
     SETTINGS_STORAGE_KEY,
@@ -130,4 +132,8 @@ export async function persistSettingsSnapshot(
     sanitizeSettingsForBrowser(nextSnapshot),
     options
   );
+  if (options.toolKeys) {
+    updateSettingsRuntimeSnapshot(nextSnapshot);
+    settingsToolChange.value = options.toolKeys;
+  }
 }

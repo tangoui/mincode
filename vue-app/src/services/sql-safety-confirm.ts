@@ -10,7 +10,7 @@
  * 安全网关闭时后端仍签发令牌（全部为低风险、不可撤回），此时显示通用确认文案，不显示留底信息。
  */
 import { h } from "vue";
-import { ElMessageBox } from "element-plus";
+import { ElMessageBox, type ElMessageBoxOptions } from "element-plus";
 import SqlSafetyConfirmContent from "@/components/database/safety/SqlSafetyConfirmContent.vue";
 import {
   confirmTargetMatches,
@@ -19,6 +19,7 @@ import {
   type SqlSafetyOrigin,
 } from "@/domain/database/sql-safety";
 import { useVueI18n } from "@/i18n/messages";
+import { throwIfAborted } from "@/domain/async/abort";
 import { invokeBackend } from "@/services/desktop-bridge";
 
 /** 安全网是否开启；读取失败时按开启处理（只影响说明文案，不影响是否确认）。 */
@@ -44,12 +45,22 @@ export async function confirmSqlSafety(
   origin: SqlSafetyOrigin,
   notice?: SqlSafetyConfirmNotice,
   summary?: readonly string[],
+  signal?: AbortSignal,
 ): Promise<{ confirmText?: string } | undefined> {
+  throwIfAborted(signal);
   if (!notice && check.risk === "none") return {};
   if (!notice && check.risk === "low" && (origin === "preconfirmed" || origin === "ai")) return {};
   const { t } = useVueI18n();
   const enabled = await sqlSafetyEnabled();
-  const message = () => h(SqlSafetyConfirmContent, { check, enabled, notice, summary });
+  throwIfAborted(signal);
+  let cancelBox: (() => void) | undefined;
+  const onAbort = () => cancelBox?.();
+  const message: ElMessageBoxOptions["message"] = ({ cancel }) => {
+    cancelBox = cancel;
+    if (signal?.aborted) queueMicrotask(cancel);
+    return h(SqlSafetyConfirmContent, { check, enabled, notice, summary });
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
   const common = {
     confirmButtonText: t("database.safety.execute"),
     cancelButtonText: t("common.cancel"),
@@ -72,7 +83,10 @@ export async function confirmSqlSafety(
     });
     return {};
   } catch (cause) {
+    throwIfAborted(signal);
     if (cancelled(cause)) return undefined;
     throw cause;
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
   }
 }

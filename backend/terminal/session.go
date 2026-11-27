@@ -36,6 +36,7 @@ type remoteForwardTarget struct {
 
 // shellProcess 对齐 Rust 侧 ShellProcess：本地 PTY 或 SSH shell 的运行时状态。
 type shellProcess struct {
+	control        *controlledPane
 	mu             sync.Mutex
 	inputMu        sync.Mutex
 	sshReconnectMu sync.Mutex

@@ -24,7 +24,7 @@ vi.mock("@/services/desktop-bridge", async (importOriginal) => ({
     return () => handlers.delete(handler);
   },
 }));
-import { useAcpAgentStart } from "@/composables/use-acp-agent-start";
+import { useAcpAgentStart, type ConversationAgentStart } from "@/composables/use-acp-agent-start";
 import { useAiAssistantStore } from "@/stores/ai-assistant";
 
 let scope: EffectScope | undefined;
@@ -43,7 +43,7 @@ function setup(selected: string, markServersDisconnected: (serverIds: string[]) 
       markServersDisconnected,
     }),
   )!;
-  const start = (overrides: { conversationId?: string; recordedAdapterId?: string; hasPreviousSession?: boolean } = {}) =>
+  const start = (overrides: Partial<ConversationAgentStart> = {}) =>
     startConversationAgent({
       conversationId: "conversation-1",
       hasPreviousSession: false,

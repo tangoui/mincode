@@ -143,6 +143,9 @@ export type AiConversationStatus =
 
 export interface AiConversation extends AiAssistantSnapshot {
   id: string;
+  /** Explicit adapter and approval overrides for a conversation created through the session tools. */
+  requestedAgentId?: string;
+  fullAccess?: boolean;
   /** Stable business ownership used by the global conversation filter. */
   workspaceId?: string;
   /** Name snapshot retained after the workspace is deleted. */
@@ -1349,18 +1352,41 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
       detailsLoaded: true,
     };
   }
-  function createConversation(nextMode: AiAssistantMode = mode.value) {
-    syncActiveConversation();
+  function insertConversation(nextMode: AiAssistantMode, options?: {
+    title?: string;
+    cwd?: string;
+    agentId?: string;
+    fullAccess: boolean;
+  }) {
+    const owner = options && activeWorkspaceScopeId.value !== topWorkspaceScopeId.value
+      ? activeConversation.value
+      : undefined;
     const conversation = newConversation(nextMode, {
-      workspaceId: topWorkspaceId.value,
-      workspaceName: topWorkspaceName.value || undefined,
+      workspaceId: owner?.workspaceId ?? topWorkspaceId.value,
+      workspaceName: owner?.workspaceName ?? (topWorkspaceName.value || undefined),
       workspaceScopeId: activeWorkspaceScopeId.value,
-      projectRoot: topWorkspaceProjectRoot.value,
+      projectRoot: options?.cwd ?? owner?.projectRoot ?? topWorkspaceProjectRoot.value,
     });
+    if (options) {
+      conversation.title = normalizeAiConversationTitle(options.title ?? "");
+      conversation.requestedAgentId = options.agentId;
+      if (options.fullAccess) conversation.fullAccess = true;
+    }
     conversations.value.unshift(conversation);
-    activeConversationId.value = conversation.id;
     markWorkspaceMetaDirty();
     markConversationDirty(conversation.id);
+    return conversation;
+  }
+  function createBackgroundConversation(
+    nextMode: AiAssistantMode,
+    options: NonNullable<Parameters<typeof insertConversation>[1]>,
+  ) {
+    return insertConversation(nextMode, options);
+  }
+  function createConversation(nextMode: AiAssistantMode = mode.value) {
+    syncActiveConversation();
+    const conversation = insertConversation(nextMode);
+    activeConversationId.value = conversation.id;
     restoreSnapshot(conversation, false, false);
     return conversation;
   }
@@ -2520,7 +2546,7 @@ export const useAiAssistantStore = defineStore("ai-assistant", () => {
     addMessage, addMessageToConversation, removeMessageFromConversation, setMessagePresentation, setMessageTokenUsage, setConversationAgentHistory, updateLastAssistant, updateLastAssistantForConversation,
     appendAssistantMessageForConversation, upsertAgentEvent, upsertAgentEventForConversation, removeAgentEventForConversation, clearAgentEvents, anchorUnassignedAgentEvents, settleRunningAgentEvents,
     enqueueMessage, prioritizeQueuedMessage, dequeueMessage, removeQueuedMessage, updateQueuedMessage, queueLength,
-    createConversation, createDelegatedConversation, recordDelegatedConversationResult, delegatedConversationReports, conversationFamily, setConversationWorkspace, moveConversationToWorkspace, switchConversation, renameConversation, setConversationArchived, setConversationPinned, deleteConversation, clearConversationMessages, clearConversationHistory,
+    createConversation, createBackgroundConversation, createDelegatedConversation, recordDelegatedConversationResult, delegatedConversationReports, conversationFamily, setConversationWorkspace, moveConversationToWorkspace, switchConversation, renameConversation, setConversationArchived, setConversationPinned, deleteConversation, clearConversationMessages, clearConversationHistory,
     setActiveConversationStatus, setConversationStatus, setConversationUnread, markConversationRead, setConversationPermission,
     setConversationAgentState, markAcpServersDisconnected, conversationById, ensureConversationDetails, rewindConversationTo, findConversationByAcpSession, snapshot, persistedSnapshot, restoreSnapshot, flushPersistence,
   };

@@ -119,7 +119,7 @@ test("attention is wired into the tab bar, sessions, sidebar, badge and settings
     "../src/components/layout/AppTabBar.vue",
     "../src/views/SessionsWorkspaceView.vue",
     "../src/components/layout/AppSidebar.vue",
-    "../src/views/SettingsWorkspaceView.vue",
+    "../src/services/settings-model.ts",
     "../src/components/settings/TerminalSettingsPanel.vue",
     "../src/i18n/locales/zh.ts",
     "../src/i18n/locales/en.ts",

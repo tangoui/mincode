@@ -13,6 +13,7 @@
  * runWithSafety / 确认框由宿主注入（ai-native-tools），本模块不直接依赖 UI。
  * 错误消息与日志不含语句文本、键或值。
  */
+import { throwIfAborted } from "@/domain/async/abort";
 import { parseSqlSafetyCheck, type SqlSafetyCheck } from "@/domain/database/sql-safety";
 import type {
   RunWithSafetyOptions,
@@ -56,6 +57,8 @@ export interface AiRowWrite {
   table: string;
   write: RowWrite;
   conversationId?: string;
+  externalAgent?: boolean;
+  signal?: AbortSignal;
 }
 
 export type AiSafetyRunOptions<T> = Omit<RunWithSafetyOptions<T>, "source" | "origin" | "check" | "confirm">;
@@ -102,18 +105,29 @@ export function createAiSqlSafety(
   }
 
   async function run<T>(options: AiSafetyRunOptions<T>): Promise<T> {
+    const { signal, ...request } = options;
+    throwIfAborted(signal);
     let declined: string | undefined;
     const confirm: SqlSafetyConfirm = async (check, origin, notice) => {
+      throwIfAborted(signal);
       if (!notice && check.risk !== "high") return {};
-      const answer = await sqlSafety.confirm(check, origin, notice);
+      const answer = await sqlSafety.confirm(check, origin, notice, undefined, signal);
+      throwIfAborted(signal);
       if (!answer) declined = notice ? AI_DECLINED[notice] : AI_DECLINED_HIGH_RISK;
       return answer;
     };
     const result = await sqlSafety.runWithSafety<T>({
-      ...options,
+      ...request,
       source: "ai",
       origin: "ai",
-      check: async (args) => parseSqlSafetyCheck(await invoke<unknown>("db_safety_check", { ...args })),
+      execute: (token) => {
+        throwIfAborted(signal);
+        return request.execute(token);
+      },
+      check: async (args) => {
+        throwIfAborted(signal);
+        return parseSqlSafetyCheck(await invoke<unknown>("db_safety_check", { ...args }, signal ? { signal } : undefined));
+      },
       confirm,
     });
     if (declined) throw new Error(declined);
@@ -148,14 +162,16 @@ export function createAiSqlSafety(
 
   async function runRowWrite<T>(row: AiRowWrite, body: () => Promise<T>): Promise<T> {
     const settings = await rowSettings();
-    const key = `${row.sessionId}\u0000${row.conversationId ?? ""}`;
+    throwIfAborted(row.signal);
+    const key = `${row.sessionId}\u0000${row.externalAgent ? "external-agent" : row.conversationId ?? ""}`;
     let entry = rowCounts.get(key);
     if (!entry) {
       entry = { rows: 0 };
       rowCounts.set(key, entry);
     }
     if (settings.enabled && entry.rows >= settings.highRiskRows) {
-      const answer = await sqlSafety.confirm(rowThresholdCheck(row, entry.rows + 1), "ai", "aiRowThreshold");
+      const answer = await sqlSafety.confirm(rowThresholdCheck(row, entry.rows + 1), "ai", "aiRowThreshold", undefined, row.signal);
+      throwIfAborted(row.signal);
       if (!answer) throw new Error(AI_DECLINED_HIGH_RISK);
       entry.rows = 0;
     }
